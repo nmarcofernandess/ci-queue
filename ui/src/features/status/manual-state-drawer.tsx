@@ -1,13 +1,15 @@
 import * as React from "react"
+import {
+  CheckCircle2Icon,
+  CircleDotIcon,
+  LoaderCircleIcon,
+  PencilIcon,
+  PlusIcon,
+  Trash2Icon,
+  XIcon,
+} from "lucide-react"
+import { toast } from "sonner"
 
-import { writeDashboardState } from "@/lib/api"
-import type {
-  DashboardMeta,
-  DashboardNote,
-  DashboardState,
-  DashboardStateMutation,
-} from "@/lib/types"
-import { useIsMobile } from "@/hooks/use-mobile"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -40,19 +43,35 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
+import {
   Item,
   ItemActions,
   ItemContent,
   ItemDescription,
   ItemGroup,
+  ItemMedia,
   ItemTitle,
 } from "@/components/ui/item"
+import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import { formatDateTime } from "@/features/shared/format"
+import { EmptyState } from "@/features/shared/async-state"
+import { formatDateTime, shortSha } from "@/features/shared/format"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
-import { LoaderCircleIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { writeDashboardState } from "@/lib/api"
+import type {
+  DashboardMeta,
+  DashboardNote,
+  DashboardState,
+  DashboardStateMutation,
+} from "@/lib/types"
 
 type MetaForm = {
   name: string
@@ -72,42 +91,49 @@ function metaToForm(meta: DashboardMeta | null): MetaForm {
     : { name: "", description: "", headSha: "", presets: [] }
 }
 
-function noteToForm(note: DashboardNote | undefined) {
-  return { title: note?.title ?? "", text: note?.text ?? "" }
-}
-
 function MetaEditor({
   state,
-  unavailable,
   saving,
-  onMutate,
+  unavailable,
+  onSave,
+  onCancel,
 }: {
   state: DashboardState
-  unavailable: boolean
   saving: boolean
-  onMutate: (mutation: DashboardStateMutation) => void
+  unavailable: boolean
+  onSave: (mutation: DashboardStateMutation) => Promise<boolean>
+  onCancel: () => void
 }) {
   const [form, setForm] = React.useState<MetaForm>(() => metaToForm(state.meta))
+  const [futurePreset, setFuturePreset] = React.useState("")
+  const availablePresets = [...new Set([...state.presets, ...form.presets])]
 
-  const togglePreset = (preset: string, checked: boolean) => {
+  const togglePreset = (preset: string, selected: boolean) => {
     setForm((current) => ({
       ...current,
-      presets: checked
+      presets: selected
         ? [...new Set([...current.presets, preset])]
         : current.presets.filter((item) => item !== preset),
     }))
   }
 
+  const addFuturePreset = () => {
+    const preset = futurePreset.trim()
+    if (!preset) return
+    togglePreset(preset, true)
+    setFuturePreset("")
+  }
+
   return (
     <form
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-6"
       onSubmit={(event) => {
         event.preventDefault()
-        onMutate({
+        void onSave({
           revision: state.revision,
           action: "save-meta",
           meta: form,
-        })
+        }).then((saved) => saved && onCancel())
       }}
     >
       <FieldSet>
@@ -129,26 +155,6 @@ function MetaEditor({
             </FieldContent>
           </Field>
           <Field>
-            <FieldLabel htmlFor="meta-sha">SHA alvo</FieldLabel>
-            <FieldContent>
-              <Input
-                id="meta-sha"
-                value={form.headSha}
-                spellCheck={false}
-                disabled={unavailable || saving}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    headSha: event.target.value,
-                  }))
-                }
-              />
-              <FieldDescription>
-                Use o SHA completo do commit que a meta acompanha.
-              </FieldDescription>
-            </FieldContent>
-          </Field>
-          <Field>
             <FieldLabel htmlFor="meta-description">Descrição</FieldLabel>
             <FieldContent>
               <Textarea
@@ -164,107 +170,283 @@ function MetaEditor({
               />
             </FieldContent>
           </Field>
+          <Field>
+            <FieldLabel htmlFor="meta-sha">SHA alvo</FieldLabel>
+            <FieldContent>
+              <Input
+                id="meta-sha"
+                value={form.headSha}
+                spellCheck={false}
+                disabled={unavailable || saving}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    headSha: event.target.value,
+                  }))
+                }
+              />
+              <FieldDescription>
+                Commit completo acompanhado pela meta.
+              </FieldDescription>
+            </FieldContent>
+          </Field>
         </FieldGroup>
       </FieldSet>
+
       <FieldSet>
-        <legend className="text-sm font-medium">Presets acompanhados</legend>
+        <legend className="text-sm font-medium">Requisitos</legend>
         <FieldGroup>
-          {state.presets.map((preset) => (
+          {availablePresets.map((preset) => (
             <Field key={preset} orientation="horizontal">
               <Checkbox
-                id={`preset-${preset}`}
+                id={`meta-preset-${preset}`}
                 checked={form.presets.includes(preset)}
                 disabled={unavailable || saving}
                 onCheckedChange={(checked) =>
                   togglePreset(preset, checked === true)
                 }
               />
-              <FieldLabel htmlFor={`preset-${preset}`}>{preset}</FieldLabel>
+              <FieldLabel htmlFor={`meta-preset-${preset}`}>
+                {preset}
+              </FieldLabel>
             </Field>
           ))}
+          <Field>
+            <FieldLabel htmlFor="future-preset">Receita futura</FieldLabel>
+            <FieldContent>
+              <InputGroup>
+                <InputGroupInput
+                  id="future-preset"
+                  value={futurePreset}
+                  placeholder="Nome do preset ainda não declarado"
+                  disabled={unavailable || saving}
+                  onChange={(event) => setFuturePreset(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      addFuturePreset()
+                    }
+                  }}
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    onClick={addFuturePreset}
+                    disabled={!futurePreset.trim() || unavailable || saving}
+                  >
+                    <PlusIcon data-icon />
+                    Adicionar
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+            </FieldContent>
+          </Field>
         </FieldGroup>
       </FieldSet>
-      <div className="flex flex-wrap gap-2">
+
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={saving}
+        >
+          Cancelar
+        </Button>
         <Button type="submit" disabled={unavailable || saving}>
           {saving ? (
             <LoaderCircleIcon data-icon className="animate-spin" />
           ) : null}
           Salvar meta
         </Button>
-        {state.meta ? (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={unavailable || saving}
-              >
-                Remover meta
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remover a meta manual?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Os registros de execução permanecem disponíveis.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() =>
-                    onMutate({
-                      revision: state.revision,
-                      action: "remove-meta",
-                    })
-                  }
-                  variant="destructive"
-                >
-                  Remover
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        ) : null}
       </div>
     </form>
   )
 }
 
-function NoteEditor({
-  note,
+function RemoveMetaButton({
   state,
-  unavailable,
   saving,
   onMutate,
 }: {
-  note: DashboardNote | undefined
   state: DashboardState
-  unavailable: boolean
   saving: boolean
-  onMutate: (mutation: DashboardStateMutation) => void
+  onMutate: (mutation: DashboardStateMutation) => Promise<boolean>
 }) {
-  const [form, setForm] = React.useState(() => noteToForm(note))
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button type="button" variant="destructive" disabled={saving}>
+          <Trash2Icon data-icon />
+          Remover
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remover a meta?</AlertDialogTitle>
+          <AlertDialogDescription>
+            As execuções e seus verdes permanecem no histórico.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={() =>
+              void onMutate({ revision: state.revision, action: "remove-meta" })
+            }
+          >
+            Remover
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
 
+function MetaRead({
+  state,
+  onEdit,
+  onOpenJob,
+  saving,
+  onMutate,
+}: {
+  state: DashboardState
+  onEdit: () => void
+  onOpenJob: (jobId: string) => void
+  saving: boolean
+  onMutate: (mutation: DashboardStateMutation) => Promise<boolean>
+}) {
+  const meta = state.meta
+  if (!meta) {
+    return (
+      <EmptyState
+        title="Nenhuma meta declarada"
+        description="Declare um único objetivo e as receitas necessárias para chegar a main."
+      >
+        <Button type="button" onClick={onEdit}>
+          <PlusIcon data-icon />
+          Declarar meta
+        </Button>
+      </EmptyState>
+    )
+  }
+
+  const passed = meta.checks.filter((check) => check.status === "passed").length
+  const total = meta.checks.length
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-medium">{meta.name}</h3>
+          {meta.description ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {meta.description}
+            </p>
+          ) : null}
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+          <PencilIcon data-icon />
+          Editar
+        </Button>
+      </div>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <span>
+            {passed} de {total} requisitos atendidos
+          </span>
+          <span className="text-xs text-muted-foreground">
+            Commit <span className="font-mono">{shortSha(meta.headSha)}</span>
+          </span>
+        </div>
+        <Progress value={total ? (passed / total) * 100 : 0} />
+      </div>
+      <Separator />
+      {meta.checks.length ? (
+        <ItemGroup>
+          {meta.checks.map((check) => (
+            <Item key={check.preset} variant="outline" size="sm">
+              <ItemMedia variant="icon">
+                {check.status === "passed" ? (
+                  <CheckCircle2Icon />
+                ) : (
+                  <CircleDotIcon />
+                )}
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>
+                  {check.status === "passed" && check.ticketId ? (
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="h-auto p-0"
+                      onClick={() => onOpenJob(check.ticketId!)}
+                    >
+                      {check.preset}
+                    </Button>
+                  ) : (
+                    check.preset
+                  )}
+                </ItemTitle>
+              </ItemContent>
+              <ItemActions>
+                <Badge variant="outline">
+                  {check.status === "passed"
+                    ? "Verde elegível"
+                    : check.status === "recipe-missing"
+                      ? "Receita não declarada"
+                      : "Sem verde elegível"}
+                </Badge>
+              </ItemActions>
+            </Item>
+          ))}
+        </ItemGroup>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Nenhum requisito definido.
+        </p>
+      )}
+      <div className="flex justify-end">
+        <RemoveMetaButton state={state} saving={saving} onMutate={onMutate} />
+      </div>
+    </div>
+  )
+}
+
+function NoteForm({
+  note,
+  state,
+  saving,
+  unavailable,
+  onSave,
+  onCancel,
+}: {
+  note?: DashboardNote
+  state: DashboardState
+  saving: boolean
+  unavailable: boolean
+  onSave: (mutation: DashboardStateMutation) => Promise<boolean>
+  onCancel: () => void
+}) {
+  const [title, setTitle] = React.useState(note?.title ?? "")
+  const [text, setText] = React.useState(note?.text ?? "")
   return (
     <form
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-5"
       onSubmit={(event) => {
         event.preventDefault()
-        if (note) {
-          onMutate({
-            revision: state.revision,
-            action: "update-note",
-            id: note.id,
-            note: form,
-          })
-        } else {
-          onMutate({
-            revision: state.revision,
-            action: "save-note",
-            note: form,
-          })
-        }
+        const mutation: DashboardStateMutation = note
+          ? {
+              revision: state.revision,
+              action: "update-note",
+              id: note.id,
+              note: { title, text },
+            }
+          : {
+              revision: state.revision,
+              action: "save-note",
+              note: { title, text },
+            }
+        void onSave(mutation).then((saved) => saved && onCancel())
       }}
     >
       <FieldSet>
@@ -274,188 +456,254 @@ function NoteEditor({
             <FieldContent>
               <Input
                 id="note-title"
-                value={form.title}
-                disabled={unavailable || saving}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    title: event.target.value,
-                  }))
-                }
+                value={title}
+                disabled={saving || unavailable}
+                onChange={(event) => setTitle(event.target.value)}
               />
             </FieldContent>
           </Field>
           <Field>
-            <FieldLabel htmlFor="note-text">Texto</FieldLabel>
+            <FieldLabel htmlFor="note-text">Notas</FieldLabel>
             <FieldContent>
               <Textarea
                 id="note-text"
-                value={form.text}
-                disabled={unavailable || saving}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    text: event.target.value,
-                  }))
-                }
+                value={text}
+                disabled={saving || unavailable}
+                onChange={(event) => setText(event.target.value)}
               />
             </FieldContent>
           </Field>
         </FieldGroup>
       </FieldSet>
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={unavailable || saving}>
+      <div className="flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={saving}
+          onClick={onCancel}
+        >
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={saving || unavailable}>
           {saving ? (
             <LoaderCircleIcon data-icon className="animate-spin" />
           ) : null}
-          {note ? "Salvar nota" : "Adicionar nota"}
+          Salvar
         </Button>
-        {note ? (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={unavailable || saving}
-              >
-                <Trash2Icon data-icon />
-                Remover nota
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remover a nota manual?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  A remoção afeta apenas esta informação do painel.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() =>
-                    onMutate({
-                      revision: state.revision,
-                      action: "remove-note",
-                      id: note.id,
-                    })
-                  }
-                  variant="destructive"
-                >
-                  Remover
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        ) : null}
       </div>
     </form>
   )
 }
 
-function NotesEditor({
+function RemoveNoteButton({
+  note,
   state,
-  unavailable,
   saving,
+  onMutate,
+  onRemoved,
+}: {
+  note: DashboardNote
+  state: DashboardState
+  saving: boolean
+  onMutate: (mutation: DashboardStateMutation) => Promise<boolean>
+  onRemoved: () => void
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button type="button" variant="destructive" disabled={saving}>
+          <Trash2Icon data-icon />
+          Remover
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remover esta pendência?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Esta nota manual será removida do painel.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={() =>
+              void onMutate({
+                revision: state.revision,
+                action: "remove-note",
+                id: note.id,
+              }).then((removed) => removed && onRemoved())
+            }
+          >
+            Remover
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+function NotesSurface({
+  state,
+  selectedId,
+  onSelect,
+  saving,
+  unavailable,
   onMutate,
 }: {
   state: DashboardState
-  unavailable: boolean
+  selectedId?: string
+  onSelect: (noteId: string | undefined) => void
   saving: boolean
-  onMutate: (mutation: DashboardStateMutation) => void
+  unavailable: boolean
+  onMutate: (mutation: DashboardStateMutation) => Promise<boolean>
 }) {
-  const [selectedNoteId, setSelectedNoteId] = React.useState<string>()
-  const [draftVersion, setDraftVersion] = React.useState(0)
-  const selectedNote = state.notes.find((note) => note.id === selectedNoteId)
+  const [editing, setEditing] = React.useState<"new" | "selected" | null>(null)
+  const selected = state.notes.find((note) => note.id === selectedId)
+
+  if (editing) {
+    return (
+      <NoteForm
+        key={`${editing}-${selected?.id || "new"}-${state.revision}`}
+        note={editing === "selected" ? selected : undefined}
+        state={state}
+        saving={saving}
+        unavailable={unavailable}
+        onSave={onMutate}
+        onCancel={() => setEditing(null)}
+      />
+    )
+  }
+
+  if (selected) {
+    return (
+      <div className="flex flex-col gap-5">
+        <div>
+          <h3 className="font-medium">{selected.title}</h3>
+          <p className="text-sm text-muted-foreground">
+            Atualizada em {formatDateTime(selected.updatedAt)}
+          </p>
+        </div>
+        <p className="text-sm whitespace-pre-wrap">
+          {selected.text || "Sem notas."}
+        </p>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onSelect(undefined)}
+          >
+            Voltar
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setEditing("selected")}
+          >
+            <PencilIcon data-icon />
+            Editar
+          </Button>
+          <RemoveNoteButton
+            note={selected}
+            state={state}
+            saving={saving}
+            onMutate={onMutate}
+            onRemoved={() => onSelect(undefined)}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-5">
-      <Button
-        type="button"
-        variant="outline"
-        disabled={unavailable || saving}
-        onClick={() => {
-          setSelectedNoteId(undefined)
-          setDraftVersion((value) => value + 1)
-        }}
-      >
-        <PlusIcon data-icon />
-        Nova nota
-      </Button>
+      <div className="flex justify-end">
+        <Button type="button" onClick={() => setEditing("new")}>
+          <PlusIcon data-icon />
+          Nova pendência
+        </Button>
+      </div>
       {state.notes.length ? (
         <ItemGroup>
           {state.notes.map((note) => (
             <Item key={note.id} variant="outline">
               <ItemContent>
-                <ItemTitle>{note.title}</ItemTitle>
-                <ItemDescription>
-                  Atualizada em {formatDateTime(note.updatedAt)}
-                </ItemDescription>
+                <ItemTitle>
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="h-auto p-0"
+                    onClick={() => onSelect(note.id)}
+                  >
+                    {note.title}
+                  </Button>
+                </ItemTitle>
+                <ItemDescription>{note.text || "Sem notas."}</ItemDescription>
               </ItemContent>
               <ItemActions>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedNoteId(note.id)}
-                >
-                  Editar
-                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {formatDateTime(note.updatedAt)}
+                </span>
               </ItemActions>
             </Item>
           ))}
         </ItemGroup>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          Nenhuma nota manual registrada.
-        </p>
+        <EmptyState
+          title="Nenhuma pendência"
+          description="Registre uma nota manual quando houver algo para acompanhar."
+        >
+          <Button type="button" onClick={() => setEditing("new")}>
+            <PlusIcon data-icon />
+            Nova pendência
+          </Button>
+        </EmptyState>
       )}
-      <NoteEditor
-        key={`${state.revision}-${selectedNote?.id ?? "new"}-${draftVersion}`}
-        note={selectedNote}
-        state={state}
-        unavailable={unavailable}
-        saving={saving}
-        onMutate={onMutate}
-      />
     </div>
   )
 }
 
 export function ManualStateDrawer({
   state,
-  initialTab = "meta",
+  surface,
+  initialNoteId,
   onClose,
   onSaved,
+  onOpenJob,
 }: {
   state: DashboardState
-  initialTab?: "meta" | "notes"
+  surface: "meta" | "notes"
+  initialNoteId?: string
   onClose: () => void
   onSaved: () => void
+  onOpenJob: (jobId: string) => void
 }) {
   const isMobile = useIsMobile()
   const session = useDashboardSession()
-  const [tab, setTab] = React.useState<"meta" | "notes">(initialTab)
   const [saving, setSaving] = React.useState(false)
-  const [mutationError, setMutationError] = React.useState<string>()
+  const [editingMeta, setEditingMeta] = React.useState(false)
+  const [activeNoteId, setActiveNoteId] = React.useState(initialNoteId)
   const unavailable = Boolean(session.error || !session.data)
+  const activeNote = state.notes.find((note) => note.id === activeNoteId)
 
   const mutate = async (mutation: DashboardStateMutation) => {
     if (!session.data?.csrfToken) {
-      setMutationError("A sessão da bridge não está disponível para salvar.")
-      return
+      toast.error("A sessão da bridge não está disponível para salvar.")
+      return false
     }
-
     setSaving(true)
-    setMutationError(undefined)
     try {
       await writeDashboardState(session.data.csrfToken, mutation)
       onSaved()
+      toast.success("Painel atualizado.")
+      return true
     } catch (error) {
-      setMutationError(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Não foi possível salvar no painel."
       )
+      return false
     } finally {
       setSaving(false)
     }
@@ -464,18 +712,24 @@ export function ManualStateDrawer({
   return (
     <Drawer
       open
-      onOpenChange={(open) => {
-        if (!open) onClose()
-      }}
+      onOpenChange={(open) => !open && onClose()}
       direction={isMobile ? "bottom" : "right"}
     >
-      <DrawerContent>
-        <DrawerHeader className="border-b">
+      <DrawerContent className="min-h-0 sm:max-w-xl">
+        <DrawerHeader className="shrink-0 border-b">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <DrawerTitle>Meta e notas</DrawerTitle>
+              <DrawerTitle>
+                {surface === "meta"
+                  ? "Meta para main"
+                  : activeNote?.title || "Pendências"}
+              </DrawerTitle>
               <DrawerDescription>
-                Informações manuais deste projeto na bridge local.
+                {surface === "meta"
+                  ? "Objetivo e requisitos desta revisão."
+                  : activeNote
+                    ? "Pendência"
+                    : `${state.notes.length} nota${state.notes.length === 1 ? "" : "s"} manual${state.notes.length === 1 ? "" : "is"}.`}
               </DrawerDescription>
             </div>
             <DrawerClose asChild>
@@ -483,57 +737,49 @@ export function ManualStateDrawer({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                aria-label="Fechar meta e notas"
+                aria-label="Fechar"
               >
                 <XIcon data-icon />
               </Button>
             </DrawerClose>
           </div>
         </DrawerHeader>
-        <ScrollArea className="min-h-0 flex-1 px-4 py-5">
-          <Tabs
-            value={tab}
-            onValueChange={(value) => setTab(value as "meta" | "notes")}
-          >
-            <TabsList>
-              <TabsTrigger value="meta">Meta</TabsTrigger>
-              <TabsTrigger value="notes">Notas</TabsTrigger>
-            </TabsList>
-            <TabsContent value="meta" className="pt-5">
+        <ScrollArea className="min-h-0 flex-1 p-4">
+          {surface === "meta" ? (
+            editingMeta ? (
               <MetaEditor
                 key={`meta-${state.revision}`}
                 state={state}
-                unavailable={unavailable}
                 saving={saving}
-                onMutate={(mutation) => void mutate(mutation)}
+                unavailable={unavailable}
+                onSave={mutate}
+                onCancel={() => setEditingMeta(false)}
               />
-            </TabsContent>
-            <TabsContent value="notes" className="pt-5">
-              <NotesEditor
-                key={`notes-${state.revision}`}
+            ) : (
+              <MetaRead
                 state={state}
-                unavailable={unavailable}
+                onEdit={() => setEditingMeta(true)}
+                onOpenJob={onOpenJob}
                 saving={saving}
-                onMutate={(mutation) => void mutate(mutation)}
+                onMutate={mutate}
               />
-            </TabsContent>
-          </Tabs>
-          {session.error ? (
-            <p className="mt-4 text-sm text-destructive">
-              {session.error.message}
-            </p>
-          ) : null}
-          {mutationError ? (
-            <p className="mt-4 text-sm text-destructive">{mutationError}</p>
-          ) : null}
+            )
+          ) : (
+            <NotesSurface
+              state={state}
+              selectedId={activeNoteId}
+              onSelect={setActiveNoteId}
+              saving={saving}
+              unavailable={unavailable}
+              onMutate={mutate}
+            />
+          )}
         </ScrollArea>
-        <DrawerFooter className="border-t">
-          <DrawerClose asChild>
-            <Button type="button" variant="outline">
-              Fechar
-            </Button>
-          </DrawerClose>
-        </DrawerFooter>
+        {session.error ? (
+          <DrawerFooter className="shrink-0 border-t">
+            <p className="text-sm text-destructive">{session.error.message}</p>
+          </DrawerFooter>
+        ) : null}
       </DrawerContent>
     </Drawer>
   )

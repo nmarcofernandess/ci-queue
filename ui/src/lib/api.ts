@@ -23,6 +23,8 @@ type QueryValue = string | number | boolean | null | undefined
 
 type Query = Record<string, QueryValue>
 
+const queryCache = new Map<string, unknown>()
+
 export class ApiError extends Error {
   readonly status: number
   readonly body: unknown
@@ -219,7 +221,9 @@ export function useApiQuery<T>(
   options: { pollMs?: number; enabled?: boolean } = {}
 ): ApiQuery<T> {
   const { pollMs, enabled = true } = options
-  const [data, setData] = React.useState<T>()
+  const [data, setData] = React.useState<T | undefined>(
+    () => queryCache.get(key) as T | undefined
+  )
   const [error, setError] = React.useState<ApiError | Error>()
   const [refreshing, setRefreshing] = React.useState(true)
   const [revision, setRevision] = React.useState(0)
@@ -230,7 +234,7 @@ export function useApiQuery<T>(
     const changed = previousKey.current !== key
     previousKey.current = key
     if (changed) {
-      setData(undefined)
+      setData(queryCache.get(key) as T | undefined)
       setError(undefined)
     }
 
@@ -245,6 +249,7 @@ export function useApiQuery<T>(
       try {
         const next = await request()
         if (!disposed) {
+          queryCache.set(key, next)
           setData(next)
           setError(undefined)
         }

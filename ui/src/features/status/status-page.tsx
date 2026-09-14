@@ -32,7 +32,6 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
-  InputGroupText,
 } from "@/components/ui/input-group"
 import {
   Item,
@@ -52,12 +51,13 @@ import {
 } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { ErrorState, RefreshingLabel } from "@/features/shared/async-state"
 import {
   formatBytes,
   formatDuration,
   formatRelativeTime,
+  shortSha,
   formatTimelineDate,
   queryPeriodStart,
 } from "@/features/shared/format"
@@ -187,13 +187,15 @@ function CurrentExecution({
     : []
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Execução atual</CardTitle>
+    <Card size="sm">
+      <CardHeader className="pb-0">
+        <CardDescription className="font-medium tracking-wide uppercase">
+          Execução atual
+        </CardDescription>
         <CardAction>{refreshing ? <RefreshingLabel /> : null}</CardAction>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col gap-5">
+        <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)] md:items-start">
           <Item variant="default" className="border-transparent px-0 py-0">
             <ItemMedia variant="icon">
               <LoaderCircleIcon className="animate-spin" />
@@ -221,12 +223,20 @@ function CurrentExecution({
                 {formatRelativeTime(timestamp)} ·{" "}
                 {formatDuration(current.durationMs)}
               </ItemDescription>
+              <ItemDescription>
+                {current.branch || "Branch não informada"} ·{" "}
+                <span className="font-mono">{shortSha(current.headSha)}</span>
+              </ItemDescription>
               {current.commitSubject ? (
                 <ItemDescription>{current.commitSubject}</ItemDescription>
               ) : null}
             </ItemContent>
           </Item>
-          {stages.length ? <ExecutionStages stages={stages} /> : null}
+          {stages.length ? (
+            <div className="border-t pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-5">
+              <ExecutionStages stages={stages} />
+            </div>
+          ) : null}
         </div>
       </CardContent>
     </Card>
@@ -241,9 +251,6 @@ function MachineCard() {
     <Card>
       <CardHeader>
         <CardTitle>Máquina</CardTitle>
-        <CardDescription>
-          Capacidade observada na instalação local.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         {machine.loading ? <Skeleton className="h-12 w-36" /> : null}
@@ -271,7 +278,7 @@ function MachineCard() {
       </CardContent>
       <CardFooter>
         <Button type="button" variant="ghost" asChild>
-          <a href="#analysis">Ocorrências e recursos</a>
+          <a href="?analysisTab=problems#analysis">Ocorrências e recursos</a>
         </Button>
       </CardFooter>
     </Card>
@@ -281,9 +288,11 @@ function MachineCard() {
 function ManualStateCard({
   dashboard,
   onOpen,
+  onOpenJob,
 }: {
   dashboard: ApiQuery<DashboardState>
-  onOpen: (tab: "meta" | "notes") => void
+  onOpen: (surface: "meta" | "notes", noteId?: string) => void
+  onOpenJob: (jobId: string) => void
 }) {
   if (dashboard.loading) {
     return (
@@ -320,15 +329,12 @@ function ManualStateCard({
             <Button
               type="button"
               variant="link"
-              className="h-auto px-0 py-0 text-base font-semibold"
+              className="h-auto p-0 text-base font-semibold"
               onClick={() => onOpen("meta")}
             >
-              Meta
+              Meta para main
             </Button>
           </CardTitle>
-          <CardDescription>
-            Referência manual do projeto, sem efeito na fila.
-          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {meta ? (
@@ -345,6 +351,49 @@ function ManualStateCard({
                     {observed} de {total} requisitos atendidos
                   </p>
                   <Progress value={(observed / total) * 100} />
+                  <ItemGroup className="gap-0">
+                    {meta.checks.map((check) => {
+                      const Icon =
+                        check.status === "passed"
+                          ? CheckCircle2Icon
+                          : CircleDotIcon
+                      return (
+                        <Item
+                          key={check.preset}
+                          variant="default"
+                          size="sm"
+                          className="border-transparent px-0 py-1"
+                        >
+                          <ItemMedia variant="icon">
+                            <Icon />
+                          </ItemMedia>
+                          <ItemContent>
+                            <ItemTitle>
+                              {check.status === "passed" && check.ticketId ? (
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  className="h-auto p-0"
+                                  onClick={() => onOpenJob(check.ticketId!)}
+                                >
+                                  {check.preset}
+                                </Button>
+                              ) : (
+                                check.preset
+                              )}
+                            </ItemTitle>
+                            <ItemDescription>
+                              {check.status === "passed"
+                                ? "Verde elegível"
+                                : check.status === "recipe-missing"
+                                  ? "Receita não declarada"
+                                  : "Sem verde elegível"}
+                            </ItemDescription>
+                          </ItemContent>
+                        </Item>
+                      )
+                    })}
+                  </ItemGroup>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -354,29 +403,19 @@ function ManualStateCard({
             </>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Nenhuma meta manual registrada.
+              Nenhuma meta declarada.
             </p>
           )}
         </CardContent>
         <CardFooter>
           <Button type="button" variant="ghost" onClick={() => onOpen("meta")}>
-            Editar meta
+            Abrir meta
           </Button>
         </CardFooter>
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>
-            <Button
-              type="button"
-              variant="link"
-              className="h-auto px-0 py-0 text-base font-semibold"
-              onClick={() => onOpen("notes")}
-            >
-              Notas
-            </Button>
-          </CardTitle>
-          <CardDescription>Informações manuais do projeto.</CardDescription>
+          <CardTitle>Pendências · {notes.length}</CardTitle>
         </CardHeader>
         <CardContent>
           {notes.length ? (
@@ -389,7 +428,16 @@ function ManualStateCard({
                   className="border-transparent px-0 py-0"
                 >
                   <ItemContent>
-                    <ItemTitle>{note.title}</ItemTitle>
+                    <ItemTitle>
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="h-auto px-0 py-0"
+                        onClick={() => onOpen("notes", note.id)}
+                      >
+                        {note.title}
+                      </Button>
+                    </ItemTitle>
                     <ItemDescription>
                       {note.text || "Sem texto."}
                     </ItemDescription>
@@ -398,14 +446,12 @@ function ManualStateCard({
               ))}
             </ItemGroup>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              Nenhuma nota manual registrada.
-            </p>
+            <p className="text-sm text-muted-foreground">Nenhuma pendência.</p>
           )}
         </CardContent>
         <CardFooter>
           <Button type="button" variant="ghost" onClick={() => onOpen("notes")}>
-            Editar notas
+            Abrir pendências
           </Button>
         </CardFooter>
       </Card>
@@ -449,18 +495,6 @@ function HistoryToolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Tabs
-        value={mode}
-        onValueChange={(value) => {
-          if (value === "executions" || value === "greens") onMode(value)
-        }}
-        className="contents"
-      >
-        <TabsList variant="line">
-          <TabsTrigger value="executions">Execuções</TabsTrigger>
-          <TabsTrigger value="greens">Últimos verdes</TabsTrigger>
-        </TabsList>
-      </Tabs>
       <InputGroup className="w-full sm:w-72">
         <InputGroupAddon align="inline-start">
           <SearchIcon />
@@ -470,10 +504,20 @@ function HistoryToolbar({
           onChange={(event) => onSearch(event.target.value)}
           placeholder="preset, branch, SHA ou ticket"
         />
-        <InputGroupAddon align="inline-end">
-          <InputGroupText>Busca</InputGroupText>
-        </InputGroupAddon>
       </InputGroup>
+      <ToggleGroup
+        type="single"
+        value={mode}
+        onValueChange={(value) => {
+          if (value === "executions" || value === "greens") onMode(value)
+        }}
+        variant="outline"
+        spacing={0}
+        aria-label="Modo do histórico"
+      >
+        <ToggleGroupItem value="executions">Execuções</ToggleGroupItem>
+        <ToggleGroupItem value="greens">Últimos verdes</ToggleGroupItem>
+      </ToggleGroup>
       {mode === "executions" ? (
         <>
           <Select
@@ -1093,7 +1137,20 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
           jobs={executions.jobs}
           loading={executions.loading}
           error={executions.error}
-          emptyDescription="Ajuste os filtros ou aguarde a próxima execução terminal."
+          emptyTitle={
+            filters.search ||
+            filters.period !== "all" ||
+            filters.result !== "all"
+              ? "Nenhuma execução corresponde aos filtros"
+              : "Nenhuma execução concluída"
+          }
+          emptyDescription={
+            filters.search ||
+            filters.period !== "all" ||
+            filters.result !== "all"
+              ? "Ajuste ou limpe os filtros para ampliar a busca."
+              : "As execuções terminais aparecerão aqui."
+          }
           onOpenJob={onOpenJob}
           hasMore={executions.hasMore}
           loadingMore={executions.loadingMore}
@@ -1124,9 +1181,11 @@ export function StatusPage() {
   const [selectedJobId, setSelectedJobId] = React.useState<string>()
   const [manualOpen, setManualOpen] = React.useState(false)
   const [manualTab, setManualTab] = React.useState<"meta" | "notes">("meta")
+  const [selectedNoteId, setSelectedNoteId] = React.useState<string>()
 
-  const openManualState = (tab: "meta" | "notes") => {
-    setManualTab(tab)
+  const openManualState = (surface: "meta" | "notes", noteId?: string) => {
+    setManualTab(surface)
+    setSelectedNoteId(noteId)
     setManualOpen(true)
   }
 
@@ -1154,7 +1213,7 @@ export function StatusPage() {
 
   return (
     <main className="flex flex-1 flex-col gap-8 p-4 lg:p-6">
-      <h1 className="sr-only">Status do CI Queue</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Status</h1>
       {status.data.running?.status === "running" ? (
         <CurrentExecution
           snapshot={status.data}
@@ -1177,7 +1236,11 @@ export function StatusPage() {
         </div>
         <aside className="flex flex-col gap-4">
           <MachineCard />
-          <ManualStateCard dashboard={dashboard} onOpen={openManualState} />
+          <ManualStateCard
+            dashboard={dashboard}
+            onOpen={openManualState}
+            onOpenJob={setSelectedJobId}
+          />
         </aside>
       </div>
       {selectedJobId ? (
@@ -1189,9 +1252,14 @@ export function StatusPage() {
       {manualOpen && dashboard.data ? (
         <ManualStateDrawer
           state={dashboard.data}
-          initialTab={manualTab}
+          surface={manualTab}
+          initialNoteId={selectedNoteId}
           onClose={() => setManualOpen(false)}
           onSaved={dashboard.reload}
+          onOpenJob={(jobId) => {
+            setManualOpen(false)
+            setSelectedJobId(jobId)
+          }}
         />
       ) : null}
     </main>

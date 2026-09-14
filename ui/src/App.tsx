@@ -1,7 +1,11 @@
 import * as React from "react"
 
 import { AppSidebar } from "@/components/app-sidebar"
-import { type AppRoute, appRoutes } from "@/components/app-routes"
+import {
+  type AppRoute,
+  appRouteLabels,
+  appRoutes,
+} from "@/components/app-routes"
 import { RouteContent } from "@/components/app-routes"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -44,7 +48,7 @@ export function App() {
       >
         <AppSidebar activeRoute={route} />
         <SidebarInset>
-          <SiteHeader />
+          <SiteHeader title={appRouteLabels[route]} />
           <RouteContent route={route} />
         </SidebarInset>
       </SidebarProvider>

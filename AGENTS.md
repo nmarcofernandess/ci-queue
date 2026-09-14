@@ -42,7 +42,12 @@ worktree selection and duration scatter series. Each must compose existing
 Nova components and semantic tokens. A new gap needs an explicit product
 decision before JSX.
 
-Do not use CSS/JSX from the retired DietFlow Vite dashboard as visual source.
+The retired DietFlow Vite dashboard at commit `e39e16268` may be inspected only
+for a Marco-approved interaction or proportion that the product contract names,
+especially drawer density and fixed-region behavior. Never copy its JSX/CSS or
+revive its obsolete tabs, copy, data or controls. The current product contract
+decides content; official Nova compositions decide structure; the historical
+screen is a visual comparison target for the explicitly preserved quality.
 The Dashboard 01 area-chart demo and data are excluded. The starter supplies
 the application shell and compatible source composition, not CI Queue content.
 

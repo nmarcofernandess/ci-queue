@@ -1,5 +1,7 @@
 # UI composition ledger
 
+The current product behavior is defined in [`PRODUCT-CONTRACT.md`](./PRODUCT-CONTRACT.md). This ledger maps that behavior to recovered shadcn compositions.
+
 This file is the selection map for the CI Queue dashboard. It records the
 composition before implementation so the product is built by recovering and
 adapting shadcn sources rather than re-inventing surfaces.
@@ -12,24 +14,27 @@ adapting shadcn sources rather than re-inventing surfaces.
 - Dashboard 01's demo data, section KPI cards and interactive area chart are
   excluded. It supplies the shell, sidebar/header relationship and compatible
   drawer/table source patterns.
+- Historical comparison: the retired DietFlow Vite at `e39e16268` may be used
+  to compare the density and fixed-region behavior Marco already preferred.
+  It contributes no JSX, CSS, data contract, tabs or controls.
 
 ## Surface map
 
-| Need | Selected composition | Adaptation boundary |
-| --- | --- | --- |
-| App shell | `SidebarProvider` → `Sidebar variant="inset" collapsible="offcanvas"` → `SidebarInset` → header with `SidebarTrigger` | Brand, routes and bridge data only. No `SidebarRail`; trigger stays in header. |
-| Sidebar navigation and theme | `SidebarHeader`, `SidebarContent`, `SidebarMenu`, `SidebarMenuButton`, `SidebarFooter`, `ToggleGroup`, `Tooltip` | Footer contains Bridge and Claro/Escuro/Sistema only. |
-| Current execution | `Card` → `CardHeader`/`CardContent`, `Item`, `ItemGroup`, `ItemSeparator` | Full-width only while there is a real running ticket. Title opens drawer; date, relative time and duration live below it. |
-| Queue | Dashboard 01 `DataTable` composition adapted into shared `RunTable` | Only queued tickets; no filter toolbar. The terminal receipt moves to history, never becomes a queue summary. |
-| History, last greens and problems | Dashboard 01 `DataTable` composition (`@tanstack/react-table`, `table.FlexRender`, `Table`) adapted into shared `RunTable` renderer | Two columns: Execution and Context. Only preset title opens the drawer. |
-| History controls | `Tabs`, `InputGroup`, direct `Select`, `Button ghost` | Controls live above the table and wrap left-to-right. No Calendar, interval or nested popup. Executions search server-side across preset, branch, SHA, ticket, cwd, command and extra arguments without exposing the latter two; last greens search the four fields the normalized legacy data actually contained: preset, branch, SHA and ticket. |
-| Machine | `Card` → `CardHeader`/`CardContent`/`CardFooter`, `Item`, ghost `Button` link | Only measurable disk capacity and the link to Analysis. No invented normal state, memory total or per-card refresh. |
-| Meta and notes | `Card` summaries plus `Drawer` form using `FieldSet`/`FieldGroup`/`Field` | One manual project goal and manual notes; they do not gate CI or manufacture pending work. |
-| Worktrees | Dashboard 01 `DataTable` composition + `Checkbox`, `InputGroup`, `ButtonGroup`, `DropdownMenu` | Persistent selected IDs is a named state-management gap; rows do not become buttons. |
-| Job, worktree, meta and note detail | `Drawer` from Dashboard 01, right on desktop/bottom on mobile; `DrawerHeader`, `ScrollArea`, `DrawerFooter` | Fixed header/tabs/footer with only central content scrolling. |
-| Diagnostic and copy variants | `Popover` for diagnostic, `DropdownMenu` for explicit copy variants | Diagnostic does not render below a log. No nested menus. |
-| Forms | `FieldSet`, `FieldGroup`, `Field`, `Input`, `Textarea`, `AlertDialog` for deletion | Forms are in the drawer; no made-up modal form wrapper. |
-| Empty/loading/error | `Empty`, `Skeleton`, `Sonner` | Preserve loaded data during refresh; render a surface-local error. |
+| Need                                   | Selected composition                                                                                                                | Adaptation boundary                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App shell                              | `SidebarProvider` → `Sidebar variant="inset" collapsible="offcanvas"` → `SidebarInset` → header with `SidebarTrigger`               | Brand, routes and bridge data only. No `SidebarRail`; trigger stays in header.                                                                                                                                                                                                                                                                     |
+| Sidebar navigation and theme           | `SidebarHeader`, `SidebarContent`, `SidebarMenu`, `SidebarMenuButton`, `SidebarFooter`, `ToggleGroup`, `Tooltip`                    | Footer contains Bridge and Claro/Escuro/Sistema only.                                                                                                                                                                                                                                                                                              |
+| Current execution                      | `Card` → `CardHeader`/`CardContent`, `Item`, `ItemGroup`, `ItemSeparator`                                                           | Full-width only while there is a real running ticket. Title opens drawer; date, relative time and duration live below it.                                                                                                                                                                                                                          |
+| Queue                                  | Dashboard 01 `DataTable` composition adapted into shared `RunTable`                                                                 | Only queued tickets; no filter toolbar. The terminal receipt moves to history, never becomes a queue summary.                                                                                                                                                                                                                                      |
+| History, last greens and problems      | Dashboard 01 `DataTable` composition (`@tanstack/react-table`, `table.FlexRender`, `Table`) adapted into shared `RunTable` renderer | Two columns: Execution and Context. Only preset title opens the drawer.                                                                                                                                                                                                                                                                            |
+| History controls                       | `InputGroup`, segmented `ToggleGroup`, direct `Select`, `Button ghost`                                                              | Controls live above the table and wrap left-to-right. No Calendar, interval or nested popup. Executions search server-side across preset, branch, SHA, ticket, cwd, command and extra arguments without exposing the latter two; last greens search the four fields the normalized legacy data actually contained: preset, branch, SHA and ticket. |
+| Machine                                | `Card` → `CardHeader`/`CardContent`/`CardFooter`, `Item`, ghost `Button` link                                                       | Only measurable disk capacity and the link to Analysis. No invented normal state, memory total or per-card refresh.                                                                                                                                                                                                                                |
+| Meta and pending items                 | Separate `Card` summaries and separate `Drawer` surfaces using `FieldSet`/`FieldGroup`/`Field`                                      | One manual project goal and manual pending items; they do not gate CI or manufacture pending work.                                                                                                                                                                                                                                                 |
+| Worktrees                              | Dashboard 01 `DataTable` composition + `Checkbox`, `InputGroup`, `ButtonGroup`, `DropdownMenu`                                      | Persistent selected IDs is a named state-management gap; rows do not become buttons.                                                                                                                                                                                                                                                               |
+| Job, worktree, meta and pending detail | `Drawer` from Dashboard 01, right on desktop/bottom on mobile; `DrawerHeader`, `ScrollArea`, `DrawerFooter` where actions exist     | Job header/tabs/footer stay fixed and only its central content scrolls. Match the compact proportions of the approved historical drawer without copying its markup. Meta and Pendências open directly in their own drawer surface, without a second navigation layer.                                                                              |
+| Diagnostic and copy variants           | `Popover` for diagnostic, `DropdownMenu` for explicit copy variants                                                                 | Diagnostic does not render below a log. No nested menus.                                                                                                                                                                                                                                                                                           |
+| Forms                                  | `FieldSet`, `FieldGroup`, `Field`, `Input`, `Textarea`, `AlertDialog` for deletion                                                  | Forms are in the drawer; no made-up modal form wrapper.                                                                                                                                                                                                                                                                                            |
+| Empty/loading/error                    | `Empty`, `Skeleton`, `Sonner`                                                                                                       | Preserve loaded data during refresh; render a surface-local error.                                                                                                                                                                                                                                                                                 |
 
 ## Analysis
 
@@ -46,11 +51,11 @@ It does not use `space-between`, a date-picker, a calendar or a Select nested
 inside a Popover. On narrow screens the first tabs may scroll horizontally and
 the remaining controls wrap in this order.
 
-| View | Selected composition | Contract |
-| --- | --- | --- |
-| Results | `Card` + Nova `ChartContainer`, `ChartTooltipContent`, `ChartLegendContent`, Recharts `BarChart` | Vertical stacked bars for passed, failed, cancelled and interrupted. Statuses use existing semantic design tokens (`primary`, `destructive`, `muted-foreground`, `foreground`), never raw colors. Show every filtered preset; no hidden top-N. |
+| View     | Selected composition                                                                                   | Contract                                                                                                                                                                                                                                                                              |
+| -------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Results  | `Card` + Nova `ChartContainer`, `ChartTooltipContent`, `ChartLegendContent`, Recharts `BarChart`       | Vertical stacked bars for passed, failed, cancelled and interrupted. Statuses use existing semantic design tokens (`primary`, `destructive`, `muted-foreground`, `foreground`), never raw colors. Show every filtered preset; no hidden top-N.                                        |
 | Duration | `Card` + `ItemGroup` + Nova `ChartContainer`, `ChartTooltipContent`, Recharts `ScatterChart`/`Scatter` | Specific preset required. Visible median/range/N above the chart. Both numerical axes derive bounded domains from the visible points, so timestamps never fall back to the epoch. Points only; no `Line`, curve or interpolation. Tooltip contains point-specific temporal/unit data. |
-| Problems | Shared `RunTable` | Failed and interrupted terminal records. Do not invent a failure classification. |
+| Problems | Shared `RunTable`                                                                                      | Failed and interrupted terminal records. Do not invent a failure classification.                                                                                                                                                                                                      |
 
 `ChartContainer` is the official Nova chart shell and owns chart config, theme
 variables, tooltip and legend styling. Its canvas has an explicit bounded height
@@ -76,9 +81,9 @@ turn table rows into buttons or to substitute a handmade table.
 
 ## Named gaps
 
-| Gap | Allowed composition | Prohibited substitute |
-| --- | --- | --- |
-| Status layout | Responsive page wrapper around existing Cards/Tables | A bespoke dashboard/card system or arbitrary divider. |
-| Execution stages | `ItemGroup`, `Item`, dots/checks and `Separator` | Percent, ETA, Slider/Progress or made-up state machine. |
-| Worktree selection | TanStack v9 controlled `Record<worktreeId, true>` over Checkbox/Data Table, persisted per project in localStorage | Custom checkboxes or clickable rows. |
-| Duration scatter | `ChartContainer` with Recharts scatter series | Line chart, trendline, area chart or raw tooltip styling. |
+| Gap                | Allowed composition                                                                                               | Prohibited substitute                                     |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Status layout      | Responsive page wrapper around existing Cards/Tables                                                              | A bespoke dashboard/card system or arbitrary divider.     |
+| Execution stages   | `ItemGroup`, `Item`, dots/checks and `Separator`                                                                  | Percent, ETA, Slider/Progress or made-up state machine.   |
+| Worktree selection | TanStack v9 controlled `Record<worktreeId, true>` over Checkbox/Data Table, persisted per project in localStorage | Custom checkboxes or clickable rows.                      |
+| Duration scatter   | `ChartContainer` with Recharts scatter series                                                                     | Line chart, trendline, area chart or raw tooltip styling. |

@@ -60,9 +60,11 @@ export function formatRelativeTime(
   }
 
   const units = [
+    { seconds: 31_536_000, singular: "ano", plural: "anos" },
+    { seconds: 2_592_000, singular: "mês", plural: "meses" },
     { seconds: 86_400, singular: "dia", plural: "dias" },
-    { seconds: 3_600, singular: "hora", plural: "horas" },
-    { seconds: 60, singular: "minuto", plural: "minutos" },
+    { seconds: 3_600, singular: "h", plural: "h" },
+    { seconds: 60, singular: "min", plural: "min" },
   ]
   const unit =
     units.find((candidate) => absoluteSeconds >= candidate.seconds) ??
@@ -82,11 +84,13 @@ export function formatDuration(value: number | null | undefined) {
   }
 
   const totalSeconds = Math.round(value / 1_000)
-  const minutes = Math.floor(totalSeconds / 60)
+  const hours = Math.floor(totalSeconds / 3_600)
+  const minutes = Math.floor((totalSeconds % 3_600) / 60)
   const seconds = totalSeconds % 60
-  return minutes
-    ? `${minutes} min ${seconds.toString().padStart(2, "0")} s`
-    : `${seconds} s`
+  if (hours) {
+    return `${hours}h ${minutes}m`
+  }
+  return minutes ? `${minutes}m ${seconds}s` : `${seconds}s`
 }
 
 export function formatBytes(value: number | null | undefined) {

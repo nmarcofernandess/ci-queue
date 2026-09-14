@@ -38,8 +38,10 @@ not a visual review after code exists.
 - The only named UI gaps are the Status page layout, execution-stage connector,
   persistent worktree selection and duration scatter series. Their permitted
   compositions are in the ledger.
-- The old DietFlow Vite dashboard is not a visual source. Do not copy its JSX,
-  CSS, layouts, alerts, filters or chart styling.
+- The old DietFlow Vite dashboard at `e39e16268` is a visual comparison source
+  only for a Marco-approved quality named by the product contract, especially
+  drawer density and fixed-region behavior. Do not copy its JSX/CSS or revive
+  obsolete content. Nova composition remains the structural source.
 
 ## Fast rejection list
 

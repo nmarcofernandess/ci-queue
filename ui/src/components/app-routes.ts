@@ -8,6 +8,12 @@ export const appRoutes = ["status", "worktrees", "analysis"] as const
 
 export type AppRoute = (typeof appRoutes)[number]
 
+export const appRouteLabels: Record<AppRoute, string> = {
+  status: "Status",
+  worktrees: "Worktrees",
+  analysis: "Análise",
+}
+
 const routeComponents = {
   status: StatusPage,
   worktrees: WorktreesPage,

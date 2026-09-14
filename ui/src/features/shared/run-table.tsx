@@ -103,16 +103,19 @@ export type RunTableProps = {
   loadMoreError?: Error
   onLoadMore?: () => void
   showOrigin?: boolean
+  showFailureReason?: boolean
 }
 
 function RunDataTable({
   jobs,
   onOpenJob,
   showOrigin = false,
+  showFailureReason = false,
 }: {
   jobs: RunTableJob[]
   onOpenJob: (jobId: string) => void
   showOrigin?: boolean
+  showFailureReason?: boolean
 }) {
   const columns = React.useMemo(
     () =>
@@ -148,9 +151,9 @@ function RunDataTable({
                   <JobStatusBadge status={job.status} />
                 </div>
                 <span className="text-sm text-muted-foreground">
-                  {formatTimelineDate(timestamp)} ·{" "}
-                  {formatRelativeTime(timestamp)} ·{" "}
-                  {formatDuration(job.durationMs)}
+                  {job.status === "queued"
+                    ? `${formatTimelineDate(timestamp)} · na fila ${formatRelativeTime(timestamp)}`
+                    : `${formatTimelineDate(timestamp)} · ${formatRelativeTime(timestamp)} · ${formatDuration(job.durationMs)}`}
                 </span>
               </div>
             )
@@ -175,12 +178,17 @@ function RunDataTable({
                 {showOrigin && originLabel ? (
                   <span className="text-xs">Origem: {originLabel}</span>
                 ) : null}
+                {showFailureReason && job.failureReason ? (
+                  <span className="max-w-xl text-xs whitespace-normal text-destructive">
+                    {job.failureReason}
+                  </span>
+                ) : null}
               </div>
             )
           },
         }),
       ]),
-    [onOpenJob, showOrigin]
+    [onOpenJob, showFailureReason, showOrigin]
   )
   const table = useTable({
     columns,
@@ -196,7 +204,7 @@ function RunDataTable({
 
   return (
     <Table>
-      <TableHeader>
+      <TableHeader className="bg-muted">
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map((header) => (
@@ -233,7 +241,7 @@ function RunEmptyTable({
 }) {
   return (
     <Table>
-      <TableHeader>
+      <TableHeader className="bg-muted">
         <TableRow>
           <TableHead>Execução</TableHead>
           <TableHead>Contexto</TableHead>
@@ -241,10 +249,7 @@ function RunEmptyTable({
       </TableHeader>
       <TableBody>
         <TableRow>
-          <TableCell
-            colSpan={2}
-            className="p-0"
-          >
+          <TableCell colSpan={2} className="p-0">
             <Empty className="min-h-44 border-0">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -290,6 +295,7 @@ export function RunTable({
   loadMoreError,
   onLoadMore,
   showOrigin = false,
+  showFailureReason = false,
 }: RunTableProps) {
   const data = jobs ?? EMPTY_JOBS
 
@@ -302,26 +308,28 @@ export function RunTable({
         <RunTableHeader title={title} description={description} />
       </div>
       {loading ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Execução</TableHead>
-              <TableHead>Contexto</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {[0, 1, 2].map((index) => (
-              <TableRow key={index}>
-                <TableCell>
-                  <Skeleton className="h-4 w-40" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-52" />
-                </TableCell>
+        <div className="overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader className="bg-muted">
+              <TableRow>
+                <TableHead>Execução</TableHead>
+                <TableHead>Contexto</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {[0, 1, 2].map((index) => (
+                <TableRow key={index}>
+                  <TableCell>
+                    <Skeleton className="h-4 w-40" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-52" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       ) : null}
       {!loading && error ? (
         <ErrorState
@@ -330,14 +338,19 @@ export function RunTable({
         />
       ) : null}
       {!loading && !error && !data.length ? (
-        <RunEmptyTable title={emptyTitle} description={emptyDescription} />
+        <div className="overflow-hidden rounded-lg border">
+          <RunEmptyTable title={emptyTitle} description={emptyDescription} />
+        </div>
       ) : null}
       {!loading && !error && data.length ? (
-        <RunDataTable
-          jobs={data}
-          onOpenJob={onOpenJob}
-          showOrigin={showOrigin}
-        />
+        <div className="overflow-hidden rounded-lg border">
+          <RunDataTable
+            jobs={data}
+            onOpenJob={onOpenJob}
+            showOrigin={showOrigin}
+            showFailureReason={showFailureReason}
+          />
+        </div>
       ) : null}
       {loadMoreError ? (
         <p className="text-sm text-destructive" role="alert">

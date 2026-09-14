@@ -1,4 +1,5 @@
 import { readQueueConfig } from "./contracts/config.js"
+import { existsSync, readFileSync } from "node:fs"
 import {
   API_VERSION,
   normalizeTicketFlags,
@@ -105,6 +106,7 @@ function usage(): string {
     "  worker",
     "  status",
     "  history [--project ID]",
+    "  logs [latest|<ticketId>]",
     "  cancel <ticketId>",
     "  config",
   ].join("\n")
@@ -120,7 +122,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           version: "0.1.0",
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "cancel", "execution-flags-v1", JOB_ENV_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "logs", "cancel", "execution-flags-v1", JOB_ENV_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
       case "enqueue": {
         const recipe = optionValue(args.rest, "--recipe")
@@ -162,6 +164,24 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         return success({ running: readRunningJob(root) ?? null, queued: listQueuedJobs(root), latest: listHistoryJobs(root)[0] ?? null })
       case "history":
         return success({ jobs: listHistoryJobs(root, optionValue(args.rest, "--project")) })
+      case "logs": {
+        const requested = args.rest.find((item) => !item.startsWith("--")) ?? "latest"
+        const found = requested === "latest"
+          ? (() => {
+            const ticket = readRunningJob(root) ?? listHistoryJobs(root)[0]
+            return ticket ? findJobById(root, ticket.id) : undefined
+          })()
+          : findJobById(root, requested)
+        if (!found) return failure("NOT_FOUND", `ticket não encontrado: ${requested}`)
+        if (!existsSync(found.ticket.logPath)) {
+          return failure("LOG_UNAVAILABLE", `log ainda não existe: ${found.ticket.logPath}`, { ticketId: found.ticket.id })
+        }
+        return success({
+          ticketId: found.ticket.id,
+          logPath: found.ticket.logPath,
+          content: readFileSync(found.ticket.logPath, "utf8"),
+        })
+      }
       case "cancel": {
         const id = args.rest.find((item) => !item.startsWith("--"))
         if (!id) return failure("USAGE", "cancel requer ticketId")

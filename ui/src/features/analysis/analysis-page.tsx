@@ -16,13 +16,7 @@ import {
   useApiQuery,
 } from "@/lib/api"
 import type { AnalysisPreset, AnalysisResponse, JobRecord } from "@/lib/types"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
   ChartLegend,
@@ -47,7 +41,16 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
 import {
   formatDateTime,
@@ -62,6 +65,27 @@ type StatisticsView = "results" | "duration"
 type Period = "all" | "week" | "month" | "quarter"
 
 const DURATION_PRESET_QUERY_KEY = "analysisPreset"
+
+function readAnalysisTab(): AnalysisTab {
+  if (typeof window === "undefined") return "statistics"
+  return new URLSearchParams(window.location.search).get("analysisTab") ===
+    "problems"
+    ? "problems"
+    : "statistics"
+}
+
+function writeAnalysisTab(tab: AnalysisTab) {
+  if (typeof window === "undefined") return
+  const url = new URL(window.location.href)
+  if (tab === "problems") url.searchParams.set("analysisTab", "problems")
+  else url.searchParams.delete("analysisTab")
+  url.hash = "analysis"
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${url.pathname}${url.search}${url.hash}`
+  )
+}
 
 const resultChartConfig = {
   passed: { label: "Passou", color: "var(--primary)" },
@@ -163,17 +187,14 @@ function ResultsChart({
   }
 
   return (
-    <Card>
+    <Card className="max-w-5xl">
       <CardHeader>
         <CardTitle>Resultados por preset</CardTitle>
-        <CardDescription>
-          Todos os presets filtrados aparecem nas barras empilhadas.
-        </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-5">
         <ChartContainer
           config={resultChartConfig}
-          className="aspect-auto h-80 w-full"
+          className="aspect-auto h-72 w-full"
         >
           <BarChart
             accessibilityLayer
@@ -211,6 +232,41 @@ function ResultsChart({
             />
           </BarChart>
         </ChartContainer>
+        <div className="overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader className="bg-muted">
+              <TableRow>
+                <TableHead>Preset</TableHead>
+                <TableHead className="text-right">Passou</TableHead>
+                <TableHead className="text-right">Falhou</TableHead>
+                <TableHead className="text-right">Cancelado</TableHead>
+                <TableHead className="text-right">Interrompido</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {presets.map((preset) => (
+                <TableRow key={preset.preset}>
+                  <TableCell className="font-medium">{preset.preset}</TableCell>
+                  <TableCell className="text-right">{preset.passed}</TableCell>
+                  <TableCell className="text-right">{preset.failed}</TableCell>
+                  <TableCell className="text-right">
+                    {preset.cancelled}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {preset.interrupted}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {preset.passed +
+                      preset.failed +
+                      preset.cancelled +
+                      preset.interrupted}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   )
@@ -276,12 +332,9 @@ function DurationChart({
   )
 
   return (
-    <Card>
+    <Card className="max-w-5xl">
       <CardHeader>
         <CardTitle>Duração de {preset.preset}</CardTitle>
-        <CardDescription>
-          Pontos de execuções canônicas, sem tendência interpolada.
-        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <ItemGroup className="grid gap-2 sm:grid-cols-3">
@@ -301,7 +354,7 @@ function DurationChart({
         </ItemGroup>
         <ChartContainer
           config={durationChartConfig}
-          className="aspect-auto h-80 w-full"
+          className="aspect-auto h-72 w-full"
         >
           <ScatterChart
             accessibilityLayer
@@ -449,19 +502,21 @@ function AnalysisStatistics({
   )
 
   return (
-    <Tabs
-      value={view}
-      onValueChange={(value) => {
-        if (value === "results" || value === "duration") {
-          onView(value)
-        }
-      }}
-    >
+    <div>
       <div className="flex flex-wrap justify-start gap-2">
-        <TabsList>
-          <TabsTrigger value="results">Resultados</TabsTrigger>
-          <TabsTrigger value="duration">Duração</TabsTrigger>
-        </TabsList>
+        <ToggleGroup
+          type="single"
+          value={view}
+          variant="outline"
+          spacing={0}
+          onValueChange={(value) => {
+            if (value === "results" || value === "duration") onView(value)
+          }}
+          aria-label="Métrica da análise"
+        >
+          <ToggleGroupItem value="results">Resultados</ToggleGroupItem>
+          <ToggleGroupItem value="duration">Duração</ToggleGroupItem>
+        </ToggleGroup>
         <AnalysisControls
           period={period}
           preset={preset}
@@ -471,21 +526,22 @@ function AnalysisStatistics({
           onPreset={onPreset}
         />
       </div>
-      <TabsContent value="results" className="pt-5">
-        <ResultsChart
-          presets={analysis.data?.presets}
-          loading={analysis.loading}
-          error={analysis.error}
-        />
-      </TabsContent>
-      <TabsContent value="duration" className="pt-5">
-        <DurationChart
-          preset={preset ? selectedPreset : undefined}
-          loading={analysis.loading}
-          error={analysis.error}
-        />
-      </TabsContent>
-    </Tabs>
+      <div className="pt-5">
+        {view === "results" ? (
+          <ResultsChart
+            presets={analysis.data?.presets}
+            loading={analysis.loading}
+            error={analysis.error}
+          />
+        ) : (
+          <DurationChart
+            preset={preset ? selectedPreset : undefined}
+            loading={analysis.loading}
+            error={analysis.error}
+          />
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -561,12 +617,12 @@ function ProblemsTable({
   return (
     <RunTable
       title="Problemas"
-      description="Falhas e interrupções terminais, sem classificação adicional inventada pela interface."
       jobs={matchingInitial ? jobs : undefined}
       loading={analysis.loading && !matchingInitial}
       error={analysis.error}
       emptyDescription="Não há execução falha ou interrompida para os filtros selecionados."
       onOpenJob={onOpenJob}
+      showFailureReason
       hasMore={lastPage?.hasMore}
       loadingMore={loadingMore}
       loadMoreError={loadMoreError}
@@ -576,7 +632,7 @@ function ProblemsTable({
 }
 
 export function AnalysisPage() {
-  const [tab, setTab] = React.useState<AnalysisTab>("statistics")
+  const [tab, setTab] = React.useState<AnalysisTab>(readAnalysisTab)
   const [view, setView] = React.useState<StatisticsView>("results")
   const [period, setPeriod] = React.useState<Period>("all")
   const [preset, setPreset] = React.useState("")
@@ -606,19 +662,18 @@ export function AnalysisPage() {
   const durationPreset =
     validPreset(selectedPreset, presetNames) || rememberedDurationPreset
 
-  const handlePreset = React.useCallback(
-    (next: string) => {
-      setPreset(next)
-      if (next && next !== "all") {
-        setLastDurationPreset(next)
-        writeDurationPreset(next)
-      }
-    },
-    []
-  )
+  const handlePreset = React.useCallback((next: string) => {
+    setPreset(next)
+    if (next && next !== "all") {
+      setLastDurationPreset(next)
+      writeDurationPreset(next)
+    }
+  }, [])
 
   const effectivePreset =
-    tab === "statistics" && view === "duration" ? durationPreset : selectedPreset
+    tab === "statistics" && view === "duration"
+      ? durationPreset
+      : selectedPreset
   const analysisRequest = React.useCallback(
     () =>
       getAnalysis({
@@ -635,17 +690,13 @@ export function AnalysisPage() {
 
   return (
     <main className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
-      <div>
-        <h1 className="text-lg font-medium">Análise</h1>
-        <p className="text-sm text-muted-foreground">
-          Leitura dos registros terminais retidos pela bridge.
-        </p>
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">Análise</h1>
       <Tabs
         value={tab}
         onValueChange={(value) => {
           if (value === "statistics" || value === "problems") {
             setTab(value)
+            writeAnalysisTab(value)
           }
         }}
       >

@@ -25,7 +25,6 @@ import {
   ItemContent,
   ItemDescription,
   ItemGroup,
-  ItemMedia,
   ItemTitle,
 } from "@/components/ui/item"
 import {
@@ -37,6 +36,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -271,15 +271,10 @@ function stageIcon(
 function JobHeaderTimeline({ job }: { job: JobRecord }) {
   const timestamp = job.finishedAt ?? job.startedAt ?? job.createdAt
   return (
-    <>
-      <DrawerDescription>
-        {formatTimelineDate(timestamp)} · {formatRelativeTime(timestamp)}
-      </DrawerDescription>
-      <DrawerDescription>
-        Início {formatTimelineDate(job.startedAt ?? job.createdAt)} ·{" "}
-        {formatDuration(job.durationMs)}
-      </DrawerDescription>
-    </>
+    <DrawerDescription>
+      {formatTimelineDate(timestamp)} · {formatRelativeTime(timestamp)} ·{" "}
+      {formatDuration(job.durationMs)}
+    </DrawerDescription>
   )
 }
 
@@ -314,7 +309,7 @@ function JobDetailsTable({ job }: { job: JobRecord }) {
               {row.label}
             </TableHead>
             <TableCell
-              className={`break-words whitespace-normal ${row.className ?? ""}`}
+              className={`break-all whitespace-normal ${row.className ?? ""}`}
             >
               {row.value || "Não informado"}
             </TableCell>
@@ -354,26 +349,37 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
   return (
     <div className="flex flex-col gap-5">
       {stages.length ? (
-        <ItemGroup className="gap-2">
-          {stages.map((stage) => {
+        <ItemGroup className="gap-0">
+          {stages.map((stage, index) => {
             const Icon = stageIcon(stage.status)
             return (
-              <Item key={stage.id} className="px-0 py-0">
-                <ItemMedia variant="icon">
+              <div
+                key={stage.id}
+                className="grid grid-cols-[1rem_minmax(0,1fr)] gap-3"
+              >
+                <div className="flex min-h-10 flex-col items-center pt-2">
                   <Icon
                     aria-hidden="true"
                     className={
                       stage.status === "running" ? "animate-spin" : undefined
                     }
                   />
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle>{stage.label}</ItemTitle>
-                  <ItemDescription>
-                    {stageStatusLabel(stage.status)}
-                  </ItemDescription>
-                </ItemContent>
-              </Item>
+                  {index < stages.length - 1 ? (
+                    <Separator
+                      orientation="vertical"
+                      className="my-1 min-h-4 flex-1"
+                    />
+                  ) : null}
+                </div>
+                <Item className="border-transparent px-0 py-1">
+                  <ItemContent>
+                    <ItemTitle>{stage.label}</ItemTitle>
+                    <ItemDescription>
+                      {stageStatusLabel(stage.status)}
+                    </ItemDescription>
+                  </ItemContent>
+                </Item>
+              </div>
             )
           })}
         </ItemGroup>
@@ -696,7 +702,7 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
       }}
       direction={isMobile ? "bottom" : "right"}
     >
-      <DrawerContent className="min-h-0">
+      <DrawerContent className="min-h-0 sm:max-w-2xl">
         <DrawerHeader className="shrink-0 border-b">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -734,10 +740,12 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
           }}
           className="min-h-0 flex-1 gap-0"
         >
-          <TabsList variant="line" className="shrink-0 border-b px-4">
-            <TabsTrigger value="progress">Progresso</TabsTrigger>
-            <TabsTrigger value="log">Log</TabsTrigger>
-          </TabsList>
+          <div className="shrink-0 border-b px-4 py-2">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="progress">Progresso</TabsTrigger>
+              <TabsTrigger value="log">Log</TabsTrigger>
+            </TabsList>
+          </div>
           <TabsContent
             value="progress"
             className="min-h-0 overflow-hidden px-0"
@@ -752,7 +760,7 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
             </ScrollArea>
           </TabsContent>
         </Tabs>
-        <DrawerFooter className="shrink-0 border-t sm:flex-row sm:justify-between">
+        <DrawerFooter className="shrink-0 border-t sm:flex-row sm:justify-end">
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -768,11 +776,6 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
               clipboardLimitBytes={session.data?.clipboardLimitBytes}
             />
           </div>
-          <DrawerClose asChild>
-            <Button type="button" variant="outline">
-              Fechar
-            </Button>
-          </DrawerClose>
         </DrawerFooter>
       </DrawerContent>
     </Drawer>
