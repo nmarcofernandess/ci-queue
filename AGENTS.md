@@ -1,0 +1,66 @@
+# CI Queue
+
+CI Queue is an independent local CI executor and observability product. It owns
+its CLI, queue, supervisor, records, API, dashboard, installation and product
+tests. A consuming project owns its recipes, preparation and test harness.
+
+## Working in this repository
+
+- Keep the executor and dashboard independent of a consumer checkout. A path,
+  import, script or release asset must not require DietFlow internals.
+- Preserve proven process ownership, cancellation, locking and record formats
+  unless the change has a migration and recovery path.
+- The project UI lives in `ui/` and uses Vite, TypeScript, Tailwind 4,
+  `radix-nova`, Radix and Lucide. Read `ui/components.json` and run
+  `cd ui && npx shadcn@latest info --json` before changing UI.
+
+## UI: retrieve, select, adapt
+
+Treat shadcn as the available construction vocabulary, never as a styling
+constraint applied after generating markup.
+
+Before writing JSX for any surface:
+
+1. Classify the need: shell, table, filter, item/card, detail, form, menu,
+   empty/loading/error or chart.
+2. Read the corresponding entry in `docs/ui/COMPOSITION-LEDGER.md`.
+3. Run `npx shadcn@latest docs <component>` and retrieve the complete source
+   with `view` when the component or block is not installed.
+4. Select the closest official composition. State it in the implementation
+   note as `need -> composition -> adapted data/action`.
+5. Adapt only data, labels, routes and the stated real gap. Do not rewrite a
+   component's structural markup or use a primitive library directly when the
+   installed shadcn component provides the composition.
+6. Inspect it in a browser at desktop, intermediate and narrow widths, in all
+   themes and with overlays, empty, loading and error states when applicable.
+
+The named gaps are the status page grid, execution-stage connector, persistent
+worktree selection and duration scatter series. Each must compose existing
+Nova components and semantic tokens. A new gap needs an explicit product
+decision before JSX.
+
+Do not use CSS/JSX from the retired DietFlow Vite dashboard as visual source.
+The Dashboard 01 area-chart demo and data are excluded. The starter supplies
+the application shell and compatible source composition, not CI Queue content.
+
+## UI invariants
+
+- Use installed shadcn components and their variants before custom markup.
+- Use semantic tokens; do not add raw colors, manual dark overrides or overlay
+  z-index values.
+- Use `Empty`, `Skeleton`, `Separator`, `Badge`, `Field`, `InputGroup`,
+  `ToggleGroup`, `ButtonGroup`, `DropdownMenu` and `Popover` according to their
+  official composition.
+- A title may open a job or worktree drawer; table rows and metadata are not
+  whole-row buttons.
+- Filters remain above the controlled surface. Never nest Select inside a
+  Popover/Calendar to represent a fixed period.
+- The Analysis duration view is point data: `ChartContainer` plus `Scatter`,
+  with no line, curve or invented trend.
+
+## Validation
+
+Run the smallest relevant tests first. Before release/cutover, execute the
+product's documented contract, integration, UI and installation checks. A
+consumer smoketest does not prove the queue engine; an isolated queue fixture
+does not prove a consumer Full run.

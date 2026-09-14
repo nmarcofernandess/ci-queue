@@ -19,6 +19,7 @@ from .diagnostics import read_diagnostic, read_log_export, read_log_slice
 from .history import build_preset_history, read_remote_slots
 from .machine import read_machine
 from .native_actions import TARGETS, available as native_available, reveal
+from .provenance import release_provenance
 from .records import RecordError, iso_now, lookup_job, public_job, read_executions, status_snapshot
 from .worktrees import list_worktrees, worktree_view
 
@@ -33,6 +34,8 @@ class ApiContext:
     state_root: Path
     ui_root: Optional[Path]
     csrf_token: str
+    manifest_path: Optional[Path] = None
+    manifest_sha256: Optional[str] = None
 
 
 def _is_loopback(host):
@@ -183,12 +186,10 @@ def create_handler(context):
                                             "resourceHistoryCollection": False})
                     return
                 if parsed.path == "/build.json":
-                    # Installation provenance is intentionally not guessed
-                    # from a checkout.  The installer will later provide one
-                    # atomic manifest; until then the absence is a fact.
+                    manifest = release_provenance(self.api_context.manifest_path,
+                                                  self.api_context.manifest_sha256)
                     self.send_payload(200, {"apiVersion": 1, "projectId": self.api_context.config.project_id,
-                                            "version": os.environ.get("CI_QUEUE_VERSION"),
-                                            "manifest": None, "serverTime": iso_now()})
+                                            "manifest": manifest, "serverTime": iso_now()})
                     return
                 if parsed.path == "/api/session":
                     if not _is_loopback(self.client_address[0]) or not _is_loopback(_host_name(self.headers.get("Host", ""))):
@@ -292,6 +293,10 @@ def parse_args(argv=None):
     parser.add_argument("--state", default=os.environ.get("CI_QUEUE_STATE_DIR"),
                         help="raiz mutável de registros; ou CI_QUEUE_STATE_DIR")
     parser.add_argument("--ui", help="diretório compilado da UI; opcional para API isolada")
+    parser.add_argument("--manifest", default=os.environ.get("CI_QUEUE_MANIFEST_PATH"),
+                        help="manifest.json da distribuição instalada; nunca inferido de checkout")
+    parser.add_argument("--manifest-sha256", default=os.environ.get("CI_QUEUE_MANIFEST_SHA256"),
+                        help="SHA-256 do manifest registrado pela instalação")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     return parser.parse_args(argv)
@@ -306,7 +311,9 @@ def main(argv=None):
         state_root = Path(args.state).expanduser().resolve()
         ui_root = Path(args.ui).expanduser().resolve() if args.ui else None
         context = ApiContext(config=config, state_root=state_root, ui_root=ui_root,
-                             csrf_token=secrets.token_urlsafe(32))
+                             csrf_token=secrets.token_urlsafe(32),
+                             manifest_path=Path(args.manifest).expanduser().resolve() if args.manifest else None,
+                             manifest_sha256=args.manifest_sha256)
         server = create_server(context, args.host, args.port)
     except (ConfigError, ValueError) as error:
         raise SystemExit(str(error)) from error

@@ -1,6 +1,7 @@
 """Small isolated contract tests for the product-owned Python API."""
 
 import json
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -222,6 +223,37 @@ class HttpContractTests(Fixture):
         with self.assertRaises(HTTPError) as rejected:
             self.request("/api/not-a-route")
         self.assertEqual(rejected.exception.code, 404)
+
+    def test_build_provenance_is_never_inferred_from_checkout(self):
+        with self.request("/build.json") as response:
+            absent = json.loads(response.read())
+        self.assertIsNone(absent["manifest"])
+
+        manifest_path = self.root / "manifest.json"
+        raw = json.dumps({
+            "schemaVersion": 1, "product": "ci-queue", "version": "0.1.0",
+            "revision": "a" * 40, "createdAt": "2026-09-13T12:00:00Z", "files": [],
+        }).encode("utf-8")
+        manifest_path.write_bytes(raw)
+        expected = hashlib.sha256(raw).hexdigest()
+        provenance_server = create_server(
+            ApiContext(self.config, self.state, None, "csrf-test", manifest_path, expected), port=0)
+        provenance_thread = threading.Thread(target=provenance_server.serve_forever, daemon=True)
+        provenance_thread.start()
+        provenance_base = "http://127.0.0.1:%s" % provenance_server.server_address[1]
+        try:
+            with urlopen(provenance_base + "/build.json", timeout=3) as response:
+                provenanced = json.loads(response.read())
+            self.assertEqual(provenanced["manifest"]["state"], "matched")
+            self.assertEqual(provenanced["manifest"]["revision"], "a" * 40)
+            manifest_path.write_text("{}", encoding="utf-8")
+            with urlopen(provenance_base + "/build.json", timeout=3) as response:
+                tampered = json.loads(response.read())
+            self.assertEqual(tampered["manifest"]["state"], "invalid")
+        finally:
+            provenance_server.shutdown()
+            provenance_thread.join(1)
+            provenance_server.server_close()
 
 
 if __name__ == "__main__":
