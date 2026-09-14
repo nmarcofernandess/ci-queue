@@ -9,12 +9,6 @@ from .records import lookup_job, validate_job_id
 MAX_EXPORT_BYTES = 8 * 1024 * 1024
 LOG_SLICE_LIMIT = 512 * 1024
 SECRET = re.compile(r"(?i)(token|secret|password|authorization|api[_-]?key)\s*([:=])\s*([^\n]+)")
-INCIDENTS = (
-    ("jest-worker", re.compile(r"jest worker|worker.*exited unexpectedly", re.I)),
-    ("sigsegv", re.compile(r"SIGSEGV|segmentation fault", re.I)),
-    ("enospc", re.compile(r"ENOSPC|no space left on device", re.I)),
-    ("out-of-memory", re.compile(r"out of memory|heap out of memory|ENOMEM", re.I)),
-)
 
 
 def _redact(value):
@@ -89,11 +83,6 @@ def read_diagnostic(state_root, config, job_id):
     if job is None:
         return {"schemaVersion": 1, "jobId": job_id, "available": False, "reason": "ticket não encontrado"}
     export = read_log_export(state_root, config, job_id)
-    content = export.get("content", "")
-    kinds = [name for name, pattern in INCIDENTS if pattern.search(content)]
-    failure = job.get("failureReason")
-    if failure and job.get("status") in ("failed", "interrupted") and not kinds:
-        kinds = ["terminal-failure"]
     progress = job.get("progress") or job.get("progressSummary")
     observations = job.get("processObservations") or ([] if not isinstance(job.get("processObservation"), dict) else [job["processObservation"]])
     return {
@@ -101,7 +90,6 @@ def read_diagnostic(state_root, config, job_id):
         "jobId": job_id,
         "available": True,
         "ticket": {key: job.get(key) for key in ("id", "preset", "status", "exitCode", "failureReason", "headSha", "branch", "durationMs")},
-        "incidents": [{"kind": item, "attribution": "unknown" if item == "terminal-failure" else "correlated"} for item in kinds],
         "progress": progress,
         "resources": {"observations": observations, "coverage": "unavailable" if not observations else "reported"},
         "coverage": {"ticket": "complete", "logs": export.get("coverage"),

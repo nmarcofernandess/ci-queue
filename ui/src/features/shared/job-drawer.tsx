@@ -44,10 +44,13 @@ import {
   formatDuration,
   formatRelativeTime,
   formatTimelineDate,
+  statusLabel,
 } from "@/features/shared/format"
 import { JobStatusBadge } from "@/features/shared/run-table"
+import { useDashboardSession } from "@/features/status/use-dashboard-session"
 import {
   CheckCircle2Icon,
+  ClipboardIcon,
   CircleDotIcon,
   DownloadIcon,
   FileWarningIcon,
@@ -55,15 +58,57 @@ import {
   XCircleIcon,
   XIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
-function downloadLog(jobId: string, content: string) {
-  const blob = new Blob([content], { type: "text/plain;charset=utf-8" })
+const DEFAULT_CLIPBOARD_LIMIT_BYTES = 512_000
+
+function downloadFile(filename: string, content: string, type: string) {
+  const blob = new Blob([content], { type })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement("a")
   anchor.href = url
-  anchor.download = `${jobId}.log`
+  anchor.download = filename
   anchor.click()
   window.setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+async function copyText(value: string, limit: number | undefined) {
+  const maxBytes = limit ?? DEFAULT_CLIPBOARD_LIMIT_BYTES
+  if (new TextEncoder().encode(value).byteLength > maxBytes) {
+    throw new Error("O conteúdo excede o limite de cópia da bridge.")
+  }
+  if (!navigator.clipboard?.writeText) {
+    throw new Error(
+      "A área de transferência não está disponível neste navegador."
+    )
+  }
+  await navigator.clipboard.writeText(value)
+}
+
+function contextForJob(job: JobRecord) {
+  return [
+    `Ticket: ${job.id}`,
+    `Preset: ${job.preset || "Não informado"}`,
+    `Estado: ${statusLabel(job.status)}`,
+    `Branch: ${job.branch || "Não informada"}`,
+    `SHA: ${job.headSha || "Não informado"}`,
+    `Diretório: ${job.cwd || "Não informado"}`,
+    `Início: ${job.startedAt || "Não registrado"}`,
+    `Conclusão: ${job.finishedAt || "Não registrada"}`,
+    `Duração: ${formatDuration(job.durationMs)}`,
+    ...(job.failureReason ? [`Motivo: ${job.failureReason}`] : []),
+  ].join("\n")
+}
+
+function diagnosticBundle(diagnostic: Diagnostic, logExport: LogExport) {
+  return {
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    sources: {
+      diagnostic,
+      logExport,
+    },
+  }
 }
 
 function stageIcon(
@@ -195,12 +240,48 @@ function LogPanel({ log }: { log: ApiQuery<LogSlice> }) {
 
 function DiagnosticPopover({
   diagnostic,
+  logExport,
+  jobId,
+  clipboardLimitBytes,
 }: {
   diagnostic: ApiQuery<Diagnostic>
+  logExport: ApiQuery<LogExport>
+  jobId: string
+  clipboardLimitBytes: number | undefined
 }) {
-  const incidents = diagnostic.data?.available
-    ? (diagnostic.data.incidents ?? [])
-    : []
+  const ticket = diagnostic.data?.available ? diagnostic.data.ticket : undefined
+  const bundle =
+    diagnostic.data?.available && logExport.data
+      ? diagnosticBundle(diagnostic.data, logExport.data)
+      : undefined
+
+  const copyDiagnostic = async () => {
+    if (!bundle) {
+      return
+    }
+    try {
+      await copyText(JSON.stringify(bundle, null, 2), clipboardLimitBytes)
+      toast.success("Diagnóstico copiado.")
+    } catch (reason) {
+      toast.error(
+        reason instanceof Error
+          ? reason.message
+          : "Não foi possível copiar o diagnóstico."
+      )
+    }
+  }
+
+  const downloadDiagnostic = () => {
+    if (!bundle) {
+      return
+    }
+    downloadFile(
+      `ci-diagnostic-${jobId}.json`,
+      JSON.stringify(bundle, null, 2),
+      "application/json;charset=utf-8"
+    )
+    toast.success("Diagnóstico baixado.")
+  }
 
   return (
     <Popover>
@@ -223,47 +304,69 @@ function DiagnosticPopover({
         {diagnostic.data?.available ? (
           <>
             <PopoverHeader>
-              <PopoverTitle>Observações da execução</PopoverTitle>
+              <PopoverTitle>Diagnóstico</PopoverTitle>
               <PopoverDescription>
-                {incidents.length
-                  ? "Ocorrências correlacionadas ao log."
-                  : "Nenhuma ocorrência reconhecida no diagnóstico."}
+                {ticket
+                  ? `${statusLabel(ticket.status)}${
+                      typeof ticket.exitCode === "number"
+                        ? ` · código de saída ${ticket.exitCode}`
+                        : ""
+                    }`
+                  : "Estado não registrado."}
               </PopoverDescription>
+              {ticket?.failureReason ? (
+                <PopoverDescription>
+                  Motivo registrado: {ticket.failureReason}
+                </PopoverDescription>
+              ) : null}
             </PopoverHeader>
-            {incidents.length ? (
-              <ul className="mt-3 flex list-disc flex-col gap-1 pl-4 text-sm text-muted-foreground">
-                {incidents.map((incident) => (
-                  <li key={incident.kind}>{incident.kind}</li>
-                ))}
-              </ul>
+            {logExport.error ? (
+              <PopoverDescription>{logExport.error.message}</PopoverDescription>
             ) : null}
+            <div className="flex flex-col gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full justify-start"
+                disabled={!bundle}
+                onClick={() => void copyDiagnostic()}
+              >
+                <ClipboardIcon data-icon />
+                Copiar diagnóstico
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full justify-start"
+                disabled={!bundle}
+                onClick={downloadDiagnostic}
+              >
+                <DownloadIcon data-icon />
+                Baixar diagnóstico
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full justify-start"
+                disabled={!logExport.data?.coverage.available}
+                onClick={() =>
+                  logExport.data
+                    ? downloadFile(
+                        `${jobId}.log`,
+                        logExport.data.content,
+                        "text/plain;charset=utf-8"
+                      )
+                    : undefined
+                }
+              >
+                <DownloadIcon data-icon />
+                Baixar log
+              </Button>
+            </div>
           </>
         ) : null}
       </PopoverContent>
     </Popover>
-  )
-}
-
-function ExportButton({
-  jobId,
-  logExport,
-}: {
-  jobId: string
-  logExport: ApiQuery<LogExport>
-}) {
-  if (logExport.loading || !logExport.data?.coverage.available) {
-    return null
-  }
-
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      onClick={() => downloadLog(jobId, logExport.data!.content)}
-    >
-      <DownloadIcon data-icon />
-      Exportar log
-    </Button>
   )
 }
 
@@ -286,6 +389,23 @@ export function JobDrawer({
   const log = useApiQuery(`log:${jobId}`, logRequest)
   const logExport = useApiQuery(`log-export:${jobId}`, exportRequest)
   const diagnostic = useApiQuery(`diagnostic:${jobId}`, diagnosticRequest)
+  const session = useDashboardSession()
+
+  const copyContext = async () => {
+    if (!job.data) {
+      return
+    }
+    try {
+      await copyText(contextForJob(job.data), session.data?.clipboardLimitBytes)
+      toast.success("Contexto copiado.")
+    } catch (reason) {
+      toast.error(
+        reason instanceof Error
+          ? reason.message
+          : "Não foi possível copiar o contexto."
+      )
+    }
+  }
 
   return (
     <Drawer
@@ -344,8 +464,21 @@ export function JobDrawer({
         </Tabs>
         <DrawerFooter className="shrink-0 border-t sm:flex-row sm:justify-between">
           <div className="flex flex-wrap gap-2">
-            <DiagnosticPopover diagnostic={diagnostic} />
-            <ExportButton jobId={jobId} logExport={logExport} />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!job.data}
+              onClick={() => void copyContext()}
+            >
+              <ClipboardIcon data-icon />
+              Copiar contexto
+            </Button>
+            <DiagnosticPopover
+              diagnostic={diagnostic}
+              logExport={logExport}
+              jobId={jobId}
+              clipboardLimitBytes={session.data?.clipboardLimitBytes}
+            />
           </div>
           <DrawerClose asChild>
             <Button type="button" variant="outline">

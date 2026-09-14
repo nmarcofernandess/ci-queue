@@ -320,6 +320,45 @@ class StateAndDiagnosticTests(Fixture):
         (self.state / "logs" / "foreign.log").write_text("secret=x", encoding="utf-8")
         self.assertFalse(read_diagnostic(self.state, self.config, "foreign")["available"])
 
+    def test_diagnostic_keeps_facts_without_classifying_log_text(self):
+        self.job(
+            "failed",
+            status="failed",
+            exitCode=1,
+            failureReason="processo terminou com código 1",
+            processObservations=[{"capture": "end", "state": "exited"}],
+        )
+        (self.state / "logs" / "failed.log").write_text(
+            "ENOSPC\nout of memory\nSIGSEGV\njest worker exited unexpectedly\n",
+            encoding="utf-8",
+        )
+
+        diagnostic = read_diagnostic(self.state, self.config, "failed")
+
+        self.assertTrue(diagnostic["available"])
+        self.assertEqual(
+            diagnostic["ticket"],
+            {
+                "id": "failed",
+                "preset": "smoke",
+                "status": "failed",
+                "exitCode": 1,
+                "failureReason": "processo terminou com código 1",
+                "headSha": "a" * 40,
+                "branch": "main",
+                "durationMs": 60000,
+            },
+        )
+        self.assertNotIn("incidents", diagnostic)
+        self.assertEqual(
+            diagnostic["resources"],
+            {
+                "observations": [{"capture": "end", "state": "exited"}],
+                "coverage": "reported",
+            },
+        )
+        self.assertTrue(diagnostic["coverage"]["logs"]["available"])
+
     def test_export_declares_truncation_for_a_large_log(self):
         self.job("large")
         (self.state / "logs" / "large.log").write_bytes(b"a" * (MAX_EXPORT_BYTES + 16))
