@@ -218,6 +218,11 @@ class HttpContractTests(Fixture):
             self.request("/api/remote-slots?refresh=1")
         self.assertEqual(rejected.exception.code, 400)
 
+    def test_unknown_api_is_not_a_spa_route(self):
+        with self.assertRaises(HTTPError) as rejected:
+            self.request("/api/not-a-route")
+        self.assertEqual(rejected.exception.code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

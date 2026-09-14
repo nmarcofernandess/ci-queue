@@ -272,6 +272,9 @@ def create_handler(context):
             except (ConfigError, RecordError, ValueError, OSError) as error:
                 self.error(400, str(error))
                 return
+            if parsed.path.startswith("/api/"):
+                self.error(404, "endpoint não encontrado")
+                return
             self._serve_static(parsed.path)
 
     return Handler

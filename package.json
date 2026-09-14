@@ -1,0 +1,26 @@
+{
+  "name": "@nmarcofernandess/ci-queue",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Independent local CI queue, executor and observability service",
+  "bin": {
+    "ci-queue": "./bin/ci-queue.mjs"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "check": "npm run build && npm run test:core",
+    "ci-queue": "tsx src/cli.ts",
+    "test:core": "vitest run tests/core",
+    "test": "npm run test:core"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
