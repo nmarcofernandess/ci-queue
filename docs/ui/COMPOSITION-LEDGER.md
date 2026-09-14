@@ -19,9 +19,12 @@ adapting shadcn sources rather than re-inventing surfaces.
 | --- | --- | --- |
 | App shell | `SidebarProvider` → `Sidebar variant="inset" collapsible="offcanvas"` → `SidebarInset` → header with `SidebarTrigger` | Brand, routes and bridge data only. No `SidebarRail`; trigger stays in header. |
 | Sidebar navigation and theme | `SidebarHeader`, `SidebarContent`, `SidebarMenu`, `SidebarMenuButton`, `SidebarFooter`, `ToggleGroup`, `Tooltip` | Footer contains Bridge and Claro/Escuro/Sistema only. |
-| Status cards | `Card` with its full header/content/footer composition; `ItemGroup` and `Item` where rows are needed | Status page grid is a named layout gap, not a new visual primitive. |
-| Queue, history, last greens and problems | Dashboard 01 `DataTable` composition (`@tanstack/react-table`, `flexRender`, `Table`) adapted into a shared `RunTable` renderer | Two columns: Execution and Context. Only preset title opens the drawer. |
+| Current execution | `Card` → `CardHeader`/`CardContent`, `Item`, `ItemGroup`, `ItemSeparator` | Full-width only while there is a real running ticket. Title opens drawer; date, relative time and duration live below it. |
+| Queue | Dashboard 01 `DataTable` composition adapted into shared `RunTable` | Only queued tickets; no filter toolbar. The terminal receipt moves to history, never becomes a queue summary. |
+| History, last greens and problems | Dashboard 01 `DataTable` composition (`@tanstack/react-table`, `table.FlexRender`, `Table`) adapted into shared `RunTable` renderer | Two columns: Execution and Context. Only preset title opens the drawer. |
 | History controls | `Tabs`, `InputGroup`, direct `Select`, `Button ghost` | Controls live above the table and wrap left-to-right. No Calendar, interval or nested popup. |
+| Machine | `Card` → `CardHeader`/`CardContent`/`CardFooter`, `Item`, ghost `Button` link | Only measurable disk capacity and the link to Analysis. No invented normal state, memory total or per-card refresh. |
+| Meta and notes | `Card` summaries plus `Drawer` form using `FieldSet`/`FieldGroup`/`Field` | One manual project goal and manual notes; they do not gate CI or manufacture pending work. |
 | Worktrees | Dashboard 01 `DataTable` composition + `Checkbox`, `InputGroup`, `ButtonGroup`, `DropdownMenu` | Persistent selected IDs is a named state-management gap; rows do not become buttons. |
 | Job, worktree, meta and note detail | `Drawer` from Dashboard 01, right on desktop/bottom on mobile; `DrawerHeader`, `ScrollArea`, `DrawerFooter` | Fixed header/tabs/footer with only central content scrolling. |
 | Diagnostic and copy variants | `Popover` for diagnostic, `DropdownMenu` for explicit copy variants | Diagnostic does not render below a log. No nested menus. |
@@ -59,7 +62,7 @@ new-york-v4 component CSS or JSX is copied into this project.
 
 The Dashboard 01 registry item explicitly ships a `DataTable` component and
 declares `@tanstack/react-table`. The product retains its column-definition,
-table-model, `flexRender`, official `Table` and checkbox-selection
+table-model, `table.FlexRender`, official `Table` and checkbox-selection
 composition. The installed major version exposes its compatible table factory
 rather than the old `useReactTable` name; the implementation must use that
 official version's equivalent API, not downgrade or recreate a CSS grid.
@@ -75,5 +78,5 @@ turn table rows into buttons or to substitute a handmade table.
 | --- | --- | --- |
 | Status layout | Responsive page wrapper around existing Cards/Tables | A bespoke dashboard/card system or arbitrary divider. |
 | Execution stages | `ItemGroup`, `Item`, dots/checks and `Separator` | Percent, ETA, Slider/Progress or made-up state machine. |
-| Worktree selection | React `Set<worktreeId>` over Checkbox/Data Table | Custom checkboxes or clickable rows. |
+| Worktree selection | TanStack v9 controlled `Record<worktreeId, true>` over Checkbox/Data Table, persisted per project in localStorage | Custom checkboxes or clickable rows. |
 | Duration scatter | `ChartContainer` with Recharts scatter series | Line chart, trendline, area chart or raw tooltip styling. |
