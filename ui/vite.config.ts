@@ -14,7 +14,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: process.env.CI_QUEUE_API_ORIGIN ?? "http://127.0.0.1:8765",
+        target: process.env.CI_QUEUE_API_ORIGIN ?? "http://127.0.0.1:8876",
         changeOrigin: true,
       },
     },

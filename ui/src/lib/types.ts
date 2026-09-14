@@ -183,6 +183,7 @@ export type AnalysisResponse = {
   problems: JobRecord[]
   problemTotal: number
   hasMore: boolean
+  nextOffset: number | null
   coverage: { unattributedRecords: number }
 }
 

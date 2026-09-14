@@ -119,6 +119,140 @@ function diagnosticBundle(diagnostic: Diagnostic, logExport?: LogExport) {
   }
 }
 
+type DiagnosticExportAction =
+  "copy-diagnostic" | "download-diagnostic" | "download-log"
+
+type PagedLogQuery = ApiQuery<LogSlice> & {
+  loadMore: () => void
+  loadingMore: boolean
+  loadMoreError: Error | undefined
+}
+
+function mergeLogSlices(first: LogSlice, pages: LogSlice[]) {
+  return pages.reduce<LogSlice>(
+    (combined, page) => ({
+      ...page,
+      content: `${combined.content}${page.content}`,
+      offset: first.offset,
+    }),
+    first
+  )
+}
+
+function usePagedLog(jobId: string, enabled: boolean): PagedLogQuery {
+  const request = React.useCallback(() => getLog(jobId), [jobId])
+  const initial = useApiQuery(`log:${jobId}`, request, { enabled })
+  const { reload: reloadInitial } = initial
+  const [pageState, setPageState] = React.useState<{
+    jobId: string
+    pages: LogSlice[]
+    loadingMore: boolean
+    loadMoreError: Error | undefined
+  }>({
+    jobId,
+    pages: [],
+    loadingMore: false,
+    loadMoreError: undefined,
+  })
+  const requestVersion = React.useRef(0)
+  const loadingMore = pageState.jobId === jobId ? pageState.loadingMore : false
+  const loadMoreError =
+    pageState.jobId === jobId ? pageState.loadMoreError : undefined
+
+  const data = React.useMemo(() => {
+    if (!initial.data || initial.data.jobId !== jobId) {
+      return undefined
+    }
+    return mergeLogSlices(
+      initial.data,
+      pageState.jobId === jobId ? pageState.pages : []
+    )
+  }, [initial.data, jobId, pageState])
+
+  const reload = React.useCallback(() => {
+    requestVersion.current += 1
+    setPageState({
+      jobId,
+      pages: [],
+      loadingMore: false,
+      loadMoreError: undefined,
+    })
+    reloadInitial()
+  }, [jobId, reloadInitial])
+
+  const loadMore = React.useCallback(() => {
+    if (
+      !data ||
+      data.error ||
+      data.complete ||
+      data.nextOffset >= data.sourceBytes ||
+      loadingMore
+    ) {
+      return
+    }
+
+    const offset = data.nextOffset
+    const version = requestVersion.current
+    setPageState((current) => ({
+      jobId,
+      pages: current.jobId === jobId ? current.pages : [],
+      loadingMore: true,
+      loadMoreError: undefined,
+    }))
+
+    void getLog(jobId, offset)
+      .then((page) => {
+        if (requestVersion.current !== version || page.offset !== offset) {
+          return
+        }
+        setPageState((current) => {
+          if (current.jobId !== jobId) {
+            return current
+          }
+          return {
+            ...current,
+            pages: [...current.pages, page],
+          }
+        })
+      })
+      .catch((reason) => {
+        if (requestVersion.current !== version) {
+          return
+        }
+        setPageState((current) => {
+          if (current.jobId !== jobId) {
+            return current
+          }
+          return {
+            ...current,
+            loadMoreError:
+              reason instanceof Error
+                ? reason
+                : new Error("Não foi possível carregar mais do log."),
+          }
+        })
+      })
+      .finally(() => {
+        if (requestVersion.current === version) {
+          setPageState((current) =>
+            current.jobId === jobId
+              ? { ...current, loadingMore: false }
+              : current
+          )
+        }
+      })
+  }, [data, jobId, loadingMore])
+
+  return {
+    ...initial,
+    data,
+    reload,
+    loadMore,
+    loadingMore,
+    loadMoreError,
+  }
+}
+
 function stageIcon(
   status: "pending" | "running" | "passed" | "failed" | "skipped"
 ) {
@@ -249,7 +383,7 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
   )
 }
 
-function LogPanel({ log }: { log: ApiQuery<LogSlice> }) {
+function LogPanel({ log }: { log: PagedLogQuery }) {
   if (log.loading) {
     return <Skeleton className="h-64 w-full" />
   }
@@ -275,59 +409,167 @@ function LogPanel({ log }: { log: ApiQuery<LogSlice> }) {
     )
   }
 
+  const canLoadMore =
+    !log.data.complete && log.data.nextOffset < log.data.sourceBytes
+
   return (
-    <pre className="font-mono text-xs leading-5 break-words whitespace-pre-wrap text-foreground">
-      {log.data.content || "Log vazio."}
-    </pre>
+    <div className="flex flex-col gap-3">
+      <pre className="font-mono text-xs leading-5 break-words whitespace-pre-wrap text-foreground">
+        {log.data.content || "Log vazio."}
+      </pre>
+      {!log.data.complete ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted-foreground">
+            Exibidos {log.data.nextOffset.toLocaleString("pt-BR")} de{" "}
+            {log.data.sourceBytes.toLocaleString("pt-BR")} bytes.
+          </p>
+          {log.loadMoreError ? (
+            <p className="text-sm text-destructive" role="alert">
+              {log.loadMoreError.message}
+            </p>
+          ) : null}
+          {canLoadMore ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={log.loadMore}
+              disabled={log.loadingMore}
+            >
+              {log.loadingMore ? "Carregando log" : "Carregar mais do log"}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
 function DiagnosticPopover({
-  diagnostic,
-  logExport,
   jobId,
   clipboardLimitBytes,
 }: {
-  diagnostic: ApiQuery<Diagnostic>
-  logExport: ApiQuery<LogExport>
   jobId: string
   clipboardLimitBytes: number | undefined
 }) {
+  const [diagnosticRequested, setDiagnosticRequested] = React.useState(false)
+  const [exporting, setExporting] = React.useState(false)
+  const [exportError, setExportError] = React.useState<Error>()
+  const exportCache = React.useRef<LogExport | undefined>(undefined)
+  const exportRequest = React.useRef<Promise<LogExport> | undefined>(undefined)
+  const diagnosticRequest = React.useCallback(
+    () => getDiagnostic(jobId),
+    [jobId]
+  )
+  const diagnostic = useApiQuery(`diagnostic:${jobId}`, diagnosticRequest, {
+    enabled: diagnosticRequested,
+  })
   const ticket = diagnostic.data?.available ? diagnostic.data.ticket : undefined
-  const bundle = diagnostic.data?.available
-    ? diagnosticBundle(diagnostic.data, logExport.data)
-    : undefined
 
-  const copyDiagnostic = async () => {
-    if (!bundle) {
-      return
-    }
-    try {
-      await copyText(JSON.stringify(bundle, null, 2), clipboardLimitBytes)
-      toast.success("Diagnóstico copiado.")
-    } catch (reason) {
-      toast.error(
-        reason instanceof Error
-          ? reason.message
-          : "Não foi possível copiar o diagnóstico."
-      )
-    }
-  }
+  const copyDiagnostic = React.useCallback(
+    async (bundle: ReturnType<typeof diagnosticBundle>) => {
+      try {
+        await copyText(JSON.stringify(bundle, null, 2), clipboardLimitBytes)
+        toast.success("Diagnóstico copiado.")
+      } catch (reason) {
+        toast.error(
+          reason instanceof Error
+            ? reason.message
+            : "Não foi possível copiar o diagnóstico."
+        )
+      }
+    },
+    [clipboardLimitBytes]
+  )
 
-  const downloadDiagnostic = () => {
-    if (!bundle) {
-      return
+  const loadExport = React.useCallback(async () => {
+    if (exportCache.current) {
+      return exportCache.current
     }
-    downloadFile(
-      `ci-diagnostic-${jobId}.json`,
-      JSON.stringify(bundle, null, 2),
-      "application/json;charset=utf-8"
-    )
-    toast.success("Diagnóstico baixado.")
-  }
+    if (exportRequest.current) {
+      return exportRequest.current
+    }
+
+    setExportError(undefined)
+    setExporting(true)
+    const request = getLogExport(jobId)
+      .then((result) => {
+        exportCache.current = result
+        return result
+      })
+      .catch((reason) => {
+        const error =
+          reason instanceof Error
+            ? reason
+            : new Error("Não foi possível preparar a exportação.")
+        setExportError(error)
+        throw error
+      })
+      .finally(() => {
+        exportRequest.current = undefined
+        setExporting(false)
+      })
+    exportRequest.current = request
+    return request
+  }, [jobId])
+
+  const requestExport = React.useCallback(
+    (action: DiagnosticExportAction) => {
+      const currentDiagnostic = diagnostic.data
+      if (!currentDiagnostic?.available) {
+        return
+      }
+
+      void loadExport()
+        .then((logExport) => {
+          const bundle = diagnosticBundle(currentDiagnostic, logExport)
+          if (action === "copy-diagnostic") {
+            return copyDiagnostic(bundle)
+          }
+
+          if (action === "download-diagnostic") {
+            downloadFile(
+              `ci-diagnostic-${jobId}.json`,
+              JSON.stringify(bundle, null, 2),
+              "application/json;charset=utf-8"
+            )
+            toast.success("Diagnóstico baixado.")
+            return
+          }
+
+          if (!logExport.coverage.available) {
+            const error = new Error(
+              logExport.coverage.reason || "Log indisponível para download."
+            )
+            setExportError(error)
+            toast.error(error.message)
+            return
+          }
+
+          downloadFile(
+            `${jobId}.log`,
+            logExport.content,
+            "text/plain;charset=utf-8"
+          )
+        })
+        .catch((reason) => {
+          toast.error(
+            reason instanceof Error
+              ? reason.message
+              : "Não foi possível preparar a exportação."
+          )
+        })
+    },
+    [copyDiagnostic, diagnostic.data, jobId, loadExport]
+  )
 
   return (
-    <Popover>
+    <Popover
+      onOpenChange={(open) => {
+        if (open) {
+          setDiagnosticRequested(true)
+        }
+      }}
+    >
       <PopoverTrigger asChild>
         <Button type="button" variant="ghost">
           <FileWarningIcon data-icon />
@@ -363,16 +605,21 @@ function DiagnosticPopover({
                 </PopoverDescription>
               ) : null}
             </PopoverHeader>
-            {logExport.error ? (
-              <PopoverDescription>{logExport.error.message}</PopoverDescription>
+            {exportError ? (
+              <PopoverDescription>{exportError.message}</PopoverDescription>
+            ) : null}
+            {exporting ? (
+              <PopoverDescription>
+                Preparando conteúdo para exportação…
+              </PopoverDescription>
             ) : null}
             <div className="flex flex-col gap-1">
               <Button
                 type="button"
                 variant="ghost"
                 className="w-full justify-start"
-                disabled={!bundle}
-                onClick={() => void copyDiagnostic()}
+                disabled={exporting}
+                onClick={() => requestExport("copy-diagnostic")}
               >
                 <ClipboardIcon data-icon />
                 Copiar diagnóstico
@@ -381,8 +628,8 @@ function DiagnosticPopover({
                 type="button"
                 variant="ghost"
                 className="w-full justify-start"
-                disabled={!bundle}
-                onClick={downloadDiagnostic}
+                disabled={exporting}
+                onClick={() => requestExport("download-diagnostic")}
               >
                 <DownloadIcon data-icon />
                 Baixar diagnóstico
@@ -391,16 +638,8 @@ function DiagnosticPopover({
                 type="button"
                 variant="ghost"
                 className="w-full justify-start"
-                disabled={!logExport.data?.coverage.available}
-                onClick={() =>
-                  logExport.data
-                    ? downloadFile(
-                        `${jobId}.log`,
-                        logExport.data.content,
-                        "text/plain;charset=utf-8"
-                      )
-                    : undefined
-                }
+                disabled={exporting}
+                onClick={() => requestExport("download-log")}
               >
                 <DownloadIcon data-icon />
                 Baixar log
@@ -413,25 +652,24 @@ function DiagnosticPopover({
   )
 }
 
-export function JobDrawer({
-  jobId,
-  onClose,
-}: {
+type JobDrawerProps = {
   jobId: string
   onClose: () => void
-}) {
+}
+
+export function JobDrawer(props: JobDrawerProps) {
+  return <JobDrawerContent key={props.jobId} {...props} />
+}
+
+function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
   const isMobile = useIsMobile()
-  const jobRequest = React.useCallback(() => getJob(jobId), [jobId])
-  const logRequest = React.useCallback(() => getLog(jobId), [jobId])
-  const exportRequest = React.useCallback(() => getLogExport(jobId), [jobId])
-  const diagnosticRequest = React.useCallback(
-    () => getDiagnostic(jobId),
-    [jobId]
+  const [activeTab, setActiveTab] = React.useState<"progress" | "log">(
+    "progress"
   )
+  const [logRequested, setLogRequested] = React.useState(false)
+  const jobRequest = React.useCallback(() => getJob(jobId), [jobId])
   const job = useApiQuery(`job:${jobId}`, jobRequest)
-  const log = useApiQuery(`log:${jobId}`, logRequest)
-  const logExport = useApiQuery(`log-export:${jobId}`, exportRequest)
-  const diagnostic = useApiQuery(`diagnostic:${jobId}`, diagnosticRequest)
+  const log = usePagedLog(jobId, logRequested)
   const session = useDashboardSession()
 
   const copyContext = async () => {
@@ -486,7 +724,16 @@ export function JobDrawer({
             </DrawerClose>
           </div>
         </DrawerHeader>
-        <Tabs defaultValue="progress" className="min-h-0 flex-1 gap-0">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => {
+            if (value === "log") {
+              setLogRequested(true)
+            }
+            setActiveTab(value as "progress" | "log")
+          }}
+          className="min-h-0 flex-1 gap-0"
+        >
           <TabsList variant="line" className="shrink-0 border-b px-4">
             <TabsTrigger value="progress">Progresso</TabsTrigger>
             <TabsTrigger value="log">Log</TabsTrigger>
@@ -517,8 +764,6 @@ export function JobDrawer({
               Copiar contexto
             </Button>
             <DiagnosticPopover
-              diagnostic={diagnostic}
-              logExport={logExport}
               jobId={jobId}
               clipboardLimitBytes={session.data?.clipboardLimitBytes}
             />

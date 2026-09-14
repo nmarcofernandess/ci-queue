@@ -15,7 +15,7 @@ import {
   type ApiQuery,
   useApiQuery,
 } from "@/lib/api"
-import type { AnalysisPreset, AnalysisResponse } from "@/lib/types"
+import type { AnalysisPreset, AnalysisResponse, JobRecord } from "@/lib/types"
 import {
   Card,
   CardContent,
@@ -126,6 +126,11 @@ function writeDurationPreset(preset: string) {
 
 function validPreset(value: string, presets: string[]) {
   return value && presets.includes(value) ? value : ""
+}
+
+function appendProblemPage(existing: JobRecord[], next: JobRecord[]) {
+  const seen = new Set(existing.map((job) => job.id))
+  return [...existing, ...next.filter((job) => !seen.has(job.id))]
 }
 
 function ResultsChart({
@@ -484,6 +489,92 @@ function AnalysisStatistics({
   )
 }
 
+function ProblemsTable({
+  analysis,
+  from,
+  preset,
+  onOpenJob,
+}: {
+  analysis: ApiQuery<AnalysisResponse>
+  from: string | undefined
+  preset: string
+  onOpenJob: (jobId: string) => void
+}) {
+  const [pages, setPages] = React.useState<
+    Array<Pick<AnalysisResponse, "problems" | "hasMore" | "nextOffset">>
+  >([])
+  const [loadingMore, setLoadingMore] = React.useState(false)
+  const [loadMoreError, setLoadMoreError] = React.useState<Error>()
+  const matchingInitial =
+    analysis.data &&
+    analysis.data.from === (from ?? null) &&
+    analysis.data.preset === (preset || null)
+      ? analysis.data
+      : undefined
+  const loadedPages = matchingInitial
+    ? [
+        {
+          problems: matchingInitial.problems,
+          hasMore: matchingInitial.hasMore,
+          nextOffset: matchingInitial.nextOffset,
+        },
+        ...pages,
+      ]
+    : []
+  const lastPage = loadedPages.at(-1)
+  const jobs = loadedPages.reduce(
+    (all, page) => appendProblemPage(all, page.problems),
+    [] as JobRecord[]
+  )
+
+  const loadMore = React.useCallback(async () => {
+    if (!lastPage?.hasMore || lastPage.nextOffset === null || loadingMore) {
+      return
+    }
+    setLoadingMore(true)
+    setLoadMoreError(undefined)
+    try {
+      const next = await getAnalysis({
+        from,
+        preset: preset || undefined,
+        offset: lastPage.nextOffset,
+      })
+      setPages((current) => [
+        ...current,
+        {
+          problems: next.problems,
+          hasMore: next.hasMore,
+          nextOffset: next.nextOffset,
+        },
+      ])
+    } catch (reason) {
+      setLoadMoreError(
+        reason instanceof Error
+          ? reason
+          : new Error("Não foi possível carregar mais problemas.")
+      )
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [from, lastPage, loadingMore, preset])
+
+  return (
+    <RunTable
+      title="Problemas"
+      description="Falhas e interrupções terminais, sem classificação adicional inventada pela interface."
+      jobs={matchingInitial ? jobs : undefined}
+      loading={analysis.loading && !matchingInitial}
+      error={analysis.error}
+      emptyDescription="Não há execução falha ou interrompida para os filtros selecionados."
+      onOpenJob={onOpenJob}
+      hasMore={lastPage?.hasMore}
+      loadingMore={loadingMore}
+      loadMoreError={loadMoreError}
+      onLoadMore={() => void loadMore()}
+    />
+  )
+}
+
 export function AnalysisPage() {
   const [tab, setTab] = React.useState<AnalysisTab>("statistics")
   const [view, setView] = React.useState<StatisticsView>("results")
@@ -540,6 +631,7 @@ export function AnalysisPage() {
     `analysis:${period}:${effectivePreset}`,
     analysisRequest
   )
+  const problemKey = `${periodStart ?? "all"}:${effectivePreset}`
 
   return (
     <main className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
@@ -583,13 +675,11 @@ export function AnalysisPage() {
               onPeriod={setPeriod}
               onPreset={handlePreset}
             />
-            <RunTable
-              title="Problemas"
-              description="Falhas e interrupções terminais, sem classificação adicional inventada pela interface."
-              jobs={analysis.data?.problems}
-              loading={analysis.loading}
-              error={analysis.error}
-              emptyDescription="Não há execução falha ou interrompida para os filtros selecionados."
+            <ProblemsTable
+              key={problemKey}
+              analysis={analysis}
+              from={periodStart}
+              preset={effectivePreset}
               onOpenJob={setSelectedJobId}
             />
           </div>

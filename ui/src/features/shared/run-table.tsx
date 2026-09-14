@@ -7,12 +7,20 @@ import {
 import {
   CheckCircle2Icon,
   CircleDotIcon,
+  InboxIcon,
   LoaderCircleIcon,
   XCircleIcon,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -87,6 +95,7 @@ export type RunTableProps = {
   jobs: RunTableJob[] | undefined
   loading: boolean
   error: Error | undefined
+  emptyTitle?: string
   emptyDescription: string
   onOpenJob: (jobId: string) => void
   hasMore?: boolean
@@ -215,7 +224,13 @@ function RunDataTable({
   )
 }
 
-function RunEmptyTable({ description }: { description: string }) {
+function RunEmptyTable({
+  title,
+  description,
+}: {
+  title: string
+  description: string
+}) {
   return (
     <Table>
       <TableHeader>
@@ -228,9 +243,17 @@ function RunEmptyTable({ description }: { description: string }) {
         <TableRow>
           <TableCell
             colSpan={2}
-            className="h-24 text-center text-sm text-muted-foreground"
+            className="p-0"
           >
-            {description}
+            <Empty className="min-h-44 border-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <InboxIcon />
+                </EmptyMedia>
+                <EmptyTitle>{title}</EmptyTitle>
+                <EmptyDescription>{description}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </TableCell>
         </TableRow>
       </TableBody>
@@ -259,6 +282,7 @@ export function RunTable({
   jobs,
   loading,
   error,
+  emptyTitle = "Nenhuma execução encontrada",
   emptyDescription,
   onOpenJob,
   hasMore = false,
@@ -306,7 +330,7 @@ export function RunTable({
         />
       ) : null}
       {!loading && !error && !data.length ? (
-        <RunEmptyTable description={emptyDescription} />
+        <RunEmptyTable title={emptyTitle} description={emptyDescription} />
       ) : null}
       {!loading && !error && data.length ? (
         <RunDataTable

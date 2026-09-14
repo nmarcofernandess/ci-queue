@@ -948,10 +948,17 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
   const [filters, setFilters] =
     React.useState<HistoryFilters>(readHistoryFilters)
   const executions = useExecutionHistory(filters)
+  const greensMode = filters.mode === "greens"
+  const needsMachine = filters.origin !== "git"
+  const needsGit = filters.origin !== "machine"
   const presetRequest = React.useCallback(() => getPresetHistory(), [])
   const remoteRequest = React.useCallback(() => getRemoteSlots(), [])
-  const presetHistory = useApiQuery("preset-history", presetRequest)
-  const remote = useApiQuery("remote-slots", remoteRequest)
+  const presetHistory = useApiQuery("preset-history", presetRequest, {
+    enabled: greensMode && needsMachine,
+  })
+  const remote = useApiQuery("remote-slots", remoteRequest, {
+    enabled: greensMode && needsGit,
+  })
 
   React.useEffect(() => {
     writeHistoryFilters(filters)
@@ -968,8 +975,6 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
     () => (remote.data?.greens ?? []).map(asGitGreen),
     [remote.data?.greens]
   )
-  const needsMachine = filters.origin !== "git"
-  const needsGit = filters.origin !== "machine"
   const machineFailure = sourceFailure(
     presetHistory,
     "A fonte de últimos verdes da máquina não respondeu."
@@ -1164,7 +1169,8 @@ export function StatusPage() {
             jobs={status.data.queued}
             loading={false}
             error={undefined}
-            emptyDescription="Fila livre."
+            emptyTitle="Fila livre"
+            emptyDescription="A próxima execução aguardando aparecerá aqui."
             onOpenJob={setSelectedJobId}
           />
           <HistoryPanel onOpenJob={setSelectedJobId} />

@@ -76,6 +76,8 @@ def read_analysis(state_root, config, from_time="", to_time="", preset="", offse
     presets.sort(key=lambda group: group["preset"])
     problems = [job for job in rows if job.get("status") in ("failed", "interrupted")]
     fields = ("id", "preset", "status", "branch", "headSha", "createdAt", "startedAt", "finishedAt", "durationMs", "failureReason")
+    page = problems[offset:offset + PAGE_SIZE]
+    has_more = len(problems) > offset + len(page)
     return {
         "schemaVersion": 1,
         "projectId": config.project_id,
@@ -84,8 +86,9 @@ def read_analysis(state_root, config, from_time="", to_time="", preset="", offse
         "preset": preset or None,
         "total": len(rows),
         "presets": presets,
-        "problems": [{key: job.get(key) for key in fields} for job in problems[offset:offset + PAGE_SIZE]],
+        "problems": [{key: job.get(key) for key in fields} for job in page],
         "problemTotal": len(problems),
-        "hasMore": len(problems) > offset + PAGE_SIZE,
+        "hasMore": has_more,
+        "nextOffset": offset + len(page) if has_more else None,
         "coverage": {"unattributedRecords": unknown},
     }

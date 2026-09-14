@@ -23,8 +23,14 @@ import type {
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ButtonGroup } from "@/components/ui/button-group"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import {
   Drawer,
   DrawerClose,
@@ -37,6 +43,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -62,6 +69,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/ui/toggle-group"
 import { ErrorState } from "@/features/shared/async-state"
 import { formatBytes, shortSha } from "@/features/shared/format"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
@@ -69,6 +80,7 @@ import {
   ChevronDownIcon,
   CopyIcon,
   FolderOpenIcon,
+  InboxIcon,
   SearchIcon,
   XIcon,
 } from "lucide-react"
@@ -332,27 +344,29 @@ function WorktreeDrawer({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    if (detail.data)
-                      void copy(detail.data.path, "Caminho copiado.")
-                  }}
-                >
-                  <CopyIcon data-icon />
-                  Copiar caminho
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    if (detail.data)
-                      void copy(
-                        worktreeContext(detail.data),
-                        "Contexto copiado."
-                      )
-                  }}
-                >
-                  <CopyIcon data-icon />
-                  Copiar contexto
-                </DropdownMenuItem>
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      if (detail.data)
+                        void copy(detail.data.path, "Caminho copiado.")
+                    }}
+                  >
+                    <CopyIcon data-icon />
+                    Copiar caminho
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      if (detail.data)
+                        void copy(
+                          worktreeContext(detail.data),
+                          "Contexto copiado."
+                        )
+                    }}
+                  >
+                    <CopyIcon data-icon />
+                    Copiar contexto
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
             <DrawerClose asChild>
@@ -508,9 +522,19 @@ function WorktreeDataTable({
           <TableRow>
             <TableCell
               colSpan={table.getAllLeafColumns().length}
-              className="h-24 text-center text-sm text-muted-foreground"
+              className="p-0"
             >
-              {emptyMessage || "Nenhuma worktree observável."}
+              <Empty className="min-h-44 border-0">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <InboxIcon />
+                  </EmptyMedia>
+                  <EmptyTitle>Nenhuma worktree encontrada</EmptyTitle>
+                  <EmptyDescription>
+                    {emptyMessage || "Nenhuma worktree observável."}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             </TableCell>
           </TableRow>
         )}
@@ -598,29 +622,31 @@ function WorktreeTable({
             placeholder="Buscar branch, caminho ou SHA"
           />
         </InputGroup>
-        <ButtonGroup>
-          <Button
-            type="button"
-            variant={cleanliness === "all" ? "secondary" : "outline"}
-            onClick={() => setCleanliness("all")}
-          >
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          spacing={0}
+          value={cleanliness}
+          onValueChange={(value) => {
+            if (value) setCleanliness(value as CleanlinessFilter)
+          }}
+        >
+          <ToggleGroupItem value="all" aria-label="Mostrar todas as worktrees">
             Todas
-          </Button>
-          <Button
-            type="button"
-            variant={cleanliness === "clean" ? "secondary" : "outline"}
-            onClick={() => setCleanliness("clean")}
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="clean"
+            aria-label="Mostrar worktrees limpas"
           >
             Limpas
-          </Button>
-          <Button
-            type="button"
-            variant={cleanliness === "dirty" ? "secondary" : "outline"}
-            onClick={() => setCleanliness("dirty")}
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="dirty"
+            aria-label="Mostrar worktrees sujas"
           >
             Sujas
-          </Button>
-        </ButtonGroup>
+          </ToggleGroupItem>
+        </ToggleGroup>
         {selectedWorktrees.length ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -631,14 +657,18 @@ function WorktreeTable({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onSelect={() => void copySelected("paths")}>
-                <CopyIcon data-icon />
-                Copiar caminhos
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void copySelected("context")}>
-                <CopyIcon data-icon />
-                Copiar contexto
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuItem onSelect={() => void copySelected("paths")}>
+                  <CopyIcon data-icon />
+                  Copiar caminhos
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => void copySelected("context")}
+                >
+                  <CopyIcon data-icon />
+                  Copiar contexto
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}

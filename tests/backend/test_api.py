@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -171,6 +172,25 @@ class HistoryAndAnalysisTests(Fixture):
         self.assertEqual(row["failedDurationMissing"], 1)
         self.assertEqual(result["problemTotal"], 2)
 
+    def test_analysis_paginates_every_problem_without_hiding_the_fifty_first(self):
+        for index in range(51):
+            self.job("failed-%03d" % index, status="failed", exitCode=1,
+                     finishedAt="2026-09-13T10:%02d:00Z" % (index % 60))
+
+        first = read_analysis(self.state, self.config,
+                              "2026-09-13T00:00:00Z", "2026-09-14T00:00:00Z")
+        second = read_analysis(self.state, self.config,
+                               "2026-09-13T00:00:00Z", "2026-09-14T00:00:00Z",
+                               offset=first["nextOffset"])
+
+        self.assertEqual(first["problemTotal"], 51)
+        self.assertEqual(len(first["problems"]), 50)
+        self.assertTrue(first["hasMore"])
+        self.assertEqual(first["nextOffset"], 50)
+        self.assertEqual([item["id"] for item in second["problems"]], ["failed-000"])
+        self.assertFalse(second["hasMore"])
+        self.assertIsNone(second["nextOffset"])
+
     def test_status_keeps_global_occupancy_but_project_history_scoped(self):
         self.job("old")
         (self.state / "running.json").write_text(json.dumps({
@@ -311,8 +331,11 @@ class StateAndDiagnosticTests(Fixture):
     def test_log_is_scoped_redacted_and_bounded(self):
         self.job("private")
         (self.state / "logs" / "private.log").write_text("token=super-secret\nall good\n", encoding="utf-8")
-        diagnostic = read_diagnostic(self.state, self.config, "private")
+        with mock.patch("ci_queue_api.diagnostics.read_log_export", side_effect=AssertionError("diagnostic must not export logs")):
+            diagnostic = read_diagnostic(self.state, self.config, "private")
         self.assertTrue(diagnostic["available"])
+        self.assertEqual(diagnostic["coverage"]["logs"]["capturedBytes"], 0)
+        self.assertEqual(diagnostic["coverage"]["logs"]["preserved"], "metadata")
         exported = read_log_export(self.state, self.config, "private")
         self.assertIn("[REDACTED]", exported["content"])
         self.assertNotIn("super-secret", exported["content"])

@@ -12,12 +12,12 @@ import type {
   LogSlice,
   MachineResponse,
   PresetHistoryResponse,
-  RemoteSlotsResponse,
   RevealResult,
   StatusSnapshot,
   WorktreeRecord,
   WorktreesResponse,
 } from "@/lib/types"
+import { parseRemoteSlotsResponse } from "@/lib/remote-slots"
 
 type QueryValue = string | number | boolean | null | undefined
 
@@ -119,8 +119,10 @@ export function getPresetHistory() {
   return requestJson<PresetHistoryResponse>("/api/preset-history")
 }
 
-export function getRemoteSlots() {
-  return requestJson<RemoteSlotsResponse>("/api/remote-slots")
+export async function getRemoteSlots() {
+  return parseRemoteSlotsResponse(
+    await requestJson<unknown>("/api/remote-slots")
+  )
 }
 
 export function getAnalysis(
@@ -214,9 +216,9 @@ export type ApiQuery<T> = {
 export function useApiQuery<T>(
   key: string,
   request: () => Promise<T>,
-  options: { pollMs?: number } = {}
+  options: { pollMs?: number; enabled?: boolean } = {}
 ): ApiQuery<T> {
-  const { pollMs } = options
+  const { pollMs, enabled = true } = options
   const [data, setData] = React.useState<T>()
   const [error, setError] = React.useState<ApiError | Error>()
   const [refreshing, setRefreshing] = React.useState(true)
@@ -230,6 +232,12 @@ export function useApiQuery<T>(
     if (changed) {
       setData(undefined)
       setError(undefined)
+    }
+
+    if (!enabled) {
+      return () => {
+        disposed = true
+      }
     }
 
     const load = async () => {
@@ -265,17 +273,19 @@ export function useApiQuery<T>(
         window.clearInterval(timer)
       }
     }
-  }, [key, pollMs, request, revision])
+  }, [enabled, key, pollMs, request, revision])
 
   const reload = React.useCallback(() => {
+    setError(undefined)
+    setRefreshing(true)
     setRevision((value) => value + 1)
   }, [])
 
   return {
     data,
     error,
-    loading: data === undefined && refreshing,
-    refreshing: data !== undefined && refreshing,
+    loading: enabled && data === undefined && error === undefined,
+    refreshing: enabled && data !== undefined && refreshing,
     reload,
   }
 }

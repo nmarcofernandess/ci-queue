@@ -77,12 +77,28 @@ def read_log_export(state_root, config, job_id):
                          "complete": size <= MAX_EXPORT_BYTES, "preserved": mode}}
 
 
+def _log_coverage(path):
+    """Report a log's availability without reading its content into a drawer."""
+    try:
+        size = path.stat().st_size
+    except FileNotFoundError:
+        return {"available": False, "reason": "log não encontrado"}
+    except OSError as error:
+        return {"available": False, "reason": "log indisponível: %s" % error}
+    return {
+        "available": True,
+        "sourceBytes": size,
+        "capturedBytes": 0,
+        "complete": False,
+        "preserved": "metadata",
+    }
+
+
 def read_diagnostic(state_root, config, job_id):
     validate_job_id(job_id)
     job = lookup_job(state_root, job_id, config.project_id)
     if job is None:
         return {"schemaVersion": 1, "jobId": job_id, "available": False, "reason": "ticket não encontrado"}
-    export = read_log_export(state_root, config, job_id)
     progress = job.get("progress") or job.get("progressSummary")
     observations = job.get("processObservations") or ([] if not isinstance(job.get("processObservation"), dict) else [job["processObservation"]])
     return {
@@ -92,6 +108,6 @@ def read_diagnostic(state_root, config, job_id):
         "ticket": {key: job.get(key) for key in ("id", "preset", "status", "exitCode", "failureReason", "headSha", "branch", "durationMs")},
         "progress": progress,
         "resources": {"observations": observations, "coverage": "unavailable" if not observations else "reported"},
-        "coverage": {"ticket": "complete", "logs": export.get("coverage"),
+        "coverage": {"ticket": "complete", "logs": _log_coverage(_path(state_root, job_id)),
                      "progress": "complete" if progress else "unavailable"},
     }
