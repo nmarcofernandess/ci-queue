@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { readQueueConfig, type ResolvedQueueConfig } from "../contracts/config.js"
 import {
   TICKET_SCHEMA_VERSION,
+  normalizeTicketFlags,
   type QueueTicket,
   type RequestContext,
 } from "../contracts/schema.js"
@@ -74,6 +75,7 @@ export function buildTicket(input: EnqueueInput, resolved?: ResolvedQueueConfig)
       ...(preset.fetchBase ? { fetchBase: preset.fetchBase } : {}),
       ...(preset.requireGitStability !== undefined ? { requireGitStability: preset.requireGitStability } : {}),
       ...(preset.pinHeadSha !== undefined ? { pinHeadSha: preset.pinHeadSha } : {}),
+      ...(preset.progress !== undefined ? { progressEnabled: preset.progress } : {}),
     },
     ...(preset.fetchBase || configuration.config.repository?.baseRef ? { baseRef: preset.fetchBase ?? configuration.config.repository?.baseRef } : {}),
     ...(configuration.config.artifacts ? { artifacts: configuration.config.artifacts } : {}),
@@ -99,6 +101,7 @@ export function enqueueExplicitTicket(input: ExplicitEnqueueInput): QueueTicket 
   if (!existsSync(input.cwd)) throw new Error(`cwd inexistente: ${input.cwd}`)
   const now = input.now ?? new Date()
   const paths = ensureQueueDirs(input.stateRoot)
+  const flags = normalizeTicketFlags(input.flags)
   const git = readGitInfo(input.cwd, input.baseRef)
   const id = generateJobId(now)
   const ticket: QueueTicket = {
@@ -113,9 +116,9 @@ export function enqueueExplicitTicket(input: ExplicitEnqueueInput): QueueTicket 
     command: input.argv.map(quoteArg).join(" "),
     logPath: join(paths.logs, `${id}.log`),
     schemaVersion: TICKET_SCHEMA_VERSION,
-    executionDeadline: initialExecutionDeadline(input.flags?.executionTimeoutMs),
+    executionDeadline: initialExecutionDeadline(flags.executionTimeoutMs),
     argv: [...input.argv],
-    flags: { ...(input.flags ?? {}) },
+    flags,
     ...(input.baseRef ? { baseRef: input.baseRef } : {}),
     ...(input.artifacts?.length ? { artifacts: [...input.artifacts] } : {}),
     projectId: input.projectId,

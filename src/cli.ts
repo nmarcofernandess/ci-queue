@@ -1,6 +1,14 @@
 import { readQueueConfig } from "./contracts/config.js"
-import { API_VERSION, parseRequestContext, type CliFailure, type CliResult, type CliSuccess, type QueueTicket } from "./contracts/schema.js"
-import { cancelQueuedOrRunningTicket } from "./core/runner.js"
+import {
+  API_VERSION,
+  normalizeTicketFlags,
+  parseRequestContext,
+  type CliFailure,
+  type CliResult,
+  type CliSuccess,
+  type QueueTicket,
+} from "./contracts/schema.js"
+import { JOB_ENV_CAPABILITY, cancelQueuedOrRunningTicket } from "./core/runner.js"
 import { enqueueExplicitTicket, enqueueTicket } from "./core/enqueue.js"
 import { runWorker } from "./core/worker.js"
 import { findJobById, listHistoryJobs, listQueuedJobs, readRunningJob, resolveStateRoot } from "./core/state.js"
@@ -49,7 +57,7 @@ function splitExtra(args: string[]): string[] {
 }
 
 function enqueuePreset(args: string[]): string | undefined {
-  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--timeout-ms", "--request-context"])
+  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--flags-json", "--timeout-ms", "--request-context"])
   for (let index = 0; index < args.length; index += 1) {
     const value = args[index]
     if (value === "--") return undefined
@@ -67,6 +75,17 @@ function parseJsonArray(value: string | undefined, name: string): string[] {
   return parsed
 }
 
+function parseFlags(value: string | undefined) {
+  if (!value) return undefined
+  try {
+    return normalizeTicketFlags(JSON.parse(value))
+  } catch (error) {
+    throw new Error(
+      `--flags-json inválido: ${error instanceof Error ? error.message : String(error)}`
+    )
+  }
+}
+
 async function waitForJob(root: string, id: string, timeoutMs: number): Promise<QueueTicket | undefined> {
   const start = Date.now()
   while (Date.now() - start <= timeoutMs) {
@@ -82,7 +101,7 @@ function usage(): string {
     "Uso: ci-queue <comando> [--state DIR] [--cwd DIR] [--config FILE] [--json]",
     "  version",
     "  enqueue <preset> [--wait] [--timeout-ms N] [-- <args da receita>]",
-    "  enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH",
+    "  enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH [--flags-json JSON]",
     "  worker",
     "  status",
     "  history [--project ID]",
@@ -101,7 +120,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           version: "0.1.0",
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "cancel", "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "cancel", "execution-flags-v1", JOB_ENV_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
       case "enqueue": {
         const recipe = optionValue(args.rest, "--recipe")
@@ -124,6 +143,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
             stateRoot: root,
             ...(optionValue(args.rest, "--base-ref") ? { baseRef: optionValue(args.rest, "--base-ref") } : {}),
             ...(optionValue(args.rest, "--artifacts-json") ? { artifacts: parseJsonArray(optionValue(args.rest, "--artifacts-json"), "--artifacts-json") } : {}),
+            ...(optionValue(args.rest, "--flags-json") ? { flags: parseFlags(optionValue(args.rest, "--flags-json")) } : {}),
             requestContext,
           })
           : enqueueTicket({ preset: preset!, stateRoot: root, cwd: args.cwd, configPath: args.configPath, extraArgs: splitExtra(args.rest), requestContext })

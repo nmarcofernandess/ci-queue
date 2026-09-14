@@ -15,7 +15,22 @@ import { verifyRelease } from "./release.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
 export const DEFAULT_PREFIX = join(homedir(), ".local", "share", "ci-queue")
-export const DEFAULT_STATE = join(homedir(), ".local", "state", "ci-queue")
+export const PRODUCT_STATE = join(homedir(), ".local", "state", "ci-queue")
+export const COMPATIBILITY_STATE = join(
+  homedir(),
+  ".local",
+  "state",
+  "local-ci",
+  "queue"
+)
+/**
+ * Keep an existing queue in place for the first external release. This
+ * preserves its history and the lock paths that prevent old/new workers from
+ * competing during the cutover. New installations use the product root.
+ */
+export const DEFAULT_STATE = existsSync(COMPATIBILITY_STATE)
+  ? COMPATIBILITY_STATE
+  : PRODUCT_STATE
 const INSTALLATION_FILENAME = "installation.json"
 
 function inside(child, parent) {
@@ -51,9 +66,15 @@ function readInstallation(prefix) {
 
 function assertQuietState(stateRoot) {
   const root = resolve(stateRoot)
-  for (const name of ["running.json", "runner.lock"]) {
-    if (existsSync(join(root, name))) {
-      throw new Error(`estado da fila incerto: ${join(root, name)} existe; aguarde o executor terminar ou recupere-o antes da manutenção`)
+  for (const path of [
+    join(root, "running.json"),
+    // The retained local-ci layout and clean product installs share this path.
+    join(root, "locks", "runner.lock"),
+    // Read an early pre-release layout conservatively rather than risking two workers.
+    join(root, "runner.lock"),
+  ]) {
+    if (existsSync(path)) {
+      throw new Error(`estado da fila incerto: ${path} existe; aguarde o executor terminar ou recupere-o antes da manutenção`)
     }
   }
 }

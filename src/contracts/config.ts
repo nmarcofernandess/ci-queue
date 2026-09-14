@@ -46,6 +46,9 @@ function readPresets(value: unknown): Record<string, ProjectPreset> {
     if (timeout !== undefined && (!Number.isSafeInteger(timeout) || (timeout as number) <= 0 || (timeout as number) > 2_147_483_647)) {
       throw new Error(`preset ${name} tem executionTimeoutMs inválido`)
     }
+    if (item.progress !== undefined && typeof item.progress !== "boolean") {
+      throw new Error(`preset ${name} tem progress inválido`)
+    }
     presets[name] = {
       argv: [...item.argv],
       ...(typeof item.note === "string" ? { note: item.note } : {}),
@@ -54,6 +57,7 @@ function readPresets(value: unknown): Record<string, ProjectPreset> {
       ...(typeof item.fetchBase === "string" ? { fetchBase: item.fetchBase } : {}),
       ...(typeof item.requireGitStability === "boolean" ? { requireGitStability: item.requireGitStability } : {}),
       ...(typeof item.pinHeadSha === "boolean" ? { pinHeadSha: item.pinHeadSha } : {}),
+      ...(typeof item.progress === "boolean" ? { progress: item.progress } : {}),
     }
   }
   if (Object.keys(presets).length === 0) throw new Error('campo "presets" não pode estar vazio')

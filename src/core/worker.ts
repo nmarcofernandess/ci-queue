@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, renameSync, statSync } from "node:fs"
+import { readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { parseTicket, claimQueuedTicket, reconcileInterruptedJob, rejectQueuedTicket, runJob } from "./runner.js"
@@ -78,11 +78,13 @@ export async function runWorker(root: string): Promise<WorkerReport> {
   process.once("SIGINT", handleSignal)
   process.once("SIGTERM", handleSignal)
   try {
-    atomicWriteJson(paths.workerPid, { pid: process.pid, startedAt: new Date().toISOString() })
-    recoverClaims(root)
+    // Keep the legacy decimal form while old consumers may still inspect the
+    // shared lock during the one-time external cutover.
+    writeFileSync(paths.workerPid, `${process.pid}\n`, { encoding: "utf8", mode: 0o600 })
     const reconciliation = await reconcileInterruptedJob(root)
     report.reconciliation = reconciliation.state
     if (reconciliation.state === "active" || reconciliation.state === "blocked") return report
+    recoverClaims(root)
     report.rejected.push(...await sweepInvalidTickets(root))
     for (;;) {
       if (interrupted) break

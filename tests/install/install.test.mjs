@@ -68,6 +68,10 @@ test("refuses update and uninstall when a queue owner is uncertain", () => {
     writeFileSync(join(state, "running.json"), "{}\n")
     assert.throws(() => installRelease({ bundle: destination, prefix, stateRoot: state }), /estado da fila incerto/)
     assert.throws(() => uninstallRelease({ prefix }), /estado da fila incerto/)
+    rmSync(join(state, "running.json"))
+    mkdirSync(join(state, "locks", "runner.lock"), { recursive: true })
+    assert.throws(() => installRelease({ bundle: destination, prefix, stateRoot: state }), /estado da fila incerto/)
+    assert.throws(() => uninstallRelease({ prefix }), /estado da fila incerto/)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

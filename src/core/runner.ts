@@ -45,6 +45,62 @@ export type RunJobHooks = {
   interruptedReason?: () => string | undefined
 }
 
+/** Versioned child-process environment contract. */
+export const JOB_ENV_CAPABILITY = "job-env-v1" as const
+
+const SECRET_ASSIGNMENT_PATTERN =
+  /\b(token|secret|password|authorization|api[_-]?key)\b\s*([:=])\s*([^\r\n]+)/gi
+const SECRET_FLAG_PATTERN =
+  /((?:--?)(?:token|secret|password|authorization|api[_-]?key)(?:\s+|=))(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|[^\s\r\n]+)/gi
+const SECRET_JSON_PATTERN =
+  /((?:"|')(?:token|secret|password|authorization|api[_-]?key)(?:"|')\s*:\s*)(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|[^\s,}\]\r\n]+)/gi
+
+/**
+ * Logs are an on-disk boundary, so redact before writing rather than only when
+ * the dashboard happens to read them. The patterns intentionally keep the
+ * key/flag visible: an operator can still understand which credential failed.
+ */
+export function redactLogText(value: string): string {
+  return value
+    .replace(SECRET_JSON_PATTERN, '$1"[REDACTED]"')
+    .replace(
+      SECRET_ASSIGNMENT_PATTERN,
+      (_match, name: string, separator: string) => `${name}${separator}[REDACTED]`
+    )
+    .replace(SECRET_FLAG_PATTERN, "$1[REDACTED]")
+}
+
+function appendRedactedLog(path: string, text: string): void {
+  if (!text) return
+  appendLog(path, redactLogText(text))
+}
+
+/**
+ * Holds an unfinished line so a credential split over stdout/stderr chunks
+ * cannot be written before its value is recognized and masked.
+ */
+class LogRedactor {
+  #pending = ""
+
+  push(chunk: string): string {
+    this.#pending += chunk
+    const boundary = Math.max(
+      this.#pending.lastIndexOf("\n"),
+      this.#pending.lastIndexOf("\r")
+    )
+    if (boundary === -1) return ""
+    const complete = this.#pending.slice(0, boundary + 1)
+    this.#pending = this.#pending.slice(boundary + 1)
+    return redactLogText(complete)
+  }
+
+  flush(): string {
+    const complete = this.#pending
+    this.#pending = ""
+    return redactLogText(complete)
+  }
+}
+
 function safeArgvFromLegacy(command: string): string[] | undefined {
   if (!command || /['"`\\]/.test(command)) return undefined
   const argv = command.trim().split(/\s+/).filter(Boolean)
@@ -86,18 +142,47 @@ export function readGitInfo(cwd: string, baseRef?: string): GitInfo | undefined 
   return { branch, headSha, baseSha: baseSha ?? "", statusShort }
 }
 
+function fetchConfiguredBase(cwd: string, reference: string): void {
+  const [candidateRemote, ...branchParts] = reference.split("/")
+  const remote = branchParts.length ? candidateRemote : "origin"
+  const branch = branchParts.length ? branchParts.join("/") : reference
+  const fetched = spawnSync("git", ["fetch", "--quiet", remote, branch], {
+    cwd,
+    encoding: "utf8",
+    timeout: 30_000,
+  })
+  if (fetched.status !== 0) {
+    throw new Error(`não foi possível atualizar base ${reference}`)
+  }
+}
+
+function assertBaseIsAncestor(cwd: string, baseSha: string, headSha: string): void {
+  const result = spawnSync(
+    "git",
+    ["merge-base", "--is-ancestor", baseSha, headSha],
+    { cwd, encoding: "utf8", timeout: 10_000 }
+  )
+  if (result.status === 0) return
+  if (result.status === 1) {
+    throw new Error(
+      `base ${baseSha} não é ancestral de HEAD ${headSha}; atualize a branch antes de ocupar a fila`
+    )
+  }
+  throw new Error("não foi possível provar ancestralidade Git")
+}
+
 function assertPreflight(ticket: QueueTicket, flags: TicketFlags): GitInfo | undefined {
   if (!existsSync(ticket.cwd)) throw new Error(`cwd inexistente: ${ticket.cwd}`)
   if (!flags.requireCleanTree && !flags.pinHeadSha && !flags.requireGitStability && !flags.fetchBase) return readGitInfo(ticket.cwd, ticket.baseRef)
   if (flags.fetchBase) {
-    const fetched = spawnSync("git", ["fetch", "--quiet", "origin", flags.fetchBase], { cwd: ticket.cwd, encoding: "utf8", timeout: 30_000 })
-    if (fetched.status !== 0) throw new Error(`não foi possível atualizar base ${flags.fetchBase}`)
+    fetchConfiguredBase(ticket.cwd, flags.fetchBase)
   }
   const info = readGitInfo(ticket.cwd, flags.fetchBase ?? ticket.baseRef)
   if (!info) throw new Error("preflight git indisponível")
   if (flags.pinHeadSha && info.headSha !== ticket.headSha) throw new Error(`HEAD mudou antes da execução (${info.headSha})`)
   if (flags.requireCleanTree && info.statusShort) throw new Error("árvore de trabalho não está limpa")
   if (flags.fetchBase && !info.baseSha) throw new Error(`base ${flags.fetchBase} não encontrada após fetch`)
+  if (flags.fetchBase) assertBaseIsAncestor(ticket.cwd, info.baseSha, info.headSha)
   return info
 }
 
@@ -130,6 +215,42 @@ function terminalStatus(exitCode: number, cancelRequested: boolean, interrupted:
   return "passed"
 }
 
+const GIT_INFO_FIELDS = ["branch", "headSha", "baseSha", "statusShort"] as const
+
+function changedGitInfoFields(
+  before: GitInfo | undefined,
+  after: GitInfo | undefined
+): string[] {
+  if (!before || !after) {
+    return [...GIT_INFO_FIELDS]
+  }
+  return GIT_INFO_FIELDS.filter((field) => before[field] !== after[field])
+}
+
+function verifyGitStability(
+  ticket: QueueTicket,
+  flags: TicketFlags
+): { postflight?: GitInfo; failureReason?: string } {
+  if (!flags.requireGitStability) {
+    return {}
+  }
+
+  const postflight = readGitInfo(ticket.cwd, flags.fetchBase ?? ticket.baseRef)
+  const changed = changedGitInfoFields(ticket.preflight, postflight)
+  if (!postflight) {
+    return {
+      failureReason: `${ticket.preset} invalidado: não foi possível ler o estado Git pós-job`,
+    }
+  }
+  if (changed.length) {
+    return {
+      postflight,
+      failureReason: `${ticket.preset} invalidado: estado Git mudou durante o job (${changed.join(", ")})`,
+    }
+  }
+  return { postflight }
+}
+
 function relativeArtifact(path: string): boolean {
   return !isAbsolute(path) && !path.split(/[\\/]/).includes("..")
 }
@@ -140,7 +261,7 @@ function copyArtifacts(root: string, ticket: QueueTicket): string | undefined {
   let copied = false
   for (const entry of ticket.artifacts) {
     if (!relativeArtifact(entry)) {
-      appendLog(ticket.logPath, `[${new Date().toISOString()}] artifact ignorado (fora do projeto): ${entry}\n`)
+      appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] artifact ignorado (fora do projeto): ${entry}\n`)
       continue
     }
     const source = resolve(ticket.cwd, entry)
@@ -171,6 +292,9 @@ export async function closeRunningTicket(root: string, candidate: QueueTicket): 
       : candidate
     atomicWriteJson(historyPath(root, candidate.id), merged)
     if (running?.id === candidate.id) removeFile(queuePaths(root).running)
+    // A crash may leave the short-lived claim beside running.json. Once a
+    // terminal record is authoritative, that claim can only relaunch work.
+    removeFile(claimPath(root, candidate.id))
     return merged
   })
   return terminal ?? candidate
@@ -178,6 +302,11 @@ export async function closeRunningTicket(root: string, candidate: QueueTicket): 
 
 export async function claimQueuedTicket(root: string, id: string, workerPid = process.pid): Promise<ClaimResult> {
   return await withTicketLock(root, id, () => {
+    if (readHistoryJob(root, id)) {
+      removeFile(jobPath(root, id))
+      removeFile(claimPath(root, id))
+      return undefined
+    }
     if (readRunningJob(root)) return undefined
     const queuedPath = jobPath(root, id)
     const queued = readJsonFile<QueueTicket>(queuedPath)
@@ -205,7 +334,7 @@ export async function rejectQueuedTicket(root: string, id: string, reason: strin
     try { renameSync(path, rejectedPath) } catch { return undefined }
     const terminal: QueueTicket = { ...queued, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: `ticket rejeitado: ${reason}` }
     atomicWriteJson(historyPath(root, id), terminal)
-    appendLog(terminal.logPath, `[${new Date().toISOString()}] ${terminal.failureReason}\n`)
+    appendRedactedLog(terminal.logPath, `[${new Date().toISOString()}] ${terminal.failureReason}\n`)
     return terminal
   })
 }
@@ -219,13 +348,13 @@ export async function cancelQueuedOrRunningTicket(root: string, id: string): Pro
       const terminal: QueueTicket = { ...found.ticket, status: "cancelled", cancelledAt: new Date().toISOString(), finishedAt: new Date().toISOString(), exitCode: null }
       removeFile(found.path)
       atomicWriteJson(historyPath(root, id), terminal)
-      appendLog(terminal.logPath, `[${new Date().toISOString()}] cancelado antes de iniciar\n`)
+      appendRedactedLog(terminal.logPath, `[${new Date().toISOString()}] cancelado antes de iniciar\n`)
       return { kind: "queued", job: terminal } as const
     }
     const requested: QueueTicket = { ...found.ticket, cancelRequestedAt: found.ticket.cancelRequestedAt ?? new Date().toISOString() }
     atomicWriteJson(queuePaths(root).running, requested)
     const signal = await terminateVerifiedProcessGroup(requested.processGroupIdentity)
-    appendLog(requested.logPath, `[${new Date().toISOString()}] cancelamento solicitado: ${signal.reason}\n`)
+    appendRedactedLog(requested.logPath, `[${new Date().toISOString()}] cancelamento solicitado: ${signal.reason}\n`)
     return { kind: "running", job: requested, signalled: signal.terminated, reason: signal.reason } as const
   })
   return result ?? { kind: "missing" }
@@ -241,7 +370,7 @@ export async function reconcileInterruptedJob(root: string): Promise<{ state: "n
   if (!termination.terminated) {
     const blocked = { ...running, cleanupBlockedReason: `recuperação interrompida: ${termination.reason}` }
     atomicWriteJson(queuePaths(root).running, blocked)
-    appendLog(blocked.logPath, `[${new Date().toISOString()}] ${blocked.cleanupBlockedReason}\n`)
+    appendRedactedLog(blocked.logPath, `[${new Date().toISOString()}] ${blocked.cleanupBlockedReason}\n`)
     return { state: "blocked", job: blocked }
   }
   const terminal = await closeRunningTicket(root, {
@@ -255,12 +384,32 @@ export async function reconcileInterruptedJob(root: string): Promise<{ state: "n
 }
 
 export function buildJobEnv(root: string, ticket: QueueTicket): NodeJS.ProcessEnv {
+  const headSha = ticket.headSha || ticket.preflight?.headSha || ""
+  const baseSha = ticket.preflight?.baseSha ?? ""
+  // Old tickets remain neutral; only persisted recipe metadata enables
+  // DietFlow's emitters.
+  const progressEnabled = ticket.flags?.progressEnabled === true
   return {
     ...process.env,
+    CI_QUEUE_JOB_ENV_VERSION: "1",
     CI_QUEUE_JOB_ID: ticket.id,
     CI_QUEUE_PROJECT_ID: ticket.projectId ?? "",
     CI_QUEUE_STATE_DIR: root,
     CI_QUEUE_PRESET: ticket.preset,
+    // v1 compatibility aliases remain necessary while existing project
+    // recipes/proofs migrate to the product-named environment.
+    DIETFLOW_CI_QUEUE_DIR: root,
+    DIETFLOW_CI_QUEUE_JOB_ID: ticket.id,
+    DIETFLOW_CI_QUEUE_HEAD_SHA: headSha,
+    DIETFLOW_CI_BASE_SHA: baseSha,
+    LOCAL_CI_QUEUE_DIR: root,
+    LOCAL_CI_JOB_ID: ticket.id,
+    LOCAL_CI_PRESET: ticket.preset,
+    // Do not inherit a caller's value: only persisted recipe metadata can
+    // enable DietFlow's emitters.
+    LOCAL_CI_PROGRESS_ENABLED: progressEnabled ? "1" : "",
+    LOCAL_CI_HEAD_SHA: headSha,
+    LOCAL_CI_BASE_SHA: baseSha,
   }
 }
 
@@ -281,7 +430,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     throw new Error(`não foi possível reservar running.json: ${error instanceof Error ? error.message : String(error)}`)
   }
   hooks.onJob?.(ticket)
-  appendLog(ticket.logPath, `[${new Date().toISOString()}] running ${ticket.id} ${ticket.command}\n`)
+  appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] running ${ticket.id} ${ticket.command}\n`)
 
   let child: ReturnType<typeof spawn>
   try {
@@ -292,9 +441,10 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   }
 
   const collector = new ProgressCollector(root, ticket.id)
+  const logRedactor = new LogRedactor()
   const output = (chunk: Buffer) => {
     const text = chunk.toString("utf8")
-    appendLog(ticket.logPath, text)
+    appendRedactedLog(ticket.logPath, logRedactor.push(text))
     decoder.push(text)
   }
   const decoder = collector.decoder()
@@ -326,7 +476,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
         void terminateVerifiedProcessGroup(expired.processGroupIdentity)
       } catch (error) {
         timedOut = false
-        appendLog(ticket.logPath, `[${new Date().toISOString()}] deadline não persistido: ${error instanceof Error ? error.message : String(error)}\n`)
+        appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] deadline não persistido: ${error instanceof Error ? error.message : String(error)}\n`)
       }
     }, deadline.timeoutMs)
     deadlineTimer.unref?.()
@@ -335,10 +485,29 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   const exit = await childExit(child)
   if (deadlineTimer) clearTimeout(deadlineTimer)
   decoder.flush()
+  appendRedactedLog(ticket.logPath, logRedactor.flush())
   const latest = readRunningJob(root)
   const interrupted = Boolean(hooks.interruptedReason?.())
   const cancelRequested = Boolean(latest?.id === ticket.id && latest.cancelRequestedAt)
-  const status = terminalStatus(exit.code, cancelRequested, interrupted, timedOut)
+  let status = terminalStatus(exit.code, cancelRequested, interrupted, timedOut)
+  let exitCode: number | null =
+    status === "cancelled" || status === "interrupted" ? null : exit.code
+  let failureReason =
+    status === "failed"
+      ? timedOut
+        ? "prazo de execução excedido"
+        : `processo terminou com código ${exit.code}`
+      : undefined
+  let postflight: GitInfo | undefined
+  if (status === "passed") {
+    const stability = verifyGitStability(ticket, parsed.flags)
+    postflight = stability.postflight
+    if (stability.failureReason) {
+      status = "failed"
+      exitCode = 1
+      failureReason = stability.failureReason
+    }
+  }
   const deadline = latest?.id === ticket.id ? latest.executionDeadline : ticket.executionDeadline
   const completedDeadline = deadline?.state === "armed"
     ? { state: "completed" as const, timeoutMs: deadline.timeoutMs, armedAt: deadline.armedAt, expiresAt: deadline.expiresAt }
@@ -346,13 +515,13 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   const observation = readProcessObservation(identity, { capture: "end", cwd: ticket.cwd, jobId: ticket.id, exitedBeforeObservation: true })
   let artifactsPath: string | undefined
   let artifactStatus: "passed" | "failed" | "skipped" = "skipped"
-  if (status === "passed") {
+  if (ticket.artifacts?.length) {
     try {
       artifactsPath = copyArtifacts(root, ticket)
       artifactStatus = artifactsPath ? "passed" : "skipped"
     } catch (error) {
       artifactStatus = "failed"
-      appendLog(ticket.logPath, `[${new Date().toISOString()}] cópia de artefatos falhou: ${error instanceof Error ? error.message : String(error)}\n`)
+      appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] cópia de artefatos falhou: ${error instanceof Error ? error.message : String(error)}\n`)
     }
   }
   const terminal = finalProgress(root, {
@@ -361,10 +530,11 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     status,
     finishedAt: new Date().toISOString(),
     durationMs: Date.now() - Date.parse(ticket.startedAt ?? ticket.createdAt),
-    exitCode: status === "cancelled" || status === "interrupted" ? null : exit.code,
-    ...(status === "failed" ? { failureReason: timedOut ? "prazo de execução excedido" : `processo terminou com código ${exit.code}` } : {}),
+    exitCode,
+    ...(failureReason ? { failureReason } : {}),
     ...(artifactsPath ? { artifactsPath } : {}),
     ...(completedDeadline ? { executionDeadline: completedDeadline } : {}),
+    ...(postflight ? { postflight } : {}),
     processObservations: [...(ticket.processObservations ?? []), observation],
   }, artifactStatus)
   hooks.onChildPid?.(undefined)

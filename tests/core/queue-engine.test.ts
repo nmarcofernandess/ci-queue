@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process"
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { execFileSync, spawn } from "node:child_process"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -8,8 +8,19 @@ import { afterEach, describe, expect, it } from "vitest"
 import { initialExecutionDeadline } from "../../src/core/deadline.js"
 import { enqueueTicket } from "../../src/core/enqueue.js"
 import { probeProcessGroupIdentity } from "../../src/core/process.js"
-import { cancelQueuedOrRunningTicket, parseTicket, reconcileInterruptedJob } from "../../src/core/runner.js"
-import { atomicWriteJson, listHistoryJobs, listQueuedJobs, queuePaths, readRunningJob } from "../../src/core/state.js"
+import { cancelQueuedOrRunningTicket, parseTicket } from "../../src/core/runner.js"
+import {
+  atomicWriteJson,
+  claimPath,
+  compatibilityStateRoot,
+  ensureQueueDirs,
+  listHistoryJobs,
+  listQueuedJobs,
+  productStateRoot,
+  queuePaths,
+  readRunningJob,
+  resolveStateRoot,
+} from "../../src/core/state.js"
 import { runWorker } from "../../src/core/worker.js"
 import { runCli } from "../../src/cli.js"
 import type { QueueTicket } from "../../src/contracts/schema.js"
@@ -20,7 +31,10 @@ afterEach(() => {
   for (const path of cleanup.splice(0)) rmSync(path, { recursive: true, force: true })
 })
 
-function fixture(presets: Record<string, object>): { project: string; state: string } {
+function fixture(
+  presets: Record<string, object>,
+  options: { artifacts?: string[] } = {}
+): { project: string; state: string } {
   const project = mkdtempSync(join(tmpdir(), "ci-queue-project-"))
   const state = mkdtempSync(join(tmpdir(), "ci-queue-state-"))
   cleanup.push(project, state)
@@ -28,6 +42,7 @@ function fixture(presets: Record<string, object>): { project: string; state: str
     schemaVersion: 1,
     project: { id: "fixture-project", name: "Fixture project" },
     presets,
+    ...(options.artifacts ? { artifacts: options.artifacts } : {}),
   }, null, 2)}\n`)
   return { project, state }
 }
@@ -63,6 +78,165 @@ describe("queue lifecycle", () => {
 
     expect(listHistoryJobs(state)[0]).toMatchObject({ id: ticket.id, status: "failed", exitCode: 7 })
     expect(readRunningJob(state)).toBeUndefined()
+  })
+
+  it("redacts command and streamed secrets before they reach the on-disk log", async () => {
+    const secret = "runner-secret-value"
+    const script = [
+      `const secret = ${JSON.stringify(secret)}`,
+      'process.stdout.write("token=" + secret.slice(0, 7))',
+      'setTimeout(() => {',
+      '  process.stdout.write(secret.slice(7) + "\\n")',
+      '  process.stderr.write("password=" + secret + "\\n")',
+      '}, 10)',
+    ].join("; ")
+    const { project, state } = fixture({
+      redacted: { argv: [process.execPath, "-e", script] },
+    })
+    const ticket = enqueueTicket({ preset: "redacted", cwd: project, stateRoot: state })
+
+    await runWorker(state)
+
+    const log = readFileSync(ticket.logPath, "utf8")
+    expect(log).not.toContain(secret)
+    expect(log).toContain("token=[REDACTED]")
+    expect(log).toContain("password=[REDACTED]")
+    expect(listHistoryJobs(state)[0]).toMatchObject({ id: ticket.id, status: "passed" })
+  })
+
+  it("retains declared artifacts from a failed recipe without changing its verdict", async () => {
+    const { project, state } = fixture(
+      {
+        badWithArtifact: {
+          argv: [
+            process.execPath,
+            "-e",
+            [
+              'const fs = require("node:fs")',
+              'fs.mkdirSync("test-results", { recursive: true })',
+              'fs.writeFileSync("test-results/result.txt", "failure evidence")',
+              "process.exit(7)",
+            ].join("; "),
+          ],
+        },
+      },
+      { artifacts: ["test-results"] }
+    )
+    const ticket = enqueueTicket({
+      preset: "badWithArtifact",
+      cwd: project,
+      stateRoot: state,
+    })
+
+    await runWorker(state)
+
+    const artifactsPath = join(state, "artifacts", ticket.id)
+    expect(listHistoryJobs(state)[0]).toMatchObject({
+      id: ticket.id,
+      status: "failed",
+      exitCode: 7,
+      artifactsPath,
+    })
+    expect(readFileSync(join(artifactsPath, "test-results", "result.txt"), "utf8")).toBe(
+      "failure evidence"
+    )
+  })
+
+  it("passes job-env-v1 aliases to the child and enables only declared progress", async () => {
+    const keys = [
+      "CI_QUEUE_JOB_ENV_VERSION",
+      "DIETFLOW_CI_QUEUE_DIR",
+      "DIETFLOW_CI_QUEUE_JOB_ID",
+      "DIETFLOW_CI_QUEUE_HEAD_SHA",
+      "DIETFLOW_CI_BASE_SHA",
+      "LOCAL_CI_QUEUE_DIR",
+      "LOCAL_CI_JOB_ID",
+      "LOCAL_CI_PRESET",
+      "LOCAL_CI_PROGRESS_ENABLED",
+      "LOCAL_CI_HEAD_SHA",
+      "LOCAL_CI_BASE_SHA",
+    ]
+    const environmentScript = (path: string) => [
+      'const fs = require("node:fs")',
+      `const keys = ${JSON.stringify(keys)}`,
+      `fs.writeFileSync(${JSON.stringify(path)}, JSON.stringify(Object.fromEntries(keys.map((key) => [key, process.env[key] ?? null]))))`,
+    ].join("; ")
+    const { project, state } = fixture({
+      declaredProgress: {
+        argv: [process.execPath, "-e", environmentScript("job-env.json")],
+        progress: true,
+      },
+      undeclaredProgress: {
+        argv: [process.execPath, "-e", environmentScript("job-env-neutral.json")],
+      },
+    })
+    const ticket = enqueueTicket({
+      preset: "declaredProgress",
+      cwd: project,
+      stateRoot: state,
+    })
+    enqueueTicket({ preset: "undeclaredProgress", cwd: project, stateRoot: state })
+    const inheritedProgress = process.env.LOCAL_CI_PROGRESS_ENABLED
+    process.env.LOCAL_CI_PROGRESS_ENABLED = "1"
+    try {
+      await runWorker(state)
+    } finally {
+      if (inheritedProgress === undefined) delete process.env.LOCAL_CI_PROGRESS_ENABLED
+      else process.env.LOCAL_CI_PROGRESS_ENABLED = inheritedProgress
+    }
+
+    const childEnvironment = JSON.parse(readFileSync(join(project, "job-env.json"), "utf8"))
+    expect(childEnvironment).toEqual({
+      CI_QUEUE_JOB_ENV_VERSION: "1",
+      DIETFLOW_CI_QUEUE_DIR: state,
+      DIETFLOW_CI_QUEUE_JOB_ID: ticket.id,
+      DIETFLOW_CI_QUEUE_HEAD_SHA: ticket.headSha,
+      DIETFLOW_CI_BASE_SHA: "",
+      LOCAL_CI_QUEUE_DIR: state,
+      LOCAL_CI_JOB_ID: ticket.id,
+      LOCAL_CI_PRESET: "declaredProgress",
+      LOCAL_CI_PROGRESS_ENABLED: "1",
+      LOCAL_CI_HEAD_SHA: ticket.headSha,
+      LOCAL_CI_BASE_SHA: "",
+    })
+    expect(
+      JSON.parse(readFileSync(join(project, "job-env-neutral.json"), "utf8"))
+        .LOCAL_CI_PROGRESS_ENABLED
+    ).toBe("")
+  })
+
+  it("invalidates a green recipe when its required Git snapshot changes", async () => {
+    const { project, state } = fixture({
+      stable: {
+        argv: [
+          process.execPath,
+          "-e",
+          "require('node:fs').writeFileSync('changed-during-job.txt', 'x')",
+        ],
+        requireGitStability: true,
+      },
+    })
+    execFileSync("git", ["init"], { cwd: project })
+    execFileSync("git", ["config", "user.email", "ci-queue@example.invalid"], {
+      cwd: project,
+    })
+    execFileSync("git", ["config", "user.name", "CI Queue test"], {
+      cwd: project,
+    })
+    execFileSync("git", ["add", "ci-queue.json"], { cwd: project })
+    execFileSync("git", ["commit", "-m", "fixture"], { cwd: project })
+
+    const ticket = enqueueTicket({ preset: "stable", cwd: project, stateRoot: state })
+    await runWorker(state)
+
+    expect(listHistoryJobs(state)[0]).toMatchObject({
+      id: ticket.id,
+      status: "failed",
+      exitCode: 1,
+      failureReason: expect.stringContaining("estado Git mudou durante o job (statusShort)"),
+      preflight: expect.any(Object),
+      postflight: expect.any(Object),
+    })
   })
 
   it("persists a v3 deadline expiry before terminating the process group", async () => {
@@ -109,14 +283,14 @@ describe("queue lifecycle", () => {
     expect(readRunningJob(state)).toBeUndefined()
   }, 15_000)
 
-  it("reconciles a dead worker by terminating its verified child group before marking interrupted", async () => {
+  it("reconciles a dead worker without restoring its residual claim", async () => {
     const { project, state } = fixture({ noop: { argv: [process.execPath, "-e", "process.exit(0)"] } })
     const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { cwd: project, detached: true, stdio: "ignore" })
     child.unref()
     await waitFor(() => Boolean(child.pid && probeProcessGroupIdentity(child.pid)))
     const identity = probeProcessGroupIdentity(child.pid!)!
     const id = "interrupted-fixture"
-    const paths = queuePaths(state)
+    const paths = ensureQueueDirs(state)
     const ticket: QueueTicket = {
       id,
       createdAt: new Date().toISOString(),
@@ -140,11 +314,18 @@ describe("queue lifecycle", () => {
       projectName: "Fixture project",
     }
     atomicWriteJson(paths.running, ticket)
+    atomicWriteJson(claimPath(state, id), {
+      ...ticket,
+      status: "queued",
+      startedAt: undefined,
+    })
 
-    const reconciliation = await reconcileInterruptedJob(state)
-    expect(reconciliation.state).toBe("reconciled")
+    const report = await runWorker(state)
+    expect(report.reconciliation).toBe("reconciled")
+    expect(report.processed).toEqual([])
     expect(listHistoryJobs(state)[0]).toMatchObject({ id, status: "interrupted" })
     expect(readRunningJob(state)).toBeUndefined()
+    expect(existsSync(claimPath(state, id))).toBe(false)
   }, 15_000)
 })
 
@@ -177,7 +358,52 @@ describe("ticket compatibility", () => {
   })
 })
 
+describe("state-root compatibility", () => {
+  it("keeps an existing local-ci state root and its lock layout", async () => {
+    const home = mkdtempSync(join(tmpdir(), "ci-queue-home-"))
+    cleanup.push(home)
+    const compatibilityRoot = compatibilityStateRoot(home)
+    mkdirSync(compatibilityRoot, { recursive: true })
+
+    expect(resolveStateRoot(undefined, {}, home)).toBe(compatibilityRoot)
+    expect(resolveStateRoot(undefined, {}, join(home, "clean"))).toBe(
+      productStateRoot(join(home, "clean"))
+    )
+
+    const paths = ensureQueueDirs(compatibilityRoot)
+    expect(paths.workerPid).toBe(join(compatibilityRoot, "state", "worker.pid"))
+    expect(paths.runnerLock).toBe(join(compatibilityRoot, "locks", "runner.lock"))
+    expect(paths.jobLocks).toBe(join(compatibilityRoot, "locks", "jobs"))
+
+    mkdirSync(paths.runnerLock)
+    writeFileSync(
+      join(paths.runnerLock, "owner.json"),
+      JSON.stringify({ pid: process.pid })
+    )
+    await expect(runWorker(compatibilityRoot)).resolves.toMatchObject({
+      busy: true,
+      reconciliation: "active",
+    })
+  })
+})
+
 describe("CLI JSON v1", () => {
+  it("announces the execution flags and job environment contract together", async () => {
+    const version = await runCli(["version", "--json"])
+
+    expect(version).toMatchObject({
+      apiVersion: 1,
+      ok: true,
+      result: {
+        capabilities: expect.arrayContaining([
+          "enqueue",
+          "execution-flags-v1",
+          "job-env-v1",
+        ]),
+      },
+    })
+  })
+
   it("accepts a consumer-provided argv without rerouting it through project configuration", async () => {
     const project = mkdtempSync(join(tmpdir(), "ci-queue-adapter-project-"))
     const state = mkdtempSync(join(tmpdir(), "ci-queue-adapter-state-"))

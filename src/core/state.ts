@@ -17,8 +17,31 @@ import type { QueueTicket } from "../contracts/schema.js"
 
 export type QueuePaths = ReturnType<typeof queuePaths>
 
-export function resolveStateRoot(explicit?: string, env: NodeJS.ProcessEnv = process.env): string {
-  return explicit ?? env.CI_QUEUE_STATE_DIR ?? join(homedir(), ".local", "state", "ci-queue")
+export function compatibilityStateRoot(home = homedir()): string {
+  return join(home, ".local", "state", "local-ci", "queue")
+}
+
+export function productStateRoot(home = homedir()): string {
+  return join(home, ".local", "state", "ci-queue")
+}
+
+/**
+ * The first external release must see the already-installed local-ci state.
+ * A new machine gets the product-named root; an existing machine keeps its
+ * records and, crucially, the old runner lock until a later atomic migration.
+ */
+export function resolveStateRoot(
+  explicit?: string,
+  env: NodeJS.ProcessEnv = process.env,
+  home = homedir()
+): string {
+  if (explicit ?? env.CI_QUEUE_STATE_DIR) {
+    return explicit ?? env.CI_QUEUE_STATE_DIR!
+  }
+  const compatibilityRoot = compatibilityStateRoot(home)
+  return existsSync(compatibilityRoot)
+    ? compatibilityRoot
+    : productStateRoot(home)
 }
 
 export function queuePaths(root: string): {
@@ -30,7 +53,9 @@ export function queuePaths(root: string): {
   logs: string
   artifacts: string
   progress: string
+  state: string
   locks: string
+  jobLocks: string
   running: string
   workerPid: string
   runnerLock: string
@@ -44,16 +69,18 @@ export function queuePaths(root: string): {
     logs: join(root, "logs"),
     artifacts: join(root, "artifacts"),
     progress: join(root, "progress"),
+    state: join(root, "state"),
     locks: join(root, "locks"),
+    jobLocks: join(root, "locks", "jobs"),
     running: join(root, "running.json"),
-    workerPid: join(root, "worker.pid"),
-    runnerLock: join(root, "runner.lock"),
+    workerPid: join(root, "state", "worker.pid"),
+    runnerLock: join(root, "locks", "runner.lock"),
   }
 }
 
 export function ensureQueueDirs(root: string): QueuePaths {
   const paths = queuePaths(root)
-  for (const path of [paths.root, paths.jobs, paths.claims, paths.jobsRejected, paths.history, paths.logs, paths.artifacts, paths.progress, paths.locks]) {
+  for (const path of [paths.root, paths.jobs, paths.claims, paths.jobsRejected, paths.history, paths.logs, paths.artifacts, paths.progress, paths.state, paths.locks, paths.jobLocks]) {
     mkdirSync(path, { recursive: true })
   }
   return paths
@@ -215,7 +242,7 @@ export function acquireRunnerLock(root: string): LockHandle | undefined {
 
 export async function withTicketLock<T>(root: string, id: string, action: () => Promise<T> | T): Promise<T | undefined> {
   ensureQueueDirs(root)
-  const path = join(queuePaths(root).locks, `${basename(id)}.lock`)
+  const path = join(queuePaths(root).jobLocks, `${basename(id)}.state`)
   // Cancellation and child close can arrive at nearly the same instant. A
   // short bounded wait preserves the terminal transition instead of treating a
   // legitimate state lock as an absent ticket.
@@ -233,6 +260,11 @@ export function recoverClaims(root: string): void {
   const paths = ensureQueueDirs(root)
   if (readRunningJob(root)) return
   for (const name of ticketFiles(paths.claims)) {
+    const id = name.slice(0, -".json".length)
+    if (readHistoryJob(root, id)) {
+      removeFile(join(paths.claims, name))
+      continue
+    }
     try { renameSync(join(paths.claims, name), join(paths.jobs, name)) } catch { /* a concurrent recovery decides */ }
   }
 }

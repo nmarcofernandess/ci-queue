@@ -28,6 +28,62 @@ export type TicketFlags = {
   fetchBase?: string
   requireGitStability?: boolean
   pinHeadSha?: boolean
+  /** Whether this recipe is allowed to emit structured progress markers. */
+  progressEnabled?: boolean
+}
+
+function optionalBoolean(
+  value: Record<string, unknown>,
+  name: keyof TicketFlags
+): boolean | undefined {
+  const item = value[name]
+  if (item === undefined) return undefined
+  if (typeof item !== "boolean") {
+    throw new Error(`${name} precisa ser booleano`)
+  }
+  return item
+}
+
+/** Normalizes the only execution controls accepted from a consumer. */
+export function normalizeTicketFlags(value: unknown): TicketFlags {
+  if (value === undefined) return {}
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("flags precisa ser um objeto")
+  }
+  const raw = value as Record<string, unknown>
+  const timeout = raw.executionTimeoutMs
+  if (
+    timeout !== undefined &&
+    (typeof timeout !== "number" ||
+      !Number.isSafeInteger(timeout) ||
+      timeout <= 0 ||
+      timeout > 2_147_483_647)
+  ) {
+    throw new Error("executionTimeoutMs inválido")
+  }
+  const fetchBase = raw.fetchBase
+  if (
+    fetchBase !== undefined &&
+    (typeof fetchBase !== "string" || !fetchBase.trim() || fetchBase.length > 512)
+  ) {
+    throw new Error("fetchBase inválido")
+  }
+  return {
+    ...(typeof timeout === "number" ? { executionTimeoutMs: timeout } : {}),
+    ...(optionalBoolean(raw, "requireCleanTree") !== undefined
+      ? { requireCleanTree: optionalBoolean(raw, "requireCleanTree") }
+      : {}),
+    ...(typeof fetchBase === "string" ? { fetchBase: fetchBase.trim() } : {}),
+    ...(optionalBoolean(raw, "requireGitStability") !== undefined
+      ? { requireGitStability: optionalBoolean(raw, "requireGitStability") }
+      : {}),
+    ...(optionalBoolean(raw, "pinHeadSha") !== undefined
+      ? { pinHeadSha: optionalBoolean(raw, "pinHeadSha") }
+      : {}),
+    ...(optionalBoolean(raw, "progressEnabled") !== undefined
+      ? { progressEnabled: optionalBoolean(raw, "progressEnabled") }
+      : {}),
+  }
 }
 
 export type ExecutionDeadline =
@@ -156,6 +212,8 @@ export type QueueTicket = {
 export type ProjectPreset = TicketFlags & {
   argv: string[]
   note?: string
+  /** Project-local declaration; persisted as flags.progressEnabled on the ticket. */
+  progress?: boolean
 }
 
 export type QueueProjectConfig = {
