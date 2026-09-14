@@ -1,0 +1,56 @@
+import * as React from "react"
+
+import { AppSidebar } from "@/components/app-sidebar"
+import { type AppRoute, appRoutes } from "@/components/app-routes"
+import { RoutePlaceholder } from "@/components/route-placeholder"
+import { SiteHeader } from "@/components/site-header"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { Toaster } from "@/components/ui/sonner"
+import { TooltipProvider } from "@/components/ui/tooltip"
+
+function routeFromHash(hash: string): AppRoute {
+  const candidate = hash.replace(/^#/, "").replace(/^\//, "")
+
+  return appRoutes.find((route) => route === candidate) ?? "status"
+}
+
+function useHashRoute() {
+  const [route, setRoute] = React.useState<AppRoute>(() =>
+    routeFromHash(window.location.hash)
+  )
+
+  React.useEffect(() => {
+    const handleHashChange = () => setRoute(routeFromHash(window.location.hash))
+
+    window.addEventListener("hashchange", handleHashChange)
+    return () => window.removeEventListener("hashchange", handleHashChange)
+  }, [])
+
+  return route
+}
+
+export function App() {
+  const route = useHashRoute()
+
+  return (
+    <TooltipProvider>
+      <SidebarProvider
+        style={
+          {
+            "--sidebar-width": "calc(var(--spacing) * 72)",
+            "--header-height": "calc(var(--spacing) * 12)",
+          } as React.CSSProperties
+        }
+      >
+        <AppSidebar activeRoute={route} />
+        <SidebarInset>
+          <SiteHeader route={route} />
+          <RoutePlaceholder route={route} />
+        </SidebarInset>
+      </SidebarProvider>
+      <Toaster position="top-right" />
+    </TooltipProvider>
+  )
+}
+
+export default App
