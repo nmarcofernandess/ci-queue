@@ -39,6 +39,8 @@ export type RunTableJob = Omit<JobRecord, "id"> & {
   rowKey?: string
   detailsJobId?: string
   detailsAvailable?: boolean
+  origin?: "machine" | "git"
+  origins?: Array<"machine" | "git">
 }
 
 const runColumnHelper = createColumnHelper<
@@ -89,15 +91,20 @@ export type RunTableProps = {
   emptyDescription: string
   onOpenJob: (jobId: string) => void
   hasMore?: boolean
+  loadingMore?: boolean
+  loadMoreError?: Error
   onLoadMore?: () => void
+  showOrigin?: boolean
 }
 
 function RunDataTable({
   jobs,
   onOpenJob,
+  showOrigin = false,
 }: {
   jobs: RunTableJob[]
   onOpenJob: (jobId: string) => void
+  showOrigin?: boolean
 }) {
   const columns = React.useMemo(
     () =>
@@ -146,19 +153,26 @@ function RunDataTable({
           header: "Contexto",
           cell: ({ row }) => {
             const job = row.original
+            const origins = job.origins ?? (job.origin ? [job.origin] : [])
+            const originLabel = origins
+              .map((origin) => (origin === "machine" ? "Máquina" : "Git"))
+              .join(" · ")
             return (
-              <div className="grid gap-1 text-muted-foreground">
+              <div className="flex flex-col gap-1 text-muted-foreground">
                 <span>Ticket {job.ticketId ?? job.id ?? "indisponível"}</span>
                 <span>{job.branch || "Branch não informada"}</span>
                 <span className="font-mono text-xs">
                   {shortSha(job.headSha)}
                 </span>
+                {showOrigin && originLabel ? (
+                  <span className="text-xs">Origem: {originLabel}</span>
+                ) : null}
               </div>
             )
           },
         }),
       ]),
-    [onOpenJob]
+    [onOpenJob, showOrigin]
   )
   const table = useTable({
     columns,
@@ -227,7 +241,10 @@ export function RunTable({
   emptyDescription,
   onOpenJob,
   hasMore = false,
+  loadingMore = false,
+  loadMoreError,
   onLoadMore,
+  showOrigin = false,
 }: RunTableProps) {
   const data = jobs ?? EMPTY_JOBS
 
@@ -271,11 +288,25 @@ export function RunTable({
         <EmptyState title={emptyTitle} description={emptyDescription} />
       ) : null}
       {!loading && !error && data.length ? (
-        <RunDataTable jobs={data} onOpenJob={onOpenJob} />
+        <RunDataTable
+          jobs={data}
+          onOpenJob={onOpenJob}
+          showOrigin={showOrigin}
+        />
+      ) : null}
+      {loadMoreError ? (
+        <p className="text-sm text-destructive" role="alert">
+          {loadMoreError.message}
+        </p>
       ) : null}
       {hasMore && onLoadMore ? (
-        <Button type="button" variant="ghost" onClick={onLoadMore}>
-          Carregar mais execuções
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onLoadMore}
+          disabled={loadingMore}
+        >
+          {loadingMore ? "Carregando execuções" : "Carregar mais execuções"}
         </Button>
       ) : null}
     </section>

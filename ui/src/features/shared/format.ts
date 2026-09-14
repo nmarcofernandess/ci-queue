@@ -105,10 +105,10 @@ export function statusLabel(status: JobStatus | null | undefined) {
   const labels: Record<JobStatus, string> = {
     queued: "Na fila",
     running: "Em execução",
-    passed: "Concluída",
+    passed: "Passou",
     failed: "Falhou",
-    cancelled: "Cancelada",
-    interrupted: "Interrompida",
+    cancelled: "Cancelado",
+    interrupted: "Interrompido",
   }
 
   return status ? labels[status] : "Sem estado"
