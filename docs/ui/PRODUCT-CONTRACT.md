@@ -55,8 +55,8 @@ Execuções oferece período Todo período, Hoje, 48h, Semana ou 15 dias, e resu
 ### Coluna direita
 
 - **Máquina:** somente disco livre atual e a ação **Ocorrências e recursos**, que leva a Análise. Não exibe estado “normal”, memória, idade da leitura ou refresh por card.
-- **Meta para main:** uma única meta, nome, descrição e progresso real `x de y`. A barra representa requisitos conhecidos, não tempo de execução. O drawer próprio permite criar, editar e remover a meta e escolher os presets acompanhados.
-- **Pendências:** informações manuais livres, com título e texto reais. Não representam gate de Git/CI nem exigem arquivo, SHA ou classificador. Cada título abre a pendência no drawer próprio; **Ver pendências** abre a superfície geral. O vazio é **Nenhuma pendência**.
+- **Meta para main:** uma única meta, formada por nome, descrição e presets acompanhados. O usuário não digita SHA. Cada requisito lê o último verde canônico da receita atual; o título de um requisito atendido abre esse ticket. O progresso `x de y` é a quantidade real de presets com verde canônico. Só existe `candidateSha` quando todos os requisitos estão verdes na mesma revisão; verdes em revisões diferentes são mostrados como tal e não fabricam um candidato. A meta pode ser criada, editada e removida e nunca bloqueia CI ou merge.
+- **Pendências:** recomendações automáticas e não bloqueantes de validação, emitidas de forma idempotente por um consumidor para um preset declarado. Cada item preserva preset, motivo, revisão, data e PR quando houver, além da tentativa posterior mais recente. Não existem nota livre, título manual, tags, vínculo com arquivo, `progressNodeId`, botão **Nova pendência** nem edição no dashboard. Um verde canônico posterior da máquina ou de um slot Git verificado, cuja revisão contém a revisão recomendada, resolve o item automaticamente. Falha ao registrar ou publicar a recomendação permanece observável e nunca bloqueia o fluxo. O vazio é **Nenhuma pendência**.
 
 ## Drawer de execução
 

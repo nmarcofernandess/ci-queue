@@ -67,7 +67,7 @@ import {
   type RunTableJob,
   RunTable,
 } from "@/features/shared/run-table"
-import { ManualStateDrawer } from "@/features/status/manual-state-drawer"
+import { StatusStateDrawer } from "@/features/status/status-state-drawer"
 import {
   CheckCircle2Icon,
   CircleDotIcon,
@@ -285,13 +285,13 @@ function MachineCard() {
   )
 }
 
-function ManualStateCard({
+function StatusStateCards({
   dashboard,
   onOpen,
   onOpenJob,
 }: {
   dashboard: ApiQuery<DashboardState>
-  onOpen: (surface: "meta" | "notes", noteId?: string) => void
+  onOpen: (surface: "meta" | "pending") => void
   onOpenJob: (jobId: string) => void
 }) {
   if (dashboard.loading) {
@@ -309,14 +309,14 @@ function ManualStateCard({
       <Card>
         <CardContent>
           <p className="text-sm text-destructive">
-            {dashboard.error?.message || "Estado manual indisponível."}
+            {dashboard.error?.message || "Meta e pendências indisponíveis."}
           </p>
         </CardContent>
       </Card>
     )
   }
 
-  const { meta, notes } = dashboard.data
+  const { meta, pending, pendingError } = dashboard.data
   const observed =
     meta?.checks.filter((check) => check.status === "passed").length ?? 0
   const total = meta?.checks.length ?? 0
@@ -325,16 +325,7 @@ function ManualStateCard({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>
-            <Button
-              type="button"
-              variant="link"
-              className="h-auto p-0 text-base font-semibold"
-              onClick={() => onOpen("meta")}
-            >
-              Meta para main
-            </Button>
-          </CardTitle>
+          <CardTitle>Meta para main</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {meta ? (
@@ -351,6 +342,14 @@ function ManualStateCard({
                     {observed} de {total} requisitos atendidos
                   </p>
                   <Progress value={(observed / total) * 100} />
+                  {meta.candidateSha ? (
+                    <p className="text-sm text-muted-foreground">
+                      Candidato{" "}
+                      <span className="font-mono">
+                        {shortSha(meta.candidateSha)}
+                      </span>
+                    </p>
+                  ) : null}
                   <ItemGroup className="gap-0">
                     {meta.checks.map((check) => {
                       const Icon =
@@ -415,31 +414,38 @@ function ManualStateCard({
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Pendências · {notes.length}</CardTitle>
+          <CardTitle>Pendências · {pending.length}</CardTitle>
         </CardHeader>
         <CardContent>
-          {notes.length ? (
+          {pendingError ? (
+            <p className="text-sm text-destructive">{pendingError}</p>
+          ) : pending.length ? (
             <ItemGroup>
-              {notes.slice(0, 3).map((note) => (
+              {pending.slice(0, 3).map((item) => (
                 <Item
-                  key={note.id}
+                  key={item.id}
                   variant="default"
                   size="sm"
                   className="border-transparent px-0 py-0"
                 >
                   <ItemContent>
                     <ItemTitle>
-                      <Button
-                        type="button"
-                        variant="link"
-                        className="h-auto px-0 py-0"
-                        onClick={() => onOpen("notes", note.id)}
-                      >
-                        {note.title}
-                      </Button>
+                      {item.latestTicketId ? (
+                        <Button
+                          type="button"
+                          variant="link"
+                          className="h-auto px-0 py-0"
+                          onClick={() => onOpenJob(item.latestTicketId!)}
+                        >
+                          {item.preset}
+                        </Button>
+                      ) : (
+                        item.preset
+                      )}
                     </ItemTitle>
                     <ItemDescription>
-                      {note.text || "Sem texto."}
+                      {item.pr ? `PR #${item.pr} · ` : ""}
+                      {shortSha(item.headSha)}
                     </ItemDescription>
                   </ItemContent>
                 </Item>
@@ -450,7 +456,7 @@ function ManualStateCard({
           )}
         </CardContent>
         <CardFooter>
-          <Button type="button" variant="ghost" onClick={() => onOpen("notes")}>
+          <Button type="button" variant="ghost" onClick={() => onOpen("pending")}>
             Abrir pendências
           </Button>
         </CardFooter>
@@ -1179,14 +1185,12 @@ export function StatusPage() {
   const dashboardRequest = React.useCallback(() => getDashboardState(), [])
   const dashboard = useApiQuery("dashboard-state", dashboardRequest)
   const [selectedJobId, setSelectedJobId] = React.useState<string>()
-  const [manualOpen, setManualOpen] = React.useState(false)
-  const [manualTab, setManualTab] = React.useState<"meta" | "notes">("meta")
-  const [selectedNoteId, setSelectedNoteId] = React.useState<string>()
+  const [stateDrawerOpen, setStateDrawerOpen] = React.useState(false)
+  const [stateSurface, setStateSurface] = React.useState<"meta" | "pending">("meta")
 
-  const openManualState = (surface: "meta" | "notes", noteId?: string) => {
-    setManualTab(surface)
-    setSelectedNoteId(noteId)
-    setManualOpen(true)
+  const openStatusState = (surface: "meta" | "pending") => {
+    setStateSurface(surface)
+    setStateDrawerOpen(true)
   }
 
   if (status.loading) {
@@ -1236,9 +1240,9 @@ export function StatusPage() {
         </div>
         <aside className="flex flex-col gap-4">
           <MachineCard />
-          <ManualStateCard
+          <StatusStateCards
             dashboard={dashboard}
-            onOpen={openManualState}
+            onOpen={openStatusState}
             onOpenJob={setSelectedJobId}
           />
         </aside>
@@ -1249,15 +1253,14 @@ export function StatusPage() {
           onClose={() => setSelectedJobId(undefined)}
         />
       ) : null}
-      {manualOpen && dashboard.data ? (
-        <ManualStateDrawer
+      {stateDrawerOpen && dashboard.data ? (
+        <StatusStateDrawer
           state={dashboard.data}
-          surface={manualTab}
-          initialNoteId={selectedNoteId}
-          onClose={() => setManualOpen(false)}
+          surface={stateSurface}
+          onClose={() => setStateDrawerOpen(false)}
           onSaved={dashboard.reload}
           onOpenJob={(jobId) => {
-            setManualOpen(false)
+            setStateDrawerOpen(false)
             setSelectedJobId(jobId)
           }}
         />

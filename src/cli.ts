@@ -14,6 +14,7 @@ import { enqueueExplicitTicket, enqueueTicket } from "./core/enqueue.js"
 import { runWorker } from "./core/worker.js"
 import { findJobById, listHistoryJobs, listQueuedJobs, readRunningJob, resolveStateRoot } from "./core/state.js"
 import { buildPresetHistory } from "./core/preset-history.js"
+import { listAdvisories, upsertAdvisory } from "./core/advisories.js"
 
 type GlobalArgs = { command?: string; rest: string[]; json: boolean; stateRoot?: string; cwd?: string; configPath?: string }
 
@@ -108,6 +109,8 @@ function usage(): string {
     "  status",
     "  history [--project ID]",
     "  preset-history [--preset NAME]",
+    "  advisory upsert --preset NAME --head-sha SHA --reason TEXT [--pr N]",
+    "  advisory list",
     "  logs [latest|<ticketId>]",
     "  cancel <ticketId>",
     "  config",
@@ -124,7 +127,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           version: "0.1.0",
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "execution-flags-v1", JOB_ENV_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
       case "enqueue": {
         const recipe = optionValue(args.rest, "--recipe")
@@ -171,6 +174,30 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         const report = buildPresetHistory(listHistoryJobs(root, loaded.config.project.id), loaded.config)
         const preset = optionValue(args.rest, "--preset")
         return success(preset ? { ...report, presets: report.presets.filter((item) => item.preset === preset) } : report)
+      }
+      case "advisory": {
+        const action = args.rest.find((item) => !item.startsWith("--"))
+        const loaded = readQueueConfig(args.cwd, args.configPath)
+        if (action === "list") {
+          return success({ pending: listAdvisories(root, loaded.config.project.id) })
+        }
+        if (action !== "upsert") return failure("USAGE", "advisory requer upsert ou list")
+        const preset = optionValue(args.rest, "--preset")
+        const headSha = optionValue(args.rest, "--head-sha")
+        const reason = optionValue(args.rest, "--reason")
+        if (!preset || !headSha || !reason) {
+          return failure("USAGE", "advisory upsert requer --preset, --head-sha e --reason")
+        }
+        const rawPr = optionValue(args.rest, "--pr")
+        const pr = rawPr === undefined ? undefined : Number(rawPr)
+        return success(await upsertAdvisory({
+          root,
+          config: loaded.config,
+          preset,
+          headSha,
+          reason,
+          ...(pr !== undefined ? { pr } : {}),
+        }))
       }
       case "logs": {
         const requested = args.rest.find((item) => !item.startsWith("--")) ?? "latest"

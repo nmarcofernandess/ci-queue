@@ -1,6 +1,7 @@
 import * as React from "react"
 import {
   CheckCircle2Icon,
+  CircleAlertIcon,
   CircleDotIcon,
   LoaderCircleIcon,
   PencilIcon,
@@ -61,34 +62,35 @@ import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import { EmptyState } from "@/features/shared/async-state"
+import { EmptyState, ErrorState } from "@/features/shared/async-state"
 import { formatDateTime, shortSha } from "@/features/shared/format"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { writeDashboardState } from "@/lib/api"
 import type {
   DashboardMeta,
-  DashboardNote,
+  DashboardPending,
   DashboardState,
   DashboardStateMutation,
+  JobStatus,
 } from "@/lib/types"
 
 type MetaForm = {
   name: string
   description: string
-  headSha: string
   presets: string[]
 }
+
+const PRESET_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/
 
 function metaToForm(meta: DashboardMeta | null): MetaForm {
   return meta
     ? {
         name: meta.name,
         description: meta.description,
-        headSha: meta.headSha,
         presets: meta.presets,
       }
-    : { name: "", description: "", headSha: "", presets: [] }
+    : { name: "", description: "", presets: [] }
 }
 
 function MetaEditor({
@@ -119,7 +121,7 @@ function MetaEditor({
 
   const addFuturePreset = () => {
     const preset = futurePreset.trim()
-    if (!preset) return
+    if (!PRESET_NAME.test(preset)) return
     togglePreset(preset, true)
     setFuturePreset("")
   }
@@ -144,6 +146,7 @@ function MetaEditor({
               <Input
                 id="meta-name"
                 value={form.name}
+                maxLength={160}
                 disabled={unavailable || saving}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -160,6 +163,7 @@ function MetaEditor({
               <Textarea
                 id="meta-description"
                 value={form.description}
+                maxLength={10_000}
                 disabled={unavailable || saving}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -168,26 +172,6 @@ function MetaEditor({
                   }))
                 }
               />
-            </FieldContent>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="meta-sha">SHA alvo</FieldLabel>
-            <FieldContent>
-              <Input
-                id="meta-sha"
-                value={form.headSha}
-                spellCheck={false}
-                disabled={unavailable || saving}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    headSha: event.target.value,
-                  }))
-                }
-              />
-              <FieldDescription>
-                Commit completo acompanhado pela meta.
-              </FieldDescription>
             </FieldContent>
           </Field>
         </FieldGroup>
@@ -219,6 +203,8 @@ function MetaEditor({
                   id="future-preset"
                   value={futurePreset}
                   placeholder="Nome do preset ainda não declarado"
+                  pattern="[a-z0-9][a-z0-9-]{0,63}"
+                  maxLength={64}
                   disabled={unavailable || saving}
                   onChange={(event) => setFuturePreset(event.target.value)}
                   onKeyDown={(event) => {
@@ -231,13 +217,20 @@ function MetaEditor({
                 <InputGroupAddon align="inline-end">
                   <InputGroupButton
                     onClick={addFuturePreset}
-                    disabled={!futurePreset.trim() || unavailable || saving}
+                    disabled={
+                      !PRESET_NAME.test(futurePreset.trim()) ||
+                      unavailable ||
+                      saving
+                    }
                   >
                     <PlusIcon data-icon />
                     Adicionar
                   </InputGroupButton>
                 </InputGroupAddon>
               </InputGroup>
+              <FieldDescription>
+                Use letras minúsculas, números e hífens.
+              </FieldDescription>
             </FieldContent>
           </Field>
         </FieldGroup>
@@ -252,7 +245,15 @@ function MetaEditor({
         >
           Cancelar
         </Button>
-        <Button type="submit" disabled={unavailable || saving}>
+        <Button
+          type="submit"
+          disabled={
+            unavailable ||
+            saving ||
+            !form.name.trim() ||
+            form.presets.length === 0
+          }
+        >
           {saving ? (
             <LoaderCircleIcon data-icon className="animate-spin" />
           ) : null}
@@ -333,6 +334,9 @@ function MetaRead({
 
   const passed = meta.checks.filter((check) => check.status === "passed").length
   const total = meta.checks.length
+  const allPassedOnDifferentRevisions =
+    total > 0 && passed === total && !meta.candidateSha
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-start justify-between gap-3">
@@ -350,15 +354,23 @@ function MetaRead({
         </Button>
       </div>
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-3 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span>
             {passed} de {total} requisitos atendidos
           </span>
-          <span className="text-xs text-muted-foreground">
-            Commit <span className="font-mono">{shortSha(meta.headSha)}</span>
-          </span>
+          {meta.candidateSha ? (
+            <span className="text-muted-foreground">
+              Candidato{" "}
+              <span className="font-mono">{shortSha(meta.candidateSha)}</span>
+            </span>
+          ) : null}
         </div>
         <Progress value={total ? (passed / total) * 100 : 0} />
+        {allPassedOnDifferentRevisions ? (
+          <p className="text-sm text-muted-foreground">
+            Os verdes atuais ainda não provam uma única revisão comum.
+          </p>
+        ) : null}
       </div>
       <Separator />
       {meta.checks.length ? (
@@ -387,6 +399,14 @@ function MetaRead({
                     check.preset
                   )}
                 </ItemTitle>
+                {check.status === "passed" ? (
+                  <ItemDescription>
+                    {check.finishedAt
+                      ? formatDateTime(check.finishedAt)
+                      : "Data indisponível"}
+                    {check.headSha ? ` · ${shortSha(check.headSha)}` : ""}
+                  </ItemDescription>
+                ) : null}
               </ItemContent>
               <ItemActions>
                 <Badge variant="outline">
@@ -412,268 +432,99 @@ function MetaRead({
   )
 }
 
-function NoteForm({
-  note,
-  state,
-  saving,
-  unavailable,
-  onSave,
-  onCancel,
+function statusLabel(status: JobStatus | null) {
+  if (status === "passed") return "Última tentativa passou"
+  if (status === "failed") return "Última tentativa falhou"
+  if (status === "cancelled") return "Última tentativa cancelada"
+  if (status === "interrupted") return "Última tentativa interrompida"
+  if (status === "running") return "Em execução"
+  if (status === "queued") return "Na fila"
+  return "Sem tentativa posterior"
+}
+
+function PendingItem({
+  item,
+  onOpenJob,
 }: {
-  note?: DashboardNote
-  state: DashboardState
-  saving: boolean
-  unavailable: boolean
-  onSave: (mutation: DashboardStateMutation) => Promise<boolean>
-  onCancel: () => void
+  item: DashboardPending
+  onOpenJob: (jobId: string) => void
 }) {
-  const [title, setTitle] = React.useState(note?.title ?? "")
-  const [text, setText] = React.useState(note?.text ?? "")
   return (
-    <form
-      className="flex flex-col gap-5"
-      onSubmit={(event) => {
-        event.preventDefault()
-        const mutation: DashboardStateMutation = note
-          ? {
-              revision: state.revision,
-              action: "update-note",
-              id: note.id,
-              note: { title, text },
-            }
-          : {
-              revision: state.revision,
-              action: "save-note",
-              note: { title, text },
-            }
-        void onSave(mutation).then((saved) => saved && onCancel())
-      }}
-    >
-      <FieldSet>
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="note-title">Título</FieldLabel>
-            <FieldContent>
-              <Input
-                id="note-title"
-                value={title}
-                disabled={saving || unavailable}
-                onChange={(event) => setTitle(event.target.value)}
-              />
-            </FieldContent>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="note-text">Notas</FieldLabel>
-            <FieldContent>
-              <Textarea
-                id="note-text"
-                value={text}
-                disabled={saving || unavailable}
-                onChange={(event) => setText(event.target.value)}
-              />
-            </FieldContent>
-          </Field>
-        </FieldGroup>
-      </FieldSet>
-      <div className="flex justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={saving}
-          onClick={onCancel}
-        >
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={saving || unavailable}>
-          {saving ? (
-            <LoaderCircleIcon data-icon className="animate-spin" />
-          ) : null}
-          Salvar
-        </Button>
-      </div>
-    </form>
+    <Item variant="outline">
+      <ItemMedia variant="icon">
+        <CircleAlertIcon />
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>
+          {item.latestTicketId ? (
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto p-0"
+              onClick={() => onOpenJob(item.latestTicketId!)}
+            >
+              {item.preset}
+            </Button>
+          ) : (
+            item.preset
+          )}
+        </ItemTitle>
+        <ItemDescription className="line-clamp-none">
+          {item.reason}
+          <br />
+          {item.pr ? `PR #${item.pr} · ` : ""}
+          <span className="font-mono">{shortSha(item.headSha)}</span>
+          {` · ${formatDateTime(item.createdAt)}`}
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Badge variant="outline">{statusLabel(item.latestStatus)}</Badge>
+      </ItemActions>
+    </Item>
   )
 }
 
-function RemoveNoteButton({
-  note,
+function PendingSurface({
   state,
-  saving,
-  onMutate,
-  onRemoved,
-}: {
-  note: DashboardNote
-  state: DashboardState
-  saving: boolean
-  onMutate: (mutation: DashboardStateMutation) => Promise<boolean>
-  onRemoved: () => void
-}) {
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button type="button" variant="destructive" disabled={saving}>
-          <Trash2Icon data-icon />
-          Remover
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Remover esta pendência?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Esta nota manual será removida do painel.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction
-            variant="destructive"
-            onClick={() =>
-              void onMutate({
-                revision: state.revision,
-                action: "remove-note",
-                id: note.id,
-              }).then((removed) => removed && onRemoved())
-            }
-          >
-            Remover
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  )
-}
-
-function NotesSurface({
-  state,
-  selectedId,
-  onSelect,
-  saving,
-  unavailable,
-  onMutate,
+  onOpenJob,
 }: {
   state: DashboardState
-  selectedId?: string
-  onSelect: (noteId: string | undefined) => void
-  saving: boolean
-  unavailable: boolean
-  onMutate: (mutation: DashboardStateMutation) => Promise<boolean>
+  onOpenJob: (jobId: string) => void
 }) {
-  const [editing, setEditing] = React.useState<"new" | "selected" | null>(null)
-  const selected = state.notes.find((note) => note.id === selectedId)
-
-  if (editing) {
+  if (state.pendingError) {
     return (
-      <NoteForm
-        key={`${editing}-${selected?.id || "new"}-${state.revision}`}
-        note={editing === "selected" ? selected : undefined}
-        state={state}
-        saving={saving}
-        unavailable={unavailable}
-        onSave={onMutate}
-        onCancel={() => setEditing(null)}
+      <ErrorState
+        title="Não foi possível ler as pendências"
+        error={new Error(state.pendingError)}
       />
     )
   }
-
-  if (selected) {
+  if (!state.pending.length) {
     return (
-      <div className="flex flex-col gap-5">
-        <div>
-          <h3 className="font-medium">{selected.title}</h3>
-          <p className="text-sm text-muted-foreground">
-            Atualizada em {formatDateTime(selected.updatedAt)}
-          </p>
-        </div>
-        <p className="text-sm whitespace-pre-wrap">
-          {selected.text || "Sem notas."}
-        </p>
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onSelect(undefined)}
-          >
-            Voltar
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setEditing("selected")}
-          >
-            <PencilIcon data-icon />
-            Editar
-          </Button>
-          <RemoveNoteButton
-            note={selected}
-            state={state}
-            saving={saving}
-            onMutate={onMutate}
-            onRemoved={() => onSelect(undefined)}
-          />
-        </div>
-      </div>
+      <EmptyState
+        title="Nenhuma pendência"
+        description="Não há recomendação de validação ainda sem um verde posterior."
+      />
     )
   }
-
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex justify-end">
-        <Button type="button" onClick={() => setEditing("new")}>
-          <PlusIcon data-icon />
-          Nova pendência
-        </Button>
-      </div>
-      {state.notes.length ? (
-        <ItemGroup>
-          {state.notes.map((note) => (
-            <Item key={note.id} variant="outline">
-              <ItemContent>
-                <ItemTitle>
-                  <Button
-                    type="button"
-                    variant="link"
-                    className="h-auto p-0"
-                    onClick={() => onSelect(note.id)}
-                  >
-                    {note.title}
-                  </Button>
-                </ItemTitle>
-                <ItemDescription>{note.text || "Sem notas."}</ItemDescription>
-              </ItemContent>
-              <ItemActions>
-                <span className="text-xs text-muted-foreground">
-                  {formatDateTime(note.updatedAt)}
-                </span>
-              </ItemActions>
-            </Item>
-          ))}
-        </ItemGroup>
-      ) : (
-        <EmptyState
-          title="Nenhuma pendência"
-          description="Registre uma nota manual quando houver algo para acompanhar."
-        >
-          <Button type="button" onClick={() => setEditing("new")}>
-            <PlusIcon data-icon />
-            Nova pendência
-          </Button>
-        </EmptyState>
-      )}
-    </div>
+    <ItemGroup>
+      {state.pending.map((item) => (
+        <PendingItem key={item.id} item={item} onOpenJob={onOpenJob} />
+      ))}
+    </ItemGroup>
   )
 }
 
-export function ManualStateDrawer({
+export function StatusStateDrawer({
   state,
   surface,
-  initialNoteId,
   onClose,
   onSaved,
   onOpenJob,
 }: {
   state: DashboardState
-  surface: "meta" | "notes"
-  initialNoteId?: string
+  surface: "meta" | "pending"
   onClose: () => void
   onSaved: () => void
   onOpenJob: (jobId: string) => void
@@ -682,9 +533,7 @@ export function ManualStateDrawer({
   const session = useDashboardSession()
   const [saving, setSaving] = React.useState(false)
   const [editingMeta, setEditingMeta] = React.useState(false)
-  const [activeNoteId, setActiveNoteId] = React.useState(initialNoteId)
   const unavailable = Boolean(session.error || !session.data)
-  const activeNote = state.notes.find((note) => note.id === activeNoteId)
 
   const mutate = async (mutation: DashboardStateMutation) => {
     if (!session.data?.csrfToken) {
@@ -720,16 +569,12 @@ export function ManualStateDrawer({
           <div className="flex items-start justify-between gap-3">
             <div>
               <DrawerTitle>
-                {surface === "meta"
-                  ? "Meta para main"
-                  : activeNote?.title || "Pendências"}
+                {surface === "meta" ? "Meta para main" : "Pendências"}
               </DrawerTitle>
               <DrawerDescription>
                 {surface === "meta"
-                  ? "Objetivo e requisitos desta revisão."
-                  : activeNote
-                    ? "Pendência"
-                    : `${state.notes.length} nota${state.notes.length === 1 ? "" : "s"} manual${state.notes.length === 1 ? "" : "is"}.`}
+                  ? "Objetivo e verdes canônicos necessários."
+                  : `${state.pending.length} ${state.pending.length === 1 ? "recomendação" : "recomendações"} ainda sem verde posterior.`}
               </DrawerDescription>
             </div>
             <DrawerClose asChild>
@@ -765,17 +610,10 @@ export function ManualStateDrawer({
               />
             )
           ) : (
-            <NotesSurface
-              state={state}
-              selectedId={activeNoteId}
-              onSelect={setActiveNoteId}
-              saving={saving}
-              unavailable={unavailable}
-              onMutate={mutate}
-            />
+            <PendingSurface state={state} onOpenJob={onOpenJob} />
           )}
         </ScrollArea>
-        {session.error ? (
+        {surface === "meta" && session.error ? (
           <DrawerFooter className="shrink-0 border-t">
             <p className="text-sm text-destructive">{session.error.message}</p>
           </DrawerFooter>

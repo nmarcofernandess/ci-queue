@@ -16,7 +16,16 @@ para diagnóstico humano. A forma é uma destas:
 ```
 
 Comandos atuais: `version`, `enqueue <preset>`, `worker`, `status`,
-`history`, `preset-history [--preset <nome>]`, `logs [latest|<jobId>]` e `cancel <jobId>`. O projeto declara receitas em `ci-queue.json`;
+`history`, `preset-history [--preset <nome>]`, `advisory upsert`,
+`advisory list`, `logs [latest|<jobId>]` e `cancel <jobId>`. O projeto declara receitas em `ci-queue.json`.
+
+`advisory upsert --preset <nome> --head-sha <sha-completo> --reason <texto>
+[--pr <numero>]` registra uma recomendação de validação. A chave é
+`projeto + preset + PR` quando há PR; repetir a chamada atualiza o mesmo item.
+Sem PR, uma repetição idêntica por SHA e motivo é idempotente. O comando rejeita
+preset inexistente e nunca enfileira execução. `advisory list` expõe os registros
+brutos do projeto; a API do dashboard deriva quais ainda estão pendentes a partir
+dos verdes canônicos posteriores.
 
 `preset-history` agrega o último verde canônico de cada receita declarada. É a fronteira pública usada por consumidores que publicam seus próprios ponteiros Git; a regra de canonicidade permanece no produto CI Queue.
 o estado local entra por `CI_QUEUE_STATE_DIR` ou `--state`, nunca pelo arquivo

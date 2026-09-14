@@ -1,27 +1,23 @@
-"""Manual project Meta and Notes; intentionally separate from CI approval debt."""
+"""Project Meta plus read-only validation recommendations."""
 
 import fcntl
 import json
 import os
 import re
 import tempfile
-import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 
+from .config import PRESET_NAME
 from .history import canonical_green
 from .records import history_key, read_history
+from .validation_advisories import read_pending_advisories
 
 
 class RevisionConflict(ValueError):
     pass
 
 
-SHA = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})\Z")
-
-
-def _now():
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+_SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 
 
 def _path(state_root):
@@ -29,7 +25,7 @@ def _path(state_root):
 
 
 def _empty():
-    return {"revision": 0, "meta": None, "notes": []}
+    return {"revision": 0, "meta": None}
 
 
 def _read(path):
@@ -48,20 +44,21 @@ def _project_state(document, project_id):
     state = document["projects"].get(project_id, _empty())
     if not isinstance(state, dict) or type(state.get("revision")) is not int or state["revision"] < 0:
         raise ValueError("estado do projeto inválido; arquivo preservado")
-    notes = state.get("notes")
-    if not isinstance(notes, list) or any(
-            not isinstance(note, dict)
-            or not all(isinstance(note.get(key), str) for key in ("id", "title", "text", "createdAt", "updatedAt"))
-            for note in notes):
-        raise ValueError("notas do dashboard inválidas; arquivo preservado")
     meta = state.get("meta")
     if meta is not None and (
             not isinstance(meta, dict)
-            or not all(isinstance(meta.get(key), str) for key in ("name", "description", "headSha"))
+            or not all(isinstance(meta.get(key), str) for key in ("name", "description"))
             or not isinstance(meta.get("presets"), list)
             or not all(isinstance(item, str) for item in meta["presets"])):
         raise ValueError("meta do dashboard inválida; arquivo preservado")
-    return {"revision": state["revision"], "meta": meta, "notes": notes}
+    return {
+        "revision": state["revision"],
+        "meta": None if meta is None else {
+            "name": meta["name"],
+            "description": meta["description"],
+            "presets": list(meta["presets"]),
+        },
+    }
 
 
 def _write_atomic(path, document):
@@ -93,48 +90,60 @@ def _meta(raw, config):
         raise ValueError("meta inválida")
     name = _text(raw.get("name"), "nome da meta", 160)
     description = _text(raw.get("description", ""), "descrição da meta", 10_000, allow_empty=True)
-    head_sha = _text(raw.get("headSha"), "SHA alvo", 64)
-    if not SHA.fullmatch(head_sha):
-        raise ValueError("SHA alvo inválido")
     presets = raw.get("presets")
-    if not isinstance(presets, list) or not all(isinstance(item, str) and item for item in presets):
+    if not isinstance(presets, list):
         raise ValueError("requisitos da meta inválidos")
-    if len(presets) != len(set(presets)) or len(presets) > 128:
+    normalized = [item.strip() for item in presets if isinstance(item, str)]
+    if (not normalized or len(normalized) != len(presets)
+            or any(not PRESET_NAME.fullmatch(item) for item in normalized)):
+        raise ValueError("a meta precisa de ao menos uma receita válida")
+    if len(normalized) != len(set(normalized)) or len(normalized) > 128:
         raise ValueError("requisitos da meta duplicados ou excessivos")
-    return {"name": name, "description": description, "headSha": head_sha.lower(), "presets": list(presets)}
-
-
-def _note(raw, previous=None):
-    if not isinstance(raw, dict):
-        raise ValueError("nota inválida")
-    now = _now()
-    return {
-        "id": previous["id"] if previous else str(uuid.uuid4()),
-        "title": _text(raw.get("title"), "título da nota", 160),
-        "text": _text(raw.get("text"), "texto da nota", 20_000, allow_empty=True),
-        "createdAt": previous["createdAt"] if previous else now,
-        "updatedAt": now,
-    }
+    return {"name": name, "description": description, "presets": normalized}
 
 
 def _decorated(state, state_root, config):
     result = {**state, "projectId": config.project_id, "presets": sorted(config.presets)}
+    pending, pending_error = read_pending_advisories(state_root, config)
+    result["pending"] = pending
+    result["pendingError"] = pending_error
     meta = state.get("meta")
     if not meta:
         return result
     jobs = sorted((job for job in read_history(state_root)
-                   if job.get("projectId") == config.project_id and job.get("headSha") == meta["headSha"]),
+                   if job.get("projectId") == config.project_id),
                   key=history_key, reverse=True)
     checks = []
     for preset in meta["presets"]:
         recipe = config.presets.get(preset)
         if recipe is None:
-            checks.append({"preset": preset, "status": "recipe-missing", "ticketId": None})
+            checks.append({
+                "preset": preset,
+                "status": "recipe-missing",
+                "ticketId": None,
+                "headSha": None,
+                "finishedAt": None,
+            })
             continue
         green = next((job for job in jobs if job.get("preset") == preset and canonical_green(job, recipe)), None)
-        checks.append({"preset": preset, "status": "passed" if green else "pending",
-                       "ticketId": green.get("id") if green else None})
-    result["meta"] = {**meta, "checks": checks}
+        checks.append({
+            "preset": preset,
+            "status": "passed" if green else "pending",
+            "ticketId": green.get("id") if green else None,
+            "headSha": green.get("headSha") if green else None,
+            "finishedAt": history_key(green) if green else None,
+        })
+    heads = {item["headSha"] for item in checks
+             if item["status"] == "passed"
+             and isinstance(item["headSha"], str)
+             and _SHA.fullmatch(item["headSha"])}
+    candidate_sha = (next(iter(heads)) if checks
+                     and all(item["status"] == "passed" for item in checks)
+                     and all(isinstance(item["headSha"], str)
+                             and _SHA.fullmatch(item["headSha"])
+                             for item in checks)
+                     and len(heads) == 1 else None)
+    result["meta"] = {**meta, "checks": checks, "candidateSha": candidate_sha}
     return result
 
 
@@ -160,19 +169,6 @@ def write_dashboard_state(state_root, config, body):
             state["meta"] = _meta(body.get("meta"), config)
         elif action == "remove-meta":
             state["meta"] = None
-        elif action == "save-note":
-            state["notes"] = [*state["notes"], _note(body.get("note"))]
-        elif action == "update-note":
-            note_id = body.get("id")
-            previous = next((item for item in state["notes"] if item.get("id") == note_id), None)
-            if previous is None:
-                raise LookupError("nota não encontrada")
-            state["notes"] = [_note(body.get("note"), previous) if item.get("id") == note_id else item for item in state["notes"]]
-        elif action == "remove-note":
-            note_id = body.get("id")
-            if not isinstance(note_id, str) or not any(item.get("id") == note_id for item in state["notes"]):
-                raise LookupError("nota não encontrada")
-            state["notes"] = [item for item in state["notes"] if item.get("id") != note_id]
         else:
             raise ValueError("ação do dashboard inválida")
         state["revision"] += 1

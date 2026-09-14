@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from dataclasses import replace
 from unittest import mock
 from pathlib import Path
 from urllib.error import HTTPError
@@ -311,22 +312,119 @@ class RemoteGreensTests(Fixture):
 
 
 class StateAndDiagnosticTests(Fixture):
-    def test_meta_notes_revision_and_no_approval_ledger(self):
+    def test_meta_uses_latest_greens_and_pending_is_read_only(self):
         state = write_dashboard_state(self.state, self.config, {
             "revision": 0, "action": "save-meta",
-            "meta": {"name": "Meta main", "description": "", "headSha": "a" * 40,
+            "meta": {"name": "Meta main", "description": "",
                      "presets": ["smoke", "future"]},
         })
         self.assertEqual(state["revision"], 1)
         self.assertEqual([item["status"] for item in state["meta"]["checks"]], ["pending", "recipe-missing"])
-        state = write_dashboard_state(self.state, self.config, {
-            "revision": 1, "action": "save-note", "note": {"title": "Lembrar", "text": "manual"},
-        })
-        self.assertEqual(len(state["notes"]), 1)
-        self.assertFalse((self.state / "state" / "validation-plan.json").exists())
+        self.assertIsNone(state["meta"]["candidateSha"])
+        self.assertEqual(state["pending"], [])
+        with self.assertRaises(ValueError):
+            write_dashboard_state(self.state, self.config, {
+                "revision": 1, "action": "save-note",
+                "note": {"title": "Lembrar", "text": "manual"},
+            })
         with self.assertRaises(RevisionConflict):
-            write_dashboard_state(self.state, self.config, {"revision": 1, "action": "remove-meta"})
-        self.assertEqual(read_dashboard_state(self.state, self.config)["notes"][0]["title"], "Lembrar")
+            write_dashboard_state(self.state, self.config, {"revision": 0, "action": "remove-meta"})
+
+        self.job("smoke-green", finishedAt="2026-09-13T11:00:00Z")
+        current = read_dashboard_state(self.state, self.config)
+        self.assertEqual(current["meta"]["checks"][0]["ticketId"], "smoke-green")
+        self.assertEqual(current["meta"]["checks"][0]["headSha"], "a" * 40)
+
+    def test_meta_derives_a_candidate_only_when_all_latest_greens_share_a_sha(self):
+        self.job("smoke-green", finishedAt="2026-09-13T11:00:00Z")
+        self.job("full-green", preset="full", argv=["npm", "run", "full"],
+                 finishedAt="2026-09-13T11:01:00Z")
+        state = write_dashboard_state(self.state, self.config, {
+            "revision": 0, "action": "save-meta",
+            "meta": {"name": "Meta main", "description": "", "presets": ["smoke", "full"]},
+        })
+        self.assertEqual(state["meta"]["candidateSha"], "a" * 40)
+
+        self.job("new-full-green", preset="full", argv=["npm", "run", "full"],
+                 headSha="b" * 40, finishedAt="2026-09-13T12:00:00Z")
+        state = read_dashboard_state(self.state, self.config)
+        self.assertIsNone(state["meta"]["candidateSha"])
+        self.assertEqual([item["status"] for item in state["meta"]["checks"]], ["passed", "passed"])
+
+        self.job("unknown-smoke-green", headSha="unknown",
+                 finishedAt="2026-09-13T13:00:00Z")
+        state = read_dashboard_state(self.state, self.config)
+        self.assertIsNone(state["meta"]["candidateSha"])
+
+    def test_meta_requires_at_least_one_valid_recipe_name(self):
+        with self.assertRaises(ValueError):
+            write_dashboard_state(self.state, self.config, {
+                "revision": 0, "action": "save-meta",
+                "meta": {"name": "Meta main", "description": "", "presets": []},
+            })
+        with self.assertRaises(ValueError):
+            write_dashboard_state(self.state, self.config, {
+                "revision": 0, "action": "save-meta",
+                "meta": {"name": "Meta main", "description": "", "presets": ["Nome inválido"]},
+            })
+
+    def test_pending_advisory_disappears_after_a_later_exact_green(self):
+        (self.state / "state").mkdir(parents=True, exist_ok=True)
+        (self.state / "state" / "validation-plan.json").write_text(json.dumps({
+            "schemaVersion": 1,
+            "pending": [{
+                "projectId": "example",
+                "preset": "full",
+                "argv": ["npm", "run", "full"],
+                "requirements": [{
+                    "sha": "a" * 40,
+                    "reason": "Mudança de runtime recomenda Full.",
+                    "pr": 42,
+                    "createdAt": "2026-09-13T10:30:00Z",
+                }],
+            }],
+            "candidates": [],
+        }), encoding="utf-8")
+        state = read_dashboard_state(self.state, self.config)
+        self.assertEqual(state["pending"][0]["pr"], 42)
+        self.assertEqual(state["pending"][0]["preset"], "full")
+
+        self.job("legacy-bad-time", preset="full", argv=["npm", "run", "full"],
+                 status="failed", exitCode=1, finishedAt="invalid")
+        state = read_dashboard_state(self.state, self.config)
+        self.assertEqual(len(state["pending"]), 1)
+        self.assertIsNone(state["pendingError"])
+
+        self.job("full-green", preset="full", argv=["npm", "run", "full"],
+                 finishedAt="2026-09-13T11:00:00Z")
+        self.assertEqual(read_dashboard_state(self.state, self.config)["pending"], [])
+
+    def test_pending_advisory_is_also_resolved_by_a_verified_git_green(self):
+        (self.state / "state").mkdir(parents=True, exist_ok=True)
+        (self.state / "state" / "validation-plan.json").write_text(json.dumps({
+            "schemaVersion": 1,
+            "pending": [{
+                "projectId": "example",
+                "preset": "full",
+                "argv": ["npm", "run", "full"],
+                "requirements": [{
+                    "sha": "a" * 40,
+                    "reason": "Mudança de runtime recomenda Full.",
+                    "pr": 42,
+                    "createdAt": "2026-09-13T10:30:00Z",
+                }],
+            }],
+            "candidates": [],
+        }), encoding="utf-8")
+        payload = self.remote_payload(
+            preset="full",
+            ticketId="remote-full",
+            finishedAt="2026-09-13T11:00:00Z",
+        )
+        mirror = self.write_remote_mirror(self.remote_report([self.remote_slot(payload)]))
+        config = replace(self.config, remote_slots_path=mirror)
+
+        self.assertEqual(read_dashboard_state(self.state, config)["pending"], [])
 
     def test_log_is_scoped_redacted_and_bounded(self):
         self.job("private")
@@ -431,14 +529,19 @@ class HttpContractTests(Fixture):
         with self.request("/api/config") as response:
             config = json.loads(response.read())
         self.assertEqual(config["project"]["id"], "example")
-        body = json.dumps({"revision": 0, "action": "save-note", "note": {"title": "a", "text": "b"}}).encode()
+        body = json.dumps({
+            "revision": 0,
+            "action": "save-meta",
+            "meta": {"name": "Meta main", "description": "", "presets": ["smoke"]},
+        }).encode()
         with self.assertRaises(HTTPError) as rejected:
             self.request("/api/dashboard-state", body, {"Content-Type": "application/json"})
         self.assertEqual(rejected.exception.code, 403)
         headers = {"Content-Type": "application/json", "X-CI-CSRF": "csrf-test", "Origin": self.base}
         with self.request("/api/dashboard-state", body, headers) as response:
             state = json.loads(response.read())
-        self.assertEqual(state["notes"][0]["title"], "a")
+        self.assertEqual(state["meta"]["name"], "Meta main")
+        self.assertNotIn("notes", state)
 
     def test_remote_slots_never_fetches_from_the_browser(self):
         with self.assertRaises(HTTPError) as rejected:

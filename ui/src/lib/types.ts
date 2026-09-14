@@ -229,22 +229,27 @@ export type DashboardCheck = {
   preset: string
   status: "passed" | "pending" | "recipe-missing"
   ticketId: string | null
+  headSha: string | null
+  finishedAt: string | null
 }
 
 export type DashboardMeta = {
   name: string
   description: string
-  headSha: string
   presets: string[]
   checks: DashboardCheck[]
+  candidateSha: string | null
 }
 
-export type DashboardNote = {
+export type DashboardPending = {
   id: string
-  title: string
-  text: string
+  preset: string
+  headSha: string
+  reason: string
+  pr: number | null
   createdAt: string
-  updatedAt: string
+  latestTicketId: string | null
+  latestStatus: JobStatus | null
 }
 
 export type DashboardState = {
@@ -252,7 +257,8 @@ export type DashboardState = {
   projectId: string
   presets: string[]
   meta: DashboardMeta | null
-  notes: DashboardNote[]
+  pending: DashboardPending[]
+  pendingError: string | null
 }
 
 export type DashboardSession = {
@@ -274,21 +280,9 @@ export type DashboardStateMutation =
   | {
       revision: number
       action: "save-meta"
-      meta: Pick<DashboardMeta, "name" | "description" | "headSha" | "presets">
+      meta: Pick<DashboardMeta, "name" | "description" | "presets">
     }
   | { revision: number; action: "remove-meta" }
-  | {
-      revision: number
-      action: "save-note"
-      note: Pick<DashboardNote, "title" | "text">
-    }
-  | {
-      revision: number
-      action: "update-note"
-      id: string
-      note: Pick<DashboardNote, "title" | "text">
-    }
-  | { revision: number; action: "remove-note"; id: string }
 
 export type LogSlice = {
   schemaVersion: number
