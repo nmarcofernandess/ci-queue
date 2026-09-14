@@ -511,27 +511,23 @@ export function AnalysisPage() {
     [lastDurationPreset, presetNames]
   )
 
+  const selectedPreset = preset === "all" ? "" : preset
   const durationPreset =
-    validPreset(preset, presetNames) || rememberedDurationPreset
+    validPreset(selectedPreset, presetNames) || rememberedDurationPreset
 
   const handlePreset = React.useCallback(
     (next: string) => {
-      if (!next) {
-        if (tab !== "statistics" || view !== "duration") {
-          setPreset("")
-        }
-        return
-      }
-
       setPreset(next)
-      setLastDurationPreset(next)
-      writeDurationPreset(next)
+      if (next && next !== "all") {
+        setLastDurationPreset(next)
+        writeDurationPreset(next)
+      }
     },
-    [tab, view]
+    []
   )
 
   const effectivePreset =
-    tab === "statistics" && view === "duration" ? durationPreset : preset
+    tab === "statistics" && view === "duration" ? durationPreset : selectedPreset
   const analysisRequest = React.useCallback(
     () =>
       getAnalysis({
