@@ -22,8 +22,8 @@ import {
 } from "@/components/ui/drawer"
 import {
   Item,
+  ItemActions,
   ItemContent,
-  ItemDescription,
   ItemGroup,
   ItemTitle,
 } from "@/components/ui/item"
@@ -119,8 +119,7 @@ function diagnosticBundle(diagnostic: Diagnostic, logExport?: LogExport) {
   }
 }
 
-type DiagnosticExportAction =
-  "copy-diagnostic" | "download-diagnostic" | "download-log"
+type DiagnosticExportAction = "copy-diagnostic" | "download-diagnostic"
 
 type PagedLogQuery = ApiQuery<LogSlice> & {
   loadMore: () => void
@@ -348,6 +347,7 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
 
   return (
     <div className="flex flex-col gap-5">
+      <JobDetailsTable job={job.data} />
       {stages.length ? (
         <ItemGroup className="gap-0">
           {stages.map((stage, index) => {
@@ -374,17 +374,18 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
                 <Item className="border-transparent px-0 py-1">
                   <ItemContent>
                     <ItemTitle>{stage.label}</ItemTitle>
-                    <ItemDescription>
-                      {stageStatusLabel(stage.status)}
-                    </ItemDescription>
                   </ItemContent>
+                  <ItemActions className="text-sm text-muted-foreground">
+                    {typeof stage.durationMs === "number"
+                      ? formatDuration(stage.durationMs)
+                      : stageStatusLabel(stage.status)}
+                  </ItemActions>
                 </Item>
               </div>
             )
           })}
         </ItemGroup>
       ) : null}
-      <JobDetailsTable job={job.data} />
     </div>
   )
 }
@@ -532,30 +533,12 @@ function DiagnosticPopover({
             return copyDiagnostic(bundle)
           }
 
-          if (action === "download-diagnostic") {
-            downloadFile(
-              `ci-diagnostic-${jobId}.json`,
-              JSON.stringify(bundle, null, 2),
-              "application/json;charset=utf-8"
-            )
-            toast.success("Diagnóstico baixado.")
-            return
-          }
-
-          if (!logExport.coverage.available) {
-            const error = new Error(
-              logExport.coverage.reason || "Log indisponível para download."
-            )
-            setExportError(error)
-            toast.error(error.message)
-            return
-          }
-
           downloadFile(
-            `${jobId}.log`,
-            logExport.content,
-            "text/plain;charset=utf-8"
+            `ci-diagnostic-${jobId}.json`,
+            JSON.stringify(bundle, null, 2),
+            "application/json;charset=utf-8"
           )
+          toast.success("Diagnóstico baixado.")
         })
         .catch((reason) => {
           toast.error(
@@ -640,16 +623,6 @@ function DiagnosticPopover({
                 <DownloadIcon data-icon />
                 Baixar diagnóstico
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full justify-start"
-                disabled={exporting}
-                onClick={() => requestExport("download-log")}
-              >
-                <DownloadIcon data-icon />
-                Baixar log
-              </Button>
             </div>
           </>
         ) : null}
@@ -702,7 +675,7 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
       }}
       direction={isMobile ? "bottom" : "right"}
     >
-      <DrawerContent className="min-h-0 sm:max-w-2xl">
+      <DrawerContent className="min-h-0 sm:max-w-2xl!">
         <DrawerHeader className="shrink-0 border-b">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
