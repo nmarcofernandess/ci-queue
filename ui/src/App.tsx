@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { type AppRoute, appRoutes } from "@/components/app-routes"
-import { RoutePlaceholder } from "@/components/route-placeholder"
+import { RouteContent } from "@/components/app-routes"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
@@ -44,8 +44,8 @@ export function App() {
       >
         <AppSidebar activeRoute={route} />
         <SidebarInset>
-          <SiteHeader route={route} />
-          <RoutePlaceholder route={route} />
+          <SiteHeader />
+          <RouteContent route={route} />
         </SidebarInset>
       </SidebarProvider>
       <Toaster position="top-right" />

@@ -147,7 +147,7 @@ async function copyText(value: string, limit: number | undefined) {
 
 function cleanlinessLabel(worktree: WorktreeRecord) {
   if (worktree.dirty === true) {
-    return "Com alterações"
+    return "Suja"
   }
   if (worktree.dirty === false) {
     return "Limpa"
@@ -231,8 +231,10 @@ function WorktreeDrawer({
         <DrawerHeader className="shrink-0 border-b">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <DrawerTitle>Worktree</DrawerTitle>
-              <DrawerDescription>{detail.data?.branch || id}</DrawerDescription>
+              <DrawerTitle>{detail.data?.branch || "Worktree"}</DrawerTitle>
+              <DrawerDescription>
+                {detail.data?.path || "Carregando detalhes da worktree…"}
+              </DrawerDescription>
             </div>
             <DrawerClose asChild>
               <Button
@@ -259,18 +261,12 @@ function WorktreeDrawer({
             <ItemGroup>
               <Item variant="outline">
                 <ItemContent>
-                  <ItemTitle>{detail.data.branch}</ItemTitle>
-                  <ItemDescription>{detail.data.path}</ItemDescription>
-                </ItemContent>
-              </Item>
-              <Item variant="outline">
-                <ItemContent>
                   <ItemTitle>Estado</ItemTitle>
                   <ItemDescription>
                     {detail.data.dirty === true
-                      ? `${detail.data.changedEntries ?? "Algumas"} alteração(ões) pendente(s)`
+                      ? `Suja · ${detail.data.changedEntries ?? "Algumas"} alteração(ões)`
                       : detail.data.dirty === false
-                        ? "Árvore limpa"
+                        ? "Limpa"
                         : "Estado do Git indisponível"}
                   </ItemDescription>
                 </ItemContent>
@@ -540,14 +536,22 @@ function WorktreeTable({
     [rowSelection, worktrees.data?.worktrees]
   )
 
-  const copySelected = async () => {
+  const copySelected = async (value: "paths" | "context") => {
     setCopyError(undefined)
     try {
       await copyText(
-        selectedWorktrees.map(worktreeContext).join("\n\n"),
+        selectedWorktrees
+          .map((worktree) =>
+            value === "paths" ? worktree.path : worktreeContext(worktree)
+          )
+          .join("\n\n"),
         session.data?.clipboardLimitBytes
       )
-      setCopyNotice(`${selectedWorktrees.length} contexto(s) copiado(s).`)
+      setCopyNotice(
+        value === "paths"
+          ? `${selectedWorktrees.length} caminho(s) copiado(s).`
+          : `${selectedWorktrees.length} contexto(s) copiado(s).`
+      )
     } catch (reason) {
       setCopyError(clipboardError(reason))
     }
@@ -592,7 +596,7 @@ function WorktreeTable({
             variant={cleanliness === "dirty" ? "secondary" : "outline"}
             onClick={() => setCleanliness("dirty")}
           >
-            Com alterações
+            Sujas
           </Button>
         </ButtonGroup>
         <DropdownMenu>
@@ -623,14 +627,25 @@ function WorktreeTable({
           </DropdownMenuContent>
         </DropdownMenu>
         {selectedWorktrees.length ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void copySelected()}
-          >
-            <CopyIcon data-icon />
-            Copiar selecionadas
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline">
+                <CopyIcon data-icon />
+                Copiar selecionadas
+                <ChevronDownIcon data-icon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onSelect={() => void copySelected("paths")}>
+                <CopyIcon data-icon />
+                Copiar caminhos
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void copySelected("context")}>
+                <CopyIcon data-icon />
+                Copiar contexto
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : null}
       </div>
       {copyNotice ? (
@@ -668,8 +683,16 @@ function WorktreeTable({
           />
         ) : (
           <EmptyState
-            title="Nenhuma worktree encontrada"
-            description="Ajuste a busca ou o filtro de limpeza."
+            title={
+              worktrees.data.worktrees.length
+                ? "Nenhuma worktree corresponde aos filtros"
+                : "Nenhuma worktree encontrada"
+            }
+            description={
+              worktrees.data.worktrees.length
+                ? "Ajuste a busca ou o filtro de limpeza."
+                : "Este projeto não tem worktrees adicionais observáveis."
+            }
           />
         )
       ) : null}
