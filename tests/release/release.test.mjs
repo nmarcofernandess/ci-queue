@@ -13,7 +13,7 @@ function fixture() {
   writeFileSync(join(root, "package-lock.json"), "{}\n")
   writeFileSync(join(root, "LICENSE"), "MIT\n")
   writeFileSync(join(root, "README.md"), "# CI Queue\n")
-  for (const path of ["bin/ci-queue.mjs", "dist/cli.js", "backend/ci_queue_api/__main__.py", "ui/dist/index.html"]) {
+  for (const path of ["bin/ci-queue.mjs", "dist/cli.js", "backend/ci_queue_api/__main__.py", "ui/dist/index.html", "examples/local-project/ci-queue.json"]) {
     const target = join(root, path)
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, path)
@@ -32,6 +32,7 @@ test("builds a self-contained manifest and detects tampering", () => {
     })
     assert.equal(manifest.product, "ci-queue")
     assert.equal(manifest.files.some((entry) => entry.path === "ui/dist/index.html"), true)
+    assert.equal(manifest.files.some((entry) => entry.path === "examples/local-project/ci-queue.json"), true)
     assert.equal(verifyRelease(destination).revision, "a".repeat(40))
     writeFileSync(join(destination, "dist/cli.js"), "alterado")
     assert.throws(() => verifyRelease(destination), /integridade inválida/)

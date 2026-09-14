@@ -12,3 +12,7 @@ The repository is in active extraction. The immutable bundle and
 filesystem-only installation foundation are documented in
 [`docs/INSTALL.md`](./docs/INSTALL.md). A consumer must not point to this
 checkout; it will use a versioned, verified distribution after cutover.
+
+[`examples/local-project`](./examples/local-project) is a dependency-free
+consumer fixture for success, failure, wait, cancellation and interrupted
+worker recovery.

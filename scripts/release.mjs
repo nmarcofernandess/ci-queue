@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url"
 const here = dirname(fileURLToPath(import.meta.url))
 export const productRoot = resolve(here, "..")
 export const MANIFEST_FILENAME = "manifest.json"
-const releasePaths = ["bin", "dist", "backend", "ui/dist", "package.json", "package-lock.json", "LICENSE", "README.md"]
+const releasePaths = ["bin", "dist", "backend", "ui/dist", "examples/local-project", "package.json", "package-lock.json", "LICENSE", "README.md"]
 
 function gitRevision(root) {
   try {

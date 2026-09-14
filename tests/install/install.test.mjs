@@ -13,7 +13,7 @@ function sourceFixture() {
   writeFileSync(join(root, "package-lock.json"), "{}\n")
   writeFileSync(join(root, "LICENSE"), "MIT\n")
   writeFileSync(join(root, "README.md"), "# CI Queue\n")
-  for (const path of ["bin/ci-queue.mjs", "dist/cli.js", "backend/ci_queue_api/__main__.py", "ui/dist/index.html"]) {
+  for (const path of ["bin/ci-queue.mjs", "dist/cli.js", "backend/ci_queue_api/__main__.py", "ui/dist/index.html", "examples/local-project/ci-queue.json"]) {
     const target = join(root, path)
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, path)
