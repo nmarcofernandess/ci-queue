@@ -6,7 +6,7 @@
  * provar que não há worker anterior disputando a mesma fila.
  */
 import { createHash } from "node:crypto"
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync, cpSync } from "node:fs"
+import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { homedir } from "node:os"
 import { fileURLToPath } from "node:url"
@@ -222,7 +222,17 @@ function main(argv = process.argv.slice(2)) {
   throw new Error("uso: install.mjs install|update --bundle <release> [--prefix DIR] [--state DIR] [--config project/ci-queue.json --node PATH --python PATH] | uninstall [--prefix DIR] [--purge-state]")
 }
 
-if (fileURLToPath(import.meta.url) === resolve(process.argv[1] ?? "")) {
+function isMainModule(metaUrl) {
+  const invoked = process.argv[1]
+  if (!invoked) return false
+  try {
+    return realpathSync(fileURLToPath(metaUrl)) === realpathSync(resolve(invoked))
+  } catch {
+    return fileURLToPath(metaUrl) === resolve(invoked)
+  }
+}
+
+if (isMainModule(import.meta.url)) {
   try {
     main()
   } catch (error) {

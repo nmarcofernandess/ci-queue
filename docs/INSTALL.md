@@ -18,12 +18,13 @@ Verifique-o antes de instalar uma release recebida.
 
 ## Preparar uma instalação
 
-O exemplo abaixo apenas copia e registra a release. Ele não usa `launchctl` e
-não muda serviços existentes; isso permite validar uma atualização em diretório
-isolado antes da janela de cutover.
+O bundle contém o instalador que o acompanha. O exemplo abaixo é executado a
+partir da pasta da release recebida, apenas copia e registra essa release. Ele
+não usa `launchctl` e não muda serviços existentes; isso permite validar uma
+atualização em diretório isolado antes da janela de cutover.
 
 ```bash
-node scripts/install.mjs install \
+node /caminho/para/ci-queue-<versão>-<revisão>/scripts/install.mjs install \
   --bundle /caminho/para/ci-queue-<versão>-<revisão> \
   --prefix "$HOME/.local/share/ci-queue" \
   --state "$HOME/.local/state/ci-queue"
@@ -37,7 +38,7 @@ Para gerar os envelopes de LaunchAgent que serão ativados na janela de cutover,
 passe também o catálogo do projeto e binários reais:
 
 ```bash
-node scripts/install.mjs update \
+node /caminho/para/ci-queue-<versão>-<revisão>/scripts/install.mjs update \
   --bundle /caminho/para/ci-queue-<versão>-<revisão> \
   --prefix "$HOME/.local/share/ci-queue" \
   --state "$HOME/.local/state/ci-queue" \
@@ -58,7 +59,8 @@ a partir de um checkout.
 ## Recuperação e remoção
 
 ```bash
-node scripts/install.mjs uninstall --prefix "$HOME/.local/share/ci-queue"
+node "$HOME/.local/share/ci-queue/releases/<versão>-<revisão>/scripts/install.mjs" \
+  uninstall --prefix "$HOME/.local/share/ci-queue"
 ```
 
 Isso remove somente a release e seus envelopes registrados, preservando o

@@ -8,8 +8,8 @@ The dashboard is a Vite application in [`ui`](./ui), bootstrapped with the
 official shadcn Nova/Radix configuration. Its construction rules and selected
 compositions are in [`docs/ui/COMPOSITION-LEDGER.md`](./docs/ui/COMPOSITION-LEDGER.md).
 
-The repository is in active extraction. The immutable bundle and
-filesystem-only installation foundation are documented in
+The repository is in active extraction. The immutable bundle carries its own
+installer; its filesystem-only installation foundation is documented in
 [`docs/INSTALL.md`](./docs/INSTALL.md). A consumer must not point to this
 checkout; it will use a versioned, verified distribution after cutover.
 

@@ -13,18 +13,32 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs"
-import { basename, dirname, join, relative, resolve } from "node:path"
+import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const here = dirname(fileURLToPath(import.meta.url))
 export const productRoot = resolve(here, "..")
 export const MANIFEST_FILENAME = "manifest.json"
-const releasePaths = ["bin", "dist", "backend", "ui/dist", "examples/local-project", "package.json", "package-lock.json", "LICENSE", "README.md"]
+const releasePaths = [
+  "bin",
+  "dist",
+  "backend",
+  "ui/dist",
+  "examples/local-project",
+  "scripts/install.mjs",
+  "scripts/release.mjs",
+  "docs/INSTALL.md",
+  "package.json",
+  "package-lock.json",
+  "LICENSE",
+  "README.md",
+]
 
 function gitRevision(root) {
   try {
@@ -155,7 +169,17 @@ function main(argv = process.argv.slice(2)) {
   throw new Error("uso: release.mjs build --output <diretório> | verify --bundle <diretório>")
 }
 
-if (basename(process.argv[1] ?? "") === "release.mjs") {
+function isMainModule(metaUrl) {
+  const invoked = process.argv[1]
+  if (!invoked) return false
+  try {
+    return realpathSync(fileURLToPath(metaUrl)) === realpathSync(resolve(invoked))
+  } catch {
+    return fileURLToPath(metaUrl) === resolve(invoked)
+  }
+}
+
+if (isMainModule(import.meta.url)) {
   try {
     main()
   } catch (error) {
