@@ -38,6 +38,14 @@ import {
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableRow,
+} from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
 import {
@@ -100,13 +108,13 @@ function contextForJob(job: JobRecord) {
   ].join("\n")
 }
 
-function diagnosticBundle(diagnostic: Diagnostic, logExport: LogExport) {
+function diagnosticBundle(diagnostic: Diagnostic, logExport?: LogExport) {
   return {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     sources: {
       diagnostic,
-      logExport,
+      ...(logExport ? { logExport } : {}),
     },
   }
 }
@@ -126,13 +134,60 @@ function stageIcon(
   return CircleDotIcon
 }
 
-function JobTimeline({ job }: { job: JobRecord }) {
+function JobHeaderTimeline({ job }: { job: JobRecord }) {
   const timestamp = job.finishedAt ?? job.startedAt ?? job.createdAt
   return (
     <>
-      {formatTimelineDate(timestamp)} · {formatRelativeTime(timestamp)} ·{" "}
-      {formatDuration(job.durationMs)}
+      <DrawerDescription>
+        {formatTimelineDate(timestamp)} · {formatRelativeTime(timestamp)}
+      </DrawerDescription>
+      <DrawerDescription>
+        Início {formatTimelineDate(job.startedAt ?? job.createdAt)} ·{" "}
+        {formatDuration(job.durationMs)}
+      </DrawerDescription>
     </>
+  )
+}
+
+function stageStatusLabel(
+  status: "pending" | "running" | "passed" | "failed" | "skipped"
+) {
+  const labels = {
+    pending: "Aguardando",
+    running: "Em execução",
+    passed: "Passou",
+    failed: "Falhou",
+    skipped: "Ignorada",
+  }
+  return labels[status]
+}
+
+function JobDetailsTable({ job }: { job: JobRecord }) {
+  const rows = [
+    { label: "Ticket", value: job.id, className: "font-mono" },
+    { label: "Branch", value: job.branch },
+    { label: "SHA", value: job.headSha, className: "font-mono" },
+    { label: "Diretório", value: job.cwd },
+  ]
+
+  return (
+    <Table>
+      <TableCaption className="sr-only">Detalhes da execução</TableCaption>
+      <TableBody>
+        {rows.map((row) => (
+          <TableRow key={row.label}>
+            <TableHead scope="row" className="w-28 text-muted-foreground">
+              {row.label}
+            </TableHead>
+            <TableCell
+              className={`break-words whitespace-normal ${row.className ?? ""}`}
+            >
+              {row.value || "Não informado"}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   )
 }
 
@@ -165,13 +220,14 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
   return (
     <div className="flex flex-col gap-5">
       {stages.length ? (
-        <ItemGroup>
+        <ItemGroup className="gap-2">
           {stages.map((stage) => {
             const Icon = stageIcon(stage.status)
             return (
-              <Item key={stage.id} variant="outline">
+              <Item key={stage.id} className="px-0 py-0">
                 <ItemMedia variant="icon">
                   <Icon
+                    aria-hidden="true"
                     className={
                       stage.status === "running" ? "animate-spin" : undefined
                     }
@@ -179,28 +235,16 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
                 </ItemMedia>
                 <ItemContent>
                   <ItemTitle>{stage.label}</ItemTitle>
+                  <ItemDescription>
+                    {stageStatusLabel(stage.status)}
+                  </ItemDescription>
                 </ItemContent>
               </Item>
             )
           })}
         </ItemGroup>
-      ) : (
-        <EmptyState
-          title="Progresso indisponível"
-          description={
-            job.data.progressSummary?.reason ||
-            "Nenhuma etapa válida foi registrada para esta execução."
-          }
-        />
-      )}
-      {job.data.cwd ? (
-        <Item variant="outline">
-          <ItemContent>
-            <ItemTitle>Diretório</ItemTitle>
-            <ItemDescription>{job.data.cwd}</ItemDescription>
-          </ItemContent>
-        </Item>
       ) : null}
+      <JobDetailsTable job={job.data} />
     </div>
   )
 }
@@ -250,10 +294,9 @@ function DiagnosticPopover({
   clipboardLimitBytes: number | undefined
 }) {
   const ticket = diagnostic.data?.available ? diagnostic.data.ticket : undefined
-  const bundle =
-    diagnostic.data?.available && logExport.data
-      ? diagnosticBundle(diagnostic.data, logExport.data)
-      : undefined
+  const bundle = diagnostic.data?.available
+    ? diagnosticBundle(diagnostic.data, logExport.data)
+    : undefined
 
   const copyDiagnostic = async () => {
     if (!bundle) {
@@ -423,13 +466,13 @@ export function JobDrawer({
                 <DrawerTitle>{job.data?.preset || "Execução"}</DrawerTitle>
                 {job.data ? <JobStatusBadge status={job.data.status} /> : null}
               </div>
-              <DrawerDescription>
-                {job.data ? (
-                  <JobTimeline job={job.data} />
-                ) : (
-                  "Carregando dados da execução…"
-                )}
-              </DrawerDescription>
+              {job.data ? (
+                <JobHeaderTimeline job={job.data} />
+              ) : (
+                <DrawerDescription>
+                  Carregando dados da execução…
+                </DrawerDescription>
+              )}
             </div>
             <DrawerClose asChild>
               <Button

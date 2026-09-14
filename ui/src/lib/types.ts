@@ -330,7 +330,6 @@ export type Diagnostic = {
     | "branch"
     | "durationMs"
   >
-  incidents?: Array<{ kind: string; attribution: "unknown" | "correlated" }>
   resources?: { observations: unknown[]; coverage: "unavailable" | "reported" }
   coverage?: unknown
 }
