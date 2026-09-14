@@ -22,7 +22,7 @@ adapting shadcn sources rather than re-inventing surfaces.
 | Current execution | `Card` → `CardHeader`/`CardContent`, `Item`, `ItemGroup`, `ItemSeparator` | Full-width only while there is a real running ticket. Title opens drawer; date, relative time and duration live below it. |
 | Queue | Dashboard 01 `DataTable` composition adapted into shared `RunTable` | Only queued tickets; no filter toolbar. The terminal receipt moves to history, never becomes a queue summary. |
 | History, last greens and problems | Dashboard 01 `DataTable` composition (`@tanstack/react-table`, `table.FlexRender`, `Table`) adapted into shared `RunTable` renderer | Two columns: Execution and Context. Only preset title opens the drawer. |
-| History controls | `Tabs`, `InputGroup`, direct `Select`, `Button ghost` | Controls live above the table and wrap left-to-right. No Calendar, interval or nested popup. |
+| History controls | `Tabs`, `InputGroup`, direct `Select`, `Button ghost` | Controls live above the table and wrap left-to-right. No Calendar, interval or nested popup. Executions search server-side across preset, branch, SHA, ticket, cwd, command and extra arguments without exposing the latter two; last greens search the four fields the normalized legacy data actually contained: preset, branch, SHA and ticket. |
 | Machine | `Card` → `CardHeader`/`CardContent`/`CardFooter`, `Item`, ghost `Button` link | Only measurable disk capacity and the link to Analysis. No invented normal state, memory total or per-card refresh. |
 | Meta and notes | `Card` summaries plus `Drawer` form using `FieldSet`/`FieldGroup`/`Field` | One manual project goal and manual notes; they do not gate CI or manufacture pending work. |
 | Worktrees | Dashboard 01 `DataTable` composition + `Checkbox`, `InputGroup`, `ButtonGroup`, `DropdownMenu` | Persistent selected IDs is a named state-management gap; rows do not become buttons. |
@@ -48,13 +48,15 @@ the remaining controls wrap in this order.
 
 | View | Selected composition | Contract |
 | --- | --- | --- |
-| Results | `Card` + Nova `ChartContainer`, `ChartTooltipContent`, `ChartLegendContent`, Recharts `BarChart` | Vertical stacked bars for passed, failed, cancelled and interrupted. Show every filtered preset; no hidden top-N. |
-| Duration | `Card` + `ItemGroup` + Nova `ChartContainer`, `ChartTooltipContent`, Recharts `ScatterChart`/`Scatter` | Specific preset required. Visible median/range/N above the chart. Points only; no `Line`, curve or interpolation. Tooltip contains point-specific temporal/unit data. |
+| Results | `Card` + Nova `ChartContainer`, `ChartTooltipContent`, `ChartLegendContent`, Recharts `BarChart` | Vertical stacked bars for passed, failed, cancelled and interrupted. Statuses use existing semantic design tokens (`primary`, `destructive`, `muted-foreground`, `foreground`), never raw colors. Show every filtered preset; no hidden top-N. |
+| Duration | `Card` + `ItemGroup` + Nova `ChartContainer`, `ChartTooltipContent`, Recharts `ScatterChart`/`Scatter` | Specific preset required. Visible median/range/N above the chart. Both numerical axes derive bounded domains from the visible points, so timestamps never fall back to the epoch. Points only; no `Line`, curve or interpolation. Tooltip contains point-specific temporal/unit data. |
 | Problems | Shared `RunTable` | Failed and interrupted terminal records. Do not invent a failure classification. |
 
 `ChartContainer` is the official Nova chart shell and owns chart config, theme
-variables, tooltip and legend styling. Recharts only supplies the selected
-series and axes. The Nova registry has no ready-made stacked-bar or scatter
+variables, tooltip and legend styling. Its canvas has an explicit bounded height
+in the product rather than retaining the shell's default viewport-wide
+`aspect-video`, so a wide dashboard never turns a chart into a wall. Recharts
+only supplies the selected series and axes. The Nova registry has no ready-made stacked-bar or scatter
 block; reference examples may be read for Recharts structure, but no
 new-york-v4 component CSS or JSX is copied into this project.
 

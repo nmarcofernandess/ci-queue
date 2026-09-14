@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { EmptyState, ErrorState } from "@/features/shared/async-state"
+import { ErrorState } from "@/features/shared/async-state"
 import {
   formatDuration,
   formatRelativeTime,
@@ -87,7 +87,6 @@ export type RunTableProps = {
   jobs: RunTableJob[] | undefined
   loading: boolean
   error: Error | undefined
-  emptyTitle: string
   emptyDescription: string
   onOpenJob: (jobId: string) => void
   hasMore?: boolean
@@ -216,6 +215,29 @@ function RunDataTable({
   )
 }
 
+function RunEmptyTable({ description }: { description: string }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Execução</TableHead>
+          <TableHead>Contexto</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell
+            colSpan={2}
+            className="h-24 text-center text-sm text-muted-foreground"
+          >
+            {description}
+          </TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  )
+}
+
 function RunTableHeader({
   title,
   description,
@@ -237,7 +259,6 @@ export function RunTable({
   jobs,
   loading,
   error,
-  emptyTitle,
   emptyDescription,
   onOpenJob,
   hasMore = false,
@@ -285,7 +306,7 @@ export function RunTable({
         />
       ) : null}
       {!loading && !error && !data.length ? (
-        <EmptyState title={emptyTitle} description={emptyDescription} />
+        <RunEmptyTable description={emptyDescription} />
       ) : null}
       {!loading && !error && data.length ? (
         <RunDataTable

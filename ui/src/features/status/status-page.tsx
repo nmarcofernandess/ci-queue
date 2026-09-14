@@ -14,6 +14,7 @@ import type {
   DashboardState,
   JobStatus,
   PresetHistoryEntry,
+  ProgressNode,
   RemoteGreen,
   StatusSnapshot,
 } from "@/lib/types"
@@ -39,9 +40,9 @@ import {
   ItemDescription,
   ItemGroup,
   ItemMedia,
-  ItemSeparator,
   ItemTitle,
 } from "@/components/ui/item"
+import { Separator } from "@/components/ui/separator"
 import {
   Select,
   SelectContent,
@@ -49,6 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ErrorState, RefreshingLabel } from "@/features/shared/async-state"
@@ -98,6 +100,72 @@ function stageIcon(status: JobStatus | "pending" | "skipped") {
   return CircleDotIcon
 }
 
+function stageDescription({
+  durationMs,
+  status,
+}: {
+  durationMs?: number
+  status: JobStatus | "pending" | "skipped"
+}) {
+  if (typeof durationMs === "number") {
+    return formatDuration(durationMs)
+  }
+  if (status === "running") {
+    return "Em execução."
+  }
+  if (status === "pending") {
+    return "Aguardando."
+  }
+  if (status === "skipped") {
+    return "Ignorada."
+  }
+  if (status === "failed") {
+    return "Falhou."
+  }
+  return "Concluída sem duração registrada."
+}
+
+function ExecutionStages({ stages }: { stages: ProgressNode[] }) {
+  return (
+    <ItemGroup className="gap-0">
+      {stages.map((stage, index) => {
+        const Icon = stageIcon(stage.status)
+        return (
+          <div
+            key={stage.id}
+            className="grid grid-cols-[1rem_minmax(0,1fr)] gap-3"
+          >
+            <div className="flex min-h-7 flex-col items-center">
+              <Icon
+                aria-hidden="true"
+                className={
+                  stage.status === "running" ? "animate-spin" : undefined
+                }
+              />
+              {index < stages.length - 1 ? (
+                <Separator
+                  orientation="vertical"
+                  className="my-1 min-h-4 flex-1"
+                />
+              ) : null}
+            </div>
+            <Item
+              variant="default"
+              size="sm"
+              className="min-w-0 border-transparent px-0 py-0"
+            >
+              <ItemContent>
+                <ItemTitle>{stage.label}</ItemTitle>
+                <ItemDescription>{stageDescription(stage)}</ItemDescription>
+              </ItemContent>
+            </Item>
+          </div>
+        )
+      })}
+    </ItemGroup>
+  )
+}
+
 function CurrentExecution({
   snapshot,
   onOpenJob,
@@ -125,8 +193,8 @@ function CurrentExecution({
         <CardAction>{refreshing ? <RefreshingLabel /> : null}</CardAction>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col gap-4">
-          <Item variant="outline">
+        <div className="flex flex-col gap-5">
+          <Item variant="default" className="border-transparent px-0 py-0">
             <ItemMedia variant="icon">
               <LoaderCircleIcon className="animate-spin" />
             </ItemMedia>
@@ -158,41 +226,7 @@ function CurrentExecution({
               ) : null}
             </ItemContent>
           </Item>
-          {stages.length ? (
-            <ItemGroup>
-              {stages.map((stage, index) => {
-                const Icon = stageIcon(stage.status)
-                return (
-                  <React.Fragment key={stage.id}>
-                    <Item variant="muted" size="sm">
-                      <ItemMedia variant="icon">
-                        <Icon
-                          className={
-                            stage.status === "running"
-                              ? "animate-spin"
-                              : undefined
-                          }
-                        />
-                      </ItemMedia>
-                      <ItemContent>
-                        <ItemTitle>{stage.label}</ItemTitle>
-                        <ItemDescription>
-                          {stage.durationMs
-                            ? formatDuration(stage.durationMs)
-                            : "Em andamento ou sem duração."}
-                        </ItemDescription>
-                      </ItemContent>
-                    </Item>
-                    {index < stages.length - 1 ? <ItemSeparator /> : null}
-                  </React.Fragment>
-                )
-              })}
-            </ItemGroup>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Nenhum estágio válido foi registrado para esta execução.
-            </p>
-          )}
+          {stages.length ? <ExecutionStages stages={stages} /> : null}
         </div>
       </CardContent>
     </Card>
@@ -218,7 +252,7 @@ function MachineCard() {
         ) : null}
         {machine.data ? (
           machine.data.disk ? (
-            <Item variant="outline">
+            <Item variant="default" className="border-transparent px-0 py-0">
               <ItemMedia variant="icon">
                 <HardDriveIcon />
               </ItemMedia>
@@ -249,7 +283,7 @@ function ManualStateCard({
   onOpen,
 }: {
   dashboard: ApiQuery<DashboardState>
-  onOpen: () => void
+  onOpen: (tab: "meta" | "notes") => void
 }) {
   if (dashboard.loading) {
     return (
@@ -282,7 +316,16 @@ function ManualStateCard({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Meta</CardTitle>
+          <CardTitle>
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto px-0 py-0 text-base font-semibold"
+              onClick={() => onOpen("meta")}
+            >
+              Meta
+            </Button>
+          </CardTitle>
           <CardDescription>
             Referência manual do projeto, sem efeito na fila.
           </CardDescription>
@@ -296,9 +339,18 @@ function ManualStateCard({
                   {meta.description}
                 </p>
               ) : null}
-              <p className="text-sm text-muted-foreground">
-                1 projeto · {observed}/{total}
-              </p>
+              {total ? (
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm text-muted-foreground">
+                    {observed} de {total} requisitos atendidos
+                  </p>
+                  <Progress value={(observed / total) * 100} />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Sem requisitos definidos.
+                </p>
+              )}
             </>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -307,21 +359,35 @@ function ManualStateCard({
           )}
         </CardContent>
         <CardFooter>
-          <Button type="button" variant="ghost" onClick={onOpen}>
-            Editar meta e notas
+          <Button type="button" variant="ghost" onClick={() => onOpen("meta")}>
+            Editar meta
           </Button>
         </CardFooter>
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Notas</CardTitle>
+          <CardTitle>
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto px-0 py-0 text-base font-semibold"
+              onClick={() => onOpen("notes")}
+            >
+              Notas
+            </Button>
+          </CardTitle>
           <CardDescription>Informações manuais do projeto.</CardDescription>
         </CardHeader>
         <CardContent>
           {notes.length ? (
             <ItemGroup>
               {notes.slice(0, 3).map((note) => (
-                <Item key={note.id} variant="outline" size="sm">
+                <Item
+                  key={note.id}
+                  variant="default"
+                  size="sm"
+                  className="border-transparent px-0 py-0"
+                >
                   <ItemContent>
                     <ItemTitle>{note.title}</ItemTitle>
                     <ItemDescription>
@@ -337,6 +403,11 @@ function ManualStateCard({
             </p>
           )}
         </CardContent>
+        <CardFooter>
+          <Button type="button" variant="ghost" onClick={() => onOpen("notes")}>
+            Editar notas
+          </Button>
+        </CardFooter>
       </Card>
     </>
   )
@@ -838,7 +909,6 @@ function filterGreens({
         job.preset,
         job.branch,
         job.headSha,
-        job.cwd,
       ]
         .filter(Boolean)
         .join(" ")
@@ -1018,7 +1088,6 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
           jobs={executions.jobs}
           loading={executions.loading}
           error={executions.error}
-          emptyTitle="Nenhuma execução encontrada"
           emptyDescription="Ajuste os filtros ou aguarde a próxima execução terminal."
           onOpenJob={onOpenJob}
           hasMore={executions.hasMore}
@@ -1033,7 +1102,6 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
           jobs={selectedGreenRows}
           loading={greenLoading}
           error={greenError}
-          emptyTitle="Nenhum último verde"
           emptyDescription="Não há execução canônica aprovada para os filtros selecionados."
           onOpenJob={onOpenJob}
           showOrigin={filters.origin === "both"}
@@ -1050,6 +1118,12 @@ export function StatusPage() {
   const dashboard = useApiQuery("dashboard-state", dashboardRequest)
   const [selectedJobId, setSelectedJobId] = React.useState<string>()
   const [manualOpen, setManualOpen] = React.useState(false)
+  const [manualTab, setManualTab] = React.useState<"meta" | "notes">("meta")
+
+  const openManualState = (tab: "meta" | "notes") => {
+    setManualTab(tab)
+    setManualOpen(true)
+  }
 
   if (status.loading) {
     return (
@@ -1090,18 +1164,14 @@ export function StatusPage() {
             jobs={status.data.queued}
             loading={false}
             error={undefined}
-            emptyTitle="Fila livre"
-            emptyDescription="Nenhum ticket está na fila."
+            emptyDescription="Fila livre."
             onOpenJob={setSelectedJobId}
           />
           <HistoryPanel onOpenJob={setSelectedJobId} />
         </div>
         <aside className="flex flex-col gap-4">
           <MachineCard />
-          <ManualStateCard
-            dashboard={dashboard}
-            onOpen={() => setManualOpen(true)}
-          />
+          <ManualStateCard dashboard={dashboard} onOpen={openManualState} />
         </aside>
       </div>
       {selectedJobId ? (
@@ -1113,6 +1183,7 @@ export function StatusPage() {
       {manualOpen && dashboard.data ? (
         <ManualStateDrawer
           state={dashboard.data}
+          initialTab={manualTab}
           onClose={() => setManualOpen(false)}
           onSaved={dashboard.reload}
         />

@@ -57,14 +57,14 @@ type StatisticsView = "results" | "duration"
 type Period = "all" | "week" | "month" | "quarter"
 
 const resultChartConfig = {
-  passed: { label: "Concluídas", color: "var(--chart-1)" },
-  failed: { label: "Falhas", color: "var(--chart-2)" },
-  cancelled: { label: "Canceladas", color: "var(--chart-3)" },
-  interrupted: { label: "Interrompidas", color: "var(--chart-4)" },
+  passed: { label: "Passou", color: "var(--primary)" },
+  failed: { label: "Falhou", color: "var(--destructive)" },
+  cancelled: { label: "Cancelado", color: "var(--muted-foreground)" },
+  interrupted: { label: "Interrompido", color: "var(--foreground)" },
 } satisfies ChartConfig
 
 const durationChartConfig = {
-  durationMs: { label: "Duração", color: "var(--chart-1)" },
+  durationMs: { label: "Duração", color: "var(--primary)" },
 } satisfies ChartConfig
 
 function durationStats(preset: AnalysisPreset) {
@@ -77,6 +77,13 @@ function durationStats(preset: AnalysisPreset) {
     },
     { title: "Amostra", value: `${duration.count} execução(ões)` },
   ]
+}
+
+function paddedDomain(values: number[], minimumPadding: number) {
+  const low = Math.min(...values)
+  const high = Math.max(...values)
+  const padding = Math.max((high - low) * 0.08, minimumPadding)
+  return [low - padding, high + padding] as const
 }
 
 function ResultsChart({
@@ -117,7 +124,10 @@ function ResultsChart({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={resultChartConfig} className="min-h-72 w-full">
+        <ChartContainer
+          config={resultChartConfig}
+          className="aspect-auto h-80 w-full"
+        >
           <BarChart
             accessibilityLayer
             data={presets}
@@ -200,6 +210,24 @@ function DurationChart({
     }))
     .filter((point) => Number.isFinite(point.atMs))
 
+  if (!points.length) {
+    return (
+      <EmptyState
+        title="Sem pontos de duração"
+        description="Não há execuções canônicas com data e duração válidas neste período."
+      />
+    )
+  }
+
+  const timeDomain = paddedDomain(
+    points.map((point) => point.atMs),
+    60 * 60 * 1_000
+  )
+  const durationDomain = paddedDomain(
+    points.map((point) => point.durationMs),
+    1_000
+  )
+
   return (
     <Card>
       <CardHeader>
@@ -211,7 +239,12 @@ function DurationChart({
       <CardContent className="flex flex-col gap-5">
         <ItemGroup className="grid gap-2 sm:grid-cols-3">
           {durationStats(preset).map((stat) => (
-            <Item key={stat.title} variant="outline" size="sm">
+            <Item
+              key={stat.title}
+              variant="default"
+              size="sm"
+              className="border-transparent px-0 py-0"
+            >
               <ItemContent>
                 <ItemTitle>{stat.title}</ItemTitle>
                 <ItemDescription>{stat.value}</ItemDescription>
@@ -221,7 +254,7 @@ function DurationChart({
         </ItemGroup>
         <ChartContainer
           config={durationChartConfig}
-          className="min-h-72 w-full"
+          className="aspect-auto h-80 w-full"
         >
           <ScatterChart
             accessibilityLayer
@@ -232,6 +265,8 @@ function DurationChart({
               type="number"
               dataKey="atMs"
               name="Horário"
+              domain={timeDomain}
+              tickCount={4}
               tickLine={false}
               axisLine={false}
               tickFormatter={(value) =>
@@ -242,6 +277,8 @@ function DurationChart({
               type="number"
               dataKey="durationMs"
               name="Duração"
+              domain={durationDomain}
+              tickCount={4}
               tickLine={false}
               axisLine={false}
               tickFormatter={(value) => formatDuration(Number(value))}
@@ -427,7 +464,6 @@ export function AnalysisPage() {
             jobs={analysis.data?.problems}
             loading={analysis.loading}
             error={analysis.error}
-            emptyTitle="Sem problemas no período"
             emptyDescription="Não há execução falha ou interrompida para os filtros selecionados."
             onOpenJob={setSelectedJobId}
           />

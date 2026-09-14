@@ -21,6 +21,7 @@ import type {
   WorktreesResponse,
 } from "@/lib/types"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -61,7 +62,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { EmptyState, ErrorState } from "@/features/shared/async-state"
+import { ErrorState } from "@/features/shared/async-state"
 import { formatBytes, shortSha } from "@/features/shared/format"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
 import {
@@ -231,7 +232,14 @@ function WorktreeDrawer({
         <DrawerHeader className="shrink-0 border-b">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <DrawerTitle>{detail.data?.branch || "Worktree"}</DrawerTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <DrawerTitle>{detail.data?.branch || "Worktree"}</DrawerTitle>
+                {detail.data ? (
+                  <Badge variant="outline">
+                    {cleanlinessLabel(detail.data)}
+                  </Badge>
+                ) : null}
+              </div>
               <DrawerDescription>
                 {detail.data?.path || "Carregando detalhes da worktree…"}
               </DrawerDescription>
@@ -364,11 +372,13 @@ function WorktreeDataTable({
   rowSelection,
   setRowSelection,
   onOpen,
+  emptyMessage,
 }: {
   worktrees: WorktreeRecord[]
   rowSelection: RowSelectionState
   setRowSelection: React.Dispatch<React.SetStateAction<RowSelectionState>>
   onOpen: (id: string) => void
+  emptyMessage?: string
 }) {
   const columns = React.useMemo(
     () =>
@@ -390,6 +400,7 @@ function WorktreeDataTable({
                   deselectAll: checked !== true,
                 })
               }
+              disabled={!table.getRowModel().rows.length}
             />
           ),
           cell: ({ row }) => (
@@ -480,18 +491,29 @@ function WorktreeDataTable({
         ))}
       </TableHeader>
       <TableBody>
-        {table.getRowModel().rows.map((row) => (
-          <TableRow
-            key={row.id}
-            data-state={row.getIsSelected() ? "selected" : undefined}
-          >
-            {row.getAllCells().map((cell) => (
-              <TableCell key={cell.id} className="align-top">
-                <table.FlexRender cell={cell} />
-              </TableCell>
-            ))}
+        {table.getRowModel().rows.length ? (
+          table.getRowModel().rows.map((row) => (
+            <TableRow
+              key={row.id}
+              data-state={row.getIsSelected() ? "selected" : undefined}
+            >
+              {row.getAllCells().map((cell) => (
+                <TableCell key={cell.id} className="align-top">
+                  <table.FlexRender cell={cell} />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))
+        ) : (
+          <TableRow>
+            <TableCell
+              colSpan={table.getAllLeafColumns().length}
+              className="h-24 text-center text-sm text-muted-foreground"
+            >
+              {emptyMessage || "Nenhuma worktree observável."}
+            </TableCell>
           </TableRow>
-        ))}
+        )}
       </TableBody>
     </Table>
   )
@@ -599,33 +621,6 @@ function WorktreeTable({
             Sujas
           </Button>
         </ButtonGroup>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" variant="outline">
-              Seleção ({selectedWorktrees.length})
-              <ChevronDownIcon data-icon />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem
-              onSelect={() =>
-                setRowSelection((current) =>
-                  Object.fromEntries(
-                    [
-                      ...Object.keys(current),
-                      ...visible.map((worktree) => worktree.id),
-                    ].map((id) => [id, true])
-                  )
-                )
-              }
-            >
-              Selecionar visíveis
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setRowSelection({})}>
-              Limpar seleção
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
         {selectedWorktrees.length ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -674,24 +669,16 @@ function WorktreeTable({
             error={new Error(worktrees.data.error)}
             onRetry={worktrees.reload}
           />
-        ) : visible.length ? (
+        ) : (
           <WorktreeDataTable
             worktrees={visible}
             rowSelection={rowSelection}
             setRowSelection={setRowSelection}
             onOpen={setOpenWorktreeId}
-          />
-        ) : (
-          <EmptyState
-            title={
+            emptyMessage={
               worktrees.data.worktrees.length
-                ? "Nenhuma worktree corresponde aos filtros"
-                : "Nenhuma worktree encontrada"
-            }
-            description={
-              worktrees.data.worktrees.length
-                ? "Ajuste a busca ou o filtro de limpeza."
-                : "Este projeto não tem worktrees adicionais observáveis."
+                ? "Nenhuma worktree corresponde aos filtros."
+                : "Nenhuma worktree observável."
             }
           />
         )

@@ -423,16 +423,18 @@ function NotesEditor({
 
 export function ManualStateDrawer({
   state,
+  initialTab = "meta",
   onClose,
   onSaved,
 }: {
   state: DashboardState
+  initialTab?: "meta" | "notes"
   onClose: () => void
   onSaved: () => void
 }) {
   const isMobile = useIsMobile()
   const session = useDashboardSession()
-  const [tab, setTab] = React.useState<"meta" | "notes">("meta")
+  const [tab, setTab] = React.useState<"meta" | "notes">(initialTab)
   const [saving, setSaving] = React.useState(false)
   const [mutationError, setMutationError] = React.useState<string>()
   const unavailable = Boolean(session.error || !session.data)
