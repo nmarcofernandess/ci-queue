@@ -1,5 +1,5 @@
 import { readQueueConfig } from "./contracts/config.js"
-import { API_VERSION, type CliFailure, type CliResult, type CliSuccess, type QueueTicket } from "./contracts/schema.js"
+import { API_VERSION, parseRequestContext, type CliFailure, type CliResult, type CliSuccess, type QueueTicket } from "./contracts/schema.js"
 import { cancelQueuedOrRunningTicket } from "./core/runner.js"
 import { enqueueExplicitTicket, enqueueTicket } from "./core/enqueue.js"
 import { runWorker } from "./core/worker.js"
@@ -48,6 +48,17 @@ function splitExtra(args: string[]): string[] {
   return marker === -1 ? [] : args.slice(marker + 1)
 }
 
+function enqueuePreset(args: string[]): string | undefined {
+  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--timeout-ms", "--request-context"])
+  for (let index = 0; index < args.length; index += 1) {
+    const value = args[index]
+    if (value === "--") return undefined
+    if (valueOptions.has(value)) { index += 1; continue }
+    if (!value.startsWith("--")) return value
+  }
+  return undefined
+}
+
 function parseJsonArray(value: string | undefined, name: string): string[] {
   if (!value) throw new Error(`${name} é obrigatório`)
   let parsed: unknown
@@ -76,6 +87,7 @@ function usage(): string {
     "  status",
     "  history [--project ID]",
     "  cancel <ticketId>",
+    "  config",
   ].join("\n")
 }
 
@@ -93,13 +105,15 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         })
       case "enqueue": {
         const recipe = optionValue(args.rest, "--recipe")
-        const preset = args.rest.find((item, index) => !item.startsWith("--") && args.rest[index - 1] !== "--recipe" && args.rest[index - 1] !== "--argv-json" && args.rest[index - 1] !== "--project-id" && args.rest[index - 1] !== "--project-name" && args.rest[index - 1] !== "--base-ref" && args.rest[index - 1] !== "--artifacts-json" && args.rest[index - 1] !== "--timeout-ms" && item !== "--")
+        const preset = enqueuePreset(args.rest)
         if (!recipe && !preset) return failure("USAGE", "enqueue requer um preset ou --recipe")
         const contextText = optionValue(args.rest, "--request-context")
-        let requestContext: unknown
+        let requestContext: ReturnType<typeof parseRequestContext>
         if (contextText) {
-          try { requestContext = JSON.parse(contextText) } catch { return failure("USAGE", "--request-context precisa ser JSON") }
+          try { requestContext = parseRequestContext(JSON.parse(contextText)) } catch { return failure("USAGE", "--request-context precisa ser JSON") }
+          if (!requestContext) return failure("USAGE", "--request-context não respeita o contrato de identificadores")
         }
+        if (recipe && !args.cwd) return failure("USAGE", "--cwd absoluto é obrigatório com --recipe")
         const ticket = recipe
           ? enqueueExplicitTicket({
             recipe,
@@ -110,9 +124,9 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
             stateRoot: root,
             ...(optionValue(args.rest, "--base-ref") ? { baseRef: optionValue(args.rest, "--base-ref") } : {}),
             ...(optionValue(args.rest, "--artifacts-json") ? { artifacts: parseJsonArray(optionValue(args.rest, "--artifacts-json"), "--artifacts-json") } : {}),
-            requestContext: requestContext as never,
+            requestContext,
           })
-          : enqueueTicket({ preset: preset!, stateRoot: root, cwd: args.cwd, configPath: args.configPath, extraArgs: splitExtra(args.rest), requestContext: requestContext as never })
+          : enqueueTicket({ preset: preset!, stateRoot: root, cwd: args.cwd, configPath: args.configPath, extraArgs: splitExtra(args.rest), requestContext })
         if (args.rest.includes("--wait")) {
           const rawTimeout = optionValue(args.rest, "--timeout-ms")
           const timeoutMs = rawTimeout ? Number(rawTimeout) : 60 * 60_000
