@@ -43,6 +43,16 @@ Do not use CSS/JSX from the retired DietFlow Vite dashboard as visual source.
 The Dashboard 01 area-chart demo and data are excluded. The starter supplies
 the application shell and compatible source composition, not CI Queue content.
 
+### Dashboard 01 tables in this workspace
+
+Before adapting a Dashboard 01 table, inspect the installed TanStack package.
+This repository currently uses `@tanstack/react-table` v9. Its local source of
+truth is `ui/node_modules/@tanstack/react-table/skills/getting-started/SKILL.md`:
+use `useTable`, registered `tableFeatures`, stable inputs and
+`table.FlexRender`. Do not paste a v8 `useReactTable` example, downgrade the
+installed dependency or abandon the Dashboard 01 `DataTable` composition for a
+CSS grid when an API name differs.
+
 ## UI invariants
 
 - Use installed shadcn components and their variants before custom markup.
