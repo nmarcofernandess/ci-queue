@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -37,11 +37,13 @@ test("installs a verified immutable release and preserves state on uninstall", (
   try {
     const { destination } = buildRelease({ root, outputDir: join(root, "bundles"), revision: "b".repeat(40) })
     const config = join(root, "consumer", "ci-queue.json")
+    const command = join(root, "bin", "ci-queue")
     mkdirSync(dirname(config), { recursive: true })
     writeFileSync(config, "{}\n")
     const installed = installRelease({
       bundle: destination, prefix, stateRoot: state, configPath: config,
       nodePath: "/opt/homebrew/bin/node", pythonPath: "/usr/bin/python3",
+      commandPath: command,
     })
     assert.equal(installed.revision, "b".repeat(40))
     assert.equal(installed.releasePath.includes("releases/0.1.0-bbbbbbbbbbbb"), true)
@@ -50,8 +52,10 @@ test("installs a verified immutable release and preserves state on uninstall", (
     const dashboardEnvelope = readFileSync(join(installed.releasePath, "launch-agents", "com.nmarcofernandess.ci-queue.dashboard.plist"), "utf8")
     assert.match(dashboardEnvelope, /--manifest-sha256/)
     assert.match(dashboardEnvelope, new RegExp(installed.manifestSha256))
+    assert.match(readFileSync(command, "utf8"), /ci-queue\.mjs/)
     const removed = uninstallRelease({ prefix })
     assert.deepEqual(removed, { removed: true, statePreserved: true })
+    assert.equal(existsSync(command), false)
     assert.equal(mkdirSync(join(state, "jobs"), { recursive: true }) === undefined, true)
   } finally {
     rmSync(root, { recursive: true, force: true })
