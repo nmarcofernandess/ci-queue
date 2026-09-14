@@ -8,7 +8,7 @@ adapting shadcn sources rather than re-inventing surfaces.
 
 - Framework: Vite + React + Tailwind 4.
 - shadcn configuration: `radix-nova`, base `radix`, icon library `lucide`.
-- Bootstrap reference: [Dashboard 01](https://ui.shadcn.com/r/styles/radix-nova/dashboard-01.json).
+- Bootstrap reference: [Dashboard 01](https://ui.shadcn.com/r/styles/radix-nova/dashboard-01.json), retrieved through `shadcn view @shadcn/dashboard-01` on 13/09/2026.
 - Dashboard 01's demo data, section KPI cards and interactive area chart are
   excluded. It supplies the shell, sidebar/header relationship and compatible
   drawer/table source patterns.
@@ -20,9 +20,9 @@ adapting shadcn sources rather than re-inventing surfaces.
 | App shell | `SidebarProvider` → `Sidebar variant="inset" collapsible="offcanvas"` → `SidebarInset` → header with `SidebarTrigger` | Brand, routes and bridge data only. No `SidebarRail`; trigger stays in header. |
 | Sidebar navigation and theme | `SidebarHeader`, `SidebarContent`, `SidebarMenu`, `SidebarMenuButton`, `SidebarFooter`, `ToggleGroup`, `Tooltip` | Footer contains Bridge and Claro/Escuro/Sistema only. |
 | Status cards | `Card` with its full header/content/footer composition; `ItemGroup` and `Item` where rows are needed | Status page grid is a named layout gap, not a new visual primitive. |
-| Queue, history, last greens and problems | `Table`/Data Table composition, with a shared `RunTable` renderer | Two columns: Execution and Context. Only preset title opens the drawer. |
+| Queue, history, last greens and problems | Dashboard 01 `DataTable` composition (`@tanstack/react-table`, `flexRender`, `Table`) adapted into a shared `RunTable` renderer | Two columns: Execution and Context. Only preset title opens the drawer. |
 | History controls | `Tabs`, `InputGroup`, direct `Select`, `Button ghost` | Controls live above the table and wrap left-to-right. No Calendar, interval or nested popup. |
-| Worktrees | Data Table composition + `Checkbox`, `InputGroup`, `ButtonGroup`, `DropdownMenu` | Persistent selected IDs is a named state-management gap; rows do not become buttons. |
+| Worktrees | Dashboard 01 `DataTable` composition + `Checkbox`, `InputGroup`, `ButtonGroup`, `DropdownMenu` | Persistent selected IDs is a named state-management gap; rows do not become buttons. |
 | Job, worktree, meta and note detail | `Drawer` from Dashboard 01, right on desktop/bottom on mobile; `DrawerHeader`, `ScrollArea`, `DrawerFooter` | Fixed header/tabs/footer with only central content scrolling. |
 | Diagnostic and copy variants | `Popover` for diagnostic, `DropdownMenu` for explicit copy variants | Diagnostic does not render below a log. No nested menus. |
 | Forms | `FieldSet`, `FieldGroup`, `Field`, `Input`, `Textarea`, `AlertDialog` for deletion | Forms are in the drawer; no made-up modal form wrapper. |
@@ -54,6 +54,20 @@ variables, tooltip and legend styling. Recharts only supplies the selected
 series and axes. The Nova registry has no ready-made stacked-bar or scatter
 block; reference examples may be read for Recharts structure, but no
 new-york-v4 component CSS or JSX is copied into this project.
+
+## Data Table adaptation
+
+The Dashboard 01 registry item explicitly ships a `DataTable` component and
+declares `@tanstack/react-table`. The product retains its column-definition,
+table-model, `flexRender`, official `Table` and checkbox-selection
+composition. The installed major version exposes its compatible table factory
+rather than the old `useReactTable` name; the implementation must use that
+official version's equivalent API, not downgrade or recreate a CSS grid.
+
+Demo-specific drag-and-drop, arbitrary document columns and generic pagination
+are excluded because CI Queue owns its history cursor and does not allow
+rearranging execution records. This is a product adaptation, not permission to
+turn table rows into buttons or to substitute a handmade table.
 
 ## Named gaps
 
