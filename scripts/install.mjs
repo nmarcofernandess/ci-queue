@@ -89,6 +89,18 @@ function safeReleaseName(manifest) {
   return `${version}-${revision.slice(0, 12)}`
 }
 
+function servicePath(nodePath) {
+  return [...new Set([
+    dirname(nodePath),
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
+    "/usr/sbin",
+    "/sbin",
+  ])].join(":")
+}
+
 function copyBundle(bundle, prefix, manifest) {
   const releaseRoot = join(resolve(prefix), "releases")
   const releasePath = join(releaseRoot, safeReleaseName(manifest))
@@ -114,6 +126,7 @@ function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pytho
   if (!configPath) return []
   if (!nodePath || !pythonPath) throw new Error("--node e --python são obrigatórios ao gerar envelope de serviço")
   const launchRoot = join(releasePath, "launch-agents")
+  const environment = { PATH: servicePath(nodePath) }
   return [
     {
       label: "com.nmarcofernandess.ci-queue.worker",
@@ -121,6 +134,7 @@ function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pytho
       plist: {
         Label: "com.nmarcofernandess.ci-queue.worker",
         ProgramArguments: [nodePath, join(releasePath, "bin", "ci-queue.mjs"), "worker", "--state", stateRoot],
+        EnvironmentVariables: environment,
         QueueDirectories: [join(stateRoot, "jobs")],
         ProcessType: "Background",
       },
@@ -131,7 +145,7 @@ function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pytho
       plist: {
         Label: "com.nmarcofernandess.ci-queue.dashboard",
         ProgramArguments: [pythonPath, "-m", "ci_queue_api", "--config", configPath, "--state", stateRoot, "--ui", join(releasePath, "ui", "dist"), "--manifest", join(releasePath, "manifest.json"), "--manifest-sha256", manifestSha256],
-        EnvironmentVariables: { PYTHONPATH: join(releasePath, "backend") },
+        EnvironmentVariables: { ...environment, PYTHONPATH: join(releasePath, "backend") },
         KeepAlive: true,
         ProcessType: "Background",
       },

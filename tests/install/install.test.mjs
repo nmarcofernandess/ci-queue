@@ -49,7 +49,12 @@ test("installs a verified immutable release and preserves state on uninstall", (
     assert.equal(installed.releasePath.includes("releases/0.1.0-bbbbbbbbbbbb"), true)
     assert.equal(installed.releasePath.startsWith(destination), false)
     assert.match(installed.manifestSha256, /^[0-9a-f]{64}$/)
+    const workerEnvelope = readFileSync(join(installed.releasePath, "launch-agents", "com.nmarcofernandess.ci-queue.worker.plist"), "utf8")
     const dashboardEnvelope = readFileSync(join(installed.releasePath, "launch-agents", "com.nmarcofernandess.ci-queue.dashboard.plist"), "utf8")
+    for (const envelope of [workerEnvelope, dashboardEnvelope]) {
+      assert.match(envelope, /<key>PATH<\/key>/)
+      assert.match(envelope, /\/opt\/homebrew\/bin:\/usr\/local\/bin:\/usr\/bin:\/bin:\/usr\/sbin:\/sbin/)
+    }
     assert.match(dashboardEnvelope, /--manifest-sha256/)
     assert.match(dashboardEnvelope, new RegExp(installed.manifestSha256))
     assert.match(readFileSync(command, "utf8"), /ci-queue\.mjs/)
