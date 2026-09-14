@@ -1,0 +1,34 @@
+{
+  "name": "@nmarcofernandess/ci-queue",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Independent local CI queue, executor and observability service",
+  "bin": {
+    "ci-queue": "./bin/ci-queue.mjs"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "check": "npm run build && npm run test && npm run check:ui",
+    "ci-queue": "tsx src/cli.ts",
+    "test:core": "vitest run tests/core",
+    "test:ui": "vitest run tests/ui",
+    "test": "npm run test:core && npm run test:ui && npm run test:backend && npm run test:examples && npm run test:release && npm run test:install",
+    "test:examples": "node --test tests/examples/*.test.mjs",
+    "test:release": "node --test tests/release/*.test.mjs",
+    "test:install": "node --test tests/install/*.test.mjs",
+    "release:bundle": "npm run build && npm --prefix ui run build && node scripts/release.mjs build --output releases",
+    "release:verify": "node scripts/release.mjs verify",
+    "check:ui": "npm --prefix ui run lint && npm --prefix ui run build",
+    "test:backend": "python3 -m unittest discover -s tests/backend -p 'test_*.py'"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

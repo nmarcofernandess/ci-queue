@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "id": "ci-queue-example",
+    "name": "CI Queue example"
+  },
+  "presets": {
+    "success": {
+      "argv": ["node", "scripts/success.mjs"]
+    },
+    "failure": {
+      "argv": ["node", "scripts/failure.mjs"]
+    },
+    "wait": {
+      "argv": ["node", "scripts/wait.mjs"]
+    },
+    "cancel": {
+      "argv": ["node", "scripts/hold.mjs"]
+    },
+    "interrupt": {
+      "argv": ["node", "scripts/hold.mjs"]
+    }
+  }
+}
