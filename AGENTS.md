@@ -13,6 +13,9 @@ tests. A consuming project owns its recipes, preparation and test harness.
 - The project UI lives in `ui/` and uses Vite, TypeScript, Tailwind 4,
   `radix-nova`, Radix and Lucide. Read `ui/components.json` and run
   `cd ui && npx shadcn@latest info --json` before changing UI.
+- For every UI change, load `.agents/skills/ci-queue-shadcn/SKILL.md` before
+  writing JSX. It makes recovery and selection the first action, rather than
+  a constraint checked after a component was invented.
 
 ## UI: retrieve, select, adapt
 
