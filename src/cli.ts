@@ -13,6 +13,7 @@ import { JOB_ENV_CAPABILITY, cancelQueuedOrRunningTicket } from "./core/runner.j
 import { enqueueExplicitTicket, enqueueTicket } from "./core/enqueue.js"
 import { runWorker } from "./core/worker.js"
 import { findJobById, listHistoryJobs, listQueuedJobs, readRunningJob, resolveStateRoot } from "./core/state.js"
+import { buildPresetHistory } from "./core/preset-history.js"
 
 type GlobalArgs = { command?: string; rest: string[]; json: boolean; stateRoot?: string; cwd?: string; configPath?: string }
 
@@ -106,6 +107,7 @@ function usage(): string {
     "  worker",
     "  status",
     "  history [--project ID]",
+    "  preset-history [--preset NAME]",
     "  logs [latest|<ticketId>]",
     "  cancel <ticketId>",
     "  config",
@@ -122,7 +124,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           version: "0.1.0",
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "logs", "cancel", "execution-flags-v1", JOB_ENV_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "execution-flags-v1", JOB_ENV_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
       case "enqueue": {
         const recipe = optionValue(args.rest, "--recipe")
@@ -164,6 +166,12 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         return success({ running: readRunningJob(root) ?? null, queued: listQueuedJobs(root), latest: listHistoryJobs(root)[0] ?? null })
       case "history":
         return success({ jobs: listHistoryJobs(root, optionValue(args.rest, "--project")) })
+      case "preset-history": {
+        const loaded = readQueueConfig(args.cwd, args.configPath)
+        const report = buildPresetHistory(listHistoryJobs(root, loaded.config.project.id), loaded.config)
+        const preset = optionValue(args.rest, "--preset")
+        return success(preset ? { ...report, presets: report.presets.filter((item) => item.preset === preset) } : report)
+      }
       case "logs": {
         const requested = args.rest.find((item) => !item.startsWith("--")) ?? "latest"
         const found = requested === "latest"
