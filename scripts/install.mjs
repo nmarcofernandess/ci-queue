@@ -6,7 +6,8 @@
  * provar que não há worker anterior disputando a mesma fila.
  */
 import { createHash } from "node:crypto"
-import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { homedir } from "node:os"
 import { fileURLToPath } from "node:url"
@@ -157,6 +158,52 @@ function writeServiceEnvelope(services) {
   }
 }
 
+function writeCommandLauncher(path, nodePath, releasePath) {
+  if (!path) return undefined
+  if (!nodePath) throw new Error("--node é obrigatório ao instalar o comando")
+  const commandPath = resolve(path)
+  const shellQuote = (value) => `'${String(value).replaceAll("'", `'"'"'`)}'`
+  const body = `#!/bin/sh\nexec ${shellQuote(nodePath)} ${shellQuote(join(releasePath, "bin", "ci-queue.mjs"))} "$@"\n`
+  mkdirSync(dirname(commandPath), { recursive: true, mode: 0o755 })
+  writeFileSync(commandPath, body, { encoding: "utf8", mode: 0o755 })
+  chmodSync(commandPath, 0o755)
+  return { path: commandPath, sha256: createHash("sha256").update(body).digest("hex") }
+}
+
+function launchDomain() {
+  if (process.platform !== "darwin" || typeof process.getuid !== "function") {
+    throw new Error("ativação automática está disponível somente no macOS")
+  }
+  return `gui/${process.getuid()}`
+}
+
+function deactivateServices(services) {
+  const domain = launchDomain()
+  for (const service of services) {
+    try {
+      execFileSync("launchctl", ["bootout", `${domain}/${service.label}`], { stdio: "ignore" })
+    } catch {
+      // Serviço ausente já é o estado desejado.
+    }
+  }
+}
+
+function activateServices(services) {
+  if (!services.length) throw new Error("--activate requer --config, --node e --python")
+  const domain = launchDomain()
+  deactivateServices(services)
+  const activated = []
+  try {
+    for (const service of services) {
+      execFileSync("launchctl", ["bootstrap", domain, service.file], { stdio: "pipe" })
+      activated.push(service)
+    }
+  } catch (error) {
+    deactivateServices(activated)
+    throw error
+  }
+}
+
 export function installRelease(input) {
   const prefix = resolve(input.prefix ?? DEFAULT_PREFIX)
   const stateRoot = resolve(input.stateRoot ?? DEFAULT_STATE)
@@ -179,6 +226,7 @@ export function installRelease(input) {
     manifestSha256,
   })
   writeServiceEnvelope(services)
+  const command = writeCommandLauncher(input.commandPath, input.nodePath, releasePath)
   const installation = {
     schemaVersion: 1,
     product: "ci-queue",
@@ -190,8 +238,10 @@ export function installRelease(input) {
     manifestPath,
     manifestSha256,
     services: services.map(({ label, file }) => ({ label, file })),
+    ...(command ? { command } : {}),
   }
   atomicJson(installationPath(prefix), installation)
+  if (input.activate) activateServices(services)
   return installation
 }
 
@@ -200,14 +250,22 @@ export function uninstallRelease(input) {
   const installation = readInstallation(prefix)
   if (!installation) return { removed: false, reason: "not-installed" }
   assertQuietState(installation.stateRoot)
+  if (input.deactivate) deactivateServices(installation.services ?? [])
   for (const service of installation.services ?? []) {
     if (typeof service?.file !== "string" || !inside(service.file, installation.releasePath)) {
       throw new Error("manifest de instalação contém serviço fora da release")
     }
     if (existsSync(service.file)) rmSync(service.file, { force: true })
   }
+  if (installation.command?.path && existsSync(installation.command.path) &&
+      sha256(installation.command.path) !== installation.command.sha256) {
+    throw new Error(`comando instalado foi alterado; preservei ${installation.command.path}`)
+  }
   if (!inside(installation.releasePath, prefix)) throw new Error("release ativa fora do prefixo da instalação")
   if (existsSync(installation.releasePath)) rmSync(installation.releasePath, { recursive: true, force: true })
+  if (installation.command?.path && existsSync(installation.command.path)) {
+    rmSync(installation.command.path, { force: true })
+  }
   if (input.purgeState) {
     if (resolve(installation.stateRoot) === resolve(prefix) || !installation.stateRoot) throw new Error("state root inválido para purge")
     if (existsSync(installation.stateRoot)) rmSync(installation.stateRoot, { recursive: true, force: true })
@@ -231,16 +289,18 @@ function main(argv = process.argv.slice(2)) {
       configPath: option(argv, "--config"),
       nodePath: option(argv, "--node"),
       pythonPath: option(argv, "--python"),
+      commandPath: option(argv, "--command"),
+      activate: argv.includes("--activate"),
     })
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
     return
   }
   if (command === "uninstall") {
-    const result = uninstallRelease({ prefix: option(argv, "--prefix"), purgeState: argv.includes("--purge-state") })
+    const result = uninstallRelease({ prefix: option(argv, "--prefix"), purgeState: argv.includes("--purge-state"), deactivate: argv.includes("--deactivate") })
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
     return
   }
-  throw new Error("uso: install.mjs install|update --bundle <release> [--prefix DIR] [--state DIR] [--config project/ci-queue.json --node PATH --python PATH] | uninstall [--prefix DIR] [--purge-state]")
+  throw new Error("uso: install.mjs install|update --bundle <release> [--prefix DIR] [--state DIR] [--config project/ci-queue.json --node PATH --python PATH --command PATH --activate] | uninstall [--prefix DIR] [--deactivate] [--purge-state]")
 }
 
 function isMainModule(metaUrl) {

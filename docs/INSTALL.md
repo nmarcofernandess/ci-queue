@@ -18,10 +18,9 @@ Verifique-o antes de instalar uma release recebida.
 
 ## Preparar uma instalação
 
-O bundle contém o instalador que o acompanha. O exemplo abaixo é executado a
-partir da pasta da release recebida, apenas copia e registra essa release. Ele
-não usa `launchctl` e não muda serviços existentes; isso permite validar uma
-atualização em diretório isolado antes da janela de cutover.
+O bundle contém o instalador que o acompanha. Sem `--activate`, o comando apenas
+copia e registra a release; esse modo permite validar uma atualização em
+diretório isolado antes do cutover.
 
 ```bash
 node /caminho/para/ci-queue-<versão>-<revisão>/scripts/install.mjs install \
@@ -34,8 +33,8 @@ node /caminho/para/ci-queue-<versão>-<revisão>/scripts/install.mjs install \
 recusa prosseguir se `running.json` ou `runner.lock` existem: antes de atualizar
 ou remover, recupere ou aguarde o único executor responsável pela fila.
 
-Para gerar os envelopes de LaunchAgent que serão ativados na janela de cutover,
-passe também o catálogo do projeto e binários reais:
+No macOS, passe o catálogo do projeto, os binários reais, o destino do comando e
+`--activate` para gerar e carregar os LaunchAgents da release:
 
 ```bash
 node /caminho/para/ci-queue-<versão>-<revisão>/scripts/install.mjs update \
@@ -44,7 +43,9 @@ node /caminho/para/ci-queue-<versão>-<revisão>/scripts/install.mjs update \
   --state "$HOME/.local/state/ci-queue" \
   --config /caminho/do/projeto/ci-queue.json \
   --node "$(command -v node)" \
-  --python "$(command -v python3)"
+  --python "$(command -v python3)" \
+  --command "$HOME/.local/bin/ci-queue" \
+  --activate
 ```
 
 O worker recebido pelo envelope observa somente o state root e executa tickets
@@ -68,6 +69,15 @@ state root para leitura e recuperação. `--purge-state` só deve ser usado depo
 de uma inspeção que prove fila quieta e de uma decisão explícita de descartar
 histórico.
 
-Ativar ou descarregar LaunchAgents reais ainda pertence à etapa de cutover:
-ela deve primeiro provar que não há um worker antigo, que a release e o
-manifest correspondem, e que um único executor ficará responsável pela fila.
+Para remover a release ativa no macOS, descarregue também os serviços que ela
+possui:
+
+```bash
+node "$HOME/.local/share/ci-queue/releases/<versão>-<revisão>/scripts/install.mjs" \
+  uninstall --prefix "$HOME/.local/share/ci-queue" --deactivate
+```
+
+Antes de ativar, atualizar ou remover, prove que não há job em andamento e que
+nenhum executor legado continuará observando o mesmo state root. O instalador
+recusa `running.json` e locks; o corte operacional é responsável por retirar o
+serviço anterior antes de carregar o novo.
