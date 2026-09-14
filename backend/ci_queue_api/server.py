@@ -225,7 +225,11 @@ def create_handler(context):
                     if query.get("refresh", ["0"])[0] not in {"", "0"}:
                         self.error(400, "esta API não atualiza Git; use a publicação explícita da CLI")
                     else:
-                        self.send_payload(200, read_remote_slots(self.api_context.config.remote_slots_path, self.api_context.config))
+                        self.send_payload(200, read_remote_slots(
+                            self.api_context.config.remote_slots_path,
+                            self.api_context.config,
+                            self.api_context.state_root,
+                        ))
                     return
                 if parsed.path == "/api/analysis":
                     self.send_payload(200, read_analysis(self.api_context.state_root, self.api_context.config,

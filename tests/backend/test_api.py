@@ -18,7 +18,7 @@ from ci_queue_api.analysis import read_analysis
 from ci_queue_api.config import ConfigError, load_project_config
 from ci_queue_api.dashboard_state import RevisionConflict, read_dashboard_state, write_dashboard_state
 from ci_queue_api.diagnostics import MAX_EXPORT_BYTES, read_diagnostic, read_log_export
-from ci_queue_api.history import build_preset_history
+from ci_queue_api.history import build_preset_history, read_remote_slots
 from ci_queue_api.records import invalidate_history_cache, read_executions, status_snapshot
 from ci_queue_api.server import ApiContext, create_server
 from ci_queue_api.worktrees import list_worktrees, worktree_view
@@ -65,6 +65,62 @@ class Fixture(unittest.TestCase):
         base.update(overrides)
         (self.state / "history" / (ident + ".json")).write_text(json.dumps(base), encoding="utf-8")
         return base
+
+    def remote_payload(self, **overrides):
+        payload = {
+            "schema": 1,
+            "preset": "smoke",
+            "projectId": "example",
+            "projectIdSource": "ticket",
+            "headSha": "a" * 40,
+            "baseSha": "b" * 40,
+            "branch": "main",
+            "ticketId": "remote-ticket",
+            "finishedAt": "2026-09-13T10:01:01Z",
+            "durationMs": 60000,
+            "exitCode": 0,
+            "ancestorOfBase": True,
+            "publishedAt": "2026-09-13T10:01:10Z",
+            "aggregatorSchema": 1,
+        }
+        payload.update(overrides)
+        return payload
+
+    def remote_slot(self, payload=None, **overrides):
+        payload = payload or self.remote_payload()
+        slot = {
+            "preset": payload["preset"],
+            "state": "publicado",
+            "ref": "refs/ci/last-green/" + payload["preset"],
+            "objectSha": "c" * 40,
+            "commitSha": payload["headSha"],
+            "annotated": True,
+            "payload": payload,
+            "publishedAt": payload["publishedAt"],
+            "ageDays": 0,
+        }
+        slot.update(overrides)
+        return slot
+
+    def remote_report(self, slots, **overrides):
+        report = {
+            "slotSchema": 1,
+            "generatedAt": "2026-09-13T10:01:20Z",
+            "remote": "origin",
+            "namespace": "refs/ci/last-green",
+            "source": "local-mirror",
+            "reachable": True,
+            "catalog": {"resolved": True, "declaredCount": 2, "projectId": "example"},
+            "slots": slots,
+            "totals": {"slots": len(slots), "declaredWithoutSlot": 0, "orphan": 0, "unreadable": 0},
+        }
+        report.update(overrides)
+        return report
+
+    def write_remote_mirror(self, value):
+        path = self.root / "remote-slots.json"
+        path.write_text(json.dumps(value), encoding="utf-8")
+        return path
 
 
 class ConfigTests(Fixture):
@@ -124,6 +180,114 @@ class HistoryAndAnalysisTests(Fixture):
         self.assertTrue(payload["globalOccupancy"])
         self.assertEqual(payload["running"]["projectId"], "other")
         self.assertEqual([item["id"] for item in payload["history"]], ["old"])
+
+
+class RemoteGreensTests(Fixture):
+    def test_normalizes_a_verified_git_green_with_provenance_and_local_drawer_state(self):
+        self.job("remote-ticket")
+        mirror = self.write_remote_mirror(self.remote_report([self.remote_slot()]))
+
+        response = read_remote_slots(mirror, self.config, self.state)
+
+        self.assertEqual(response["schemaVersion"], 2)
+        self.assertNotIn("report", response)
+        self.assertEqual(response["source"], {
+            "kind": "git",
+            "available": True,
+            "stale": False,
+            "remote": "origin",
+            "namespace": "refs/ci/last-green",
+            "readAt": "2026-09-13T10:01:20Z",
+            "refreshedAt": None,
+            "reason": None,
+        })
+        self.assertEqual(response["coverage"], {
+            "declaredPresets": 2,
+            "greenPresets": 1,
+            "withoutTagPresets": ["full"],
+            "invalidPayloads": [],
+        })
+        self.assertEqual(response["greens"], [{
+            "origin": "git",
+            "preset": "smoke",
+            "projectId": "example",
+            "ticketId": "remote-ticket",
+            "jobAvailable": True,
+            "status": "passed",
+            "headSha": "a" * 40,
+            "commitSha": "a" * 40,
+            "baseSha": "b" * 40,
+            "branch": "main",
+            "finishedAt": "2026-09-13T10:01:01Z",
+            "publishedAt": "2026-09-13T10:01:10Z",
+            "durationMs": 60000,
+            "ref": "refs/ci/last-green/smoke",
+        }])
+
+    def test_distinguishes_a_readable_empty_mirror_from_an_unreadable_one(self):
+        empty = self.write_remote_mirror(self.remote_report([]))
+        readable = read_remote_slots(empty, self.config, self.state)
+        self.assertTrue(readable["source"]["available"])
+        self.assertIsNone(readable["source"]["reason"])
+        self.assertEqual(readable["coverage"]["withoutTagPresets"], ["full", "smoke"])
+        self.assertEqual(readable["coverage"]["invalidPayloads"], [])
+
+        empty.write_text("not json", encoding="utf-8")
+        unreadable = read_remote_slots(empty, self.config, self.state)
+        self.assertFalse(unreadable["source"]["available"])
+        self.assertEqual(unreadable["source"]["reason"]["code"], "mirror-unreadable")
+        self.assertEqual(unreadable["greens"], [])
+        self.assertEqual(unreadable["coverage"]["withoutTagPresets"], [])
+
+    def test_never_projects_a_green_when_the_slot_does_not_prove_canonical_success(self):
+        cases = []
+        failed_payload = self.remote_payload(exitCode=1)
+        cases.append((self.remote_slot(failed_payload), "payload-exit-not-green"))
+        unproven_payload = self.remote_payload(ancestorOfBase=False)
+        cases.append((self.remote_slot(unproven_payload), "payload-ancestor-not-proven"))
+        mismatched_commit = self.remote_slot()
+        mismatched_commit["commitSha"] = "c" * 40
+        cases.append((mismatched_commit, "slot-commit-mismatch"))
+
+        for slot, reason in cases:
+            with self.subTest(reason=reason):
+                mirror = self.write_remote_mirror(self.remote_report([slot]))
+                response = read_remote_slots(mirror, self.config, self.state)
+                self.assertFalse(response["source"]["available"])
+                self.assertEqual(response["source"]["reason"]["code"], "payload-unreadable")
+                self.assertEqual(response["greens"], [])
+                self.assertEqual(response["coverage"]["withoutTagPresets"], ["full"])
+                self.assertEqual(response["coverage"]["invalidPayloads"], [{"preset": "smoke", "reason": reason}])
+
+    def test_rejects_a_mirror_that_asserts_another_project_identity(self):
+        report = self.remote_report([self.remote_slot()], projectId="other")
+        mirror = self.write_remote_mirror(report)
+
+        response = read_remote_slots(mirror, self.config, self.state)
+
+        self.assertFalse(response["source"]["available"])
+        self.assertEqual(response["source"]["reason"]["code"], "project-mismatch")
+        self.assertEqual(response["greens"], [])
+
+    def test_preserves_a_verified_stale_green_without_claiming_the_mirror_is_available(self):
+        mirror = self.write_remote_mirror({
+            "ok": False,
+            "stale": True,
+            "error": "Git indisponível.",
+            "readAt": "2026-09-13T10:02:00Z",
+            "report": self.remote_report([self.remote_slot()]),
+        })
+
+        response = read_remote_slots(mirror, self.config, self.state)
+
+        self.assertFalse(response["source"]["available"])
+        self.assertTrue(response["source"]["stale"])
+        self.assertEqual(response["source"]["reason"], {
+            "code": "mirror-unavailable",
+            "message": "Git indisponível.",
+        })
+        self.assertEqual(response["greens"][0]["ticketId"], "remote-ticket")
+        self.assertFalse(response["greens"][0]["jobAvailable"])
 
 
 class StateAndDiagnosticTests(Fixture):
@@ -218,6 +382,34 @@ class HttpContractTests(Fixture):
         with self.assertRaises(HTTPError) as rejected:
             self.request("/api/remote-slots?refresh=1")
         self.assertEqual(rejected.exception.code, 400)
+
+    def test_remote_slots_exposes_the_normalized_git_contract(self):
+        self.job("remote-ticket")
+        self.write_remote_mirror(self.remote_report([self.remote_slot()]))
+        self.config_path.write_text(json.dumps({
+            "schemaVersion": 1,
+            "project": {"id": "example", "name": "Example project"},
+            "presets": {
+                "smoke": {"argv": ["npm", "run", "smoke"]},
+                "full": {"argv": ["npm", "run", "full"]},
+            },
+            "remoteSlotsPath": "remote-slots.json",
+        }), encoding="utf-8")
+        config = load_project_config(self.config_path)
+        server = create_server(ApiContext(config, self.state, None, "csrf-test"), port=0)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with urlopen("http://127.0.0.1:%s/api/remote-slots" % server.server_address[1], timeout=3) as response:
+                payload = json.loads(response.read())
+            self.assertEqual(payload["schemaVersion"], 2)
+            self.assertTrue(payload["source"]["available"])
+            self.assertTrue(payload["greens"][0]["jobAvailable"])
+            self.assertEqual(payload["greens"][0]["origin"], "git")
+        finally:
+            server.shutdown()
+            thread.join(1)
+            server.server_close()
 
     def test_unknown_api_is_not_a_spa_route(self):
         with self.assertRaises(HTTPError) as rejected:
