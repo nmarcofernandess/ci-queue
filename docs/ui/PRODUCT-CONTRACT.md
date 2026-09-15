@@ -41,9 +41,9 @@ A página tem uma faixa de execução atual acima de um grid com coluna principa
 - A região permanece visível; vazia usa `Item` compacto com **Nenhuma execução em andamento**.
 - Quando há ticket `running`, preset e a ação ocular final abrem o mesmo drawer.
 - Existe um único indicador de estado, no início do item.
-- Abaixo: data e hora, tempo relativo e duração decorrida.
-- Depois: branch e SHA; o assunto do commit aparece somente aqui.
-- As etapas ficam lateralmente em telas largas e usam bolinhas/checks ligados por separadores. Não existe percentual, ETA ou barra de progresso temporal.
+- Abaixo: data e hora de início e **Decorrido:** ao vivo; sem tempo relativo enquanto roda.
+- Branch e SHA compartilham a linha de metadados quando couberem; o assunto do commit aparece somente aqui.
+- As etapas formam uma faixa horizontal abaixo da identidade, com oito visíveis no desktop e rolagem lateral. Nomes e ícones legíveis, sem rótulos redundantes de estado; contagens e durações reais permanecem. A faixa acompanha a etapa ativa até o usuário voltar manualmente. Não existe percentual, ETA ou barra de progresso temporal.
 - Ao terminar, o ticket sai imediatamente desta faixa e passa ao histórico. Um terminal ou queued nunca ocupa esta região.
 
 ### Fila e histórico
@@ -133,3 +133,16 @@ explícita é operacional e auditável, descrita em `docs/INSTALL.md`; a UI não
 adivinha projeto por caminho nem oferece ação de reclassificar registros.
 
 O cursor do log respeita linhas completas. Linhas maiores que o trecho de leitura podem ser omitidas com aviso, e a exportação limitada a 8 MiB declara quando preserva somente início e fim. A redação de chaves reconhecidas não substitui a obrigação do consumidor de não imprimir segredos.
+
+### Identidade temporal e progresso encerrado — ajuste de 15/09/2026
+
+Card atual e drawer compartilham a apresentação temporal. Durante execução,
+mostram indicador animado, preset, início e **Decorrido:** atualizado localmente.
+No drawer terminal, mostram indicador final, término, tempo relativo ao término
+e **Duração:** apenas quando registrada. Nas tabelas, o tempo relativo fica
+somente no tooltip da data; espera da fila é intervalo, sem prefixo “há”.
+
+Etapas concluídas conservam seu resultado. Se o ticket encerrou e deixou etapas
+pendentes/em execução no registro, elas não animam nem aparentam atividade viva;
+a apresentação informa o encerramento sem inventar conclusão ou alterar arquivos.
+O conteúdo do drawer permite seleção nativa de texto e não fecha por arraste.

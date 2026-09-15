@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react"
-import { formatRelativeTime, jobDuration } from "./format"
+import { formatDuration, formatTimelineDate, formatRelativeTime, jobDuration } from "./format"
 import type { JobRecord } from "@/lib/types"
 
 let now = Date.now()
@@ -35,4 +35,23 @@ export function JobDuration({
   job: Pick<JobRecord, "status" | "startedAt" | "durationMs">
 }) {
   return jobDuration(job, useLocalClock())
+}
+
+
+export function JobTimeline({ job }: { job: JobRecord }) {
+  const running = job.status === "running"
+  const terminal = ["passed", "failed", "cancelled", "interrupted"].includes(job.status ?? "")
+  const timestamp = running ? job.startedAt : job.finishedAt ?? job.createdAt
+  return <>
+    {formatTimelineDate(timestamp)}
+    {running ? <> · Decorrido: <JobDuration job={job} /></> : null}
+    {terminal && job.finishedAt ? <> · <RelativeTime value={job.finishedAt} /></> : null}
+    {terminal && typeof job.durationMs === "number" ? <> · Duração: <JobDuration job={job} /></> : null}
+  </>
+}
+
+export function QueueWait({ value }: { value?: string | null }) {
+  const now = useLocalClock()
+  const start = value ? Date.parse(value) : NaN
+  return formatDuration(Number.isFinite(start) ? Math.max(0, now - start) : undefined)
 }

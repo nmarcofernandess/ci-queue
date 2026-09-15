@@ -106,3 +106,32 @@ greens mode. Table headings use muted text without a colored background band;
 summary footers have no tinted band. Existing filtering semantics are preserved.
 
 Live facts -> existing Badge, Item description and chronology -> retry/counts and a shared local clock. No new shell. Unattributed history -> existing ghost Button and shared RunTable -> explicit legacy scope; no new table or nested filter.
+
+## Current execution strip — 15 September 2026
+
+Current execution stages use the installed horizontal `ScrollArea` + `ScrollBar`
+and `ItemGroup`/`Item`, with semantic status icons and `Separator` connectors.
+The strip occupies the card width below execution identity. Eight stages fit at
+the desktop reference viewport (1600 px); narrower widths scroll horizontally.
+New active stages are brought into view until the user scrolls manually. Returning
+to the right edge resumes following. The job drawer retains its recursive vertical
+tree. Browser regression uses twelve isolated stages and checks manual scroll,
+automatic following and narrow viewport overflow.
+
+The current preset uses the prominent title size with a two-line-height status
+indicator. Time, duration and branch share a wrapping metadata row. Collapsible
+chevrons point down while open and right while closed. Drawer content permits
+native text selection; dragging content must never dismiss the drawer. Closing
+remains available through Close, Escape and the outside overlay.
+
+## Execution identity scale — approved 15 September 2026
+
+Identity -> official ItemMedia + ItemContent; drawer retains DrawerTitle and
+DrawerDescription for accessible semantics. Current title is 20 px, drawer
+uses the native Nova 16 px title and 14 px description, history retains its
+compact table typography. JobStatusIcon owns explicit current/drawer/table
+sizes (48/44/16 px glyphs); callers never resize descendant SVGs.
+Drawer identity is left-aligned with zero gap between its two text lines.
+These are product presentation choices, not official shadcn variants.
+Metadata may wrap naturally on narrow screens; neither text nor icon scales
+to force a fixed two-line height.

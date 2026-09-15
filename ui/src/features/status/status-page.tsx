@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge"
-import { RelativeTime, JobDuration } from "@/features/shared/live-time"
+import { JobTimeline } from "@/features/shared/live-time"
 import * as React from "react"
 import { statusColor } from "@/features/shared/status-color"
 
@@ -44,6 +44,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item"
 import { Separator } from "@/components/ui/separator"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -65,7 +66,6 @@ import {
   formatBytes,
   formatDuration,
   shortSha,
-  formatTimelineDate,
   queryPeriodStart,
 } from "@/features/shared/format"
 import { JobDrawer } from "@/features/shared/job-drawer"
@@ -116,67 +116,66 @@ function stageIcon(status: JobStatus | "pending" | "skipped") {
   return CircleDotIcon
 }
 
-function stageDescription({
-  durationMs,
-  status,
-}: {
-  durationMs?: number
-  status: JobStatus | "pending" | "skipped"
-}) {
-  if (typeof durationMs === "number") {
-    return formatDuration(durationMs)
-  }
-  if (status === "running") {
-    return "Em execução."
-  }
-  if (status === "pending") {
-    return "Aguardando."
-  }
-  if (status === "skipped") {
-    return "Ignorada."
-  }
-  if (status === "failed") {
-    return "Falhou."
-  }
-  return "Concluída sem duração registrada."
-}
-
 function ExecutionStages({ stages }: { stages: ProgressNode[] }) {
+  const root = React.useRef<HTMLDivElement>(null)
+  const following = React.useRef(true)
+  const activeIndex = stages.findIndex((stage) => stage.status === "running")
+  const targetIndex = activeIndex >= 0 ? activeIndex : stages.length - 1
+  const targetId = stages[targetIndex]?.id
+
+  React.useEffect(() => {
+    const viewport = root.current?.querySelector<HTMLElement>(
+      '[data-slot="scroll-area-viewport"]'
+    )
+    if (!viewport) return
+    const track = () => {
+      if (viewport.scrollWidth - viewport.clientWidth - viewport.scrollLeft < 24) following.current = true
+    }
+    viewport.addEventListener("scroll", track, { passive: true })
+    return () => viewport.removeEventListener("scroll", track)
+  }, [])
+
+  React.useEffect(() => {
+    if (!following.current) return
+    const viewport = root.current?.querySelector<HTMLElement>(
+      '[data-slot="scroll-area-viewport"]'
+    )
+    const target = root.current?.querySelector<HTMLElement>(`[data-stage-index="${targetIndex}"]`)
+    if (!viewport || !target) return
+    // Move only this strip, never the page or the execution drawer.
+    const right = target.offsetLeft + target.offsetWidth
+    if (right > viewport.scrollLeft + viewport.clientWidth) {
+      viewport.scrollLeft = right - viewport.clientWidth
+    }
+  }, [targetId, targetIndex])
+
   return (
-    <ItemGroup className="gap-0">
-      {stages.map((stage, index) => {
-        const Icon = stageIcon(stage.status)
-        return (
-          <div
-            key={stage.id}
-            className="grid grid-cols-[1rem_minmax(0,1fr)] gap-3"
-          >
-            <div className="flex min-h-7 flex-col items-center">
-              <Icon
-                aria-hidden="true"
-                className={`${statusColor(stage.status)} ${stage.status === "running" ? "animate-spin" : ""}`}
-              />
-              {index < stages.length - 1 ? (
-                <Separator
-                  orientation="vertical"
-                  className="my-1 min-h-4 flex-1"
-                />
-              ) : null}
-            </div>
-            <Item
-              variant="default"
-              size="sm"
-              className="min-w-0 border-transparent px-0 py-0"
-            >
-              <ItemContent>
-                <ItemTitle>{stage.label}</ItemTitle>
-                <ItemDescription>{stageDescription(stage)}</ItemDescription>
+    <ScrollArea ref={root} className="@container min-w-0 w-full" aria-label="Etapas da execução"
+      onWheelCapture={() => { following.current = false }}
+      onPointerDownCapture={() => { following.current = false }}
+      onKeyDownCapture={(event) => {
+        if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) following.current = false
+      }}>
+      <ItemGroup className="flex-row gap-0 has-data-[size=sm]:gap-0 pb-3">
+        {stages.map((stage, index) => {
+          const Icon = stageIcon(stage.status)
+          return (
+            <Item key={stage.id} data-stage-index={index} size="sm"
+              className="w-[12.5cqw] min-w-28 shrink-0 flex-col items-start gap-2 border-transparent px-0 py-0 pr-3">
+              <div className="flex w-full items-center gap-2">
+                <Icon role="img" aria-label={stage.status === "running" ? "Em execução" : stage.status === "passed" ? "Passou" : stage.status === "pending" ? "Aguardando" : stage.status === "failed" ? "Falhou" : "Etapa encerrada"} className={`${statusColor(stage.status)} size-5 shrink-0 ${stage.status === "running" ? "animate-spin" : ""}`} />
+                {index < stages.length - 1 ? <Separator className="flex-1" /> : null}
+              </div>
+              <ItemContent className="min-w-0 w-full">
+                <ItemTitle className="max-w-full truncate text-base" title={stage.label}>{stage.label}</ItemTitle>
+                {typeof stage.durationMs === "number" ? <ItemDescription>{formatDuration(stage.durationMs)}</ItemDescription> : null}
               </ItemContent>
             </Item>
-          </div>
-        )
-      })}
-    </ItemGroup>
+          )
+        })}
+      </ItemGroup>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
   )
 }
 
@@ -211,7 +210,6 @@ function CurrentExecution({
     )
   }
 
-  const timestamp = current.startedAt
   const stages = current.progressSummary?.available
     ? (current.progressSummary.roots ?? [])
     : []
@@ -222,10 +220,10 @@ function CurrentExecution({
         <CardTitle>Execução atual</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)] md:items-start">
+        <div className="flex min-w-0 flex-col gap-5">
           <Item variant="default" className="border-transparent px-0 py-0">
-            <ItemMedia variant="icon">
-              <JobStatusIcon status={current.status} />
+            <ItemMedia variant="icon" className="self-start">
+              <JobStatusIcon status={current.status} size="current" />
             </ItemMedia>
             <ItemContent>
               <div className="flex items-center gap-1">
@@ -234,7 +232,7 @@ function CurrentExecution({
                     <Button
                       type="button"
                       variant="link"
-                      className="h-auto px-0 py-0"
+                      className="h-auto px-0 py-0 text-xl font-semibold"
                       onClick={() => onOpenJob(current.id)}
                     >
                       {current.preset}
@@ -258,15 +256,15 @@ function CurrentExecution({
                   <TooltipContent>Ver execução</TooltipContent>
                 </Tooltip>
               </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <ItemDescription>
-                {formatTimelineDate(timestamp)} ·{" "}
-                {<RelativeTime value={timestamp} />} ·{" "}
-                {<JobDuration job={current} />}
+                <JobTimeline job={current} />
               </ItemDescription>
               <ItemDescription>
                 {current.branch || "Branch não informada"} ·{" "}
                 <span className="font-mono">{shortSha(current.headSha)}</span>
               </ItemDescription>
+              </div>
               {current.progressSummary?.nodes?.some(
                 (node) => (node.retryCount ?? 0) > 0
               ) ? (
@@ -278,9 +276,7 @@ function CurrentExecution({
             </ItemContent>
           </Item>
           {stages.length ? (
-            <div className="border-t pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-5">
-              <ExecutionStages stages={stages} />
-            </div>
+            <ExecutionStages key={current.id} stages={stages} />
           ) : null}
         </div>
       </CardContent>

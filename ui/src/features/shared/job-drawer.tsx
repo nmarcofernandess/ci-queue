@@ -1,5 +1,5 @@
 import { useLiveLog } from "./use-live-log"
-import { RelativeTime, JobDuration } from "./live-time"
+import { JobTimeline } from "./live-time"
 import { statusColor } from "@/features/shared/status-color"
 import * as React from "react"
 
@@ -35,6 +35,7 @@ import {
   ItemActions,
   ItemContent,
   ItemGroup,
+  ItemMedia,
   ItemTitle,
 } from "@/components/ui/item"
 import {
@@ -64,10 +65,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
 import {
   formatDuration,
-  formatTimelineDate,
   statusLabel,
 } from "@/features/shared/format"
-import { JobStatusBadge } from "@/features/shared/run-table"
+import { JobStatusIcon } from "@/features/shared/run-table"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
 import {
   CheckCircle2Icon,
@@ -151,15 +151,6 @@ function StageGlyph({ status }: { status: ProgressNode["status"] }) {
   return <CircleDotIcon className={`size-4 shrink-0 ${statusColor(status)}`} />
 }
 
-function JobHeaderTimeline({ job }: { job: JobRecord }) {
-  const timestamp = job.finishedAt ?? job.startedAt ?? job.createdAt
-  return (
-    <DrawerDescription>
-      {formatTimelineDate(timestamp)} · {<RelativeTime value={timestamp} />} ·{" "}
-      {<JobDuration job={job} />}
-    </DrawerDescription>
-  )
-}
 
 function stageStatusLabel(
   status: "pending" | "running" | "passed" | "failed" | "skipped"
@@ -206,16 +197,22 @@ function JobDetailsTable({ job }: { job: JobRecord }) {
 function ProgressNodeRow({
   node,
   childrenByParent,
+  jobStatus,
 }: {
   node: ProgressNode
+  jobStatus: JobRecord["status"]
   childrenByParent: Map<string, ProgressNode[]>
 }) {
   const children = childrenByParent.get(node.id) ?? []
+  const stopped = jobStatus !== "running" && (node.status === "running" || node.status === "pending")
+  const label = stopped
+    ? jobStatus === "cancelled" ? "Interrompida pelo cancelamento" : "Execução encerrada; etapa sem conclusão registrada"
+    : stageStatusLabel(node.status)
   const content = (
     <Item className="min-w-0 border-transparent px-0 py-1">
       <ItemContent>
         <div className="flex min-w-0 items-center gap-2">
-          <StageGlyph status={node.status} />
+          <span title={label} aria-label={label}><StageGlyph status={stopped ? "skipped" : node.status} /></span>
           <ItemTitle className="truncate">{node.label}</ItemTitle>
           {typeof node.retryCount === "number" && node.retryCount > 0 ? (
             <Badge variant="outline">Flaky detectado</Badge>
@@ -229,11 +226,7 @@ function ProgressNodeRow({
           </p>
         ) : null}
       </ItemContent>
-      <ItemActions className="text-sm text-muted-foreground">
-        {typeof node.durationMs === "number"
-          ? formatDuration(node.durationMs)
-          : stageStatusLabel(node.status)}
-      </ItemActions>
+      {typeof node.durationMs === "number" ? <ItemActions className="text-sm text-muted-foreground">{formatDuration(node.durationMs)}</ItemActions> : null}
     </Item>
   )
   if (!children.length) return content
@@ -248,8 +241,9 @@ function ProgressNodeRow({
             variant="ghost"
             size="icon-sm"
             aria-label={`Expandir ${node.label}`}
+            className="group/stage-toggle"
           >
-            <ChevronDownIcon data-icon />
+            <ChevronDownIcon data-icon className="transition-transform group-data-[state=closed]/stage-toggle:-rotate-90" />
           </Button>
         </CollapsibleTrigger>
         <div className="min-w-0 flex-1">{content}</div>
@@ -260,6 +254,7 @@ function ProgressNodeRow({
             key={child.id}
             node={child}
             childrenByParent={childrenByParent}
+              jobStatus={jobStatus}
           />
         ))}
       </CollapsibleContent>
@@ -316,6 +311,7 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
               key={node.id}
               node={node}
               childrenByParent={childrenByParent}
+              jobStatus={job.data?.status}
             />
           ))}
         </ItemGroup>
@@ -639,19 +635,15 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
       <DrawerContent className="h-[80vh] min-h-0 sm:h-auto sm:w-[36rem] sm:max-w-[36rem]!">
         <DrawerHeader className="shrink-0 border-b">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
+            <Item className="min-w-0 flex-1 flex-nowrap items-start border-0 p-0">
+              {job.data ? <ItemMedia><JobStatusIcon status={job.data.status} size="drawer" /></ItemMedia> : null}
+              <ItemContent className="min-w-0 gap-0 text-left">
                 <DrawerTitle>{job.data?.preset || "Execução"}</DrawerTitle>
-                {job.data ? <JobStatusBadge status={job.data.status} /> : null}
-              </div>
-              {job.data ? (
-                <JobHeaderTimeline job={job.data} />
-              ) : (
                 <DrawerDescription>
-                  Carregando dados da execução…
+                  {job.data ? <JobTimeline job={job.data} /> : "Carregando dados da execução…"}
                 </DrawerDescription>
-              )}
-            </div>
+              </ItemContent>
+            </Item>
             <DrawerClose asChild>
               <Button
                 type="button"

@@ -1,4 +1,4 @@
-import { RelativeTime, JobDuration } from "./live-time"
+import { RelativeTime, JobDuration, QueueWait } from "./live-time"
 import * as React from "react"
 import {
   createColumnHelper,
@@ -75,7 +75,20 @@ export function JobStatusBadge({ status }: { status: JobStatus | undefined }) {
     </Badge>
   )
 }
-export function JobStatusIcon({ status }: { status: JobStatus | undefined }) {
+const indicatorSizes = {
+  table: { container: "size-8", icon: "size-4" },
+  drawer: { container: "size-11", icon: "size-11" },
+  current: { container: "size-12", icon: "size-12" },
+} as const
+
+export function JobStatusIcon({
+  status,
+  size = "table",
+}: {
+  status: JobStatus | undefined
+  size?: keyof typeof indicatorSizes
+}) {
+  const dimensions = indicatorSizes[size]
   const Icon =
     status === "passed"
       ? CheckCircle2Icon
@@ -92,11 +105,11 @@ export function JobStatusIcon({ status }: { status: JobStatus | undefined }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className={`inline-flex size-8 items-center justify-center ${statusColor(status)}`}
+          className={`inline-flex shrink-0 items-center justify-center ${dimensions.container} ${statusColor(status)}`}
           aria-label={statusLabel(status)}
         >
           <Icon
-            className={status === "running" ? "size-4 animate-spin" : "size-4"}
+            className={`${dimensions.icon} ${status === "running" ? "animate-spin" : ""}`}
           />
         </span>
       </TooltipTrigger>
@@ -196,15 +209,10 @@ function RunDataTable({
                 ? job.createdAt
                 : (job.finishedAt ?? job.startedAt ?? job.createdAt)
             return (
-              <span className="block truncate whitespace-nowrap text-muted-foreground">
-                {formatTimelineDate(at)}
-                {job.status !== "queued" ? (
-                  <>
-                    <span> · </span>
-                    <RelativeTime value={at} />
-                  </>
-                ) : null}
-              </span>
+              <Tooltip>
+                <TooltipTrigger asChild><span tabIndex={0} className="block truncate whitespace-nowrap text-muted-foreground">{formatTimelineDate(at)}</span></TooltipTrigger>
+                <TooltipContent><RelativeTime value={at} /></TooltipContent>
+              </Tooltip>
             )
           },
         }),
@@ -214,7 +222,7 @@ function RunDataTable({
           cell: ({ row }) => (
             <span className="block truncate whitespace-nowrap">
               {row.original.status === "queued" ? (
-                <RelativeTime value={row.original.createdAt} />
+                <QueueWait value={row.original.createdAt} />
               ) : (
                 <JobDuration job={row.original} />
               )}

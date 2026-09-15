@@ -36,15 +36,41 @@ test('live drawer preserves identity, recursive counts, cursor and terminal poll
   const drawer = page.getByRole('dialog')
   await expect(drawer.getByText('Retry case')).toBeVisible()
   await expect(drawer.getByText('0 de 1')).toBeVisible()
+  const expand = drawer.getByRole('button', {name:'Expandir E2E', exact:true})
+  await expect(expand).toHaveAttribute('data-state', 'open')
+  const openRotation = await expand.locator('svg').evaluate(el => getComputedStyle(el).rotate)
+  await expand.click()
+  await expect(expand).toHaveAttribute('data-state', 'closed')
+  await expect.poll(() => expand.locator('svg').evaluate(el => getComputedStyle(el).rotate)).not.toBe(openRotation)
+  await expand.click()
+
   await expect(drawer.getByRole('rowheader', { name: 'Estado', exact: true })).toHaveCount(0)
   await drawer.getByRole('tab', { name: 'Log', exact: true }).click()
   await expect(drawer.getByText('first line', { exact: true })).toBeVisible()
+  const logBounds = await drawer.locator('pre').evaluate(el => {
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    const rect = range.getBoundingClientRect()
+    return {x:rect.x,y:rect.y,width:rect.width,height:rect.height}
+  })
+  await page.mouse.move(logBounds!.x + 1, logBounds!.y + 5)
+  await page.mouse.down()
+  await page.mouse.move(logBounds!.x + logBounds!.width - 1, logBounds!.y + 5, {steps:12})
+  await page.mouse.up()
+  await expect(drawer).toBeVisible()
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain('first')
+
   terminal = true
   await expect(drawer.locator('pre')).toContainText('terminal line', { timeout: 8000 })
-  await expect(drawer.getByText('Passou', { exact: true })).toBeVisible()
+  await expect(drawer.getByLabel('Passou', { exact: true })).toBeVisible()
+  await expect(drawer.locator('.animate-spin')).toHaveCount(0)
+  await expect(drawer).toContainText('Duração: 1m 2s')
   const count = offsets.length
   await page.waitForTimeout(2500)
   expect(offsets.length).toBe(count)
+  await drawer.getByRole('tab', {name:'Progresso', exact:true}).click()
+  await expect(drawer.locator('.animate-spin')).toHaveCount(0)
+  await expect(drawer.getByLabel('Execução encerrada; etapa sem conclusão registrada').first()).toBeVisible()
   expect(offsets[0]).toBe(0)
   expect(offsets.slice(1).every(offset => offset > 0)).toBe(true)
 })
@@ -84,6 +110,8 @@ for (const width of [390, 820, 1440]) {
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await page.getByRole('button', { name: 'smoke', exact: true }).click()
     await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(page.getByRole('dialog').locator('[data-slot=drawer-title]')).toHaveCSS('text-align', 'left')
+    await expect(page.getByRole('dialog').locator('[data-slot=drawer-description]')).toHaveCSS('text-align', 'left')
     await expect(page.getByRole('dialog').getByRole('rowheader', { name: 'Ticket', exact: true })).toBeVisible()
     const bounds = await page.getByRole('dialog').boundingBox()
     expect(bounds!.width).toBeLessThanOrEqual(width)
@@ -245,4 +273,42 @@ test('log tab keeps loading distinct from an unavailable ticket', async ({ page 
   await expect(drawer.getByText('Log indisponível', { exact: true })).toHaveCount(0)
   releaseJob()
   await expect(drawer.locator('pre')).toHaveText('retained log')
+})
+
+test('current stages fit eight, overflow horizontally and follow without stealing manual scroll', async ({ page }) => {
+  let active = 0
+  await page.setViewportSize({ width: 1600, height: 1000 })
+  await page.clock.install()
+  await page.route('**/api/**', async route => {
+    const stages = Array.from({length: 12}, (_, index) => ({id: `stage-${index}`, label: `Etapa ${index + 1}`, kind: 'stage', status: index === active ? 'running' : index < active ? 'passed' : 'pending'}))
+    const data: Record<string, unknown> = {
+      '/api/session': {}, '/api/machine': {},
+      '/api/status': {running: {...baseJob, status:'running', progressSummary:{available:true, roots:stages, nodes:stages}}, queued:[], history:[]},
+      '/api/executions': {jobs:[],coverage:{}},
+      '/api/dashboard-state': {presets:[],meta:null,pending:[]},
+    }
+    await route.fulfill({json:data[new URL(route.request().url()).pathname] ?? {}})
+  })
+  await page.goto('/')
+  const strip = page.getByLabel('Etapas da execução')
+  const viewport = strip.locator('[data-slot="scroll-area-viewport"]')
+  await expect(strip.getByText('Etapa 8', {exact:true})).toBeVisible()
+  const geometry = await viewport.evaluate(el => {
+    const items = el.querySelectorAll('[data-stage-index]')
+    return {width:el.clientWidth, total:el.scrollWidth, first:items[0].getBoundingClientRect().left, eighth:items[7].getBoundingClientRect().right}
+  })
+  expect(geometry.eighth - geometry.first).toBeLessThanOrEqual(geometry.width + 1)
+  expect(geometry.total).toBeGreaterThan(geometry.width)
+  active = 10
+  await page.clock.fastForward(6000)
+  await expect.poll(() => viewport.evaluate(el => el.scrollLeft)).toBeGreaterThan(0)
+  await viewport.hover()
+  await page.mouse.wheel(-1200, 0)
+  await expect.poll(() => viewport.evaluate(el => el.scrollLeft)).toBe(0)
+  active = 11
+  await page.clock.fastForward(6000)
+  await expect(strip.getByText('Etapa 12', {exact:true})).toBeAttached()
+  expect(await viewport.evaluate(el => el.scrollLeft)).toBe(0)
+  await page.setViewportSize({width:390,height:844})
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
