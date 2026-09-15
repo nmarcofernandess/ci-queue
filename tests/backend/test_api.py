@@ -171,26 +171,20 @@ class HistoryAndAnalysisTests(Fixture):
         self.assertEqual(row["duration"]["count"], 230)
         self.assertEqual(row["failedDurationMs"], 30000)
         self.assertEqual(row["failedDurationMissing"], 1)
-        self.assertEqual(result["problemTotal"], 2)
+        self.assertNotIn("problems", result)
+        self.assertNotIn("problemTotal", result)
 
-    def test_analysis_paginates_every_problem_without_hiding_the_fifty_first(self):
+    def test_analysis_keeps_statistics_without_duplicating_failed_jobs(self):
         for index in range(51):
             self.job("failed-%03d" % index, status="failed", exitCode=1,
                      finishedAt="2026-09-13T10:%02d:00Z" % (index % 60))
 
         first = read_analysis(self.state, self.config,
                               "2026-09-13T00:00:00Z", "2026-09-14T00:00:00Z")
-        second = read_analysis(self.state, self.config,
-                               "2026-09-13T00:00:00Z", "2026-09-14T00:00:00Z",
-                               offset=first["nextOffset"])
-
-        self.assertEqual(first["problemTotal"], 51)
-        self.assertEqual(len(first["problems"]), 50)
-        self.assertTrue(first["hasMore"])
-        self.assertEqual(first["nextOffset"], 50)
-        self.assertEqual([item["id"] for item in second["problems"]], ["failed-000"])
-        self.assertFalse(second["hasMore"])
-        self.assertIsNone(second["nextOffset"])
+        row = next(item for item in first["presets"] if item["preset"] == "smoke")
+        self.assertEqual(row["failed"], 51)
+        self.assertNotIn("problems", first)
+        self.assertNotIn("nextOffset", first)
 
     def test_status_keeps_global_occupancy_but_project_history_scoped(self):
         self.job("old")
@@ -199,8 +193,28 @@ class HistoryAndAnalysisTests(Fixture):
         }), encoding="utf-8")
         payload = status_snapshot(self.state, "example", "Example project")
         self.assertTrue(payload["globalOccupancy"])
-        self.assertEqual(payload["running"]["projectId"], "other")
+        self.assertIsNone(payload["running"])
         self.assertEqual([item["id"] for item in payload["history"]], ["old"])
+
+    def test_status_preserves_the_recursive_progress_contract(self):
+        (self.state / "running.json").write_text(json.dumps({
+            "id": "running", "projectId": "example", "preset": "full", "status": "running"
+        }), encoding="utf-8")
+        (self.state / "progress" / "running.json").write_text(json.dumps({
+            "nodes": [
+                {"id": "static", "label": "Static", "status": "passed", "kind": "stage", "durationMs": 1000},
+                {"id": "gates", "parentId": "static", "label": "Gates", "status": "passed", "kind": "group"},
+                {"id": "typecheck", "parentId": "gates", "label": "typecheck", "status": "passed", "retryCount": 1},
+                {"id": "jest", "label": "Jest", "status": "running", "detail": "14 de 20"},
+            ]
+        }), encoding="utf-8")
+
+        summary = status_snapshot(self.state, "example", "Example project")["running"]["progressSummary"]
+        self.assertEqual([node["id"] for node in summary["roots"]], ["static", "jest"])
+        self.assertEqual(summary["active"][0]["detail"], "14 de 20")
+        child = next(node for node in summary["nodes"] if node["id"] == "typecheck")
+        self.assertEqual(child["parentId"], "gates")
+        self.assertEqual(child["retryCount"], 1)
 
 
 class RemoteGreensTests(Fixture):
@@ -506,7 +520,7 @@ class WorktreeTests(Fixture):
         config = load_project_config(self.config_path)
         report = list_worktrees(config)
         self.assertEqual(len(report["worktrees"]), 1)
-        self.assertEqual(report["worktrees"][0]["size"]["state"], "unmeasured")
+        self.assertIn(report["worktrees"][0]["size"]["state"], {"measuring", "ready"})
         detail = worktree_view(config, report["worktrees"][0]["id"])
         self.assertIn(detail["size"]["state"], {"measuring", "ready"})
 

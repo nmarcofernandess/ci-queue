@@ -234,8 +234,7 @@ def create_handler(context):
                 if parsed.path == "/api/analysis":
                     self.send_payload(200, read_analysis(self.api_context.state_root, self.api_context.config,
                                                          query.get("from", [""])[0], query.get("to", [""])[0],
-                                                         query.get("preset", [""])[0],
-                                                         _integer(query.get("offset", ["0"])[0], "offset")))
+                                                         query.get("preset", [""])[0]))
                     return
                 if parsed.path == "/api/machine":
                     self.send_payload(200, read_machine(self.api_context.state_root))

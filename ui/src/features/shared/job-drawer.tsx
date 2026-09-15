@@ -9,7 +9,15 @@ import {
   type ApiQuery,
   useApiQuery,
 } from "@/lib/api"
-import type { Diagnostic, JobRecord, LogExport, LogSlice } from "@/lib/types"
+import type {
+  Diagnostic,
+  JobRecord,
+  LogExport,
+  LogSlice,
+  ProgressNode,
+} from "@/lib/types"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -36,7 +44,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -58,6 +70,7 @@ import { JobStatusBadge } from "@/features/shared/run-table"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
 import {
   CheckCircle2Icon,
+  ChevronDownIcon,
   ClipboardIcon,
   CircleDotIcon,
   DownloadIcon,
@@ -121,150 +134,24 @@ function diagnosticBundle(diagnostic: Diagnostic, logExport?: LogExport) {
 
 type DiagnosticExportAction = "copy-diagnostic" | "download-diagnostic"
 
-type PagedLogQuery = ApiQuery<LogSlice> & {
-  loadMore: () => void
-  loadingMore: boolean
-  loadMoreError: Error | undefined
-}
-
-function mergeLogSlices(first: LogSlice, pages: LogSlice[]) {
-  return pages.reduce<LogSlice>(
-    (combined, page) => ({
-      ...page,
-      content: `${combined.content}${page.content}`,
-      offset: first.offset,
-    }),
-    first
+function useLiveLog(jobId: string, enabled: boolean) {
+  const request = React.useCallback(
+    () => getLog(jobId, 0, 8 * 1024 * 1024),
+    [jobId]
   )
-}
-
-function usePagedLog(jobId: string, enabled: boolean): PagedLogQuery {
-  const request = React.useCallback(() => getLog(jobId), [jobId])
-  const initial = useApiQuery(`log:${jobId}`, request, { enabled })
-  const { reload: reloadInitial } = initial
-  const [pageState, setPageState] = React.useState<{
-    jobId: string
-    pages: LogSlice[]
-    loadingMore: boolean
-    loadMoreError: Error | undefined
-  }>({
-    jobId,
-    pages: [],
-    loadingMore: false,
-    loadMoreError: undefined,
+  return useApiQuery<LogSlice>(`log:${jobId}`, request, {
+    enabled,
+    pollMs: 2_000,
   })
-  const requestVersion = React.useRef(0)
-  const loadingMore = pageState.jobId === jobId ? pageState.loadingMore : false
-  const loadMoreError =
-    pageState.jobId === jobId ? pageState.loadMoreError : undefined
-
-  const data = React.useMemo(() => {
-    if (!initial.data || initial.data.jobId !== jobId) {
-      return undefined
-    }
-    return mergeLogSlices(
-      initial.data,
-      pageState.jobId === jobId ? pageState.pages : []
-    )
-  }, [initial.data, jobId, pageState])
-
-  const reload = React.useCallback(() => {
-    requestVersion.current += 1
-    setPageState({
-      jobId,
-      pages: [],
-      loadingMore: false,
-      loadMoreError: undefined,
-    })
-    reloadInitial()
-  }, [jobId, reloadInitial])
-
-  const loadMore = React.useCallback(() => {
-    if (
-      !data ||
-      data.error ||
-      data.complete ||
-      data.nextOffset >= data.sourceBytes ||
-      loadingMore
-    ) {
-      return
-    }
-
-    const offset = data.nextOffset
-    const version = requestVersion.current
-    setPageState((current) => ({
-      jobId,
-      pages: current.jobId === jobId ? current.pages : [],
-      loadingMore: true,
-      loadMoreError: undefined,
-    }))
-
-    void getLog(jobId, offset)
-      .then((page) => {
-        if (requestVersion.current !== version || page.offset !== offset) {
-          return
-        }
-        setPageState((current) => {
-          if (current.jobId !== jobId) {
-            return current
-          }
-          return {
-            ...current,
-            pages: [...current.pages, page],
-          }
-        })
-      })
-      .catch((reason) => {
-        if (requestVersion.current !== version) {
-          return
-        }
-        setPageState((current) => {
-          if (current.jobId !== jobId) {
-            return current
-          }
-          return {
-            ...current,
-            loadMoreError:
-              reason instanceof Error
-                ? reason
-                : new Error("Não foi possível carregar mais do log."),
-          }
-        })
-      })
-      .finally(() => {
-        if (requestVersion.current === version) {
-          setPageState((current) =>
-            current.jobId === jobId
-              ? { ...current, loadingMore: false }
-              : current
-          )
-        }
-      })
-  }, [data, jobId, loadingMore])
-
-  return {
-    ...initial,
-    data,
-    reload,
-    loadMore,
-    loadingMore,
-    loadMoreError,
-  }
 }
 
-function stageIcon(
-  status: "pending" | "running" | "passed" | "failed" | "skipped"
-) {
-  if (status === "passed") {
-    return CheckCircle2Icon
-  }
-  if (status === "failed") {
-    return XCircleIcon
-  }
-  if (status === "running") {
-    return LoaderCircleIcon
-  }
-  return CircleDotIcon
+function StageGlyph({ status }: { status: ProgressNode["status"] }) {
+  if (status === "passed")
+    return <CheckCircle2Icon className="size-4 shrink-0" />
+  if (status === "failed") return <XCircleIcon className="size-4 shrink-0" />
+  if (status === "running")
+    return <LoaderCircleIcon className="size-4 shrink-0 animate-spin" />
+  return <CircleDotIcon className="size-4 shrink-0" />
 }
 
 function JobHeaderTimeline({ job }: { job: JobRecord }) {
@@ -319,12 +206,69 @@ function JobDetailsTable({ job }: { job: JobRecord }) {
   )
 }
 
-function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
-  if (job.loading) {
-    return <Skeleton className="h-52 w-full" />
-  }
+function ProgressNodeRow({
+  node,
+  childrenByParent,
+}: {
+  node: ProgressNode
+  childrenByParent: Map<string, ProgressNode[]>
+}) {
+  const children = childrenByParent.get(node.id) ?? []
+  const content = (
+    <Item className="min-w-0 border-transparent px-0 py-1">
+      <ItemContent>
+        <div className="flex min-w-0 items-center gap-2">
+          <StageGlyph status={node.status} />
+          <ItemTitle className="truncate">{node.label}</ItemTitle>
+          {typeof node.retryCount === "number" && node.retryCount > 0 ? (
+            <Badge variant="outline">Flaky detectado</Badge>
+          ) : null}
+        </div>
+        {node.detail ? (
+          <p className="text-sm text-muted-foreground">{node.detail}</p>
+        ) : null}
+      </ItemContent>
+      <ItemActions className="text-sm text-muted-foreground">
+        {typeof node.durationMs === "number"
+          ? formatDuration(node.durationMs)
+          : stageStatusLabel(node.status)}
+      </ItemActions>
+    </Item>
+  )
+  if (!children.length) return content
+  return (
+    <Collapsible
+      defaultOpen={node.status === "running" || node.status === "failed"}
+    >
+      <div className="flex items-center gap-1">
+        <CollapsibleTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Expandir ${node.label}`}
+          >
+            <ChevronDownIcon />
+          </Button>
+        </CollapsibleTrigger>
+        <div className="min-w-0 flex-1">{content}</div>
+      </div>
+      <CollapsibleContent className="ml-5 border-l pl-4">
+        {children.map((child) => (
+          <ProgressNodeRow
+            key={child.id}
+            node={child}
+            childrenByParent={childrenByParent}
+          />
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
 
-  if (job.error) {
+function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
+  if (job.loading) return <Skeleton className="h-52 w-full" />
+  if (job.error)
     return (
       <ErrorState
         title="Não foi possível carregar a execução"
@@ -332,70 +276,73 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
         onRetry={job.reload}
       />
     )
-  }
-
-  if (!job.data) {
+  if (!job.data)
     return (
       <EmptyState
         title="Execução indisponível"
         description="O ticket solicitado não está disponível neste projeto."
       />
     )
+  const nodes =
+    job.data.progressSummary?.nodes ?? job.data.progressSummary?.roots ?? []
+  const childrenByParent = new Map<string, ProgressNode[]>()
+  for (const node of nodes) {
+    if (!node.parentId) continue
+    childrenByParent.set(node.parentId, [
+      ...(childrenByParent.get(node.parentId) ?? []),
+      node,
+    ])
   }
-
-  const stages = job.data.progressSummary?.roots ?? []
-
+  const roots = nodes.filter(
+    (node) =>
+      !node.parentId ||
+      !nodes.some((candidate) => candidate.id === node.parentId)
+  )
   return (
     <div className="flex flex-col gap-5">
       <JobDetailsTable job={job.data} />
-      {stages.length ? (
-        <ItemGroup className="gap-0">
-          {stages.map((stage, index) => {
-            const Icon = stageIcon(stage.status)
-            return (
-              <div
-                key={stage.id}
-                className="grid grid-cols-[1rem_minmax(0,1fr)] gap-3"
-              >
-                <div className="flex min-h-10 flex-col items-center pt-2">
-                  <Icon
-                    aria-hidden="true"
-                    className={
-                      stage.status === "running" ? "animate-spin" : undefined
-                    }
-                  />
-                  {index < stages.length - 1 ? (
-                    <Separator
-                      orientation="vertical"
-                      className="my-1 min-h-4 flex-1"
-                    />
-                  ) : null}
-                </div>
-                <Item className="border-transparent px-0 py-1">
-                  <ItemContent>
-                    <ItemTitle>{stage.label}</ItemTitle>
-                  </ItemContent>
-                  <ItemActions className="text-sm text-muted-foreground">
-                    {typeof stage.durationMs === "number"
-                      ? formatDuration(stage.durationMs)
-                      : stageStatusLabel(stage.status)}
-                  </ItemActions>
-                </Item>
-              </div>
-            )
-          })}
-        </ItemGroup>
+      {job.data.failureReason ? (
+        <Alert variant="destructive">
+          <FileWarningIcon />
+          <AlertTitle>Motivo da falha</AlertTitle>
+          <AlertDescription>{job.data.failureReason}</AlertDescription>
+        </Alert>
       ) : null}
+      {roots.length ? (
+        <ItemGroup className="gap-1">
+          {roots.map((node) => (
+            <ProgressNodeRow
+              key={node.id}
+              node={node}
+              childrenByParent={childrenByParent}
+            />
+          ))}
+        </ItemGroup>
+      ) : (
+        <EmptyState
+          title="Progresso não registrado"
+          description="Esta execução não publicou etapas estruturadas."
+        />
+      )}
     </div>
   )
 }
 
-function LogPanel({ log }: { log: PagedLogQuery }) {
-  if (log.loading) {
-    return <Skeleton className="h-64 w-full" />
-  }
-
-  if (log.error) {
+function LogPanel({
+  log,
+  running,
+}: {
+  log: ApiQuery<LogSlice>
+  running: boolean
+}) {
+  const viewport = React.useRef<HTMLDivElement>(null)
+  const [following, setFollowing] = React.useState(true)
+  React.useEffect(() => {
+    if (!following || !viewport.current) return
+    viewport.current.scrollTop = viewport.current.scrollHeight
+  }, [following, log.data?.content])
+  if (log.loading) return <Skeleton className="h-64 w-full" />
+  if (log.error)
     return (
       <ErrorState
         title="Não foi possível ler o log"
@@ -403,9 +350,7 @@ function LogPanel({ log }: { log: PagedLogQuery }) {
         onRetry={log.reload}
       />
     )
-  }
-
-  if (!log.data || log.data.error) {
+  if (!log.data || log.data.error)
     return (
       <EmptyState
         title="Log indisponível"
@@ -414,38 +359,37 @@ function LogPanel({ log }: { log: PagedLogQuery }) {
         }
       />
     )
-  }
-
-  const canLoadMore =
-    !log.data.complete && log.data.nextOffset < log.data.sourceBytes
-
   return (
-    <div className="flex flex-col gap-3">
-      <pre className="font-mono text-xs leading-5 break-words whitespace-pre-wrap text-foreground">
-        {log.data.content || "Log vazio."}
-      </pre>
-      {!log.data.complete ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm text-muted-foreground">
-            Exibidos {log.data.nextOffset.toLocaleString("pt-BR")} de{" "}
-            {log.data.sourceBytes.toLocaleString("pt-BR")} bytes.
-          </p>
-          {log.loadMoreError ? (
-            <p className="text-sm text-destructive" role="alert">
-              {log.loadMoreError.message}
-            </p>
-          ) : null}
-          {canLoadMore ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={log.loadMore}
-              disabled={log.loadingMore}
-            >
-              {log.loadingMore ? "Carregando log" : "Carregar mais do log"}
-            </Button>
-          ) : null}
-        </div>
+    <div className="relative h-full min-h-0">
+      <div
+        ref={viewport}
+        className="h-full overflow-auto px-4 py-5"
+        onScroll={(event) => {
+          const target = event.currentTarget
+          setFollowing(
+            target.scrollHeight - target.scrollTop - target.clientHeight < 24
+          )
+        }}
+      >
+        <pre className="font-mono text-xs leading-5 break-words whitespace-pre-wrap text-foreground">
+          {log.data.content || "Log vazio."}
+        </pre>
+      </div>
+      {!following ? (
+        <Button
+          type="button"
+          size="sm"
+          className="absolute right-5 bottom-5"
+          onClick={() => {
+            setFollowing(true)
+            requestAnimationFrame(() => {
+              if (viewport.current)
+                viewport.current.scrollTop = viewport.current.scrollHeight
+            })
+          }}
+        >
+          {running ? "Acompanhar" : "Ir ao fim"}
+        </Button>
       ) : null}
     </div>
   )
@@ -648,7 +592,7 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
   const [logRequested, setLogRequested] = React.useState(false)
   const jobRequest = React.useCallback(() => getJob(jobId), [jobId])
   const job = useApiQuery(`job:${jobId}`, jobRequest)
-  const log = usePagedLog(jobId, logRequested)
+  const log = useLiveLog(jobId, logRequested)
   const session = useDashboardSession()
 
   const copyContext = async () => {
@@ -675,7 +619,7 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
       }}
       direction={isMobile ? "bottom" : "right"}
     >
-      <DrawerContent className="min-h-0 sm:max-w-2xl!">
+      <DrawerContent className="h-[80vh] min-h-0 sm:h-auto sm:w-[36rem] sm:max-w-[36rem]!">
         <DrawerHeader className="shrink-0 border-b">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -728,9 +672,7 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
             </ScrollArea>
           </TabsContent>
           <TabsContent value="log" className="min-h-0 overflow-hidden px-0">
-            <ScrollArea className="h-full px-4 py-5">
-              <LogPanel log={log} />
-            </ScrollArea>
+            <LogPanel log={log} running={job.data?.status === "running"} />
           </TabsContent>
         </Tabs>
         <DrawerFooter className="shrink-0 border-t sm:flex-row sm:justify-end">

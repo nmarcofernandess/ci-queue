@@ -10,6 +10,7 @@ import {
   CheckIcon,
   ChevronDownIcon,
   CopyIcon,
+  EyeIcon,
   FolderGit2Icon,
   FolderOpenIcon,
   InboxIcon,
@@ -51,6 +52,11 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -255,7 +261,7 @@ function WorktreeDrawer({
       onOpenChange={(open) => !open && onClose()}
       direction={isMobile ? "bottom" : "right"}
     >
-      <DrawerContent className="min-h-0 sm:max-w-xl">
+      <DrawerContent className="min-h-0 sm:w-[36rem] sm:max-w-[36rem]!">
         <DrawerHeader className="shrink-0 border-b">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -341,7 +347,7 @@ function WorktreeDrawer({
                         : detail.data.size.state === "measuring"
                           ? "Medindo…"
                           : detail.data.size.error ||
-                            "A medição começa ao abrir este drawer."}
+                            "Atualização automática pendente."}
                     </TableCell>
                   </TableRow>
                 </TableBody>
@@ -426,19 +432,14 @@ function WorktreeDataTable({
         worktreeColumnHelper.accessor("path", {
           header: "Worktree",
           cell: ({ row }) => (
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <Button
-                type="button"
-                variant="link"
-                className="h-auto w-fit justify-start p-0 font-medium"
-                onClick={() => onOpen(row.original.id)}
-              >
-                {worktreeName(row.original.path)}
-              </Button>
-              <span className="max-w-100 truncate text-xs text-muted-foreground">
-                {row.original.path}
-              </span>
-            </div>
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto max-w-72 justify-start truncate p-0 font-medium"
+              onClick={() => onOpen(row.original.id)}
+            >
+              {worktreeName(row.original.path)}
+            </Button>
           ),
         }),
         worktreeColumnHelper.accessor("branch", {
@@ -464,6 +465,26 @@ function WorktreeDataTable({
               {row.original.dirty === false ? <CheckIcon data-icon /> : null}
               {cleanlinessLabel(row.original)}
             </Badge>
+          ),
+        }),
+        worktreeColumnHelper.display({
+          id: "actions",
+          header: () => <span className="sr-only">Ações</span>,
+          cell: ({ row }) => (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Ver ${worktreeName(row.original.path)}`}
+                  onClick={() => onOpen(row.original.id)}
+                >
+                  <EyeIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Ver worktree</TooltipContent>
+            </Tooltip>
           ),
         }),
       ]),
@@ -510,7 +531,7 @@ function WorktreeDataTable({
                 data-state={row.getIsSelected() ? "selected" : undefined}
               >
                 {row.getAllCells().map((cell) => (
-                  <TableCell key={cell.id} className="align-top">
+                  <TableCell key={cell.id} className="h-12 align-middle">
                     <table.FlexRender cell={cell} />
                   </TableCell>
                 ))}
@@ -688,7 +709,9 @@ function WorktreeTable({
 export function WorktreesPage() {
   const worktreeRequest = React.useCallback(() => getWorktrees(), [])
   const projectRequest = React.useCallback(() => getDashboardState(), [])
-  const worktrees = useApiQuery("worktrees", worktreeRequest)
+  const worktrees = useApiQuery("worktrees", worktreeRequest, {
+    pollMs: 60_000,
+  })
   const project = useApiQuery("worktree-project", projectRequest)
   const session = useDashboardSession()
 

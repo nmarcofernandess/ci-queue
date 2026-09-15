@@ -132,7 +132,6 @@ export function getAnalysis(
     from?: string
     to?: string
     preset?: string
-    offset?: number
   } = {}
 ) {
   return requestJson<AnalysisResponse>("/api/analysis", query)

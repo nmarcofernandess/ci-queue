@@ -15,7 +15,7 @@ import {
   type ApiQuery,
   useApiQuery,
 } from "@/lib/api"
-import type { AnalysisPreset, AnalysisResponse, JobRecord } from "@/lib/types"
+import type { AnalysisPreset, AnalysisResponse } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
@@ -49,7 +49,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
 import {
@@ -57,35 +56,10 @@ import {
   formatDuration,
   queryPeriodStart,
 } from "@/features/shared/format"
-import { JobDrawer } from "@/features/shared/job-drawer"
-import { RunTable } from "@/features/shared/run-table"
-
-type AnalysisTab = "statistics" | "problems"
 type StatisticsView = "results" | "duration"
 type Period = "all" | "week" | "month" | "quarter"
 
 const DURATION_PRESET_QUERY_KEY = "analysisPreset"
-
-function readAnalysisTab(): AnalysisTab {
-  if (typeof window === "undefined") return "statistics"
-  return new URLSearchParams(window.location.search).get("analysisTab") ===
-    "problems"
-    ? "problems"
-    : "statistics"
-}
-
-function writeAnalysisTab(tab: AnalysisTab) {
-  if (typeof window === "undefined") return
-  const url = new URL(window.location.href)
-  if (tab === "problems") url.searchParams.set("analysisTab", "problems")
-  else url.searchParams.delete("analysisTab")
-  url.hash = "analysis"
-  window.history.replaceState(
-    window.history.state,
-    "",
-    `${url.pathname}${url.search}${url.hash}`
-  )
-}
 
 const resultChartConfig = {
   passed: { label: "Passou", color: "var(--primary)" },
@@ -152,11 +126,6 @@ function validPreset(value: string, presets: string[]) {
   return value && presets.includes(value) ? value : ""
 }
 
-function appendProblemPage(existing: JobRecord[], next: JobRecord[]) {
-  const seen = new Set(existing.map((job) => job.id))
-  return [...existing, ...next.filter((job) => !seen.has(job.id))]
-}
-
 function ResultsChart({
   presets,
   loading,
@@ -192,46 +161,58 @@ function ResultsChart({
         <CardTitle>Resultados por preset</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <ChartContainer
-          config={resultChartConfig}
-          className="aspect-auto h-72 w-full"
-        >
-          <BarChart
-            accessibilityLayer
-            data={presets}
-            margin={{ left: 4, right: 12, top: 12 }}
+        <div className="overflow-x-auto">
+          <ChartContainer
+            config={resultChartConfig}
+            className="aspect-auto h-72 max-w-none"
+            style={{ width: Math.max(720, presets.length * 120) }}
           >
-            <CartesianGrid vertical={false} />
-            <XAxis dataKey="preset" tickLine={false} axisLine={false} />
-            <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-            <ChartTooltip
-              content={<ChartTooltipContent indicator="dashed" />}
-            />
-            <ChartLegend content={<ChartLegendContent />} />
-            <Bar
-              dataKey="passed"
-              stackId="results"
-              fill="var(--color-passed)"
-              radius={[0, 0, 0, 0]}
-            />
-            <Bar
-              dataKey="failed"
-              stackId="results"
-              fill="var(--color-failed)"
-            />
-            <Bar
-              dataKey="cancelled"
-              stackId="results"
-              fill="var(--color-cancelled)"
-            />
-            <Bar
-              dataKey="interrupted"
-              stackId="results"
-              fill="var(--color-interrupted)"
-              radius={[4, 4, 0, 0]}
-            />
-          </BarChart>
-        </ChartContainer>
+            <BarChart
+              accessibilityLayer
+              data={presets}
+              margin={{ left: 4, right: 12, top: 12 }}
+            >
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="preset"
+                interval={0}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value) => {
+                  const label = String(value)
+                  return label.length > 18 ? `${label.slice(0, 16)}…` : label
+                }}
+              />
+              <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+              <ChartTooltip
+                content={<ChartTooltipContent indicator="dashed" />}
+              />
+              <ChartLegend content={<ChartLegendContent />} />
+              <Bar
+                dataKey="passed"
+                stackId="results"
+                fill="var(--color-passed)"
+                radius={[0, 0, 0, 0]}
+              />
+              <Bar
+                dataKey="failed"
+                stackId="results"
+                fill="var(--color-failed)"
+              />
+              <Bar
+                dataKey="cancelled"
+                stackId="results"
+                fill="var(--color-cancelled)"
+              />
+              <Bar
+                dataKey="interrupted"
+                stackId="results"
+                fill="var(--color-interrupted)"
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ChartContainer>
+        </div>
         <div className="overflow-hidden rounded-lg border">
           <Table>
             <TableHeader className="bg-muted">
@@ -330,6 +311,10 @@ function DurationChart({
     points.map((point) => point.durationMs),
     1_000
   )
+  const nonNegativeDurationDomain = [
+    Math.max(0, durationDomain[0]),
+    durationDomain[1],
+  ] as const
 
   return (
     <Card className="max-w-5xl">
@@ -358,7 +343,7 @@ function DurationChart({
         >
           <ScatterChart
             accessibilityLayer
-            margin={{ left: 4, right: 12, top: 12 }}
+            margin={{ left: 12, right: 16, top: 12, bottom: 16 }}
           >
             <CartesianGrid />
             <XAxis
@@ -377,7 +362,8 @@ function DurationChart({
               type="number"
               dataKey="durationMs"
               name="Duração"
-              domain={durationDomain}
+              domain={nonNegativeDurationDomain}
+              width={72}
               tickCount={4}
               tickLine={false}
               axisLine={false}
@@ -449,7 +435,7 @@ function AnalysisControls({
         </SelectContent>
       </Select>
       <Select
-        value={preset || (durationRequiresPreset ? undefined : "all")}
+        value={preset || (durationRequiresPreset ? "" : "all")}
         onValueChange={(value) => onPreset(value === "all" ? "" : value)}
       >
         <SelectTrigger aria-label="Preset da análise">
@@ -545,100 +531,12 @@ function AnalysisStatistics({
   )
 }
 
-function ProblemsTable({
-  analysis,
-  from,
-  preset,
-  onOpenJob,
-}: {
-  analysis: ApiQuery<AnalysisResponse>
-  from: string | undefined
-  preset: string
-  onOpenJob: (jobId: string) => void
-}) {
-  const [pages, setPages] = React.useState<
-    Array<Pick<AnalysisResponse, "problems" | "hasMore" | "nextOffset">>
-  >([])
-  const [loadingMore, setLoadingMore] = React.useState(false)
-  const [loadMoreError, setLoadMoreError] = React.useState<Error>()
-  const matchingInitial =
-    analysis.data &&
-    analysis.data.from === (from ?? null) &&
-    analysis.data.preset === (preset || null)
-      ? analysis.data
-      : undefined
-  const loadedPages = matchingInitial
-    ? [
-        {
-          problems: matchingInitial.problems,
-          hasMore: matchingInitial.hasMore,
-          nextOffset: matchingInitial.nextOffset,
-        },
-        ...pages,
-      ]
-    : []
-  const lastPage = loadedPages.at(-1)
-  const jobs = loadedPages.reduce(
-    (all, page) => appendProblemPage(all, page.problems),
-    [] as JobRecord[]
-  )
-
-  const loadMore = React.useCallback(async () => {
-    if (!lastPage?.hasMore || lastPage.nextOffset === null || loadingMore) {
-      return
-    }
-    setLoadingMore(true)
-    setLoadMoreError(undefined)
-    try {
-      const next = await getAnalysis({
-        from,
-        preset: preset || undefined,
-        offset: lastPage.nextOffset,
-      })
-      setPages((current) => [
-        ...current,
-        {
-          problems: next.problems,
-          hasMore: next.hasMore,
-          nextOffset: next.nextOffset,
-        },
-      ])
-    } catch (reason) {
-      setLoadMoreError(
-        reason instanceof Error
-          ? reason
-          : new Error("Não foi possível carregar mais problemas.")
-      )
-    } finally {
-      setLoadingMore(false)
-    }
-  }, [from, lastPage, loadingMore, preset])
-
-  return (
-    <RunTable
-      title="Problemas"
-      jobs={matchingInitial ? jobs : undefined}
-      loading={analysis.loading && !matchingInitial}
-      error={analysis.error}
-      emptyDescription="Não há execução falha ou interrompida para os filtros selecionados."
-      onOpenJob={onOpenJob}
-      showFailureReason
-      hasMore={lastPage?.hasMore}
-      loadingMore={loadingMore}
-      loadMoreError={loadMoreError}
-      onLoadMore={() => void loadMore()}
-    />
-  )
-}
-
 export function AnalysisPage() {
-  const [tab, setTab] = React.useState<AnalysisTab>(readAnalysisTab)
   const [view, setView] = React.useState<StatisticsView>("results")
   const [period, setPeriod] = React.useState<Period>("all")
   const [preset, setPreset] = React.useState("")
   const [lastDurationPreset, setLastDurationPreset] =
     React.useState(readDurationPreset)
-  const [selectedJobId, setSelectedJobId] = React.useState<string>()
   const periodStart = React.useMemo(() => {
     if (period === "quarter") {
       const from = new Date()
@@ -657,11 +555,9 @@ export function AnalysisPage() {
     () => validPreset(lastDurationPreset, presetNames),
     [lastDurationPreset, presetNames]
   )
-
   const selectedPreset = preset === "all" ? "" : preset
   const durationPreset =
     validPreset(selectedPreset, presetNames) || rememberedDurationPreset
-
   const handlePreset = React.useCallback((next: string) => {
     setPreset(next)
     if (next && next !== "all") {
@@ -669,79 +565,30 @@ export function AnalysisPage() {
       writeDurationPreset(next)
     }
   }, [])
-
-  const effectivePreset =
-    tab === "statistics" && view === "duration"
-      ? durationPreset
-      : selectedPreset
+  const effectivePreset = view === "duration" ? durationPreset : selectedPreset
   const analysisRequest = React.useCallback(
     () =>
-      getAnalysis({
-        from: periodStart,
-        preset: effectivePreset || undefined,
-      }),
+      getAnalysis({ from: periodStart, preset: effectivePreset || undefined }),
     [effectivePreset, periodStart]
   )
   const analysis = useApiQuery(
     `analysis:${period}:${effectivePreset}`,
     analysisRequest
   )
-  const problemKey = `${periodStart ?? "all"}:${effectivePreset}`
 
   return (
     <main className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
       <h1 className="text-2xl font-semibold tracking-tight">Análise</h1>
-      <Tabs
-        value={tab}
-        onValueChange={(value) => {
-          if (value === "statistics" || value === "problems") {
-            setTab(value)
-            writeAnalysisTab(value)
-          }
-        }}
-      >
-        <TabsList variant="line" className="max-w-full overflow-x-auto">
-          <TabsTrigger value="statistics">Estatísticas</TabsTrigger>
-          <TabsTrigger value="problems">Problemas</TabsTrigger>
-        </TabsList>
-        <TabsContent value="statistics" className="pt-5">
-          <AnalysisStatistics
-            view={view}
-            period={period}
-            preset={effectivePreset}
-            presets={presetNames}
-            analysis={analysis}
-            onView={setView}
-            onPeriod={setPeriod}
-            onPreset={handlePreset}
-          />
-        </TabsContent>
-        <TabsContent value="problems" className="pt-5">
-          <div className="flex flex-col gap-5">
-            <AnalysisControls
-              period={period}
-              preset={preset}
-              presets={presetNames}
-              durationRequiresPreset={false}
-              onPeriod={setPeriod}
-              onPreset={handlePreset}
-            />
-            <ProblemsTable
-              key={problemKey}
-              analysis={analysis}
-              from={periodStart}
-              preset={effectivePreset}
-              onOpenJob={setSelectedJobId}
-            />
-          </div>
-        </TabsContent>
-      </Tabs>
-      {selectedJobId ? (
-        <JobDrawer
-          jobId={selectedJobId}
-          onClose={() => setSelectedJobId(undefined)}
-        />
-      ) : null}
+      <AnalysisStatistics
+        view={view}
+        period={period}
+        preset={effectivePreset}
+        presets={presetNames}
+        analysis={analysis}
+        onView={setView}
+        onPeriod={setPeriod}
+        onPreset={handlePreset}
+      />
     </main>
   )
 }

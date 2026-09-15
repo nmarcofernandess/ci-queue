@@ -7,8 +7,10 @@ import {
 import {
   CheckCircle2Icon,
   CircleDotIcon,
+  EyeIcon,
   InboxIcon,
   LoaderCircleIcon,
+  MinusCircleIcon,
   XCircleIcon,
 } from "lucide-react"
 
@@ -30,6 +32,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { ErrorState } from "@/features/shared/async-state"
 import {
   formatDuration,
@@ -40,7 +47,7 @@ import {
 } from "@/features/shared/format"
 import type { JobRecord, JobStatus } from "@/lib/types"
 
-const runTableFeatures = tableFeatures({})
+const features = tableFeatures({})
 export type RunTableJob = Omit<JobRecord, "id"> & {
   id?: string
   ticketId?: string
@@ -50,24 +57,20 @@ export type RunTableJob = Omit<JobRecord, "id"> & {
   origin?: "machine" | "git"
   origins?: Array<"machine" | "git">
 }
-
-const runColumnHelper = createColumnHelper<
-  typeof runTableFeatures,
-  RunTableJob
->()
-const EMPTY_JOBS: RunTableJob[] = []
+const helper = createColumnHelper<typeof features, RunTableJob>()
+const EMPTY: RunTableJob[] = []
 
 function statusVariant(status: JobStatus | undefined) {
-  if (status === "failed" || status === "interrupted") {
-    return "destructive" as const
-  }
-  if (status === "passed") {
-    return "secondary" as const
-  }
-  return "outline" as const
+  return status === "failed" || status === "interrupted"
+    ? ("destructive" as const)
+    : status === "passed"
+      ? ("secondary" as const)
+      : ("outline" as const)
 }
-
 export function JobStatusBadge({ status }: { status: JobStatus | undefined }) {
+  return <Badge variant={statusVariant(status)}>{statusLabel(status)}</Badge>
+}
+export function JobStatusIcon({ status }: { status: JobStatus | undefined }) {
   const Icon =
     status === "passed"
       ? CheckCircle2Icon
@@ -77,15 +80,23 @@ export function JobStatusBadge({ status }: { status: JobStatus | undefined }) {
             status === "interrupted" ||
             status === "cancelled"
           ? XCircleIcon
-          : CircleDotIcon
+          : status === "queued"
+            ? CircleDotIcon
+            : MinusCircleIcon
   return (
-    <Badge variant={statusVariant(status)}>
-      <Icon
-        data-icon
-        className={status === "running" ? "animate-spin" : undefined}
-      />
-      {statusLabel(status)}
-    </Badge>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="inline-flex size-8 items-center justify-center"
+          aria-label={statusLabel(status)}
+        >
+          <Icon
+            className={status === "running" ? "size-4 animate-spin" : "size-4"}
+          />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{statusLabel(status)}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -104,111 +115,162 @@ export type RunTableProps = {
   onLoadMore?: () => void
   showOrigin?: boolean
   showFailureReason?: boolean
+  kind?: "queue" | "terminal"
+}
+function detailId(job: RunTableJob) {
+  return (
+    job.detailsJobId ?? (job.detailsAvailable !== false ? job.id : undefined)
+  )
+}
+
+function columnClass(id: string) {
+  if (id === "status") return "w-16"
+  if (id === "execution") return "w-36"
+  if (id === "time") return "w-36"
+  if (id === "duration") return "w-20"
+  if (id === "actions") return "w-10"
+  return undefined
 }
 
 function RunDataTable({
   jobs,
   onOpenJob,
   showOrigin = false,
-  showFailureReason = false,
 }: {
   jobs: RunTableJob[]
   onOpenJob: (jobId: string) => void
   showOrigin?: boolean
-  showFailureReason?: boolean
 }) {
+  const queued = jobs.some((job) => job.status === "queued")
   const columns = React.useMemo(
     () =>
-      runColumnHelper.columns([
-        runColumnHelper.display({
+      helper.columns([
+        helper.display({
+          id: "status",
+          header: "Estado",
+          cell: ({ row }) => <JobStatusIcon status={row.original.status} />,
+        }),
+        helper.display({
           id: "execution",
           header: "Execução",
           cell: ({ row }) => {
             const job = row.original
-            const timestamp = job.finishedAt ?? job.startedAt ?? job.createdAt
-            const detailJobId =
-              job.detailsJobId ??
-              (job.detailsAvailable !== false ? job.id : undefined)
-            return (
-              <div className="flex min-w-52 flex-col items-start gap-1.5">
-                <div className="flex max-w-full flex-wrap items-center gap-2">
-                  {job.preset ? (
-                    detailJobId === undefined ? (
-                      <span className="font-medium">{job.preset}</span>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="link"
-                        className="h-auto max-w-full justify-start px-0 py-0 text-left"
-                        onClick={() => onOpenJob(detailJobId)}
-                      >
-                        {job.preset}
-                      </Button>
-                    )
-                  ) : (
-                    <span className="font-medium">Preset não informado</span>
-                  )}
-                  <JobStatusBadge status={job.status} />
-                </div>
-                <span className="text-sm text-muted-foreground">
-                  {job.status === "queued"
-                    ? `${formatTimelineDate(timestamp)} · na fila ${formatRelativeTime(timestamp)}`
-                    : `${formatTimelineDate(timestamp)} · ${formatRelativeTime(timestamp)} · ${formatDuration(job.durationMs)}`}
+            const id = detailId(job)
+            return job.preset ? (
+              id ? (
+                <Button
+                  variant="link"
+                  className="h-auto w-full min-w-0 justify-start truncate p-0"
+                  onClick={() => onOpenJob(id)}
+                >
+                  {job.preset}
+                </Button>
+              ) : (
+                <span className="block w-full min-w-0 truncate font-medium">
+                  {job.preset}
                 </span>
-              </div>
+              )
+            ) : (
+              <span className="text-muted-foreground">Não informada</span>
             )
           },
         }),
-        runColumnHelper.display({
-          id: "context",
-          header: "Contexto",
+        helper.display({
+          id: "time",
+          header: queued ? "Entrada" : "Término",
+          cell: ({ row }) => {
+            const job = row.original
+            const at =
+              job.status === "queued"
+                ? job.createdAt
+                : (job.finishedAt ?? job.startedAt ?? job.createdAt)
+            return (
+              <span className="block truncate whitespace-nowrap text-muted-foreground">
+                {formatTimelineDate(at)} · {formatRelativeTime(at)}
+              </span>
+            )
+          },
+        }),
+        helper.display({
+          id: "duration",
+          header: queued ? "Espera" : "Duração",
+          cell: ({ row }) => (
+            <span className="block truncate whitespace-nowrap">
+              {row.original.status === "queued"
+                ? formatRelativeTime(row.original.createdAt)
+                : formatDuration(row.original.durationMs)}
+            </span>
+          ),
+        }),
+        helper.display({
+          id: "revision",
+          header: "Revisão",
           cell: ({ row }) => {
             const job = row.original
             const origins = job.origins ?? (job.origin ? [job.origin] : [])
-            const originLabel = origins
-              .map((origin) => (origin === "machine" ? "Máquina" : "Git"))
-              .join(" · ")
+            const origin = origins
+              .map((value) => (value === "machine" ? "Máquina" : "Git"))
+              .join(" + ")
+            const label =
+              [shortSha(job.headSha), job.branch].filter(Boolean).join(" · ") ||
+              "Não informada"
             return (
-              <div className="flex flex-col gap-1 text-muted-foreground">
-                <span>Ticket {job.ticketId ?? job.id ?? "indisponível"}</span>
-                <span>{job.branch || "Branch não informada"}</span>
-                <span className="font-mono text-xs">
-                  {shortSha(job.headSha)}
-                </span>
-                {showOrigin && originLabel ? (
-                  <span className="text-xs">Origem: {originLabel}</span>
-                ) : null}
-                {showFailureReason && job.failureReason ? (
-                  <span className="max-w-xl text-xs whitespace-normal text-destructive">
-                    {job.failureReason}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="block max-w-64 truncate font-mono text-xs">
+                    {label}
                   </span>
-                ) : null}
-              </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {label}
+                  {showOrigin && origin ? ` · ${origin}` : ""}
+                </TooltipContent>
+              </Tooltip>
             )
           },
         }),
+        helper.display({
+          id: "actions",
+          header: () => <span className="sr-only">Ações</span>,
+          cell: ({ row }) => {
+            const id = detailId(row.original)
+            return id ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Ver ${row.original.preset ?? "execução"}`}
+                    onClick={() => onOpenJob(id)}
+                  >
+                    <EyeIcon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Ver execução</TooltipContent>
+              </Tooltip>
+            ) : null
+          },
+        }),
       ]),
-    [onOpenJob, showFailureReason, showOrigin]
+    [onOpenJob, queued, showOrigin]
   )
   const table = useTable({
     columns,
     data: jobs,
-    features: runTableFeatures,
+    features,
     getRowId: (row) =>
-      row.rowKey ??
-      row.id ??
-      row.ticketId ??
-      row.preset ??
-      "registro-indisponível",
+      row.rowKey ?? row.id ?? row.ticketId ?? `${row.preset}-${row.finishedAt}`,
   })
-
   return (
-    <Table>
-      <TableHeader className="bg-muted">
-        {table.getHeaderGroups().map((headerGroup) => (
-          <TableRow key={headerGroup.id}>
-            {headerGroup.headers.map((header) => (
-              <TableHead key={header.id}>
+    <Table className="min-w-[40rem] table-fixed">
+      <TableHeader className="bg-muted/50">
+        {table.getHeaderGroups().map((group) => (
+          <TableRow key={group.id}>
+            {group.headers.map((header) => (
+              <TableHead
+                key={header.id}
+                className={columnClass(header.column.id)}
+              >
                 {header.isPlaceholder ? null : (
                   <table.FlexRender header={header} />
                 )}
@@ -221,7 +283,10 @@ function RunDataTable({
         {table.getRowModel().rows.map((row) => (
           <TableRow key={row.id}>
             {row.getAllCells().map((cell) => (
-              <TableCell key={cell.id} className="align-top">
+              <TableCell
+                key={cell.id}
+                className={`h-12 overflow-hidden py-2 ${columnClass(cell.column.id) ?? ""}`}
+              >
                 <table.FlexRender cell={cell} />
               </TableCell>
             ))}
@@ -232,25 +297,52 @@ function RunDataTable({
   )
 }
 
-function RunEmptyTable({
+function headers(kind: "queue" | "terminal") {
+  return [
+    "Estado",
+    "Execução",
+    kind === "queue" ? "Entrada" : "Término",
+    kind === "queue" ? "Espera" : "Duração",
+    "Revisão",
+    "",
+  ]
+}
+function EmptyTable({
   title,
   description,
+  kind,
 }: {
   title: string
   description: string
+  kind: "queue" | "terminal"
 }) {
   return (
-    <Table>
-      <TableHeader className="bg-muted">
+    <Table className="table-fixed">
+      <TableHeader className="bg-muted/50">
         <TableRow>
-          <TableHead>Execução</TableHead>
-          <TableHead>Contexto</TableHead>
+          {headers(kind).map((header, index) => (
+            <TableHead
+              key={`${header}-${index}`}
+              className={columnClass(
+                [
+                  "status",
+                  "execution",
+                  "time",
+                  "duration",
+                  "revision",
+                  "actions",
+                ][index]
+              )}
+            >
+              {header}
+            </TableHead>
+          ))}
         </TableRow>
       </TableHeader>
       <TableBody>
         <TableRow>
-          <TableCell colSpan={2} className="p-0">
-            <Empty className="min-h-44 border-0">
+          <TableCell colSpan={6} className="p-0">
+            <Empty className="sticky left-0 w-[calc(100vw-2rem)] border-0 py-8 sm:static sm:w-auto">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
                   <InboxIcon />
@@ -266,21 +358,6 @@ function RunEmptyTable({
   )
 }
 
-function RunTableHeader({
-  title,
-  description,
-}: Pick<RunTableProps, "title" | "description">) {
-  return (
-    <div>
-      <h2 className="text-base font-medium">{title}</h2>
-      {description ? (
-        <p className="text-sm text-muted-foreground">{description}</p>
-      ) : null}
-    </div>
-  )
-}
-
-/** Official DataTable composition adapted to the two-column CI execution contract. */
 export function RunTable({
   title,
   description,
@@ -295,36 +372,38 @@ export function RunTable({
   loadMoreError,
   onLoadMore,
   showOrigin = false,
-  showFailureReason = false,
+  kind = "terminal",
 }: RunTableProps) {
-  const data = jobs ?? EMPTY_JOBS
-
+  const data = jobs ?? EMPTY
   return (
     <section
       className="flex flex-col gap-3"
       aria-labelledby={`${title}-heading`}
     >
       <div id={`${title}-heading`}>
-        <RunTableHeader title={title} description={description} />
+        <h2 className="text-base font-medium">{title}</h2>
+        {description ? (
+          <p className="text-sm text-muted-foreground">{description}</p>
+        ) : null}
       </div>
       {loading ? (
         <div className="overflow-hidden rounded-lg border">
           <Table>
-            <TableHeader className="bg-muted">
+            <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead>Execução</TableHead>
-                <TableHead>Contexto</TableHead>
+                {headers(kind).map((h, i) => (
+                  <TableHead key={`${h}-${i}`}>{h}</TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {[0, 1, 2].map((index) => (
-                <TableRow key={index}>
-                  <TableCell>
-                    <Skeleton className="h-4 w-40" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-4 w-52" />
-                  </TableCell>
+              {[0, 1, 2].map((i) => (
+                <TableRow key={i}>
+                  {headers(kind).map((_, j) => (
+                    <TableCell key={j}>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                  ))}
                 </TableRow>
               ))}
             </TableBody>
@@ -339,16 +418,19 @@ export function RunTable({
       ) : null}
       {!loading && !error && !data.length ? (
         <div className="overflow-hidden rounded-lg border">
-          <RunEmptyTable title={emptyTitle} description={emptyDescription} />
+          <EmptyTable
+            title={emptyTitle}
+            description={emptyDescription}
+            kind={kind}
+          />
         </div>
       ) : null}
       {!loading && !error && data.length ? (
-        <div className="overflow-hidden rounded-lg border">
+        <div className="overflow-x-auto rounded-lg border">
           <RunDataTable
             jobs={data}
             onOpenJob={onOpenJob}
             showOrigin={showOrigin}
-            showFailureReason={showFailureReason}
           />
         </div>
       ) : null}
@@ -358,14 +440,11 @@ export function RunTable({
         </p>
       ) : null}
       {hasMore && onLoadMore ? (
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={onLoadMore}
-          disabled={loadingMore}
-        >
-          {loadingMore ? "Carregando execuções" : "Carregar mais execuções"}
-        </Button>
+        <div>
+          <Button variant="outline" disabled={loadingMore} onClick={onLoadMore}>
+            {loadingMore ? "Carregando…" : "Carregar mais"}
+          </Button>
+        </div>
       ) : null}
     </section>
   )

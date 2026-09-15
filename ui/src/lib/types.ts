@@ -6,15 +6,20 @@ export type ProgressNodeStatus =
 
 export type ProgressNode = {
   id: string
+  parentId?: string
+  kind?: string
   label: string
   status: ProgressNodeStatus
   durationMs?: number
+  retryCount?: number
+  detail?: string
 }
 
 export type ProgressSummary = {
   schemaVersion: number
   available: boolean
   reason?: string
+  nodes?: ProgressNode[]
   roots?: ProgressNode[]
   active?: ProgressNode[]
 }
@@ -180,10 +185,6 @@ export type AnalysisResponse = {
   preset: string | null
   total: number
   presets: AnalysisPreset[]
-  problems: JobRecord[]
-  problemTotal: number
-  hasMore: boolean
-  nextOffset: number | null
   coverage: { unattributedRecords: number }
 }
 

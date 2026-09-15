@@ -40,6 +40,7 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
   FieldSet,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -178,7 +179,7 @@ function MetaEditor({
       </FieldSet>
 
       <FieldSet>
-        <legend className="text-sm font-medium">Requisitos</legend>
+        <FieldLegend>Requisitos</FieldLegend>
         <FieldGroup>
           {availablePresets.map((preset) => (
             <Field key={preset} orientation="horizontal">
@@ -564,7 +565,7 @@ export function StatusStateDrawer({
       onOpenChange={(open) => !open && onClose()}
       direction={isMobile ? "bottom" : "right"}
     >
-      <DrawerContent className="min-h-0 sm:max-w-xl">
+      <DrawerContent className="min-h-0 sm:w-[36rem] sm:max-w-[36rem]!">
         <DrawerHeader className="shrink-0 border-b">
           <div className="flex items-start justify-between gap-3">
             <div>

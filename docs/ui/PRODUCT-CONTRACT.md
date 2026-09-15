@@ -22,9 +22,9 @@ A página tem uma faixa de execução atual acima de um grid com coluna principa
 
 ### Execução atual
 
-- Só existe para um ticket realmente `running`.
-- Preset é o título e somente esse título abre o drawer.
-- O indicador de estado fica junto do título.
+- A região permanece visível; vazia usa `Empty` compacto com **Nenhuma execução em andamento**.
+- Quando há ticket `running`, preset e a ação ocular final abrem o mesmo drawer.
+- Existe um único indicador de estado, no início do item.
 - Abaixo: data e hora, tempo relativo e duração decorrida.
 - Depois: branch e SHA; o assunto do commit aparece somente aqui.
 - As etapas ficam lateralmente em telas largas e usam bolinhas/checks ligados por separadores. Não existe percentual, ETA ou barra de progresso temporal.
@@ -32,12 +32,7 @@ A página tem uma faixa de execução atual acima de um grid com coluna principa
 
 ### Fila e histórico
 
-Fila e histórico usam o mesmo componente DataTable do Dashboard 01, com duas colunas:
-
-- **Execução:** preset clicável, estado e, abaixo, data/hora, tempo relativo e duração.
-- **Contexto:** ticket, branch e SHA.
-
-Somente o título do preset abre o drawer. Data, duração, estado e contexto não são links.
+Fila, histórico e últimos verdes usam a mesma composição DataTable do Dashboard 01. Cada execução ocupa uma única linha: **Estado** por ícone, **Execução**, **Término/Entrada**, **Duração/Espera**, **Revisão** com SHA curto e branch e **Ações**. Preset e a ação ocular final abrem o drawer; a linha e os demais fatos são inertes.
 
 A fila contém apenas tickets `queued`, na ordem da fila, e não possui busca ou filtros. Seu vazio usa o `Empty` oficial com o título **Fila livre** e sem repetir a última execução.
 
@@ -45,16 +40,17 @@ O histórico contém apenas tickets terminais. Acima e fora da borda da tabela f
 
 1. busca por preset, branch, SHA ou ticket;
 2. ToggleGroup segmentado Execuções / Últimos verdes;
-3. selects diretos do modo;
-4. Limpar, somente quando houver filtro aplicado.
+3. select direto de período e de agrupamento Por preset/Por commit;
+4. uma segunda linha de ToggleGroup exclusivo para resultado ou origem;
+5. Limpar, somente quando houver filtro aplicado.
 
 Execuções oferece período Todo período, Hoje, 48h, Semana ou 15 dias, e resultado Todos, Passou, Falhou, Cancelado ou Interrompido. Não existe intervalo livre, calendário, popover contendo select nem controle duplicado.
 
-Últimos verdes oferece origem Máquina, Git ou Ambos e agrupamento Por preset ou Por commit. O padrão é último verde de cada preset. O período não escolhe um verde anterior e esse modo não pagina. A leitura Git nunca força rede por conta própria.
+Últimos verdes inicia em origem Todos e oferece Todos, Máquina ou Git, com agrupamento Por preset ou Por commit. Por preset mostra uma linha por receita, sem contagem. Por commit mostra uma linha agregada por SHA e abre um drawer de 36rem com SHA, branches, origem e as execuções canônicas daquele commit. Execuções vindas somente do Git permanecem legíveis e não fabricam log local. O período oculta o verde canônico atual fora da janela, nunca escolhe um verde anterior. Esse modo não pagina e a leitura Git nunca força rede por conta própria.
 
 ### Coluna direita
 
-- **Máquina:** somente disco livre atual e a ação **Ocorrências e recursos**, que leva a Análise. Não exibe estado “normal”, memória, idade da leitura ou refresh por card.
+- **Máquina:** somente disco livre atual. Não exibe ação, estado “normal”, memória, idade da leitura ou refresh por card.
 - **Meta para main:** uma única meta, formada por nome, descrição e presets acompanhados. O usuário não digita SHA. Cada requisito lê o último verde canônico da receita atual; o título de um requisito atendido abre esse ticket. O progresso `x de y` é a quantidade real de presets com verde canônico. Só existe `candidateSha` quando todos os requisitos estão verdes na mesma revisão; verdes em revisões diferentes são mostrados como tal e não fabricam um candidato. A meta pode ser criada, editada e removida e nunca bloqueia CI ou merge.
 - **Pendências:** recomendações automáticas e não bloqueantes de validação, emitidas de forma idempotente por um consumidor para um preset declarado. Cada item preserva preset, motivo, revisão, data e PR quando houver, além da tentativa posterior mais recente. Não existem nota livre, título manual, tags, vínculo com arquivo, `progressNodeId`, botão **Nova pendência** nem edição no dashboard. Um verde canônico posterior da máquina ou de um slot Git verificado, cuja revisão contém a revisão recomendada, resolve o item automaticamente. Falha ao registrar ou publicar a recomendação permanece observável e nunca bloqueia o fluxo. O vazio é **Nenhuma pendência**.
 
@@ -64,8 +60,10 @@ Execuções oferece período Todo período, Hoje, 48h, Semana ou 15 dias, e resu
 - Header fixo: estado, preset, data/hora, tempo relativo e duração.
 - Tabs Progresso/Log fixas; footer de ações fixo; somente o conteúdo central rola.
 - Progresso não repete estado, preset, início, duração ou saída. A tabela de detalhes contém somente Ticket, Branch, SHA e Diretório.
-- Etapas usam bolinhas/checks com conectores, sem barra temporal.
-- Log pagina sem deslocar header, tabs ou footer.
+- Etapas preservam a árvore recursiva completa; nós com filhos usam `Collapsible` oficial. Cada nó mantém identidade, parentesco, tipo, estado, duração, detalhe e retry quando publicados. Não existe barra temporal.
+- `retryCount > 0` mostra **Flaky detectado** durante a repetição e depois do término.
+- `failureReason`, quando existe, aparece como `Alert` **Motivo da falha** depois do contexto e antes da árvore. O log continua sendo saída bruta.
+- Log vivo abre acompanhando o final. Enquanto o usuário permanece no fim, novas linhas mantêm o scroll no fim; subir pausa o acompanhamento sem parar a leitura. **Acompanhar** ou **Ir ao fim** retoma conforme o job esteja vivo ou terminal.
 - Diagnóstico abre em Popover no footer e permite copiar/baixar o bundle; nunca vira um card abaixo do log.
 - Copiar contexto usa o mesmo conjunto de fatos visíveis e não inventa campos.
 - Não existe botão Fechar redundante no footer; o X do header e os gestos do Drawer encerram a superfície.
@@ -73,23 +71,20 @@ Execuções oferece período Todo período, Hoje, 48h, Semana ou 15 dias, e resu
 ## Worktrees
 
 - DataTable oficial com busca por pasta, branch ou SHA e seleção por Checkbox.
-- A linha inteira não abre o drawer. Somente o título da pasta abre.
+- A linha inteira não abre o drawer. O título da pasta e a ação ocular final abrem o mesmo drawer.
 - Estado visível distingue Limpa e Suja; não existe estado inventado “Parada”.
 - A seleção múltipla persiste por projeto e mostra uma barra de seleção com apenas Copiar.
 - Copiar abre DropdownMenu com Copiar caminho e Copiar contexto.
 - O drawer contém caminho, SHA, alterações, relação com a base e tamanho quando medido. Oferece Abrir e o mesmo menu Copiar.
-- Não há botões por linha nem idade de medição permanente. Remedir só é justificável quando a leitura não se atualiza rápido o suficiente.
+- Inventário Git e tamanhos atualizam automaticamente a cada 60 segundos por uma única fonte. Medições de tamanho são serializadas e preservam o último valor válido quando uma atualização falha. Não existe ação manual de medir ou atualizar.
 - Carregamento navegado preserva dados anteriores; não pisca um empty state técnico a cada entrada na rota.
 
 ## Análise
 
-A rota começa com Tabs **Estatísticas / Problemas**.
+A rota contém somente **Estatísticas**. Usa ToggleGroup **Resultados / Duração**, seguido por selects diretos de Período e Preset, todos alinhados à esquerda e quebrando linha em viewport estreita.
 
-Estatísticas usa ToggleGroup **Resultados / Duração**, seguido por selects diretos de Período e Preset, todos alinhados à esquerda e quebrando linha em viewport estreita.
-
-- **Resultados:** barras verticais empilhadas por preset para Passou, Falhou, Cancelado e Interrompido. O backend agrega toda a população retida do período, sem teto silencioso de 200 registros.
+- **Resultados:** barras verticais empilhadas por preset para Passou, Falhou, Cancelado e Interrompido. O backend agrega toda a população retida do período, sem teto silencioso de 200 registros. Quando há muitos presets, o gráfico mantém largura legível e rola horizontalmente; a tabela abaixo conserva todas as contagens exatas.
 - **Duração:** exige um preset específico e mostra mediana, faixa e tamanho da amostra antes do scatter plot. Usa apenas execuções aprovadas e comparáveis, com duração válida.
-- **Problemas:** reutiliza a DataTable de execução para failed/interrupted e abre o mesmo drawer. Mostra motivo somente quando existe evidência; não inventa classificador universal.
 
 Charts usam `ChartContainer`, `ChartTooltipContent` e `ChartLegendContent` oficiais da configuração Nova. Recharts fornece apenas séries e eixos. A altura é limitada; não existe gráfico raw, tooltip artesanal, linha interpolada ou histórico de RAM/disco da máquina.
 

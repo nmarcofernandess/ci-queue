@@ -174,12 +174,19 @@ def progress_summary(job, progress=None):
             roots.append(node)
     def public(node):
         result = {key: node[key] for key in ("id", "label", "status")}
+        for key in ("parentId", "kind", "detail"):
+            if isinstance(node.get(key), str):
+                result[key] = node[key]
         value = node.get("durationMs")
         if type(value) is int and value >= 0:
             result["durationMs"] = value
+        retry_count = node.get("retryCount")
+        if type(retry_count) is int and retry_count >= 0:
+            result["retryCount"] = retry_count
         return result
     active = [node for node in known.values() if node.get("status") == "running"] if job.get("status") == "running" else []
     return {**job, "progressSummary": {"schemaVersion": 1, "available": True,
+                                         "nodes": [public(node) for node in known.values()],
                                          "roots": [public(node) for node in roots],
                                          "active": [public(node) for node in active]}}
 
@@ -227,12 +234,14 @@ def status_snapshot(state_root, project_id, project_name):
             queued.append(row)
     project_history = [progress_summary(row) for row in history if project_record(row, project_id)]
     last_failed = next((row for row in project_history if row.get("status") in {"failed", "interrupted"}), None)
+    project_running = running if project_record(running, project_id) else None
+    project_queued = [row for row in queued if project_record(row, project_id)]
     return {
         "schemaVersion": 1,
         "project": {"id": project_id, "name": project_name},
         "serverTime": iso_now(),
-        "running": public_job(running),
-        "queued": [public_job(row) for row in queued],
+        "running": public_job(project_running),
+        "queued": [public_job(row) for row in project_queued],
         "history": [public_job(row) for row in project_history[:50]],
         "lastFailed": public_job(last_failed),
         "globalOccupancy": bool(running or queued),

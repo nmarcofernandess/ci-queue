@@ -4,7 +4,7 @@ import math
 import statistics
 
 from .history import canonical_green
-from .records import PAGE_SIZE, TERMINAL, parse_instant, read_history
+from .records import TERMINAL, parse_instant, read_history
 
 
 def _duration(job):
@@ -12,13 +12,11 @@ def _duration(job):
     return value if type(value) in (int, float) and math.isfinite(value) and value >= 0 and parse_instant(job.get("startedAt")) else None
 
 
-def read_analysis(state_root, config, from_time="", to_time="", preset="", offset=0):
+def read_analysis(state_root, config, from_time="", to_time="", preset=""):
     lower = parse_instant(from_time) if from_time else None
     upper = parse_instant(to_time) if to_time else None
     if (from_time and lower is None) or (to_time and upper is None) or (lower and upper and lower >= upper):
         raise ValueError("intervalo inválido")
-    if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
-        raise ValueError("offset inválido")
     if preset and preset not in config.presets:
         # An unknown recipe must not look like an empty duration series for an
         # arbitrary similarly named historical job.
@@ -74,10 +72,6 @@ def read_analysis(state_root, config, from_time="", to_time="", preset="", offse
         group["points"].reverse()
         presets.append(group)
     presets.sort(key=lambda group: group["preset"])
-    problems = [job for job in rows if job.get("status") in ("failed", "interrupted")]
-    fields = ("id", "preset", "status", "branch", "headSha", "createdAt", "startedAt", "finishedAt", "durationMs", "failureReason")
-    page = problems[offset:offset + PAGE_SIZE]
-    has_more = len(problems) > offset + len(page)
     return {
         "schemaVersion": 1,
         "projectId": config.project_id,
@@ -86,9 +80,5 @@ def read_analysis(state_root, config, from_time="", to_time="", preset="", offse
         "preset": preset or None,
         "total": len(rows),
         "presets": presets,
-        "problems": [{key: job.get(key) for key in fields} for job in page],
-        "problemTotal": len(problems),
-        "hasMore": has_more,
-        "nextOffset": offset + len(page) if has_more else None,
         "coverage": {"unattributedRecords": unknown},
     }

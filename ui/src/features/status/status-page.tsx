@@ -45,13 +45,26 @@ import { Separator } from "@/components/ui/separator"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { ErrorState, RefreshingLabel } from "@/features/shared/async-state"
 import {
   formatBytes,
@@ -63,15 +76,25 @@ import {
 } from "@/features/shared/format"
 import { JobDrawer } from "@/features/shared/job-drawer"
 import {
-  JobStatusBadge,
+  JobStatusIcon,
   type RunTableJob,
   RunTable,
 } from "@/features/shared/run-table"
 import { StatusStateDrawer } from "@/features/status/status-state-drawer"
 import {
+  GreenCommitDrawer,
+  GreenCommitTable,
+} from "@/features/status/green-commit-table"
+import {
+  groupGreenCommits,
+  type GreenCommitGroup,
+} from "@/features/status/green-commit"
+import {
   CheckCircle2Icon,
   CircleDotIcon,
   HardDriveIcon,
+  EyeIcon,
+  InboxIcon,
   LoaderCircleIcon,
   SearchIcon,
   XCircleIcon,
@@ -178,7 +201,30 @@ function CurrentExecution({
   const current =
     snapshot.running?.status === "running" ? snapshot.running : null
   if (!current) {
-    return null
+    return (
+      <Card size="sm">
+        <CardHeader>
+          <CardDescription className="font-medium tracking-wide uppercase">
+            Execução atual
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="py-2">
+          <Empty className="gap-2 border-0 p-2">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <InboxIcon />
+              </EmptyMedia>
+              <EmptyTitle>Nenhuma execução em andamento</EmptyTitle>
+              <EmptyDescription>
+                {snapshot.globalOccupancy
+                  ? "O executor está ocupado por outro projeto."
+                  : "A próxima execução do projeto aparecerá aqui."}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </CardContent>
+      </Card>
+    )
   }
 
   const timestamp = current.startedAt ?? current.createdAt
@@ -198,10 +244,10 @@ function CurrentExecution({
         <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)] md:items-start">
           <Item variant="default" className="border-transparent px-0 py-0">
             <ItemMedia variant="icon">
-              <LoaderCircleIcon className="animate-spin" />
+              <JobStatusIcon status={current.status} />
             </ItemMedia>
             <ItemContent>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1">
                 <ItemTitle>
                   {current.preset ? (
                     <Button
@@ -216,7 +262,20 @@ function CurrentExecution({
                     "Preset não informado"
                   )}
                 </ItemTitle>
-                <JobStatusBadge status={current.status} />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Ver ${current.preset ?? "execução"}`}
+                      onClick={() => onOpenJob(current.id)}
+                    >
+                      <EyeIcon />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Ver execução</TooltipContent>
+                </Tooltip>
               </div>
               <ItemDescription>
                 {formatTimelineDate(timestamp)} ·{" "}
@@ -276,11 +335,6 @@ function MachineCard() {
           )
         ) : null}
       </CardContent>
-      <CardFooter>
-        <Button type="button" variant="ghost" asChild>
-          <a href="?analysisTab=problems#analysis">Ocorrências e recursos</a>
-        </Button>
-      </CardFooter>
     </Card>
   )
 }
@@ -456,7 +510,11 @@ function StatusStateCards({
           )}
         </CardContent>
         <CardFooter>
-          <Button type="button" variant="ghost" onClick={() => onOpen("pending")}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpen("pending")}
+          >
             Abrir pendências
           </Button>
         </CardFooter>
@@ -497,100 +555,110 @@ function HistoryToolbar({
   const hasFilters =
     mode === "executions"
       ? Boolean(search || period !== "all" || result !== "all")
-      : Boolean(search || origin !== "machine" || grouping !== "preset")
+      : Boolean(
+          search ||
+          period !== "all" ||
+          origin !== "both" ||
+          grouping !== "preset"
+        )
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <InputGroup className="w-full sm:w-72">
-        <InputGroupAddon align="inline-start">
-          <SearchIcon />
-        </InputGroupAddon>
-        <InputGroupInput
-          value={search}
-          onChange={(event) => onSearch(event.target.value)}
-          placeholder="preset, branch, SHA ou ticket"
-        />
-      </InputGroup>
-      <ToggleGroup
-        type="single"
-        value={mode}
-        onValueChange={(value) => {
-          if (value === "executions" || value === "greens") onMode(value)
-        }}
-        variant="outline"
-        spacing={0}
-        aria-label="Modo do histórico"
-      >
-        <ToggleGroupItem value="executions">Execuções</ToggleGroupItem>
-        <ToggleGroupItem value="greens">Últimos verdes</ToggleGroupItem>
-      </ToggleGroup>
-      {mode === "executions" ? (
-        <>
-          <Select
-            value={period}
-            onValueChange={(value) => onPeriod(value as Period)}
-          >
-            <SelectTrigger aria-label="Período do histórico">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <InputGroup className="min-w-40 flex-1 sm:max-w-56">
+          <InputGroupAddon align="inline-start">
+            <SearchIcon />
+          </InputGroupAddon>
+          <InputGroupInput
+            value={search}
+            onChange={(event) => onSearch(event.target.value)}
+            placeholder="preset, branch, SHA ou ticket"
+          />
+        </InputGroup>
+        <ToggleGroup
+          type="single"
+          value={mode}
+          onValueChange={(value) => {
+            if (value === "executions" || value === "greens") onMode(value)
+          }}
+          variant="outline"
+          spacing={0}
+          aria-label="Modo do histórico"
+        >
+          <ToggleGroupItem value="executions">Execuções</ToggleGroupItem>
+          <ToggleGroupItem value="greens">Últimos verdes</ToggleGroupItem>
+        </ToggleGroup>
+        <Select
+          value={period}
+          onValueChange={(value) => onPeriod(value as Period)}
+        >
+          <SelectTrigger aria-label="Período do histórico">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
               <SelectItem value="all">Todo período</SelectItem>
               <SelectItem value="today">Hoje</SelectItem>
               <SelectItem value="48h">48h</SelectItem>
               <SelectItem value="week">Semana</SelectItem>
               <SelectItem value="15d">15 dias</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={result}
-            onValueChange={(value) => onResult(value as HistoryResult)}
-          >
-            <SelectTrigger aria-label="Resultado da execução">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="passed">Passou</SelectItem>
-              <SelectItem value="failed">Falhou</SelectItem>
-              <SelectItem value="cancelled">Cancelado</SelectItem>
-              <SelectItem value="interrupted">Interrompido</SelectItem>
-            </SelectContent>
-          </Select>
-        </>
-      ) : (
-        <>
-          <Select
-            value={origin}
-            onValueChange={(value) => onOrigin(value as GreenOrigin)}
-          >
-            <SelectTrigger aria-label="Origem dos últimos verdes">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="machine">Máquina</SelectItem>
-              <SelectItem value="git">Git</SelectItem>
-              <SelectItem value="both">Ambos</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={grouping}
-            onValueChange={(value) => onGrouping(value as GreenGrouping)}
-          >
-            <SelectTrigger aria-label="Agrupar últimos verdes">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <Select
+          value={grouping}
+          onValueChange={(value) => onGrouping(value as GreenGrouping)}
+        >
+          <SelectTrigger aria-label="Agrupamento do histórico">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
               <SelectItem value="preset">Por preset</SelectItem>
               <SelectItem value="commit">Por commit</SelectItem>
-            </SelectContent>
-          </Select>
-        </>
-      )}
-      {hasFilters ? (
-        <Button type="button" variant="ghost" onClick={onClear}>
-          Limpar
-        </Button>
-      ) : null}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        {hasFilters ? (
+          <Button type="button" variant="ghost" onClick={onClear}>
+            Limpar
+          </Button>
+        ) : null}
+      </div>
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        spacing={0}
+        value={mode === "executions" ? result : origin}
+        onValueChange={(value) => {
+          if (
+            mode === "executions" &&
+            ["all", "passed", "failed", "cancelled", "interrupted"].includes(
+              value
+            )
+          )
+            onResult(value as HistoryResult)
+          if (mode === "greens" && ["both", "machine", "git"].includes(value))
+            onOrigin(value as GreenOrigin)
+        }}
+        aria-label={mode === "executions" ? "Resultado" : "Origem"}
+      >
+        {mode === "executions" ? (
+          <>
+            <ToggleGroupItem value="all">Todos</ToggleGroupItem>
+            <ToggleGroupItem value="passed">Passou</ToggleGroupItem>
+            <ToggleGroupItem value="failed">Falhou</ToggleGroupItem>
+            <ToggleGroupItem value="cancelled">Cancelado</ToggleGroupItem>
+            <ToggleGroupItem value="interrupted">Interrompido</ToggleGroupItem>
+          </>
+        ) : (
+          <>
+            <ToggleGroupItem value="both">Todos</ToggleGroupItem>
+            <ToggleGroupItem value="machine">Máquina</ToggleGroupItem>
+            <ToggleGroupItem value="git">Git</ToggleGroupItem>
+          </>
+        )}
+      </ToggleGroup>
     </div>
   )
 }
@@ -621,7 +689,7 @@ const HISTORY_DEFAULTS: HistoryFilters = {
   search: "",
   period: "all",
   result: "all",
-  origin: "machine",
+  origin: "both",
   grouping: "preset",
 }
 
@@ -683,9 +751,9 @@ function writeHistoryFilters(filters: HistoryFilters) {
   if (filters.search) {
     url.searchParams.set("q", filters.search)
   }
+  url.searchParams.set("period", filters.period)
   if (filters.mode === "executions") {
     url.searchParams.set("result", filters.result)
-    url.searchParams.set("period", filters.period)
   } else {
     url.searchParams.set("group", filters.grouping)
     url.searchParams.set("origin", filters.origin)
@@ -945,12 +1013,15 @@ function filterGreens({
   jobs,
   search,
   grouping,
+  period,
 }: {
   jobs: RunTableJob[]
   search: string
   grouping: GreenGrouping
+  period: Period
 }) {
   const needle = search.trim().toLocaleLowerCase("pt-BR")
+  const from = queryPeriodStart(period)
   return jobs
     .filter((job) => {
       const haystack = [
@@ -963,7 +1034,10 @@ function filterGreens({
         .filter(Boolean)
         .join(" ")
         .toLocaleLowerCase("pt-BR")
-      return !needle || haystack.includes(needle)
+      return (
+        (!needle || haystack.includes(needle)) &&
+        (!from || (job.finishedAt ?? "") >= from)
+      )
     })
     .sort((left, right) => {
       const primary =
@@ -997,6 +1071,7 @@ function sourceFailure<T>(
 function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
   const [filters, setFilters] =
     React.useState<HistoryFilters>(readHistoryFilters)
+  const [selectedCommit, setSelectedCommit] = React.useState<GreenCommitGroup>()
   const executions = useExecutionHistory(filters)
   const greensMode = filters.mode === "greens"
   const needsMachine = filters.origin !== "git"
@@ -1058,9 +1133,11 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
       jobs: mergeGreenRows(rows),
       search: filters.search,
       grouping: filters.grouping,
+      period: filters.period,
     })
   }, [
     filters.grouping,
+    filters.period,
     filters.search,
     gitGreens,
     machineGreens,
@@ -1112,6 +1189,7 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
         : {
             ...current,
             search: HISTORY_DEFAULTS.search,
+            period: HISTORY_DEFAULTS.period,
             origin: HISTORY_DEFAULTS.origin,
             grouping: HISTORY_DEFAULTS.grouping,
           }
@@ -1163,6 +1241,18 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
           loadMoreError={executions.loadMoreError}
           onLoadMore={executions.loadMore}
         />
+      ) : filters.grouping === "commit" ? (
+        <div className="flex flex-col gap-3">
+          <div>
+            <h2 className="text-base font-medium">Últimos verdes</h2>
+            <p className="text-sm text-muted-foreground">{greenDescription}</p>
+          </div>
+          <GreenCommitTable
+            groups={groupGreenCommits(selectedGreenRows)}
+            onOpen={setSelectedCommit}
+            emptyDescription="Não há execução canônica aprovada para os filtros selecionados."
+          />
+        </div>
       ) : (
         <RunTable
           title="Últimos verdes"
@@ -1175,6 +1265,13 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
           showOrigin={filters.origin === "both"}
         />
       )}
+      {selectedCommit ? (
+        <GreenCommitDrawer
+          group={selectedCommit}
+          onClose={() => setSelectedCommit(undefined)}
+          onOpenJob={onOpenJob}
+        />
+      ) : null}
     </section>
   )
 }
@@ -1186,7 +1283,9 @@ export function StatusPage() {
   const dashboard = useApiQuery("dashboard-state", dashboardRequest)
   const [selectedJobId, setSelectedJobId] = React.useState<string>()
   const [stateDrawerOpen, setStateDrawerOpen] = React.useState(false)
-  const [stateSurface, setStateSurface] = React.useState<"meta" | "pending">("meta")
+  const [stateSurface, setStateSurface] = React.useState<"meta" | "pending">(
+    "meta"
+  )
 
   const openStatusState = (surface: "meta" | "pending") => {
     setStateSurface(surface)
@@ -1218,17 +1317,16 @@ export function StatusPage() {
   return (
     <main className="flex flex-1 flex-col gap-8 p-4 lg:p-6">
       <h1 className="text-2xl font-semibold tracking-tight">Status</h1>
-      {status.data.running?.status === "running" ? (
-        <CurrentExecution
-          snapshot={status.data}
-          onOpenJob={setSelectedJobId}
-          refreshing={status.refreshing}
-        />
-      ) : null}
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <CurrentExecution
+        snapshot={status.data}
+        onOpenJob={setSelectedJobId}
+        refreshing={status.refreshing}
+      />
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div className="flex min-w-0 flex-col gap-8">
           <RunTable
             title="Fila"
+            kind="queue"
             jobs={status.data.queued}
             loading={false}
             error={undefined}

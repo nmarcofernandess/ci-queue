@@ -1,4 +1,4 @@
-"""Read-only Git worktree inventory with lazy, serial size measurement."""
+"""Read-only Git worktree inventory with serial, coalesced size measurement."""
 
 import hashlib
 import os
@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 GIT_TIMEOUT = 5
-SIZE_CACHE_SECONDS = 600
+SIZE_CACHE_SECONDS = 60
 _sizes = {}
 _pending = set()
 _lock = threading.Lock()
@@ -81,7 +81,7 @@ def _size_report(path):
     key = str(Path(path).resolve())
     with _lock:
         cached = _sizes.get(key)
-    if cached and time.monotonic() - cached["monotonic"] < SIZE_CACHE_SECONDS:
+    if cached:
         return {"bytes": cached["bytes"], "state": "ready", "error": cached["error"], "observedAt": cached["observedAt"]}
     return {"bytes": None, "state": "unmeasured", "error": None, "observedAt": None}
 
@@ -90,14 +90,17 @@ def _measure(path):
     key = str(Path(path).resolve())
     try:
         # du is the portable tool already present on supported macOS/Linux
-        # modes. Its result is measured only after the drawer asks for it.
+        # modes. Measurements are serialized to avoid competing disk scans.
         result = subprocess.run(["du", "-sk", key], text=True, capture_output=True, timeout=60)
         if result.returncode != 0:
             raise OSError("du indisponível")
         kib = int(result.stdout.split()[0])
         value, error = kib * 1024, None
     except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
-        value, error = None, "Não foi possível medir o tamanho da worktree."
+        with _lock:
+            previous = _sizes.get(key)
+        value = previous.get("bytes") if previous else None
+        error = "Não foi possível atualizar o tamanho da worktree."
     with _lock:
         _sizes[key] = {"bytes": value, "error": error, "observedAt": _now(), "monotonic": time.monotonic()}
         _pending.discard(key)
@@ -115,15 +118,17 @@ def _run_measurements():
 def schedule_size(path):
     global _worker
     key = str(Path(path).resolve())
-    report = _size_report(key)
     with _lock:
-        if report["state"] == "unmeasured" and key not in _pending:
+        cached = _sizes.get(key)
+        stale = not cached or time.monotonic() - cached["monotonic"] >= SIZE_CACHE_SECONDS
+        if stale and key not in _pending:
             _pending.add(key)
             _requests.put(key)
         pending = key in _pending
         if _worker is None:
             _worker = threading.Thread(target=_run_measurements, name="ci-queue-worktree-size", daemon=True)
             _worker.start()
+    report = _size_report(key)
     return {**report, "state": "measuring" if pending else report["state"]}
 
 
@@ -148,7 +153,7 @@ def list_worktrees(config):
         timed_out = _remaining(deadline) is None
         row.update({"dirty": bool(changed) if changed is not None else None,
                     "changedEntries": changed, "ahead": ahead, "behind": behind,
-                    "gitObservedAt": _now(), "size": _size_report(row["path"]),
+                    "gitObservedAt": _now(), "size": schedule_size(row["path"]),
                     "error": "Orçamento de leitura das worktrees esgotado." if timed_out else None})
     return {"schemaVersion": 1, "observedAt": _now(), "baseRef": config.base_ref,
             "baseSha": base_sha, "worktrees": rows, "error": None}
