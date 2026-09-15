@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group"
 import { SelectionPanel } from "@/features/shared/selection-panel"
 import { useProjectContext } from "@/features/projects/project-context"
+import { scopeKey } from "@/features/projects/scope"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
 import { mutateProjects } from "@/lib/api"
 import type { ProjectSummary } from "@/lib/types"
@@ -43,6 +44,11 @@ export function ProjectSwitcher({
         ? `${selected.displayName || selected.id} (arquivado)`
         : selected?.displayName || selected?.id || "Selecionar projeto"
   const visible = active.filter((item) => matchesQuery(item, query))
+  const scopeId = scope ? scopeKey(scope) : "none"
+  React.useEffect(() => {
+    setOpen(false)
+    setQuery("")
+  }, [scopeId])
 
   return (
     <SelectionPanel
