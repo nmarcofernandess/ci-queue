@@ -11,6 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -221,7 +222,7 @@ export function ProjectManagerDrawer({ onClose }: { onClose: () => void }) {
                 onEdit={() => {
                   setMode({ kind: "edit", id: item.id })
                   setDisplayName(item.displayName || item.id)
-                  setPath(item.repositoryPath || "")
+                  setPath(item.resolvedRepositoryPath || item.repositoryPath || "")
                   setConfigPath(item.configPath || "")
                   setPreview(undefined)
                 }}
@@ -476,9 +477,14 @@ function ProjectRow({
       className="flex min-w-0 flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left"
       onClick={onEdit}
     >
-      <span className="truncate font-medium">{item.displayName || item.id}</span>
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="truncate font-medium">{item.displayName || item.id}</span>
+        {item.repositoryAvailable ? null : (
+          <Badge variant="secondary">Pasta indisponível</Badge>
+        )}
+      </span>
       <span className="truncate text-xs text-muted-foreground">
-        {item.repositoryPath || item.id} · {item.bindingState}
+        {item.resolvedRepositoryPath || item.repositoryPath || item.id} · {item.bindingState}
       </span>
     </button>
   )

@@ -234,6 +234,28 @@ class ProjectScopeHttpTests(unittest.TestCase):
             payload = json.loads(response.read())
         self.assertEqual((self.state / "state" / "projects.json").read_bytes(), before)
         self.assertEqual({item["id"] for item in payload["projects"]}, {"alpha", "beta"})
+        alpha = next(item for item in payload["projects"] if item["id"] == "alpha")
+        self.assertTrue(alpha["repositoryAvailable"])
+        self.assertEqual(Path(alpha["resolvedRepositoryPath"]), self.repo_a.resolve())
+
+    def test_worktrees_survive_dead_registered_path(self):
+        path = self.state / "state" / "projects.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["projects"]["alpha"]["repositoryPath"] = str(self.root / "deleted-lane")
+        path.write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
+        with self._get("/api/worktrees?projectId=alpha") as response:
+            payload = json.loads(response.read())
+        self.assertIsNone(payload["error"])
+        self.assertTrue(any(
+            Path(item["path"]).resolve() == self.repo_a.resolve()
+            for item in payload["worktrees"]
+        ))
+        with self._get("/api/projects") as response:
+            listing = json.loads(response.read())
+        alpha = next(item for item in listing["projects"] if item["id"] == "alpha")
+        self.assertTrue(alpha["repositoryAvailable"])
+        self.assertEqual(Path(alpha["resolvedRepositoryPath"]), self.repo_a.resolve())
+        self.assertEqual(alpha["repositoryPath"], str(self.root / "deleted-lane"))
 
     def test_project_post_requires_csrf_and_origin(self):
         body = {"action": "rename", "expectedRevision": 1, "projectId": "alpha", "displayName": "Nope"}

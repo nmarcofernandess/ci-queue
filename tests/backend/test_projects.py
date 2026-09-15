@@ -21,6 +21,8 @@ from ci_queue_api.projects import (
     mutate_registry,
     probe_project,
     read_registry,
+    resolve_config_for_entry,
+    resolve_repository,
 )
 from ci_queue_api.records import invalidate_history_cache
 
@@ -407,6 +409,81 @@ class ProjectRegistryTests(unittest.TestCase):
         current = read_registry(self.state)
         self.assertEqual(current, first)
         self.assertEqual(current["projects"]["alpha"]["displayName"], "Alpha")
+
+    def test_bootstrap_from_linked_worktree_on_dev_persists_main_checkout(self):
+        main = _init_repo(self.root / "durable")
+        subprocess.run(["git", "-C", str(main), "branch", "-M", "dev"], check=True, capture_output=True)
+        heads = subprocess.run(
+            ["git", "-C", str(main), "for-each-ref", "--format=%(refname:short)", "refs/heads"],
+            check=True, capture_output=True, text=True,
+        ).stdout.split()
+        self.assertEqual(heads, ["dev"])
+        linked = self.root / "lane"
+        subprocess.run(["git", "-C", str(main), "worktree", "add", "-b", "codex/lane", str(linked)],
+                       check=True, capture_output=True)
+        config = _write_config(linked)
+        document = bootstrap_registry(self.state, config)
+        entry = document["projects"]["alpha"]
+        self.assertEqual(Path(entry["repositoryPath"]), main.resolve())
+        self.assertEqual(Path(entry["gitCommonDir"]), (main / ".git").resolve())
+        self.assertEqual(Path(entry["configPath"]), config.resolve())
+
+    def test_bootstrap_heal_converges_linked_path_to_main_worktree(self):
+        main = _init_repo(self.root / "durable")
+        subprocess.run(["git", "-C", str(main), "branch", "-M", "dev"], check=True, capture_output=True)
+        linked = self.root / "lane"
+        subprocess.run(["git", "-C", str(main), "worktree", "add", str(linked)],
+                       check=True, capture_output=True)
+        config = _write_config(linked)
+        first = bootstrap_registry(self.state, config)
+        path = self.state / "state" / "projects.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["projects"]["alpha"]["repositoryPath"] = str(linked.resolve())
+        path.write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
+        second = bootstrap_registry(self.state, config)
+        self.assertEqual(Path(second["projects"]["alpha"]["repositoryPath"]), main.resolve())
+        self.assertGreater(second["revision"], first["revision"])
+
+    def test_reregister_updates_dead_locator_to_main_worktree(self):
+        main = _init_repo(self.root / "durable")
+        subprocess.run(["git", "-C", str(main), "branch", "-M", "dev"], check=True, capture_output=True)
+        linked = self.root / "lane"
+        subprocess.run(["git", "-C", str(main), "worktree", "add", str(linked)],
+                       check=True, capture_output=True)
+        config = _write_config(linked)
+        created = bootstrap_registry(self.state, config)
+        path = self.state / "state" / "projects.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["projects"]["alpha"]["repositoryPath"] = str(self.root / "gone")
+        path.write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
+        preview = probe_project(self.state, {"repositoryPath": str(linked)})
+        mutate_registry(self.state, {
+            "action": "register",
+            "expectedRevision": created["revision"],
+            "identitySource": "config",
+            "repositoryPath": str(linked),
+            "signature": preview["signature"],
+        })
+        entry = read_registry(self.state)["projects"]["alpha"]
+        self.assertEqual(Path(entry["repositoryPath"]), main.resolve())
+
+    def test_dead_registered_path_resolves_through_common_dir(self):
+        main = _init_repo(self.root / "durable")
+        subprocess.run(["git", "-C", str(main), "branch", "-M", "dev"], check=True, capture_output=True)
+        linked = self.root / "lane"
+        subprocess.run(["git", "-C", str(main), "worktree", "add", str(linked)],
+                       check=True, capture_output=True)
+        config = _write_config(linked)
+        bootstrap_registry(self.state, config)
+        entry = dict(read_registry(self.state)["projects"]["alpha"])
+        entry["repositoryPath"] = str(self.root / "gone")
+        entry["configPath"] = str(self.root / "missing-ci-queue.json")
+        locators = resolve_repository(entry)
+        self.assertTrue(locators["available"])
+        self.assertEqual(locators["effective"], main.resolve())
+        loaded = resolve_config_for_entry(entry)
+        self.assertEqual(loaded.project_id, "alpha")
+        self.assertEqual(loaded.path.resolve(), config.resolve())
 
 
 if __name__ == "__main__":

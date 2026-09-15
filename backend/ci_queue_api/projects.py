@@ -201,6 +201,124 @@ def inspect_git(folder):
     }
 
 
+def _run_git_dir(git_dir, args, started):
+    remaining = GIT_BUDGET_S - (time.monotonic() - started)
+    if remaining <= 0:
+        raise TimeoutError("inspeção Git excedeu 8s")
+    try:
+        completed = subprocess.run(
+            ["git", "--git-dir", str(git_dir), *args],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=remaining,
+            env=_git_env(),
+        )
+    except subprocess.TimeoutExpired as error:
+        raise TimeoutError("inspeção Git excedeu 8s") from error
+    if completed.returncode != 0:
+        raise ValueError("common-dir Git ilegível")
+    return completed.stdout
+
+
+def list_worktree_paths(common_dir):
+    if common_dir is None:
+        return []
+    common = Path(common_dir)
+    if not common.exists():
+        return []
+    started = time.monotonic()
+    raw = _run_git_dir(common, ["worktree", "list", "--porcelain", "-z"], started)
+    paths = []
+    for record in raw.split("\0\0"):
+        for item in record.split("\0"):
+            if item.startswith("worktree "):
+                paths.append(Path(item.split(" ", 1)[1]).resolve())
+    return paths
+
+
+def preferred_checkout(common_dir, fallback=None):
+    living = [path for path in list_worktree_paths(common_dir) if path.exists()]
+    if living:
+        return living[0]
+    if fallback is None:
+        return None
+    path = Path(fallback)
+    return path.resolve() if path.exists() else None
+
+
+def persist_repository_path(common_dir, inspected):
+    preferred = preferred_checkout(common_dir, inspected)
+    if preferred is not None:
+        return preferred
+    return Path(inspected).resolve() if inspected else None
+
+
+def resolve_repository(entry):
+    registered = Path(entry["repositoryPath"]).resolve() if entry.get("repositoryPath") else None
+    common = Path(entry["gitCommonDir"]).resolve() if entry.get("gitCommonDir") else None
+    try:
+        living = [path for path in list_worktree_paths(common) if path.exists()]
+    except (ValueError, TimeoutError, OSError):
+        living = []
+    if registered is not None and registered.exists():
+        effective = registered
+    elif living:
+        effective = living[0]
+    else:
+        effective = None
+    return {
+        "registered": str(registered) if registered else None,
+        "gitCommonDir": str(common) if common else None,
+        "effective": effective,
+        "available": effective is not None and effective.exists(),
+    }
+
+
+def resolve_config_for_entry(entry):
+    expected = entry.get("id")
+    registered = entry.get("configPath")
+    if registered and Path(registered).is_file():
+        try:
+            config = load_project_config(registered)
+        except (ConfigError, OSError):
+            config = None
+        else:
+            if expected is None or config.project_id == expected:
+                return config
+    try:
+        trees = list_worktree_paths(entry.get("gitCommonDir"))
+    except (ValueError, TimeoutError, OSError):
+        trees = []
+    for tree in trees:
+        candidate = tree / "ci-queue.json"
+        if not candidate.is_file():
+            continue
+        try:
+            config = load_project_config(candidate)
+        except (ConfigError, OSError):
+            continue
+        if expected is None or config.project_id == expected:
+            return config
+    return None
+
+
+def _heal_entry(entry):
+    current = dict(entry)
+    changed = False
+    preferred = preferred_checkout(current.get("gitCommonDir"), current.get("repositoryPath"))
+    stored = current.get("repositoryPath")
+    if preferred is not None and (stored is None or Path(stored).resolve() != preferred):
+        current["repositoryPath"] = str(preferred)
+        changed = True
+    config = resolve_config_for_entry(current)
+    stored_cfg = current.get("configPath")
+    if config is not None and (stored_cfg is None or not Path(stored_cfg).is_file()):
+        current["configPath"] = str(config.path)
+        changed = True
+    return current, changed
+
+
 def observed_project_ids(state_root):
     found = set()
     for job in read_history(state_root):
@@ -438,14 +556,27 @@ def _register(document, state_root, body, now):
         project_id = "proj-" + uuid.uuid4().hex
         name = _display_name(body.get("displayName"), preview["displayName"] or project_id)
     existing = document["projects"].get(project_id)
+    persisted = persist_repository_path(preview["gitCommonDir"], preview["repositoryPath"])
     if existing and existing.get("gitCommonDir") == preview["gitCommonDir"]:
-        return document
+        entry = dict(existing)
+        next_path = str(persisted) if persisted else existing.get("repositoryPath")
+        next_config = preview["configPath"] or existing.get("configPath")
+        if (entry.get("repositoryPath") == next_path
+                and entry.get("configPath") == next_config
+                and entry.get("displayName") == name):
+            return document
+        entry["repositoryPath"] = next_path
+        entry["gitCommonDir"] = preview["gitCommonDir"]
+        if preview["configPath"]:
+            entry["configPath"] = preview["configPath"]
+        entry["displayName"] = name
+        return _touch(document, entry, now)
     if existing:
         raise RevisionConflict("Este project.id já tem outro clone cadastrado.")
     entry = _entry(
         project_id,
         name,
-        preview["repositoryPath"],
+        persisted,
         preview["gitCommonDir"],
         preview["configPath"],
         now,
@@ -462,7 +593,8 @@ def _relocate(document, state_root, body, now):
     })
     _require_signature(preview, body.get("signature"))
     _require_clean(preview, allow_project_id=entry["id"])
-    entry["repositoryPath"] = preview["repositoryPath"]
+    persisted = persist_repository_path(preview["gitCommonDir"], preview["repositoryPath"])
+    entry["repositoryPath"] = str(persisted) if persisted else preview["repositoryPath"]
     entry["gitCommonDir"] = preview["gitCommonDir"]
     if body.get("configPath") is not None or preview["configPath"]:
         if preview["bindingState"] == "linked" and preview["projectId"] != entry["id"]:
@@ -485,8 +617,9 @@ def _link_config(document, state_root, body, now):
         raise ValueError("A configuração declara um project.id diferente da identidade escolhida.")
     _require_clean(preview, allow_project_id=entry["id"])
     entry["configPath"] = preview["configPath"]
-    if preview["repositoryPath"]:
-        entry["repositoryPath"] = preview["repositoryPath"]
+    if preview["repositoryPath"] or preview["gitCommonDir"]:
+        persisted = persist_repository_path(preview["gitCommonDir"], preview["repositoryPath"])
+        entry["repositoryPath"] = str(persisted) if persisted else preview["repositoryPath"]
         entry["gitCommonDir"] = preview["gitCommonDir"]
     return _touch(document, entry, now)
 
@@ -545,8 +678,12 @@ def bootstrap_registry(state_root, config_path):
         document = _read_document(path)
         existing = document["projects"].get(config.project_id)
         if existing:
+            healed, changed = _heal_entry(existing)
             if document.get("bootstrapProjectId") is None:
                 document["bootstrapProjectId"] = config.project_id
+                changed = True
+            if changed:
+                document = _touch(document, healed, _now())
                 _write_atomic(path, document)
             return read_registry(state_root)
         now = _now()
@@ -557,7 +694,7 @@ def bootstrap_registry(state_root, config_path):
                 inspected = inspect_git(repo_path)
                 if not inspected["bare"]:
                     git_common = inspected["gitCommonDir"]
-                    repo_path = inspected["repositoryPath"]
+                    repo_path = persist_repository_path(git_common, inspected["repositoryPath"])
             except (ValueError, TimeoutError, OSError):
                 git_common = None
         entry = _entry(config.project_id, config.project_name, repo_path, git_common, config.path, now)

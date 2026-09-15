@@ -97,6 +97,7 @@ Arquivo: `<state_root>/state/projects.json`. Lock: `projects.lock`, mesmo padrã
 - `displayName`: não vazio, aparado, até 160 caracteres. É alias local, não identidade.
 - Nome duplicado é permitido; o seletor distingue pelo caminho resumido/ID. Não introduzir colisão por nome.
 - `gitCommonDir` é localizador para deduplicar worktrees, **não** identidade durável global. O diretório pode mudar de lugar; o projectId não muda.
+- A worktree principal do Git (primeiro path de `git worktree list`, o clone) é o localizador persistido. Não se usa o nome da branch. Uma worktree ligada do mesmo common-dir atualiza o cadastro existente em vez de virar no-op silencioso. Leitura cai na primeira árvore viva se o path gravado sumiu. Catálogo tenta o `configPath` gravado e, se o arquivo sumiu, o `ci-queue.json` da raiz de uma worktree viva com o mesmo `project.id`.
 - Um git-common-dir real já vinculado a outro ID gera conflito explícito, inclusive se o outro cadastro estiver arquivado.
 - Mesmo ID em outro clone não cria uma segunda entrada. Nesta versão há um vínculo de repositório por projeto; relocalização é explícita.
 - Não ler identidade de usuário do Git nem credenciais. `git config user.name` não identifica projeto nem conta autenticada.

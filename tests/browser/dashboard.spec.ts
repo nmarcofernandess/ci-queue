@@ -9,6 +9,8 @@ const fixtureProjects = {
     id: 'example',
     displayName: 'Example',
     repositoryPath: '/example',
+    resolvedRepositoryPath: '/example',
+    repositoryAvailable: true,
     configPath: null,
     archivedAt: null,
     revision: 1,

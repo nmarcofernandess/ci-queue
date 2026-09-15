@@ -226,6 +226,8 @@ export type ProjectSummary = {
   id: string
   displayName: string
   repositoryPath: string | null
+  resolvedRepositoryPath: string | null
+  repositoryAvailable: boolean
   configPath: string | null
   archivedAt: string | null
   revision: number

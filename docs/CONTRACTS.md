@@ -82,7 +82,11 @@ são recomendações readonly geradas por `advisory upsert`, idempotentes por
 projeto/preset/PR; nunca bloqueiam o executor ou o merge. A resolução exige um
 verde canônico posterior cuja revisão contenha a recomendada. Meta, Abrir pasta e o cadastro local de projetos têm mutações no dashboard;
 loopback, origem, CSRF e IDs observados protegem ações nativas, que usam argv
-fixa sem shell. GET nunca escreve o registry. O probe inspeciona só a pasta
+fixa sem shell. GET nunca escreve o registry. `repositoryPath` é localizador, não identidade.
+Cadastro e bootstrap persistem a worktree principal do Git (o checkout do
+clone, em qualquer branch) quando o common-dir lista uma árvore viva. Leitura
+resolve pasta e catálogo por `gitCommonDir` se o path gravado sumiu. Não se
+assume o nome de branch `main`. O probe inspeciona só a pasta
 escolhida, sem rede Git, hooks ou execução de receita. Procurar pasta ou
 arquivo abre o diálogo nativo do host (`POST /api/project-pick`); o campo
 continua colável. O input file do browser não é tratado como caminho absoluto.

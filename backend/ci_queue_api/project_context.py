@@ -5,8 +5,14 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import parse_qs
 
-from .config import PROJECT_ID, load_project_config, ConfigError
-from .projects import observed_project_ids, read_registry, RegistryError
+from .config import PROJECT_ID
+from .projects import (
+    observed_project_ids,
+    read_registry,
+    RegistryError,
+    resolve_config_for_entry,
+    resolve_repository,
+)
 
 
 class ProjectRequired(ValueError):
@@ -46,6 +52,7 @@ class ResolvedProject:
     config: object
     binding_state: str
     archived: bool
+    repository_available: bool = True
     base_ref: str = "HEAD"
 
     @property
@@ -84,16 +91,6 @@ def _binding(entry, config):
     return "missing"
 
 
-def _load_entry_config(entry):
-    path = entry.get("configPath") if entry else None
-    if not path:
-        return None
-    try:
-        return load_project_config(path)
-    except (ConfigError, OSError):
-        return None
-
-
 def resolve_project(project_id, registry, bootstrap_config=None):
     if not isinstance(project_id, str) or not PROJECT_ID.fullmatch(project_id):
         raise LookupError("projeto não encontrado")
@@ -110,14 +107,21 @@ def resolve_project(project_id, registry, bootstrap_config=None):
             config=bootstrap_config,
             binding_state="linked",
             archived=False,
+            repository_available=bootstrap_config.repository_path is not None
+            and Path(bootstrap_config.repository_path).exists(),
             base_ref=bootstrap_config.base_ref,
         )
     if not isinstance(entry, dict):
         raise LookupError("projeto não encontrado")
-    config = _load_entry_config(entry)
+    locators = resolve_repository(entry)
+    config = resolve_config_for_entry(entry)
     if config is None and bootstrap_config is not None and bootstrap_config.project_id == project_id:
         config = bootstrap_config
-    repo = Path(entry["repositoryPath"]) if entry.get("repositoryPath") else (config.repository_path if config else None)
+    repo = locators["effective"] or (
+        Path(entry["repositoryPath"]) if entry.get("repositoryPath") else (
+            config.repository_path if config else None
+        )
+    )
     common = Path(entry["gitCommonDir"]) if entry.get("gitCommonDir") else None
     base_ref = config.base_ref if config else "HEAD"
     return ResolvedProject(
@@ -130,6 +134,7 @@ def resolve_project(project_id, registry, bootstrap_config=None):
         config=config,
         binding_state=_binding(entry, config),
         archived=bool(entry.get("archivedAt")),
+        repository_available=locators["available"],
         base_ref=base_ref,
     )
 
@@ -147,7 +152,7 @@ def require_capability(project, capability):
     if capability in {"worktrees", "reveal-worktree"}:
         if project.archived:
             raise CapabilityDenied("projeto arquivado", "PROJECT_ARCHIVED")
-        if project.repository_path is None or not Path(project.repository_path).exists():
+        if not project.repository_available:
             raise CapabilityDenied("pasta do projeto indisponível", "REPOSITORY_UNAVAILABLE")
         return project
     if capability in {"catalog", "duration", "greens", "meta-mutate"}:
@@ -173,14 +178,17 @@ def summarize_projects(state_root, include_observed=False):
     document = read_registry(state_root)
     items = []
     for entry in document["projects"].values():
+        locators = resolve_repository(entry)
         items.append({
             "id": entry["id"],
             "displayName": entry.get("displayName"),
             "repositoryPath": entry.get("repositoryPath"),
+            "resolvedRepositoryPath": str(locators["effective"]) if locators["effective"] else None,
+            "repositoryAvailable": locators["available"],
             "configPath": entry.get("configPath"),
             "archivedAt": entry.get("archivedAt"),
             "revision": entry.get("revision"),
-            "bindingState": _binding(entry, _load_entry_config(entry)),
+            "bindingState": _binding(entry, resolve_config_for_entry(entry)),
         })
     observed = []
     if include_observed:

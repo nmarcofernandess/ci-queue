@@ -169,7 +169,7 @@ function ProjectSwitcherMenu({
             <span className="flex min-w-0 flex-col items-start">
               <span className="truncate">{item.displayName || item.id}</span>
               <span className="truncate text-xs text-muted-foreground">
-                {item.repositoryPath || item.id}
+                {item.resolvedRepositoryPath || item.repositoryPath || item.id}
               </span>
             </span>
           </Button>
