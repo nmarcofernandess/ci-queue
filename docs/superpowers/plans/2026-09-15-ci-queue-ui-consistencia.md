@@ -882,12 +882,12 @@ Não interpretar uma suíte não encontrada como teste verde.
 
 **Arquivos:** `presentation.ts`, `status-indicator.tsx`, `entity-identity.tsx`; imports de `run-table.tsx`, `status-page.tsx`, `job-drawer.tsx` e tabela de commits.
 
-- [ ] Implementar descritores e escala da seção 4, reutilizando as cores existentes.
-- [ ] Implementar `StatusIndicator` e `EntityIdentity` com as APIs fechadas.
-- [ ] Remover as implementações duplicadas de `JobStatusIcon`, `StageGlyph` e `stageIcon` dos consumidores migrados.
-- [ ] Migrar identidade atual, identidade do drawer e células de tabela, sem alterar colunas nem conteúdo temporal.
-- [ ] Preservar `JobTimeline` e seu relógio, apenas mudando a tipografia do proprietário externo.
-- [ ] Executar testes de representação e typecheck/build da UI. Conferir visualmente a escala sem mexer em cada call site.
+- [x] Implementar descritores e escala da seção 4, reutilizando as cores existentes.
+- [x] Implementar `StatusIndicator` e `EntityIdentity` com as APIs fechadas.
+- [x] Remover as implementações duplicadas de `JobStatusIcon`, `StageGlyph` e `stageIcon` dos consumidores migrados.
+- [x] Migrar identidade atual, identidade do drawer e células de tabela, sem alterar colunas nem conteúdo temporal.
+- [x] Preservar `JobTimeline` e seu relógio, apenas mudando a tipografia do proprietário externo.
+- [x] Executar testes de representação e typecheck/build da UI. Conferir visualmente a escala sem mexer em cada call site.
 
 ```bash
 npx vitest run tests/ui/presentation.test.ts
@@ -901,14 +901,14 @@ npm --prefix ui run build
 
 **Arquivos:** `components/ui/drawer.tsx`, `detail-drawer.tsx`, `facts-table.tsx`, quatro arquivos consumidores de drawers.
 
-- [ ] Implementar tamanho `detail` no primitivo e o shell compartilhado; manter default e exceções de seleção.
-- [ ] Implementar header/body/tabs/footer; aplicar dimensionamento pela direção e alinhamento à esquerda.
-- [ ] Migrar Execução e Worktree, inclusive fichas e footers.
-- [ ] Migrar Meta e Pendências sem alterar formulário, mutações, confirmação ou read-only.
-- [ ] Migrar Commit, incluindo sua ficha, abrindo execução local pelo caminho atual.
-- [ ] Preservar a propriedade de scroll do Log e sua seleção nativa; não introduzir wrapper que quebre altura/flex.
-- [ ] Remover dimensões, paddings estruturais e headers antigos dos consumidores. Não manter o componente antigo como alternativa de uso.
-- [ ] Executar testes de família, largura intermediária, scroll fixo, foco, Meta e seleção de texto.
+- [x] Implementar tamanho `detail` no primitivo e o shell compartilhado; manter default e exceções de seleção.
+- [x] Implementar header/body/tabs/footer; aplicar dimensionamento pela direção e alinhamento à esquerda.
+- [x] Migrar Execução e Worktree, inclusive fichas e footers.
+- [x] Migrar Meta e Pendências sem alterar formulário, mutações, confirmação ou read-only.
+- [x] Migrar Commit, incluindo sua ficha, abrindo execução local pelo caminho atual.
+- [x] Preservar a propriedade de scroll do Log e sua seleção nativa; não introduzir wrapper que quebre altura/flex.
+- [x] Remover dimensões, paddings estruturais e headers antigos dos consumidores. Não manter o componente antigo como alternativa de uso.
+- [x] Executar testes de família, largura intermediária, scroll fixo, foco, Meta e seleção de texto.
 
 ```bash
 npm run test:browser -- tests/browser/ui-consistency.spec.ts
@@ -921,12 +921,12 @@ npm run test:browser -- tests/browser/dashboard.spec.ts
 
 **Arquivos:** `progress-tree.tsx`, `execution-stages.tsx`, `job-drawer.tsx`, `status-page.tsx`.
 
-- [ ] Extrair a árvore e implementar a coluna de expansão reservada, com conectores e indentação únicos.
-- [ ] Preservar os três níveis das fixtures atuais e testar mais um nível; não achatar nós.
-- [ ] Preservar detalhe/contadores, retry, duração disponível e identificação de término incompleto.
-- [ ] Extrair faixa atual e trocar somente seus indicadores e decisões de espaço. Manter follow/pause.
-- [ ] Testar todos os irmãos alinhados, folhas sem botões falsos, nomes longos, duração disponível/ausente e cancelamento terminal.
-- [ ] Conferir faixa real no Card, em 1600 e 390 px, sem invadir gutter e sem overflow da página.
+- [x] Extrair a árvore e implementar a coluna de expansão reservada, com conectores e indentação únicos.
+- [x] Preservar os três níveis das fixtures atuais e testar mais um nível; não achatar nós.
+- [x] Preservar detalhe/contadores, retry, duração disponível e identificação de término incompleto.
+- [x] Extrair faixa atual e trocar somente seus indicadores e decisões de espaço. Manter follow/pause.
+- [x] Testar todos os irmãos alinhados, folhas sem botões falsos, nomes longos, duração disponível/ausente e cancelamento terminal.
+- [x] Conferir faixa real no Card, em 1600 e 390 px, sem invadir gutter e sem overflow da página.
 
 **Saída:** Static/Jest/Artefatos obedecem à mesma linha; a faixa não fica visualmente desconectada da árvore.
 
@@ -934,12 +934,12 @@ npm run test:browser -- tests/browser/dashboard.spec.ts
 
 **Arquivos:** `data-table-frame.tsx`, `run-table.tsx`, `green-commit-table.tsx`, `worktrees-page.tsx`, `analysis-page.tsx`, `async-state.tsx`.
 
-- [ ] Implementar placements card/body, migrar tabelas de listas e remover bordas/gutters duplicados.
-- [ ] Preservar larguras/semântica de coluna, dados, busca, seleção, cursor e agrupamento. Não trocar o modelo TanStack.
-- [ ] Corrigir botões de texto e ícones de ação para usar o tamanho/variante nativos; migrar `data-icon` conforme a posição real.
-- [ ] Revisar vazio/loading/erro nas três páginas e nos drawers; reutilizar a família existente sem expandir uma faixa compacta em card gigante.
-- [ ] Inspecionar Resultados e Duração após o frame de tabela compartilhado, sem alterar cálculo, série, filtro ou comportamento.
-- [ ] Verificar título/olho versus linha inerte, menus e checkboxes. Nenhum campo ganha ação nova por causa do wrapper.
+- [x] Implementar placements card/body, migrar tabelas de listas e remover bordas/gutters duplicados.
+- [x] Preservar larguras/semântica de coluna, dados, busca, seleção, cursor e agrupamento. Não trocar o modelo TanStack.
+- [x] Corrigir botões de texto e ícones de ação para usar o tamanho/variante nativos; migrar `data-icon` conforme a posição real.
+- [x] Revisar vazio/loading/erro nas três páginas e nos drawers; reutilizar a família existente sem expandir uma faixa compacta em card gigante.
+- [x] Inspecionar Resultados e Duração após o frame de tabela compartilhado, sem alterar cálculo, série, filtro ou comportamento.
+- [x] Verificar título/olho versus linha inerte, menus e checkboxes. Nenhum campo ganha ação nova por causa do wrapper.
 
 **Saída:** toda tabela da família respeita seu gutter; botões e estados não recebem personalizações independentes sem necessidade.
 
@@ -983,12 +983,12 @@ rg -n 'DetailDrawer|EntityIdentity|StatusIndicator|DataTableFrame|FactsTable' ui
 
 **Arquivos:** evidências, screenshots curados, documentação de execução e quaisquer fixes necessários da etapa.
 
-- [ ] Terminar todas as migrações antes da inspeção final. Não somar screenshots antigos de componentes testados separadamente e chamar isso de revisão integrada.
-- [ ] Executar a matriz da seção 9 e abrir as imagens geradas. Corrigir cada desvio desta etapa encontrado no review interno.
-- [ ] Executar `npm run check` da candidata final, incluindo core/backend/release/install já existentes. Esses testes são regressão, não autorização para mexer nesses subsistemas.
-- [ ] Servir o bundle compilado em preview separado e inspecionar a aplicação com API instalada em leitura, identificando revisão/URL. Não apontar o serviço instalado para a worktree.
-- [ ] Criar/atualizar o índice de evidências com capturas da candidata final, resultados dos testes e limitações reais.
-- [ ] Fazer review do diff: sem backend/receita/polling, sem estilo autoral duplicado, sem lints relaxados, sem dependência nova de runtime.
+- [x] Terminar todas as migrações antes da inspeção final. Não somar screenshots antigos de componentes testados separadamente e chamar isso de revisão integrada.
+- [x] Executar a matriz da seção 9 e abrir as imagens geradas. Corrigir cada desvio desta etapa encontrado no review interno.
+- [x] Executar `npm run check` da candidata final, incluindo core/backend/release/install já existentes. Esses testes são regressão, não autorização para mexer nesses subsistemas.
+- [x] Servir o bundle compilado em preview separado e inspecionar a aplicação com API instalada em leitura, identificando revisão/URL. Não apontar o serviço instalado para a worktree.
+- [x] Criar/atualizar o índice de evidências com capturas da candidata final, resultados dos testes e limitações reais.
+- [x] Fazer review do diff: sem backend/receita/polling, sem estilo autoral duplicado, sem lints relaxados, sem dependência nova de runtime.
 - [ ] Publicar a branch e abrir PR **draft** contra `dev`; não fazer merge.
 - [ ] Confirmar no GitHub a base, o HEAD, o estado draft e a execução do job Complete check.
 - [ ] Informar a Marco: implementação e revisão interna concluídas, aguardando seu review; incluir o pacote da seção 11.
@@ -1278,3 +1278,7 @@ A documentação pública não substitui a versão instalada nem autoriza copiar
   locais conferidos, todos existentes. TSV histórico não alterado.
 - T8 permanece aberto até capturas finais inspecionadas, check completo e
   confirmação do Complete check no PR draft. T9 não autorizado.
+
+### Revisão integrada final
+
+Código e capturas em `6eab3d67f2479ba898e2346d84df24522cd8167a`; check completo verde e inspeção das cinco famílias concluída. Índice: [evidências](../../ui/evidence/etapa-1/README.md). Pendências recebeu badge abaixo do contexto após revisão mobile. Publicação e check remoto continuam pendentes até o recibo no PR; T9 permanece não autorizado.
