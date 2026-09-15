@@ -131,8 +131,20 @@ def project_record(job, project_id):
     return isinstance(job, dict) and job.get("projectId") == project_id
 
 
+def attribute_legacy(job, ledger):
+    if not isinstance(job, dict) or job.get("projectId"):
+        return job
+    assignments = ledger.get("assignments") if isinstance(ledger, dict) and ledger.get("schemaVersion") == 1 else None
+    entry = assignments.get(job.get("id")) if isinstance(assignments, dict) else None
+    if (isinstance(entry, dict) and (not entry.get("headSha") or entry["headSha"] == job.get("headSha")) and isinstance(entry.get("projectId"), str) and entry["projectId"]
+            and isinstance(entry.get("evidence"), str) and entry["evidence"]):
+        return {**job, "projectId": entry["projectId"]}
+    return job
+
+
 def read_history(state_root, strict=False):
-    return read_json_directory(Path(state_root) / "history", strict=strict, cached=True)
+    ledger = read_json(Path(state_root) / "state" / "legacy-projects.json")
+    return [attribute_legacy(row, ledger) for row in read_json_directory(Path(state_root) / "history", strict=strict, cached=True)]
 
 
 def read_queued(state_root, strict=False):
@@ -168,6 +180,14 @@ def progress_summary(job, progress=None):
         if parent is not None and not isinstance(parent, str):
             return {**job, "progressSummary": {"schemaVersion": 1, "available": False, "reason": "invalid-hierarchy"}}
         known[node["id"]] = node
+    for node in known.values():
+        visited = set()
+        cursor = node
+        while cursor.get("parentId") in known:
+            if cursor["id"] in visited or len(visited) >= 128:
+                return {**job, "progressSummary": {"schemaVersion": 1, "available": False, "reason": "invalid-hierarchy"}}
+            visited.add(cursor["id"])
+            cursor = known[cursor["parentId"]]
     roots = []
     for node in known.values():
         if node.get("parentId") not in known:
@@ -177,6 +197,13 @@ def progress_summary(job, progress=None):
         for key in ("parentId", "kind", "detail"):
             if isinstance(node.get(key), str):
                 result[key] = node[key]
+        detail = node.get("detail")
+        count_keys = ("completed", "total", "passed", "failed", "running", "pending", "skipped")
+        if (isinstance(detail, dict) and detail.get("kind") in {"gates", "suites", "cases", "artifacts", "items"}
+                and all(type(detail.get(key)) is int and 0 <= detail[key] <= 9007199254740991 for key in count_keys)
+                and detail["passed"] + detail["failed"] + detail["skipped"] == detail["completed"]
+                and detail["completed"] + detail["running"] + detail["pending"] == detail["total"]):
+            result["detail"] = {key: detail[key] for key in ("kind", *count_keys)}
         value = node.get("durationMs")
         if type(value) is int and value >= 0:
             result["durationMs"] = value
@@ -209,9 +236,11 @@ def lookup_job(state_root, job_id, project_id=None):
         read_json(root / "running.json"),
         read_json(root / "jobs" / (job_id + ".json")),
     ]
+    ledger = read_json(root / "state" / "legacy-projects.json")
     for candidate in candidates:
+        candidate = attribute_legacy(candidate, ledger)
         if isinstance(candidate, dict) and candidate.get("id") == job_id:
-            if project_id is not None and not project_record(candidate, project_id):
+            if project_id is not None and not project_record(candidate, project_id) and (candidate.get("projectId") or candidate.get("status") not in TERMINAL):
                 return None
             progress = read_progress(root, job_id) if candidate.get("status") == "running" else None
             return progress_summary(candidate, progress)
@@ -281,7 +310,7 @@ def _cursor_value(value):
 def read_executions(state_root, project_id, q="", result="all", scope="terminal", from_time="", to_time="", snapshot_before="", cursor="", offset=0):
     if result not in {"all", *TERMINAL}:
         raise RecordError("result inválido")
-    if scope != "terminal":
+    if scope not in {"terminal", "legacy"}:
         raise RecordError("scope inválido")
     if not isinstance(q, str):
         raise RecordError("q inválido")
@@ -299,9 +328,10 @@ def read_executions(state_root, project_id, q="", result="all", scope="terminal"
     rows = []
     unknown = 0
     for row in read_history(state_root):
-        if row.get("projectId") != project_id:
-            if row.get("projectId") is None:
-                unknown += 1
+        unassigned = not row.get("projectId")
+        if unassigned:
+            unknown += 1
+        if (scope == "legacy" and not unassigned) or (scope == "terminal" and row.get("projectId") != project_id):
             continue
         if row.get("status") not in TERMINAL or not _matches_query(row, q):
             continue

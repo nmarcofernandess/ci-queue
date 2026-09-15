@@ -136,7 +136,8 @@ export function readRunningJob(root: string): QueueTicket | undefined {
 }
 
 export function readHistoryJob(root: string, id: string): QueueTicket | undefined {
-  return readJsonFile<QueueTicket>(historyPath(root, id))
+  const ticket = readJsonFile<QueueTicket>(historyPath(root, id))
+  return ticket ? attributeLegacy(root, ticket) : undefined
 }
 
 function ticketFiles(path: string): string[] {
@@ -157,8 +158,20 @@ export function listQueuedJobs(root: string): QueueTicket[] {
   return readTickets(queuePaths(root).jobs).sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
 }
 
+/** Explicit migration ledger; never infer ownership from a checkout name. */
+type LegacyLedger = { schemaVersion: number; assignments: Record<string, { projectId: string; evidence: string; headSha?: string }> }
+export function attributeLegacy(root: string, ticket: QueueTicket, ledger = readJsonFile<LegacyLedger>(join(root, "state", "legacy-projects.json"))): QueueTicket {
+  if (ticket.projectId) return ticket
+  const entry = ledger?.schemaVersion === 1 ? ledger.assignments?.[ticket.id] : undefined
+  return entry && (!entry.headSha || entry.headSha === ticket.headSha) && typeof entry.projectId === "string" && entry.projectId && typeof entry.evidence === "string" && entry.evidence
+    ? { ...ticket, projectId: entry.projectId }
+    : ticket
+}
+
 export function listHistoryJobs(root: string, projectId?: string): QueueTicket[] {
+  const ledger = readJsonFile<LegacyLedger>(join(root, "state", "legacy-projects.json")) ?? { schemaVersion: 1, assignments: {} }
   return readTickets(queuePaths(root).history)
+    .map((ticket) => attributeLegacy(root, ticket, ledger))
     .filter((ticket) => !projectId || ticket.projectId === projectId)
     .sort((left, right) => (right.finishedAt ?? right.createdAt).localeCompare(left.finishedAt ?? left.createdAt))
 }

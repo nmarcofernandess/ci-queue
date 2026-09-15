@@ -100,7 +100,6 @@ function MetaEditor({
   saving,
   unavailable,
   onSave,
-  onCancel,
   onValidityChange,
 }: {
   formId: string
@@ -108,7 +107,6 @@ function MetaEditor({
   saving: boolean
   unavailable: boolean
   onSave: (mutation: DashboardStateMutation) => Promise<boolean>
-  onCancel: () => void
   onValidityChange: (valid: boolean) => void
 }) {
   const [form, setForm] = React.useState<MetaForm>(() => metaToForm(state.meta))
@@ -147,7 +145,7 @@ function MetaEditor({
           revision: state.revision,
           action: "save-meta",
           meta: form,
-        }).then((saved) => saved && onCancel())
+        })
       }}
     >
       <FieldSet>
@@ -511,6 +509,7 @@ export function StatusStateDrawer({
     setSaving(true)
     try {
       await writeDashboardState(session.data.csrfToken, mutation)
+      setEditingMeta(false)
       onSaved()
       toast.success("Painel atualizado.")
       return true
@@ -577,7 +576,6 @@ export function StatusStateDrawer({
                 saving={saving}
                 unavailable={unavailable}
                 onSave={mutate}
-                onCancel={() => setEditingMeta(false)}
                 onValidityChange={setMetaFormValid}
               />
             ) : (
@@ -605,6 +603,7 @@ export function StatusStateDrawer({
                   Cancelar
                 </Button>
                 <Button
+                  key="save-meta"
                   type="submit"
                   form={metaFormId}
                   disabled={unavailable || saving || !metaFormValid}
@@ -623,6 +622,7 @@ export function StatusStateDrawer({
                   onMutate={mutate}
                 />
                 <Button
+                  key="edit-meta"
                   type="button"
                   variant="outline"
                   onClick={startMetaEdit}

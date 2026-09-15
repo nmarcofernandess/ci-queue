@@ -151,6 +151,7 @@ export type ProgressNode = {
   status: ProgressStatus
   durationMs?: number
   detail?: ProgressCounts
+  retryCount?: number
 }
 
 export type JobProgress = {

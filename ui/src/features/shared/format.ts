@@ -69,7 +69,7 @@ export function formatRelativeTime(
   const unit =
     units.find((candidate) => absoluteSeconds >= candidate.seconds) ??
     units.at(-1)!
-  const quantity = Math.max(1, Math.round(absoluteSeconds / unit.seconds))
+  const quantity = Math.max(1, Math.floor(absoluteSeconds / unit.seconds))
   const label = quantity === 1 ? unit.singular : unit.plural
   return difference >= 0 ? `em ${quantity} ${label}` : `há ${quantity} ${label}`
 }
@@ -143,4 +143,22 @@ export function queryPeriodStart(
             : 30
   now.setDate(now.getDate() - days)
   return now.toISOString()
+}
+
+export function jobDuration(
+  job: {
+    status?: JobStatus
+    startedAt?: string | null
+    durationMs?: number | null
+  },
+  now = Date.now()
+) {
+  if (job.status === "cancelled" && !job.startedAt) return "Não iniciada"
+  if (job.status === "running") {
+    const start = job.startedAt ? Date.parse(job.startedAt) : NaN
+    return formatDuration(
+      Number.isFinite(start) ? Math.max(0, now - start) : undefined
+    )
+  }
+  return formatDuration(job.durationMs)
 }

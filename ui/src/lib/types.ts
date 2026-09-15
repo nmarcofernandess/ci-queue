@@ -12,7 +12,18 @@ export type ProgressNode = {
   status: ProgressNodeStatus
   durationMs?: number
   retryCount?: number
-  detail?: string
+  detail?:
+    | string
+    | {
+        kind: string
+        completed: number
+        total: number
+        passed: number
+        failed: number
+        running: number
+        pending: number
+        skipped: number
+      }
 }
 
 export type ProgressSummary = {

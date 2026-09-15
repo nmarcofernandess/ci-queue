@@ -19,9 +19,9 @@ sys.path.insert(0, str(ROOT / "backend"))
 from ci_queue_api.analysis import read_analysis
 from ci_queue_api.config import ConfigError, load_project_config
 from ci_queue_api.dashboard_state import RevisionConflict, read_dashboard_state, write_dashboard_state
-from ci_queue_api.diagnostics import MAX_EXPORT_BYTES, read_diagnostic, read_log_export
+from ci_queue_api.diagnostics import MAX_EXPORT_BYTES, read_diagnostic, read_log_export, read_log_slice
 from ci_queue_api.history import build_preset_history, read_remote_slots
-from ci_queue_api.records import invalidate_history_cache, read_executions, status_snapshot
+from ci_queue_api.records import invalidate_history_cache, read_executions, status_snapshot, progress_summary
 from ci_queue_api.server import ApiContext, create_server
 from ci_queue_api.worktrees import list_worktrees, worktree_view
 
@@ -215,6 +215,51 @@ class HistoryAndAnalysisTests(Fixture):
         child = next(node for node in summary["nodes"] if node["id"] == "typecheck")
         self.assertEqual(child["parentId"], "gates")
         self.assertEqual(child["retryCount"], 1)
+
+    def test_progress_counts_are_allowlisted_and_consistent(self):
+        detail = {"kind": "cases", "completed": 1, "total": 3, "passed": 1,
+                  "failed": 0, "skipped": 0, "running": 1, "pending": 1}
+        node = {"id": "test", "label": "Test", "status": "running", "detail": {**detail, "secret": "excluded"}}
+        summary = progress_summary({"status": "running", "progress": {"nodes": [node]}})["progressSummary"]
+        self.assertEqual(summary["nodes"][0]["detail"], detail)
+        node["detail"]["completed"] = 99
+        summary = progress_summary({"progress": {"nodes": [node]}})["progressSummary"]
+        self.assertNotIn("detail", summary["nodes"][0])
+
+    def test_progress_cycle_is_unavailable_instead_of_recursive(self):
+        nodes = [{"id": "a", "parentId": "b", "label": "A", "status": "passed"},
+                 {"id": "b", "parentId": "a", "label": "B", "status": "passed"}]
+        self.assertFalse(progress_summary({"progress": {"nodes": nodes}})["progressSummary"]["available"])
+
+    def test_legacy_is_assigned_explicitly_or_visible_without_rewriting(self):
+        self.job("assigned", projectId=None)
+        self.job("unassigned", projectId=None)
+        original = (self.state / "history" / "assigned.json").read_bytes()
+        (self.state / "state").mkdir()
+        (self.state / "state" / "legacy-projects.json").write_text(json.dumps({"schemaVersion": 1,
+            "assignments": {"assigned": {"projectId": "example", "evidence": "verified commit"}}}))
+        page = read_executions(self.state, "example")
+        self.assertEqual([job["id"] for job in page["jobs"]], ["assigned"])
+        self.assertEqual(page["coverage"]["unattributedRecords"], 1)
+        self.assertEqual([job["id"] for job in read_executions(self.state, "example", scope="legacy")["jobs"]], ["unassigned"])
+        self.assertEqual((self.state / "history" / "assigned.json").read_bytes(), original)
+
+    def test_cli_and_http_share_history_status_and_log_facts(self):
+        job = self.job("shared", logPath=str(self.state / "logs" / "shared.log"))
+        (self.state / "logs" / "shared.log").write_text("test output\n")
+        def cli(*args):
+            result = subprocess.run(["node", str(ROOT / "dist" / "cli.js"), *args, "--state", str(self.state), "--json"], capture_output=True, text=True, check=True)
+            return json.loads(result.stdout)["result"]
+        api_job = read_executions(self.state, "example")["jobs"][0]
+        cli_job = cli("history", "--project", "example")["jobs"][0]
+        for key in ("id", "projectId", "status", "preset", "headSha", "startedAt", "finishedAt", "durationMs"):
+            self.assertEqual(cli_job[key], api_job[key])
+        self.assertEqual(cli("status")["latest"]["id"], status_snapshot(self.state, "example", "Example")["history"][0]["id"])
+        self.assertEqual(cli("logs", "shared")["content"], read_log_export(self.state, self.config, "shared")["content"])
+        cli_green = cli("preset-history", "--preset", "smoke", "--config", str(self.config_path))["presets"][0]["lastGreenCanonical"]
+        api_green = next(row for row in build_preset_history(self.state, self.config)["presets"] if row["preset"] == "smoke")["lastGreenCanonical"]
+        for key in ("ticketId", "status", "headSha", "branch", "finishedAt", "durationMs"):
+            self.assertEqual(cli_green[key], api_green[key])
 
 
 class RemoteGreensTests(Fixture):
@@ -493,6 +538,23 @@ class StateAndDiagnosticTests(Fixture):
             },
         )
         self.assertTrue(diagnostic["coverage"]["logs"]["available"])
+
+    def test_incremental_log_preserves_unicode_and_redacts_across_cursors(self):
+        self.job("cursor")
+        (self.state / "logs" / "cursor.log").write_text("áé\ntoken=secret-long-value\ndone\n")
+        offset = 0
+        content = ""
+        for _ in range(20):
+            part = read_log_slice(self.state, self.config, "cursor", offset, 12)
+            content += part["content"]
+            self.assertGreaterEqual(part["nextOffset"], offset)
+            offset = part["nextOffset"]
+            if part["complete"]:
+                break
+        self.assertIn("áé", content)
+        self.assertIn("done", content)
+        self.assertNotIn("secret-long-value", content)
+        self.assertNotIn("long-value", content)
 
     def test_export_declares_truncation_for_a_large_log(self):
         self.job("large")

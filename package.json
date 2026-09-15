@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",
-    "check": "npm run build && npm run test && npm run check:ui",
+    "check": "npm run build && npm run test && npm run check:ui && npm run test:browser",
     "ci-queue": "tsx src/cli.ts",
     "test:core": "vitest run tests/core",
     "test:ui": "vitest run tests/ui",
@@ -20,9 +20,11 @@
     "release:bundle": "npm run build && npm --prefix ui run build && node scripts/release.mjs build --output releases",
     "release:verify": "node scripts/release.mjs verify",
     "check:ui": "npm --prefix ui run lint && npm --prefix ui run build",
-    "test:backend": "python3 -m unittest discover -s tests/backend -p 'test_*.py'"
+    "test:backend": "python3 -m unittest discover -s tests/backend -p 'test_*.py'",
+    "test:browser": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.0",

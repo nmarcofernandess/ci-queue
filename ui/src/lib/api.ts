@@ -106,6 +106,7 @@ export function getStatus() {
 export function getExecutions(
   query: {
     q?: string
+    scope?: "terminal" | "legacy"
     result?: string
     from?: string
     to?: string
@@ -217,9 +218,13 @@ export type ApiQuery<T> = {
 export function useApiQuery<T>(
   key: string,
   request: () => Promise<T>,
-  options: { pollMs?: number; enabled?: boolean } = {}
+  options: {
+    pollMs?: number
+    enabled?: boolean
+    pollWhile?: (data: T) => boolean
+  } = {}
 ): ApiQuery<T> {
-  const { pollMs, enabled = true } = options
+  const { pollMs, enabled = true, pollWhile } = options
   const [data, setData] = React.useState<T | undefined>(
     () => queryCache.get(key) as T | undefined
   )
@@ -243,7 +248,9 @@ export function useApiQuery<T>(
       }
     }
 
+    let timer: ReturnType<typeof setTimeout> | undefined
     const load = async () => {
+      let keepPolling = true
       setRefreshing(true)
       try {
         const next = await request()
@@ -251,6 +258,7 @@ export function useApiQuery<T>(
           queryCache.set(key, next)
           setData(next)
           setError(undefined)
+          keepPolling = !pollWhile || pollWhile(next)
         }
       } catch (reason) {
         if (!disposed) {
@@ -263,21 +271,19 @@ export function useApiQuery<T>(
       } finally {
         if (!disposed) {
           setRefreshing(false)
+          if (pollMs && keepPolling) timer = setTimeout(load, pollMs)
         }
       }
     }
 
     void load()
-    const timer = pollMs
-      ? window.setInterval(() => void load(), pollMs)
-      : undefined
     return () => {
       disposed = true
       if (timer) {
-        window.clearInterval(timer)
+        window.clearTimeout(timer)
       }
     }
-  }, [enabled, key, pollMs, request, revision])
+  }, [enabled, key, pollMs, pollWhile, request, revision])
 
   const reload = React.useCallback(() => {
     setError(undefined)

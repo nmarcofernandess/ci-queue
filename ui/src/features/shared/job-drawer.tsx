@@ -1,3 +1,5 @@
+import { useLiveLog } from "./use-live-log"
+import { RelativeTime, JobDuration } from "./live-time"
 import { statusColor } from "@/features/shared/status-color"
 import * as React from "react"
 
@@ -5,7 +7,6 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import {
   getDiagnostic,
   getJob,
-  getLog,
   getLogExport,
   type ApiQuery,
   useApiQuery,
@@ -63,7 +64,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
 import {
   formatDuration,
-  formatRelativeTime,
   formatTimelineDate,
   statusLabel,
 } from "@/features/shared/format"
@@ -135,17 +135,6 @@ function diagnosticBundle(diagnostic: Diagnostic, logExport?: LogExport) {
 
 type DiagnosticExportAction = "copy-diagnostic" | "download-diagnostic"
 
-function useLiveLog(jobId: string, enabled: boolean) {
-  const request = React.useCallback(
-    () => getLog(jobId, 0, 8 * 1024 * 1024),
-    [jobId]
-  )
-  return useApiQuery<LogSlice>(`log:${jobId}`, request, {
-    enabled,
-    pollMs: 2_000,
-  })
-}
-
 function StageGlyph({ status }: { status: ProgressNode["status"] }) {
   if (status === "passed")
     return (
@@ -166,8 +155,8 @@ function JobHeaderTimeline({ job }: { job: JobRecord }) {
   const timestamp = job.finishedAt ?? job.startedAt ?? job.createdAt
   return (
     <DrawerDescription>
-      {formatTimelineDate(timestamp)} · {formatRelativeTime(timestamp)} ·{" "}
-      {formatDuration(job.durationMs)}
+      {formatTimelineDate(timestamp)} · {<RelativeTime value={timestamp} />} ·{" "}
+      {<JobDuration job={job} />}
     </DrawerDescription>
   )
 }
@@ -233,7 +222,11 @@ function ProgressNodeRow({
           ) : null}
         </div>
         {node.detail ? (
-          <p className="text-sm text-muted-foreground">{node.detail}</p>
+          <p className="text-sm text-muted-foreground">
+            {typeof node.detail === "string"
+              ? node.detail
+              : `${node.detail.completed} de ${node.detail.total}`}
+          </p>
         ) : null}
       </ItemContent>
       <ItemActions className="text-sm text-muted-foreground">
@@ -345,6 +338,7 @@ function LogPanel({
 }) {
   const viewport = React.useRef<HTMLDivElement>(null)
   const [following, setFollowing] = React.useState(true)
+  const [pausedContent, setPausedContent] = React.useState<string | null>(null)
   React.useEffect(() => {
     if (!following || !viewport.current) return
     viewport.current.scrollTop = viewport.current.scrollHeight
@@ -374,13 +368,16 @@ function LogPanel({
         className="h-full overflow-auto px-4 py-5"
         onScroll={(event) => {
           const target = event.currentTarget
-          setFollowing(
+          const atEnd =
             target.scrollHeight - target.scrollTop - target.clientHeight < 24
+          setFollowing(atEnd)
+          setPausedContent(
+            atEnd ? null : (pausedContent ?? log.data?.content ?? "")
           )
         }}
       >
         <pre className="font-mono text-xs leading-5 break-words whitespace-pre-wrap text-foreground">
-          {log.data.content || "Log vazio."}
+          {(pausedContent ?? log.data.content) || "Log vazio."}
         </pre>
       </div>
       {!following ? (
@@ -389,6 +386,7 @@ function LogPanel({
           size="sm"
           className="absolute right-5 bottom-5"
           onClick={() => {
+            setPausedContent(null)
             setFollowing(true)
             requestAnimationFrame(() => {
               if (viewport.current)
@@ -592,6 +590,9 @@ export function JobDrawer(props: JobDrawerProps) {
   return <JobDrawerContent key={props.jobId} {...props} />
 }
 
+const jobIsLive = (job: JobRecord) =>
+  job.status === "running" || job.status === "queued"
+
 function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
   const isMobile = useIsMobile()
   const [activeTab, setActiveTab] = React.useState<"progress" | "log">(
@@ -599,8 +600,15 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
   )
   const [logRequested, setLogRequested] = React.useState(false)
   const jobRequest = React.useCallback(() => getJob(jobId), [jobId])
-  const job = useApiQuery(`job:${jobId}`, jobRequest)
-  const log = useLiveLog(jobId, logRequested)
+  const job = useApiQuery(`job:${jobId}`, jobRequest, {
+    pollMs: 2000,
+    pollWhile: jobIsLive,
+  })
+  const log = useLiveLog(
+    jobId,
+    logRequested && Boolean(job.data),
+    job.data?.status === "running"
+  )
   const session = useDashboardSession()
 
   const copyContext = async () => {

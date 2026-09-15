@@ -53,6 +53,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
 import {
   formatDateTime,
+  formatTimelineDate,
   formatDuration,
   queryPeriodStart,
 } from "@/features/shared/format"
@@ -165,11 +166,12 @@ function ResultsChart({
           <ChartContainer
             config={resultChartConfig}
             className="aspect-auto h-72 max-w-none"
-            style={{ width: Math.max(720, presets.length * 120) }}
+            style={{ minWidth: Math.max(280, presets.length * 120) }}
           >
             <BarChart
               accessibilityLayer
               data={presets}
+              maxBarSize={64}
               margin={{ left: 4, right: 12, top: 12 }}
             >
               <CartesianGrid vertical={false} />
@@ -352,10 +354,11 @@ function DurationChart({
               name="Horário"
               domain={timeDomain}
               tickCount={4}
+              minTickGap={32}
               tickLine={false}
               axisLine={false}
               tickFormatter={(value) =>
-                formatDateTime(new Date(Number(value)).toISOString())
+                formatTimelineDate(new Date(Number(value)).toISOString())
               }
             />
             <YAxis

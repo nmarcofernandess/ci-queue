@@ -69,7 +69,6 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
   getDashboardState,
-  getWorktreeView,
   getWorktrees,
   revealWorktree,
   type ApiQuery,
@@ -208,23 +207,23 @@ function CopyMenu({
 
 function WorktreeDrawer({
   id,
+  worktrees,
   session,
   onClose,
 }: {
   id: string
+  worktrees: ApiQuery<WorktreesResponse>
   session: ApiQuery<DashboardSession>
   onClose: () => void
 }) {
   const isMobile = useIsMobile()
-  const request = React.useCallback(() => getWorktreeView(id), [id])
-  const detail = useApiQuery(`worktree:${id}`, request)
+  const detail = {
+    data: worktrees.data?.worktrees.find((item) => item.id === id),
+    loading: worktrees.loading,
+    error: worktrees.error,
+    reload: worktrees.reload,
+  }
   const [opening, setOpening] = React.useState(false)
-
-  React.useEffect(() => {
-    if (detail.data?.size.state !== "measuring") return
-    const timer = window.setTimeout(detail.reload, 1_500)
-    return () => window.clearTimeout(timer)
-  }, [detail.data?.size.state, detail.reload])
 
   const copy = async (value: string, message: string) => {
     try {
@@ -698,6 +697,7 @@ function WorktreeTable({
       {openWorktreeId ? (
         <WorktreeDrawer
           id={openWorktreeId}
+          worktrees={worktrees}
           session={session}
           onClose={() => setOpenWorktreeId(undefined)}
         />

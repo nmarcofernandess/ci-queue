@@ -256,7 +256,7 @@ describe("queue lifecycle", () => {
   }, 15_000)
 
   it("preserves structured progress emitted by a recipe in the terminal ticket", async () => {
-    const marker = ["@@ci-queue-progress", "1", "node", "bootstrap", "-", "stage", "passed", "12", "Bootstrap"].join("\t")
+    const marker = ["failed", "running", "passed"].map(status => ["@@ci-queue-progress", "1", "node", "bootstrap", "-", "stage", status, "12", "Bootstrap"].join("\t")).join("\n")
     const { project, state } = fixture({
       progress: { argv: [process.execPath, "-e", `console.log(${JSON.stringify(marker)})`] },
     })
@@ -265,7 +265,7 @@ describe("queue lifecycle", () => {
     await runWorker(state)
 
     expect(listHistoryJobs(state)[0].progress?.nodes).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: "bootstrap", kind: "stage", status: "passed", durationMs: 12 }),
+      expect.objectContaining({ id: "bootstrap", kind: "stage", status: "passed", durationMs: 12, retryCount: 1 }),
     ]))
   })
 

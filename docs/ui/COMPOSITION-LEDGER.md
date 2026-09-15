@@ -95,7 +95,7 @@ Status indicators -> existing icons, Badge and ChartContainer -> shared semantic
 success/destructive/warning/muted-foreground tokens; do not color whole rows or
 replace icon/label identification with color alone.
 
-### Composition refinement pending visual acceptance — 15/09/2026
+### Composition refinement approved by Marco — 15/09/2026
 
 Empty current execution -> CardContent + compact Item. Empty queue -> compact
 horizontal Empty, without redundant title, table headings or explanatory copy.
@@ -104,3 +104,5 @@ separate visible History heading. InputGroup gets flexible width and a short
 placeholder. Result and origin use direct Select; grouping is only visible in
 greens mode. Table headings use muted text without a colored background band;
 summary footers have no tinted band. Existing filtering semantics are preserved.
+
+Live facts -> existing Badge, Item description and chronology -> retry/counts and a shared local clock. No new shell. Unattributed history -> existing ghost Button and shared RunTable -> explicit legacy scope; no new table or nested filter.

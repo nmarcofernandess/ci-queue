@@ -15,3 +15,6 @@ LaunchAgent envelopes. Installation and recovery are documented in
 [`examples/local-project`](./examples/local-project) is a dependency-free
 consumer fixture for success, failure, wait, cancellation and interrupted
 worker recovery.
+
+Configuration, progress, records and ownership are documented in
+[`docs/CONTRACTS.md`](./docs/CONTRACTS.md).

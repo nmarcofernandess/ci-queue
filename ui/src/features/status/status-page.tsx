@@ -1,3 +1,5 @@
+import { Badge } from "@/components/ui/badge"
+import { RelativeTime, JobDuration } from "@/features/shared/live-time"
 import * as React from "react"
 import { statusColor } from "@/features/shared/status-color"
 
@@ -63,7 +65,6 @@ import { ErrorState, RefreshingLabel } from "@/features/shared/async-state"
 import {
   formatBytes,
   formatDuration,
-  formatRelativeTime,
   shortSha,
   formatTimelineDate,
   queryPeriodStart,
@@ -213,7 +214,7 @@ function CurrentExecution({
     )
   }
 
-  const timestamp = current.startedAt ?? current.createdAt
+  const timestamp = current.startedAt
   const stages = current.progressSummary?.available
     ? (current.progressSummary.roots ?? [])
     : []
@@ -263,13 +264,18 @@ function CurrentExecution({
               </div>
               <ItemDescription>
                 {formatTimelineDate(timestamp)} ·{" "}
-                {formatRelativeTime(timestamp)} ·{" "}
-                {formatDuration(current.durationMs)}
+                {<RelativeTime value={timestamp} />} ·{" "}
+                {<JobDuration job={current} />}
               </ItemDescription>
               <ItemDescription>
                 {current.branch || "Branch não informada"} ·{" "}
                 <span className="font-mono">{shortSha(current.headSha)}</span>
               </ItemDescription>
+              {current.progressSummary?.nodes?.some(
+                (node) => (node.retryCount ?? 0) > 0
+              ) ? (
+                <Badge variant="outline">Flaky detectado</Badge>
+              ) : null}
               {current.commitSubject ? (
                 <ItemDescription>{current.commitSubject}</ItemDescription>
               ) : null}
@@ -288,7 +294,7 @@ function CurrentExecution({
 
 function MachineCard() {
   const request = React.useCallback(() => getMachine(), [])
-  const machine = useApiQuery("machine", request)
+  const machine = useApiQuery("machine", request, { pollMs: 60_000 })
 
   return (
     <Card>
@@ -674,6 +680,7 @@ type ExecutionHistoryState = {
   hasMore: boolean
   snapshotBefore: string | undefined
   nextCursor: string | null
+  unattributedRecords?: number
 }
 
 const HISTORY_DEFAULTS: HistoryFilters = {
@@ -780,13 +787,17 @@ function appendExecutionJobs(
   return [...current, ...next.filter((job) => !seen.has(jobIdentity(job)))]
 }
 
-function useExecutionHistory({
-  search,
-  period,
-  result,
-}: Pick<HistoryFilters, "search" | "period" | "result">) {
+function useExecutionHistory(
+  {
+    search,
+    period,
+    result,
+  }: Pick<HistoryFilters, "search" | "period" | "result">,
+  legacy = false,
+  historyRevision = ""
+) {
   const periodStart = React.useMemo(() => queryPeriodStart(period), [period])
-  const requestKey = `${search}\u0000${period}\u0000${result}`
+  const requestKey = `${search}\u0000${period}\u0000${result}\u0000${legacy}`
   const requestVersion = React.useRef(0)
   const [state, setState] = React.useState<ExecutionHistoryState>({
     queryKey: requestKey,
@@ -804,6 +815,7 @@ function useExecutionHistory({
     const version = requestVersion.current + 1
     requestVersion.current = version
     void getExecutions({
+      scope: legacy ? "legacy" : "terminal",
       q: search || undefined,
       result,
       from: periodStart,
@@ -822,6 +834,7 @@ function useExecutionHistory({
           hasMore: page.hasMore,
           snapshotBefore: page.snapshotBefore,
           nextCursor: page.nextCursor,
+          unattributedRecords: page.coverage?.unattributedRecords,
         })
       })
       .catch((reason) => {
@@ -840,7 +853,7 @@ function useExecutionHistory({
           nextCursor: null,
         })
       })
-  }, [periodStart, requestKey, result, search])
+  }, [legacy, historyRevision, periodStart, requestKey, result, search])
 
   const loadMore = React.useCallback(() => {
     if (
@@ -863,6 +876,7 @@ function useExecutionHistory({
     }))
 
     void getExecutions({
+      scope: legacy ? "legacy" : "terminal",
       q: search || undefined,
       result,
       from: periodStart,
@@ -884,6 +898,7 @@ function useExecutionHistory({
             loadMoreError: undefined,
             hasMore: page.hasMore,
             nextCursor: page.nextCursor,
+            unattributedRecords: page.coverage?.unattributedRecords,
           }
         })
       })
@@ -900,7 +915,7 @@ function useExecutionHistory({
           ),
         }))
       })
-  }, [periodStart, requestKey, result, search, state])
+  }, [legacy, periodStart, requestKey, result, search, state])
 
   const visibleState =
     state.queryKey === requestKey
@@ -1060,11 +1075,18 @@ function sourceFailure<T>(
   return undefined
 }
 
-function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
+function HistoryPanel({
+  onOpenJob,
+  historyRevision,
+}: {
+  onOpenJob: (jobId: string) => void
+  historyRevision: string
+}) {
   const [filters, setFilters] =
     React.useState<HistoryFilters>(readHistoryFilters)
   const [selectedCommit, setSelectedCommit] = React.useState<GreenCommitGroup>()
-  const executions = useExecutionHistory(filters)
+  const [legacy, setLegacy] = React.useState(false)
+  const executions = useExecutionHistory(filters, legacy, historyRevision)
   const greensMode = filters.mode === "greens"
   const needsMachine = filters.origin !== "git"
   const needsGit = filters.origin !== "machine"
@@ -1072,9 +1094,11 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
   const remoteRequest = React.useCallback(() => getRemoteSlots(), [])
   const presetHistory = useApiQuery("preset-history", presetRequest, {
     enabled: greensMode && needsMachine,
+    pollMs: 10_000,
   })
   const remote = useApiQuery("remote-slots", remoteRequest, {
     enabled: greensMode && needsGit,
+    pollMs: 10_000,
   })
 
   React.useEffect(() => {
@@ -1189,23 +1213,38 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
   }
 
   const toolbar = (
-    <HistoryToolbar
-      mode={filters.mode}
-      search={filters.search}
-      period={filters.period}
-      result={filters.result}
-      origin={filters.origin}
-      grouping={filters.grouping}
-      onMode={(mode) => setFilters((current) => ({ ...current, mode }))}
-      onSearch={(search) => setFilters((current) => ({ ...current, search }))}
-      onPeriod={(period) => setFilters((current) => ({ ...current, period }))}
-      onResult={(result) => setFilters((current) => ({ ...current, result }))}
-      onOrigin={(origin) => setFilters((current) => ({ ...current, origin }))}
-      onGrouping={(grouping) =>
-        setFilters((current) => ({ ...current, grouping }))
-      }
-      onClear={clear}
-    />
+    <>
+      <HistoryToolbar
+        mode={filters.mode}
+        search={filters.search}
+        period={filters.period}
+        result={filters.result}
+        origin={filters.origin}
+        grouping={filters.grouping}
+        onMode={(mode) => setFilters((current) => ({ ...current, mode }))}
+        onSearch={(search) => setFilters((current) => ({ ...current, search }))}
+        onPeriod={(period) => setFilters((current) => ({ ...current, period }))}
+        onResult={(result) => setFilters((current) => ({ ...current, result }))}
+        onOrigin={(origin) => setFilters((current) => ({ ...current, origin }))}
+        onGrouping={(grouping) =>
+          setFilters((current) => ({ ...current, grouping }))
+        }
+        onClear={clear}
+      />
+      {filters.mode === "executions" &&
+      (legacy || (executions.unattributedRecords ?? 0) > 0) ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-fit"
+          onClick={() => setLegacy((value) => !value)}
+        >
+          {legacy
+            ? "Voltar ao histórico do projeto"
+            : `Legado sem projeto (${executions.unattributedRecords})`}
+        </Button>
+      ) : null}
+    </>
   )
 
   return (
@@ -1280,7 +1319,9 @@ export function StatusPage() {
   const statusRequest = React.useCallback(() => getStatus(), [])
   const status = useApiQuery("status", statusRequest, { pollMs: 10_000 })
   const dashboardRequest = React.useCallback(() => getDashboardState(), [])
-  const dashboard = useApiQuery("dashboard-state", dashboardRequest)
+  const dashboard = useApiQuery("dashboard-state", dashboardRequest, {
+    pollMs: 10_000,
+  })
   const [selectedJobId, setSelectedJobId] = React.useState<string>()
   const [stateDrawerOpen, setStateDrawerOpen] = React.useState(false)
   const [stateSurface, setStateSurface] = React.useState<"meta" | "pending">(
@@ -1333,7 +1374,10 @@ export function StatusPage() {
             emptyDescription="A próxima execução aguardando aparecerá aqui."
             onOpenJob={setSelectedJobId}
           />
-          <HistoryPanel onOpenJob={setSelectedJobId} />
+          <HistoryPanel
+            onOpenJob={setSelectedJobId}
+            historyRevision={status.data.history?.[0]?.id ?? ""}
+          />
         </div>
         <aside className="flex flex-col gap-4">
           <MachineCard />

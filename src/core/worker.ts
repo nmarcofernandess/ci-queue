@@ -10,6 +10,7 @@ import {
   ensureQueueDirs,
   historyPath,
   listQueuedJobs,
+  isPidAlive,
   queuePaths,
   readRunningJob,
   recoverClaims,
@@ -62,6 +63,25 @@ export async function sweepInvalidTickets(root: string): Promise<string[]> {
   return rejected
 }
 
+/** Only recognized atomic writes with a dead producer can be quarantined. */
+export function recoverProgressTemporaries(root: string): string[] {
+  const paths = ensureQueueDirs(root)
+  const recovered: string[] = []
+  if (readRunningJob(root)) return recovered
+  for (const name of readdirSync(paths.progress)) {
+    const match = /^(.+\.json)\.(\d+)\.([a-f0-9]{12})\.tmp$/.exec(name)
+    if (!match || isPidAlive(Number(match[2]))) continue
+    const path = join(paths.progress, name)
+    const age = fileAge(path)
+    if (age === undefined || age < STALE_TMP_MAX_AGE_MS) continue
+    try {
+      renameSync(path, join(paths.jobsRejected, `progress-${name}`))
+      recovered.push(name)
+    } catch { /* Another recovery may already have preserved it. */ }
+  }
+  return recovered
+}
+
 /** Drains one state root and exits. The installer may invoke it on demand. */
 export async function runWorker(root: string): Promise<WorkerReport> {
   ensureQueueDirs(root)
@@ -84,6 +104,7 @@ export async function runWorker(root: string): Promise<WorkerReport> {
     const reconciliation = await reconcileInterruptedJob(root)
     report.reconciliation = reconciliation.state
     if (reconciliation.state === "active" || reconciliation.state === "blocked") return report
+    recoverProgressTemporaries(root)
     recoverClaims(root)
     report.rejected.push(...await sweepInvalidTickets(root))
     for (;;) {

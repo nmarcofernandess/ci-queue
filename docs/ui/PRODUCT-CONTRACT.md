@@ -19,7 +19,7 @@ Primitivos isolados não bastam para declarar uma superfície como shadcn. Shell
 ## Status
 
 A página não repete um título grande “Status” no corpo. A composição revisada
-em 15/09/2026 está disponível para aceite visual: Execução atual vazia e Fila
+em 15/09/2026 foi aprovada por Marco em `8adb6f4` e permanece a composição de referência: Execução atual vazia e Fila
 livre ocupam faixas compactas sem títulos redundantes, instruções ou cabeçalho
 de tabela vazia. Execução ativa e Fila preenchida mantêm identificação própria.
 O histórico usa `CardHeader` com modo, busca e filtros; “Execuções / Últimos
@@ -54,11 +54,10 @@ A fila contém apenas tickets `queued`, na ordem da fila, e não possui busca ou
 
 O histórico contém apenas tickets terminais. Acima e fora da borda da tabela ficam:
 
-1. busca por preset, branch, SHA ou ticket;
-2. ToggleGroup segmentado Execuções / Últimos verdes;
-3. select direto de período e de agrupamento Por preset/Por commit;
-4. uma segunda linha de ToggleGroup exclusivo para resultado ou origem;
-5. Limpar, somente quando houver filtro aplicado.
+1. ToggleGroup Execuções / Últimos verdes na primeira linha;
+2. InputGroup de busca na segunda linha, seguido dos Selects diretos de período e resultado;
+3. em Últimos verdes, origem e agrupamento substituem resultado;
+4. Limpar somente quando há filtro aplicado.
 
 Execuções oferece período Todo período, Hoje, 48h, Semana ou 15 dias, e resultado Todos, Passou, Falhou, Cancelado ou Interrompido. Não existe intervalo livre, calendário, popover contendo select nem controle duplicado.
 
@@ -110,3 +109,27 @@ Charts usam `ChartContainer`, `ChartTooltipContent` e `ChartLegendContent` ofici
 - Dados preservados durante refresh continuam visíveis sem banner redundante.
 - Ausência de dado nunca vira zero, estado saudável ou texto técnico inventado.
 - O Dashboard consome a API real; fixtures isoladas cobrem vazio, erro, execução viva e logs longos sem criar fatos de produto.
+
+## Atualização dos fatos vivos
+
+Datas relativas e duração ativa usam um relógio compartilhado no browser, sem
+requests por tick. Running exige `startedAt`; cancelamento anterior ao início
+mostra **Não iniciada**. O drawer relê um ticket enquanto está na fila ou em
+execução e encerra essa leitura no terminal. O histórico acompanha a chegada de
+novos terminais observada pelo Status.
+
+O log usa `offset`/`nextOffset`, drena bytes pendentes antes de aguardar e para
+quando o terminal foi drenado. O buffer de visualização guarda até quatro
+milhões de caracteres recentes, com indicação de trecho anterior omitido;
+o arquivo original e a exportação de diagnóstico não são alterados.
+
+O collector registra `retryCount` ao observar `failed → running` do mesmo nó
+no mesmo job. Repetir `running` não incrementa o contador. O fato permanece no
+terminal e aparece na execução atual, histórico e árvore do drawer. O consumidor
+continua responsável pelo veredito de flaky; observabilidade nunca fabrica verde.
+
+Histórico sem projeto fica acessível por **Legado sem projeto**. A atribuição
+explícita é operacional e auditável, descrita em `docs/INSTALL.md`; a UI não
+adivinha projeto por caminho nem oferece ação de reclassificar registros.
+
+O cursor do log respeita linhas completas. Linhas maiores que o trecho de leitura podem ser omitidas com aviso, e a exportação limitada a 8 MiB declara quando preserva somente início e fim. A redação de chaves reconhecidas não substitui a obrigação do consumidor de não imprimir segredos.

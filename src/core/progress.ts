@@ -17,7 +17,7 @@ const STATUSES = new Set<ProgressStatus>(["pending", "running", "passed", "faile
 const NODE_KINDS = new Set<ProgressNodeKind>(["stage", "group", "gate", "suite", "case", "artifact"])
 const COUNT_KINDS = new Set<ProgressCountKind>(["gates", "suites", "cases", "artifacts", "items"])
 
-type NodeEvent = Omit<ProgressNode, "detail"> & { type: "node" }
+type NodeEvent = Omit<ProgressNode, "detail" | "retryCount"> & { type: "node" }
 type CountsEvent = ProgressCounts & { type: "counts"; id: string }
 type ProgressEvent = NodeEvent | CountsEvent
 
@@ -64,7 +64,13 @@ export function applyProgressLine(state: JobProgress, line: unknown, now = new D
   if (!event) return state
   if (event.type === "node") {
     const index = state.nodes.findIndex((node) => node.id === event.id)
-    const node: ProgressNode = { ...state.nodes[index], ...event }
+    const previous = state.nodes[index]
+    const node: ProgressNode = { ...previous, ...event }
+    // Repeated running markers are observations, not additional attempts.
+    if (previous?.status === "failed" && event.status === "running") {
+      node.retryCount = (previous.retryCount ?? 0) + 1
+      delete node.durationMs
+    }
     delete (node as { type?: string }).type
     const nodes = [...state.nodes]
     if (index === -1) nodes.push(node)

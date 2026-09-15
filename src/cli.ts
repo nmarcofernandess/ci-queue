@@ -107,7 +107,7 @@ function usage(): string {
     "  enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH [--flags-json JSON]",
     "  worker",
     "  status",
-    "  history [--project ID]",
+    "  history [--project ID] [--legacy]",
     "  preset-history [--preset NAME]",
     "  advisory upsert --preset NAME --head-sha SHA --reason TEXT [--pr N]",
     "  advisory list",
@@ -168,7 +168,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
       case "status":
         return success({ running: readRunningJob(root) ?? null, queued: listQueuedJobs(root), latest: listHistoryJobs(root)[0] ?? null })
       case "history":
-        return success({ jobs: listHistoryJobs(root, optionValue(args.rest, "--project")) })
+        return success({ jobs: listHistoryJobs(root, optionValue(args.rest, "--project")).filter(ticket => !args.rest.includes("--legacy") || !ticket.projectId) })
       case "preset-history": {
         const loaded = readQueueConfig(args.cwd, args.configPath)
         const report = buildPresetHistory(listHistoryJobs(root, loaded.config.project.id), loaded.config)

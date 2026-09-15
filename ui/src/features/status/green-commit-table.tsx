@@ -1,3 +1,4 @@
+import { RelativeTime } from "@/features/shared/live-time"
 import { ClipboardIcon, EyeIcon, GitCommitIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -34,7 +35,6 @@ import {
 } from "@/components/ui/tooltip"
 import {
   formatDuration,
-  formatRelativeTime,
   formatTimelineDate,
   shortSha,
 } from "@/features/shared/format"
@@ -109,7 +109,7 @@ export function GreenCommitTable({
               </TableCell>
               <TableCell className="whitespace-nowrap text-muted-foreground">
                 {formatTimelineDate(group.finishedAt)} ·{" "}
-                {formatRelativeTime(group.finishedAt)}
+                {<RelativeTime value={group.finishedAt} />}
               </TableCell>
               <TableCell>{group.rows.length}</TableCell>
               <TableCell>{originLabel(group.origins)}</TableCell>
@@ -170,7 +170,7 @@ export function GreenCommitDrawer({
               <DrawerDescription>
                 {group.rows.length} execuções verdes ·{" "}
                 {formatTimelineDate(group.finishedAt)} ·{" "}
-                {formatRelativeTime(group.finishedAt)}
+                {<RelativeTime value={group.finishedAt} />}
               </DrawerDescription>
             </div>
             <DrawerClose asChild>

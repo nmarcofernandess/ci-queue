@@ -1,3 +1,4 @@
+import { RelativeTime, JobDuration } from "./live-time"
 import * as React from "react"
 import {
   createColumnHelper,
@@ -48,8 +49,6 @@ import {
 } from "@/components/ui/tooltip"
 import { ErrorState } from "@/features/shared/async-state"
 import {
-  formatDuration,
-  formatRelativeTime,
   formatTimelineDate,
   shortSha,
   statusLabel,
@@ -171,6 +170,11 @@ function RunDataTable({
                   onClick={() => onOpenJob(id)}
                 >
                   {job.preset}
+                  {job.progressSummary?.nodes?.some(
+                    (node) => (node.retryCount ?? 0) > 0
+                  ) ? (
+                    <Badge variant="outline">Flaky detectado</Badge>
+                  ) : null}
                 </Button>
               ) : (
                 <span className="block w-full min-w-0 truncate font-medium">
@@ -193,7 +197,13 @@ function RunDataTable({
                 : (job.finishedAt ?? job.startedAt ?? job.createdAt)
             return (
               <span className="block truncate whitespace-nowrap text-muted-foreground">
-                {formatTimelineDate(at)} · {formatRelativeTime(at)}
+                {formatTimelineDate(at)}
+                {job.status !== "queued" ? (
+                  <>
+                    <span> · </span>
+                    <RelativeTime value={at} />
+                  </>
+                ) : null}
               </span>
             )
           },
@@ -203,9 +213,11 @@ function RunDataTable({
           header: queued ? "Espera" : "Duração",
           cell: ({ row }) => (
             <span className="block truncate whitespace-nowrap">
-              {row.original.status === "queued"
-                ? formatRelativeTime(row.original.createdAt)
-                : formatDuration(row.original.durationMs)}
+              {row.original.status === "queued" ? (
+                <RelativeTime value={row.original.createdAt} />
+              ) : (
+                <JobDuration job={row.original} />
+              )}
             </span>
           ),
         }),

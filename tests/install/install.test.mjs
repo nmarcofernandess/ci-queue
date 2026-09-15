@@ -22,7 +22,7 @@ function sourceFixture() {
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, path)
   }
-  for (const script of ["install.mjs", "release.mjs"]) {
+  for (const script of ["install.mjs", "release.mjs", "legacy-projects.mjs"]) {
     const target = join(root, "scripts", script)
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, readFileSync(join(productRoot, "scripts", script), "utf8"))

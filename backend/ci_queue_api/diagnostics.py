@@ -19,29 +19,52 @@ def _path(state_root, job_id):
     return Path(state_root) / "logs" / (job_id + ".log")
 
 
-def _read(path, offset, length):
+def _read(path, offset, length, terminal=False):
     try:
         size = path.stat().st_size
         with path.open("rb") as stream:
             start = min(offset, size)
+            stream.seek(max(0, start - 1))
+            partial_start = start > 0 and stream.read(1) != b"\n"
             stream.seek(start)
             raw = stream.read(length)
+            end = start + len(raw)
+            # Cursors end on line boundaries so UTF-8 and secret redaction
+            # cannot be split across responses. Oversized lines are explicit.
+            omitted = False
+            if raw and not raw.endswith(b"\n") and not (terminal and end >= size):
+                newline = raw.rfind(b"\n")
+                if newline >= 0:
+                    raw = raw[:newline + 1]
+                    end = start + len(raw)
+                elif end >= size and not terminal:
+                    return "", size, start, True, None
+                else:
+                    raw = b""
+                    omitted = True
+            if partial_start and raw:
+                newline = raw.find(b"\n")
+                raw = raw[newline + 1:] if newline >= 0 else b""
+                omitted = True
     except FileNotFoundError:
         return "", 0, offset, False, "log não encontrado"
     except OSError as error:
         return "", 0, offset, False, "log indisponível: %s" % error
-    end = start + len(raw)
-    return _redact(raw.decode("utf-8", errors="replace")), size, end, end >= size, None
+    content = _redact(raw.decode("utf-8", errors="replace"))
+    if omitted:
+        content = "[Linha longa omitida neste trecho; consulte o diagnóstico]\n" + content
+    return content, size, end, end >= size, None
 
 
 def read_log_slice(state_root, config, job_id, offset=0, length=LOG_SLICE_LIMIT):
     validate_job_id(job_id)
     if not isinstance(offset, int) or offset < 0 or not isinstance(length, int) or not 0 < length <= MAX_EXPORT_BYTES:
         raise ValueError("intervalo de leitura inválido")
-    if lookup_job(state_root, job_id, config.project_id) is None:
+    job = lookup_job(state_root, job_id, config.project_id)
+    if job is None:
         return {"schemaVersion": 1, "jobId": job_id, "content": "", "offset": offset,
                 "nextOffset": offset, "sourceBytes": 0, "complete": False, "error": "ticket não encontrado"}
-    content, source, next_offset, complete, error = _read(_path(state_root, job_id), offset, length)
+    content, source, next_offset, complete, error = _read(_path(state_root, job_id), offset, length, job.get("status") not in {"running", "queued"})
     return {"schemaVersion": 1, "jobId": job_id, "content": content, "offset": offset,
             "nextOffset": next_offset, "sourceBytes": source, "complete": complete, "error": error}
 
@@ -63,7 +86,13 @@ def read_log_export(state_root, config, job_id):
                 budget = MAX_EXPORT_BYTES - len(marker)
                 head = stream.read(budget // 2)
                 stream.seek(-(budget - len(head)), 2)
-                raw = head + marker + stream.read(budget - len(head))
+                tail = stream.read(budget - len(head))
+                # Drop partial boundary lines: their secret key can live outside
+                # the exported window, where redaction could not recognize it.
+                head = head[:head.rfind(b"\n") + 1]
+                newline = tail.find(b"\n")
+                tail = tail[newline + 1:] if newline >= 0 else b""
+                raw = head + marker + tail
                 mode = "head-and-tail"
     except FileNotFoundError:
         return {"schemaVersion": 1, "jobId": job_id, "content": "",

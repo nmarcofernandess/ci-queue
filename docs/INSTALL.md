@@ -81,3 +81,33 @@ Antes de ativar, atualizar ou remover, prove que não há job em andamento e que
 nenhum executor legado continuará observando o mesmo state root. O instalador
 recusa `running.json` e locks; o corte operacional é responsável por retirar o
 serviço anterior antes de carregar o novo.
+
+## Historical tickets without a project ID
+
+An old ticket is never attributed by its folder name. The migration helper
+checks its recorded commit against the repository explicitly selected by the
+operator. It writes only `state/legacy-projects.json`; original history and logs
+remain unchanged. Existing assignments are preserved. First inspect the counts:
+
+```bash
+node scripts/legacy-projects.mjs --state /path/to/state --repo /path/to/project --project PROJECT_ID
+```
+
+When the installation is idle, repeat with `--apply`. Each assignment includes
+the observed commit and original ticket digest. Keep this small ledger with state
+backups; removing it reverses the attribution without changing any ticket.
+CLI history, API history, statistics and canonical greens read the same explicit
+ownership. Tickets without sufficient evidence stay available through
+`ci-queue history --legacy --json` and **Legado sem projeto** in the history
+surface. They do not contribute to a project's green or statistics.
+
+A missing historical log is unavailable, not a successful empty log. The
+installation never reruns a job to reconstruct it and does not expire old logs.
+
+## Browser regression tests
+
+After `npm ci` and `npm --prefix ui ci`, provision the test browser once with
+`npx playwright install chromium --only-shell`. `npm run test:browser` starts
+its own Vite on port 5191 and uses isolated API fixtures. It never enqueues jobs
+or changes the installed service. The fixtures prove UI behavior; the separate
+backend/core suites and the real installed consumer run prove integration.
