@@ -14,7 +14,6 @@ import type {
   PresetHistoryResponse,
   RevealResult,
   StatusSnapshot,
-  WorktreeRecord,
   WorktreesResponse,
 } from "@/lib/types"
 import { parseRemoteSlotsResponse } from "@/lib/remote-slots"
@@ -144,10 +143,6 @@ export function getMachine() {
 
 export function getWorktrees() {
   return requestJson<WorktreesResponse>("/api/worktrees")
-}
-
-export function getWorktreeView(id: string) {
-  return requestJson<WorktreeRecord>("/api/worktree-view", { id })
 }
 
 export function getDashboardState() {

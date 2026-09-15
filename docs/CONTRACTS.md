@@ -21,8 +21,9 @@ cria o ticket. `--wait` espera um terminal; terminar o cliente não cancela o jo
 `cancel <id>` são operações da CLI. `--json` responde com
 `{ apiVersion: 1, ok, result|error }`. A CLI de logs é leitura local integral;
 o browser usa trechos limitados e redigidos. Ausência de log é erro, não sucesso
-vazio. `version --json` identifica capabilities; na distribuição, o launcher
-acrescenta a revisão do manifest.
+vazio. `version --json` identifica capabilities; na distribuição, a CLI
+informa a revisão e o digest do manifest adjacente ao runtime. No checkout sem
+manifest esses campos são null; nunca são inferidos do Git ou do cwd.
 
 Tickets v1/v2/v3 permanecem legíveis. `jobs/` contém a espera, `running.json`
 a reserva ativa e `history/` os terminais. O único worker reivindica a fila sob

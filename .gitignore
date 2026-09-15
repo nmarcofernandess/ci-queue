@@ -145,3 +145,6 @@ vite.config.ts.timestamp-*
 # Browser test output
 test-results/
 playwright-report/
+
+# Reproducible distribution output
+/releases/

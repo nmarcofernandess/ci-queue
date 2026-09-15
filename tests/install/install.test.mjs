@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -101,6 +101,25 @@ test("the copied release installs and uninstalls itself without a source checkou
 
     const uninstall = JSON.parse(execFileSync(process.execPath, [join(install.releasePath, "scripts", "install.mjs"), "uninstall", "--prefix", prefix], { encoding: "utf8" }))
     assert.deepEqual(uninstall, { removed: true, statePreserved: true })
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+
+test("installed CLI reports its own manifest independently of source and cwd", () => {
+  const root = sourceFixture()
+  try {
+    cpSync(join(productRoot, "dist"), join(root, "dist"), { recursive: true })
+    cpSync(join(productRoot, "bin"), join(root, "bin"), { recursive: true })
+    const { destination } = buildRelease({ root, outputDir: join(root, "bundles"), revision: "e".repeat(40) })
+    const installed = installRelease({ bundle: destination, prefix: join(root, "installed"), stateRoot: join(root, "state") })
+    rmSync(join(root, "dist"), { recursive: true })
+    rmSync(join(root, "bin"), { recursive: true })
+    const result = JSON.parse(execFileSync(process.execPath, [join(installed.releasePath, "bin", "ci-queue.mjs"), "version", "--json"], { cwd: tmpdir(), encoding: "utf8" }))
+    assert.equal(result.ok, true)
+    assert.equal(result.result.revision, "e".repeat(40))
+    assert.equal(result.result.manifestSha256, installed.manifestSha256)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

@@ -343,7 +343,8 @@ function LogPanel({
     if (!following || !viewport.current) return
     viewport.current.scrollTop = viewport.current.scrollHeight
   }, [following, log.data?.content])
-  if (log.loading) return <Skeleton className="h-64 w-full" />
+  if (log.loading || (!log.data && !log.error))
+    return <Skeleton className="h-64 w-full" />
   if (log.error)
     return (
       <ErrorState
@@ -688,7 +689,17 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
             </ScrollArea>
           </TabsContent>
           <TabsContent value="log" className="min-h-0 overflow-hidden px-0">
-            <LogPanel log={log} running={job.data?.status === "running"} />
+            {job.loading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : job.error ? (
+              <ErrorState
+                title="Não foi possível carregar a execução"
+                error={job.error}
+                onRetry={job.reload}
+              />
+            ) : (
+              <LogPanel log={log} running={job.data?.status === "running"} />
+            )}
           </TabsContent>
         </Tabs>
         <DrawerFooter className="shrink-0 border-t sm:flex-row sm:justify-end">

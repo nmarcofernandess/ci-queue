@@ -31,6 +31,7 @@ test('live drawer preserves identity, recursive counts, cursor and terminal poll
   })
   await page.goto('/#status')
   await expect(page.getByText('Flaky detectado')).toBeVisible()
+  await expect(page.getByText('Atualizando', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'smoke', exact: true }).click()
   const drawer = page.getByRole('dialog')
   await expect(drawer.getByText('Retry case')).toBeVisible()
@@ -92,7 +93,7 @@ for (const width of [390, 820, 1440]) {
 
 test('worktree selection persists and copy menu exposes only the two formats', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-  const trees = ['one', 'two'].map((id, index) => ({ id, path: `/example/${id}`, branch: `branch-${id}`, headSha: 'abcdef12', dirty: index === 0, changedEntries: index === 0 ? 1 : 0, ahead: 0, behind: 0, locked: false, size: { bytes: 1024, state: 'ready', observedAt: new Date().toISOString(), error: null } }))
+  const trees = ['one', 'two'].map((id, index) => ({ id, path: `/example/${id}`, branch: `branch-${id}`, headSha: 'abcdef12', dirty: index === 0, changedEntries: index === 0 ? 1 : 0, ahead: 0, behind: 0, locked: false, size: { bytes: 1073741824, state: 'ready', observedAt: new Date().toISOString(), error: null } }))
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url())
     const data: Record<string, unknown> = {
@@ -117,8 +118,11 @@ test('worktree selection persists and copy menu exposes only the two formats', a
   await page.getByRole('button', { name: 'one', exact: true }).click()
   await expect(page.getByRole('dialog').getByText('/example/one', { exact: true })).toBeVisible()
   trees[0].headSha = 'updated-sha'
+  trees[0].size.state = 'measuring'
   await page.clock.fastForward(60_001)
   await expect(page.getByRole('dialog').getByText('updated-sha', { exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog').getByText('Medindo…', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('dialog').getByRole('row', { name: /Tamanho/ })).toContainText('1 GB')
 })
 
 test('log pause preserves visible text, fixed regions and diagnostic bundle', async ({ page, context }) => {
@@ -213,4 +217,32 @@ test('meta creates, cancels edits, reports save failure and removes without SHA 
   await drawer.getByRole('button',{name:'Remover',exact:true}).click()
   await page.getByRole('alertdialog').getByRole('button',{name:'Remover',exact:true}).click()
   await expect(drawer.getByText('Nenhuma meta declarada',{exact:true})).toBeVisible()
+})
+
+
+test('log tab keeps loading distinct from an unavailable ticket', async ({ page }) => {
+  let releaseJob!: () => void
+  const pendingJob = new Promise<void>(resolve => { releaseJob = resolve })
+  const job = { ...baseJob, status: 'passed', finishedAt: new Date().toISOString(), durationMs: 62000 }
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url())
+    const data: Record<string, unknown> = {
+      '/api/status': { project: { id: 'example', name: 'Example' }, running: null, queued: [], history: [job] },
+      '/api/session': { csrfToken: 'fixture', canReveal: false },
+      '/api/dashboard-state': { revision: 0, presets: ['smoke'], meta: null, pending: [] },
+      '/api/machine': {},
+      '/api/executions': { jobs: [job], hasMore: false },
+      '/api/log': { content: 'retained log', offset: 0, nextOffset: 12, sourceBytes: 12, complete: true, error: null },
+    }
+    if (url.pathname === '/api/job') { await pendingJob; await route.fulfill({ json: job }); return }
+    await route.fulfill({ json: data[url.pathname] ?? {} })
+  })
+  await page.goto('/#status')
+  await page.getByRole('button', { name: 'smoke', exact: true }).click()
+  await page.getByRole('tab', { name: 'Log', exact: true }).click()
+  const drawer = page.getByRole('dialog')
+  await expect(drawer.getByText('Carregando dados da execução…')).toBeVisible()
+  await expect(drawer.getByText('Log indisponível', { exact: true })).toHaveCount(0)
+  releaseJob()
+  await expect(drawer.locator('pre')).toHaveText('retained log')
 })

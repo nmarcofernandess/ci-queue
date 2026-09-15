@@ -1,5 +1,6 @@
 import { readQueueConfig } from "./contracts/config.js"
 import { existsSync, readFileSync } from "node:fs"
+import { createHash } from "node:crypto"
 import {
   API_VERSION,
   normalizeTicketFlags,
@@ -122,13 +123,22 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
   const root = resolveStateRoot(args.stateRoot)
   try {
     switch (args.command) {
-      case "version":
+      case "version": {
+        const path = new URL("../manifest.json", import.meta.url)
+        const bytes = existsSync(path) ? readFileSync(path) : undefined
+        const manifest = bytes ? JSON.parse(bytes.toString("utf8")) : undefined
+        if (manifest && (manifest.schemaVersion !== 1 || manifest.product !== "ci-queue" || !/^[a-f0-9]{40}$/.test(manifest.revision))) {
+          return failure("INVALID_MANIFEST", "Manifest da distribuição inválido")
+        }
         return success({
-          version: "0.1.0",
+          version: manifest?.version ?? "0.1.0",
+          revision: manifest?.revision ?? null,
+          manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
           capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
+      }
       case "enqueue": {
         const recipe = optionValue(args.rest, "--recipe")
         const preset = enqueuePreset(args.rest)

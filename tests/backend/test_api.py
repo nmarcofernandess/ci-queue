@@ -566,7 +566,7 @@ class StateAndDiagnosticTests(Fixture):
 
 
 class WorktreeTests(Fixture):
-    def test_inventory_uses_explicit_repository_and_measures_only_detail(self):
+    def test_inventory_uses_explicit_repository_and_schedules_sizes(self):
         repo = self.root / "repo"
         subprocess.run(["git", "init", str(repo)], check=True, capture_output=True)
         subprocess.run(["git", "-C", str(repo), "config", "user.name", "test"], check=True)

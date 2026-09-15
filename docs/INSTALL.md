@@ -82,6 +82,14 @@ nenhum executor legado continuará observando o mesmo state root. O instalador
 recusa `running.json` e locks; o corte operacional é responsável por retirar o
 serviço anterior antes de carregar o novo.
 
+Se `launchctl bootstrap` falhar durante uma atualização, a operação retorna
+erro: isso não confirma serviço ativo, mesmo que `installation.json` já
+aponte para a release. Confira `launchctl list` e a fila ociosa; repita o mesmo
+comando de instalação e confirme `/build.json` antes de enfileirar. O unload
+assíncrono do launchd pode causar uma recusa transitória imediata ao reload.
+Persistindo a falha, use o mesmo instalador com o bundle anterior preservado;
+não remova estado ou locks e não inicie um worker concorrente.
+
 ## Historical tickets without a project ID
 
 An old ticket is never attributed by its folder name. The migration helper

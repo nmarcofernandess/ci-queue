@@ -139,9 +139,9 @@ function baseLabel(worktree: WorktreeRecord) {
 }
 
 function sizeLabel(worktree: WorktreeRecord) {
-  if (worktree.size.state === "ready") return formatBytes(worktree.size.bytes)
+  if (typeof worktree.size.bytes === "number") return formatBytes(worktree.size.bytes)
   if (worktree.size.state === "measuring") return "Medindo…"
-  return "Ao abrir"
+  return worktree.size.error || "Atualização automática pendente."
 }
 
 function worktreeContext(worktree: WorktreeRecord) {
@@ -341,12 +341,7 @@ function WorktreeDrawer({
                       Tamanho
                     </TableCell>
                     <TableCell>
-                      {detail.data.size.state === "ready"
-                        ? formatBytes(detail.data.size.bytes)
-                        : detail.data.size.state === "measuring"
-                          ? "Medindo…"
-                          : detail.data.size.error ||
-                            "Atualização automática pendente."}
+                      {sizeLabel(detail.data)}
                     </TableCell>
                   </TableRow>
                 </TableBody>

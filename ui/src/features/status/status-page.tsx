@@ -24,7 +24,6 @@ import type {
 import { Button } from "@/components/ui/button"
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -61,7 +60,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { ErrorState, RefreshingLabel } from "@/features/shared/async-state"
+import { ErrorState } from "@/features/shared/async-state"
 import {
   formatBytes,
   formatDuration,
@@ -184,11 +183,9 @@ function ExecutionStages({ stages }: { stages: ProgressNode[] }) {
 function CurrentExecution({
   snapshot,
   onOpenJob,
-  refreshing,
 }: {
   snapshot: StatusSnapshot
   onOpenJob: (jobId: string) => void
-  refreshing: boolean
 }) {
   const current =
     snapshot.running?.status === "running" ? snapshot.running : null
@@ -223,7 +220,6 @@ function CurrentExecution({
     <Card size="sm">
       <CardHeader>
         <CardTitle>Execução atual</CardTitle>
-        <CardAction>{refreshing ? <RefreshingLabel /> : null}</CardAction>
       </CardHeader>
       <CardContent>
         <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)] md:items-start">
@@ -1360,7 +1356,6 @@ export function StatusPage() {
       <CurrentExecution
         snapshot={status.data}
         onOpenJob={setSelectedJobId}
-        refreshing={status.refreshing}
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div className="flex min-w-0 flex-col gap-6">
