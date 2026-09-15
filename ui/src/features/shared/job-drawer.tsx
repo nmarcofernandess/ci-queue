@@ -1,3 +1,4 @@
+import { statusColor } from "@/features/shared/status-color"
 import * as React from "react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -147,11 +148,18 @@ function useLiveLog(jobId: string, enabled: boolean) {
 
 function StageGlyph({ status }: { status: ProgressNode["status"] }) {
   if (status === "passed")
-    return <CheckCircle2Icon className="size-4 shrink-0" />
-  if (status === "failed") return <XCircleIcon className="size-4 shrink-0" />
+    return (
+      <CheckCircle2Icon className={`size-4 shrink-0 ${statusColor(status)}`} />
+    )
+  if (status === "failed")
+    return <XCircleIcon className={`size-4 shrink-0 ${statusColor(status)}`} />
   if (status === "running")
-    return <LoaderCircleIcon className="size-4 shrink-0 animate-spin" />
-  return <CircleDotIcon className="size-4 shrink-0" />
+    return (
+      <LoaderCircleIcon
+        className={`size-4 shrink-0 animate-spin ${statusColor(status)}`}
+      />
+    )
+  return <CircleDotIcon className={`size-4 shrink-0 ${statusColor(status)}`} />
 }
 
 function JobHeaderTimeline({ job }: { job: JobRecord }) {

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { statusColor } from "@/features/shared/status-color"
 
 import {
   getDashboardState,
@@ -161,9 +162,7 @@ function ExecutionStages({ stages }: { stages: ProgressNode[] }) {
             <div className="flex min-h-7 flex-col items-center">
               <Icon
                 aria-hidden="true"
-                className={
-                  stage.status === "running" ? "animate-spin" : undefined
-                }
+                className={`${statusColor(stage.status)} ${stage.status === "running" ? "animate-spin" : ""}`}
               />
               {index < stages.length - 1 ? (
                 <Separator
@@ -203,10 +202,8 @@ function CurrentExecution({
   if (!current) {
     return (
       <Card size="sm">
-        <CardHeader>
-          <CardDescription className="font-medium tracking-wide uppercase">
-            Execução atual
-          </CardDescription>
+        <CardHeader className="border-b">
+          <CardTitle>Execução atual</CardTitle>
         </CardHeader>
         <CardContent className="py-2">
           <Empty className="gap-2 border-0 p-2">
@@ -234,10 +231,8 @@ function CurrentExecution({
 
   return (
     <Card size="sm">
-      <CardHeader className="pb-0">
-        <CardDescription className="font-medium tracking-wide uppercase">
-          Execução atual
-        </CardDescription>
+      <CardHeader className="border-b">
+        <CardTitle>Execução atual</CardTitle>
         <CardAction>{refreshing ? <RefreshingLabel /> : null}</CardAction>
       </CardHeader>
       <CardContent>
@@ -1196,27 +1191,31 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
     )
   }
 
+  const toolbar = (
+    <HistoryToolbar
+      mode={filters.mode}
+      search={filters.search}
+      period={filters.period}
+      result={filters.result}
+      origin={filters.origin}
+      grouping={filters.grouping}
+      onMode={(mode) => setFilters((current) => ({ ...current, mode }))}
+      onSearch={(search) => setFilters((current) => ({ ...current, search }))}
+      onPeriod={(period) => setFilters((current) => ({ ...current, period }))}
+      onResult={(result) => setFilters((current) => ({ ...current, result }))}
+      onOrigin={(origin) => setFilters((current) => ({ ...current, origin }))}
+      onGrouping={(grouping) =>
+        setFilters((current) => ({ ...current, grouping }))
+      }
+      onClear={clear}
+    />
+  )
+
   return (
-    <section className="flex flex-col gap-4" aria-label="Histórico">
-      <HistoryToolbar
-        mode={filters.mode}
-        search={filters.search}
-        period={filters.period}
-        result={filters.result}
-        origin={filters.origin}
-        grouping={filters.grouping}
-        onMode={(mode) => setFilters((current) => ({ ...current, mode }))}
-        onSearch={(search) => setFilters((current) => ({ ...current, search }))}
-        onPeriod={(period) => setFilters((current) => ({ ...current, period }))}
-        onResult={(result) => setFilters((current) => ({ ...current, result }))}
-        onOrigin={(origin) => setFilters((current) => ({ ...current, origin }))}
-        onGrouping={(grouping) =>
-          setFilters((current) => ({ ...current, grouping }))
-        }
-        onClear={clear}
-      />
+    <section className="min-w-0" aria-label="Histórico">
       {filters.mode === "executions" ? (
         <RunTable
+          toolbar={toolbar}
           title="Histórico"
           jobs={executions.jobs}
           loading={executions.loading}
@@ -1242,19 +1241,24 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
           onLoadMore={executions.loadMore}
         />
       ) : filters.grouping === "commit" ? (
-        <div className="flex flex-col gap-3">
-          <div>
-            <h2 className="text-base font-medium">Últimos verdes</h2>
-            <p className="text-sm text-muted-foreground">{greenDescription}</p>
-          </div>
-          <GreenCommitTable
-            groups={groupGreenCommits(selectedGreenRows)}
-            onOpen={setSelectedCommit}
-            emptyDescription="Não há execução canônica aprovada para os filtros selecionados."
-          />
-        </div>
+        <Card className="gap-0 pb-0">
+          <CardHeader className="gap-3 border-b">
+            <CardTitle>Últimos verdes</CardTitle>
+            <CardDescription>{greenDescription}</CardDescription>
+            {toolbar}
+          </CardHeader>
+          <CardContent className="px-0">
+            <GreenCommitTable
+              embedded
+              groups={groupGreenCommits(selectedGreenRows)}
+              onOpen={setSelectedCommit}
+              emptyDescription="Não há execução canônica aprovada para os filtros selecionados."
+            />
+          </CardContent>
+        </Card>
       ) : (
         <RunTable
+          toolbar={toolbar}
           title="Últimos verdes"
           description={greenDescription}
           jobs={selectedGreenRows}
@@ -1315,15 +1319,14 @@ export function StatusPage() {
   }
 
   return (
-    <main className="flex flex-1 flex-col gap-8 p-4 lg:p-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Status</h1>
+    <main className="flex flex-1 flex-col gap-6 p-4 lg:p-6">
       <CurrentExecution
         snapshot={status.data}
         onOpenJob={setSelectedJobId}
         refreshing={status.refreshing}
       />
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_16rem]">
-        <div className="flex min-w-0 flex-col gap-8">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
+        <div className="flex min-w-0 flex-col gap-6">
           <RunTable
             title="Fila"
             kind="queue"

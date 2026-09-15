@@ -49,17 +49,19 @@ function originLabel(origins: GreenCommitGroup["origins"]) {
 }
 
 export function GreenCommitTable({
+  embedded = false,
   groups,
   onOpen,
   emptyDescription,
 }: {
+  embedded?: boolean
   groups: GreenCommitGroup[]
   onOpen: (group: GreenCommitGroup) => void
   emptyDescription: string
 }) {
   if (!groups.length)
     return (
-      <div className="rounded-lg border">
+      <div className={embedded ? undefined : "rounded-lg border"}>
         <Empty className="border-0 py-8">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -72,7 +74,11 @@ export function GreenCommitTable({
       </div>
     )
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    <div
+      className={
+        embedded ? "overflow-x-auto" : "overflow-x-auto rounded-lg border"
+      }
+    >
       <Table>
         <TableHeader className="bg-muted/50">
           <TableRow>

@@ -340,7 +340,7 @@ function MetaRead({
             <Item key={check.preset} variant="outline" size="sm">
               <ItemMedia variant="icon">
                 {check.status === "passed" ? (
-                  <CheckCircle2Icon />
+                  <CheckCircle2Icon className="text-success" />
                 ) : (
                   <CircleDotIcon />
                 )}

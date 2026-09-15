@@ -18,6 +18,19 @@ Primitivos isolados não bastam para declarar uma superfície como shadcn. Shell
 
 ## Status
 
+A página não repete um título grande “Status” no corpo. Execução atual, Fila e
+Histórico são superfícies `Card` oficiais, com header próprio. O Histórico
+integra busca, modo e filtros em seu `CardHeader`, acima da tabela. Fila e
+Histórico usam a tabela diretamente no `CardContent`, sem outro card ou borda
+interna ao redor dela. A correção visual de 15/09/2026 prevalece sobre a antiga
+toolbar solta fora da superfície.
+
+Os indicadores usam cores semânticas consistentes em tabelas, etapas, drawers
+e Resultados da Análise: passou em verde (`success`), falhou em vermelho
+(`destructive`), rodando/interrompido em âmbar (`warning`) e cancelado/aguardando
+em neutro (`muted-foreground`). Ícone e rótulo continuam identificando o estado
+independentemente da cor. Os tokens têm valores próprios para claro e escuro.
+
 A página tem uma faixa de execução atual acima de um grid com coluna principal fluida e coluna direita finita.
 
 ### Execução atual

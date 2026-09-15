@@ -14,6 +14,15 @@ import {
   XCircleIcon,
 } from "lucide-react"
 
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card"
+import { statusColor } from "@/features/shared/status-color"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -60,15 +69,12 @@ export type RunTableJob = Omit<JobRecord, "id"> & {
 const helper = createColumnHelper<typeof features, RunTableJob>()
 const EMPTY: RunTableJob[] = []
 
-function statusVariant(status: JobStatus | undefined) {
-  return status === "failed" || status === "interrupted"
-    ? ("destructive" as const)
-    : status === "passed"
-      ? ("secondary" as const)
-      : ("outline" as const)
-}
 export function JobStatusBadge({ status }: { status: JobStatus | undefined }) {
-  return <Badge variant={statusVariant(status)}>{statusLabel(status)}</Badge>
+  return (
+    <Badge variant="outline" className={statusColor(status)}>
+      {statusLabel(status)}
+    </Badge>
+  )
 }
 export function JobStatusIcon({ status }: { status: JobStatus | undefined }) {
   const Icon =
@@ -87,7 +93,7 @@ export function JobStatusIcon({ status }: { status: JobStatus | undefined }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className="inline-flex size-8 items-center justify-center"
+          className={`inline-flex size-8 items-center justify-center ${statusColor(status)}`}
           aria-label={statusLabel(status)}
         >
           <Icon
@@ -103,6 +109,7 @@ export function JobStatusIcon({ status }: { status: JobStatus | undefined }) {
 export type RunTableProps = {
   title: string
   description?: string
+  toolbar?: React.ReactNode
   jobs: RunTableJob[] | undefined
   loading: boolean
   error: Error | undefined
@@ -359,6 +366,7 @@ function EmptyTable({
 }
 
 export function RunTable({
+  toolbar,
   title,
   description,
   jobs,
@@ -376,76 +384,76 @@ export function RunTable({
 }: RunTableProps) {
   const data = jobs ?? EMPTY
   return (
-    <section
-      className="flex flex-col gap-3"
-      aria-labelledby={`${title}-heading`}
-    >
-      <div id={`${title}-heading`}>
-        <h2 className="text-base font-medium">{title}</h2>
-        {description ? (
-          <p className="text-sm text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
-      {loading ? (
-        <div className="overflow-hidden rounded-lg border">
-          <Table>
-            <TableHeader className="bg-muted/50">
-              <TableRow>
-                {headers(kind).map((h, i) => (
-                  <TableHead key={`${h}-${i}`}>{h}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {[0, 1, 2].map((i) => (
-                <TableRow key={i}>
-                  {headers(kind).map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
+    <Card className="gap-0 pb-0" aria-label={title}>
+      <CardHeader className="gap-3 border-b">
+        <CardTitle role="heading" aria-level={2}>
+          {title}
+        </CardTitle>
+        {description ? <CardDescription>{description}</CardDescription> : null}
+        {toolbar}
+      </CardHeader>
+      <CardContent className="px-0">
+        {loading ? (
+          <div className="overflow-hidden">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  {headers(kind).map((h, i) => (
+                    <TableHead key={`${h}-${i}`}>{h}</TableHead>
                   ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : null}
-      {!loading && error ? (
-        <ErrorState
-          title={`Não foi possível carregar ${title.toLowerCase()}`}
-          error={error}
-        />
-      ) : null}
-      {!loading && !error && !data.length ? (
-        <div className="overflow-hidden rounded-lg border">
-          <EmptyTable
-            title={emptyTitle}
-            description={emptyDescription}
-            kind={kind}
+              </TableHeader>
+              <TableBody>
+                {[0, 1, 2].map((i) => (
+                  <TableRow key={i}>
+                    {headers(kind).map((_, j) => (
+                      <TableCell key={j}>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : null}
+        {!loading && error ? (
+          <ErrorState
+            title={`Não foi possível carregar ${title.toLowerCase()}`}
+            error={error}
           />
-        </div>
-      ) : null}
-      {!loading && !error && data.length ? (
-        <div className="overflow-x-auto rounded-lg border">
-          <RunDataTable
-            jobs={data}
-            onOpenJob={onOpenJob}
-            showOrigin={showOrigin}
-          />
-        </div>
-      ) : null}
+        ) : null}
+        {!loading && !error && !data.length ? (
+          <div className="overflow-hidden">
+            <EmptyTable
+              title={emptyTitle}
+              description={emptyDescription}
+              kind={kind}
+            />
+          </div>
+        ) : null}
+        {!loading && !error && data.length ? (
+          <div className="overflow-x-auto">
+            <RunDataTable
+              jobs={data}
+              onOpenJob={onOpenJob}
+              showOrigin={showOrigin}
+            />
+          </div>
+        ) : null}
+      </CardContent>
       {loadMoreError ? (
         <p className="text-sm text-destructive" role="alert">
           {loadMoreError.message}
         </p>
       ) : null}
       {hasMore && onLoadMore ? (
-        <div>
+        <CardFooter>
           <Button variant="outline" disabled={loadingMore} onClick={onLoadMore}>
             {loadingMore ? "Carregando…" : "Carregar mais"}
           </Button>
-        </div>
+        </CardFooter>
       ) : null}
-    </section>
+    </Card>
   )
 }

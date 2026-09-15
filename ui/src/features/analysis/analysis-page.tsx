@@ -62,10 +62,10 @@ type Period = "all" | "week" | "month" | "quarter"
 const DURATION_PRESET_QUERY_KEY = "analysisPreset"
 
 const resultChartConfig = {
-  passed: { label: "Passou", color: "var(--primary)" },
+  passed: { label: "Passou", color: "var(--success)" },
   failed: { label: "Falhou", color: "var(--destructive)" },
   cancelled: { label: "Cancelado", color: "var(--muted-foreground)" },
-  interrupted: { label: "Interrompido", color: "var(--foreground)" },
+  interrupted: { label: "Interrompido", color: "var(--warning)" },
 } satisfies ChartConfig
 
 const durationChartConfig = {
