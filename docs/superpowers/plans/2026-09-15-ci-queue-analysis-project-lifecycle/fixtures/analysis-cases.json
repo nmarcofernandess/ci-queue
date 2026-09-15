@@ -1,0 +1,101 @@
+{
+  "denominatorIncludesCancelledInterrupted": {
+    "row": {
+      "preset": "smoke",
+      "passed": 950,
+      "failed": 30,
+      "cancelled": 15,
+      "interrupted": 5,
+      "total": 1000
+    },
+    "percentages": {
+      "passed": 95,
+      "failed": 3,
+      "cancelled": 1.5,
+      "interrupted": 0.5
+    }
+  },
+  "unequalTotalsDoNotShareGlobalDenom": {
+    "rows": [
+      {
+        "preset": "tiny",
+        "passed": 1,
+        "failed": 0,
+        "cancelled": 0,
+        "interrupted": 0,
+        "total": 1
+      },
+      {
+        "preset": "huge",
+        "passed": 950,
+        "failed": 50,
+        "cancelled": 0,
+        "interrupted": 0,
+        "total": 1000
+      }
+    ]
+  },
+  "zeroSample": {
+    "row": {
+      "preset": "empty",
+      "passed": 0,
+      "failed": 0,
+      "cancelled": 0,
+      "interrupted": 0,
+      "total": 0
+    },
+    "percentages": null
+  },
+  "invalidCounts": [
+    {
+      "preset": "neg",
+      "passed": -1,
+      "failed": 0,
+      "cancelled": 0,
+      "interrupted": 0,
+      "total": -1
+    },
+    {
+      "preset": "mismatch",
+      "passed": 1,
+      "failed": 0,
+      "cancelled": 0,
+      "interrupted": 0,
+      "total": 2
+    },
+    {
+      "preset": "fraction",
+      "passed": 1.5,
+      "failed": 0,
+      "cancelled": 0,
+      "interrupted": 0,
+      "total": 1.5
+    }
+  ],
+  "rankingTies": [
+    {
+      "preset": "beta",
+      "passed": 2,
+      "failed": 0,
+      "cancelled": 0,
+      "interrupted": 0,
+      "total": 2
+    },
+    {
+      "preset": "alpha",
+      "passed": 2,
+      "failed": 0,
+      "cancelled": 0,
+      "interrupted": 0,
+      "total": 2
+    },
+    {
+      "preset": "gamma",
+      "passed": 3,
+      "failed": 0,
+      "cancelled": 0,
+      "interrupted": 0,
+      "total": 3
+    }
+  ]
+}
