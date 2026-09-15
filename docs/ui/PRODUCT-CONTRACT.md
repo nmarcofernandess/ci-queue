@@ -18,12 +18,15 @@ Primitivos isolados não bastam para declarar uma superfície como shadcn. Shell
 
 ## Status
 
-A página não repete um título grande “Status” no corpo. Execução atual, Fila e
-Histórico são superfícies `Card` oficiais, com header próprio. O Histórico
-integra busca, modo e filtros em seu `CardHeader`, acima da tabela. Fila e
-Histórico usam a tabela diretamente no `CardContent`, sem outro card ou borda
-interna ao redor dela. A correção visual de 15/09/2026 prevalece sobre a antiga
-toolbar solta fora da superfície.
+A página não repete um título grande “Status” no corpo. A composição revisada
+em 15/09/2026 está disponível para aceite visual: Execução atual vazia e Fila
+livre ocupam faixas compactas sem títulos redundantes, instruções ou cabeçalho
+de tabela vazia. Execução ativa e Fila preenchida mantêm identificação própria.
+O histórico usa `CardHeader` com modo, busca e filtros; “Execuções / Últimos
+verdes” identifica a superfície sem repetir “Histórico”. A busca usa placeholder
+curto e nome acessível com os campos pesquisáveis. Período, Resultado e Origem
+usam Select direto; agrupamento só aparece em Últimos verdes. Os headers da
+tabela usam texto secundário sem faixa de fundo. Não há card dentro de card.
 
 Os indicadores usam cores semânticas consistentes em tabelas, etapas, drawers
 e Resultados da Análise: passou em verde (`success`), falhou em vermelho
@@ -35,7 +38,7 @@ A página tem uma faixa de execução atual acima de um grid com coluna principa
 
 ### Execução atual
 
-- A região permanece visível; vazia usa `Empty` compacto com **Nenhuma execução em andamento**.
+- A região permanece visível; vazia usa `Item` compacto com **Nenhuma execução em andamento**.
 - Quando há ticket `running`, preset e a ação ocular final abrem o mesmo drawer.
 - Existe um único indicador de estado, no início do item.
 - Abaixo: data e hora, tempo relativo e duração decorrida.

@@ -80,7 +80,7 @@ export function GreenCommitTable({
       }
     >
       <Table>
-        <TableHeader className="bg-muted/50">
+        <TableHeader className="[&_th]:font-normal [&_th]:text-muted-foreground">
           <TableRow>
             <TableHead>Estado</TableHead>
             <TableHead>Commit</TableHead>
@@ -197,7 +197,7 @@ export function GreenCommitDrawer({
           </div>
           <div className="overflow-x-auto rounded-lg border">
             <Table>
-              <TableHeader className="bg-muted/50">
+              <TableHeader className="[&_th]:font-normal [&_th]:text-muted-foreground">
                 <TableRow>
                   <TableHead>Estado</TableHead>
                   <TableHead>Preset</TableHead>

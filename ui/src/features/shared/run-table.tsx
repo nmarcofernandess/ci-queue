@@ -270,7 +270,7 @@ function RunDataTable({
   })
   return (
     <Table className="min-w-[40rem] table-fixed">
-      <TableHeader className="bg-muted/50">
+      <TableHeader className="[&_th]:font-normal [&_th]:text-muted-foreground">
         {table.getHeaderGroups().map((group) => (
           <TableRow key={group.id}>
             {group.headers.map((header) => (
@@ -325,7 +325,7 @@ function EmptyTable({
 }) {
   return (
     <Table className="table-fixed">
-      <TableHeader className="bg-muted/50">
+      <TableHeader className="[&_th]:font-normal [&_th]:text-muted-foreground">
         <TableRow>
           {headers(kind).map((header, index) => (
             <TableHead
@@ -383,20 +383,38 @@ export function RunTable({
   kind = "terminal",
 }: RunTableProps) {
   const data = jobs ?? EMPTY
+  if (kind === "queue" && !loading && !error && !data.length) {
+    return (
+      <Card size="sm">
+        <CardContent>
+          <Empty className="flex-row justify-start gap-3 rounded-none p-0 text-left">
+            <EmptyMedia className="mb-0 text-muted-foreground">
+              <InboxIcon className="size-4" />
+            </EmptyMedia>
+            <EmptyHeader className="items-start">
+              <EmptyTitle>Fila livre</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        </CardContent>
+      </Card>
+    )
+  }
   return (
     <Card className="gap-0 pb-0" aria-label={title}>
-      <CardHeader className="gap-3 border-b">
-        <CardTitle role="heading" aria-level={2}>
-          {title}
-        </CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
+      <CardHeader className="gap-3 pb-4">
+        {!toolbar ? (
+          <CardTitle role="heading" aria-level={2}>
+            {title}
+          </CardTitle>
+        ) : null}
         {toolbar}
+        {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
       <CardContent className="px-0">
         {loading ? (
           <div className="overflow-hidden">
             <Table>
-              <TableHeader className="bg-muted/50">
+              <TableHeader className="[&_th]:font-normal [&_th]:text-muted-foreground">
                 <TableRow>
                   {headers(kind).map((h, i) => (
                     <TableHead key={`${h}-${i}`}>{h}</TableHead>
@@ -448,7 +466,7 @@ export function RunTable({
         </p>
       ) : null}
       {hasMore && onLoadMore ? (
-        <CardFooter>
+        <CardFooter className="border-0 bg-transparent">
           <Button variant="outline" disabled={loadingMore} onClick={onLoadMore}>
             {loadingMore ? "Carregando…" : "Carregar mais"}
           </Button>

@@ -52,13 +52,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
@@ -95,7 +88,6 @@ import {
   CircleDotIcon,
   HardDriveIcon,
   EyeIcon,
-  InboxIcon,
   LoaderCircleIcon,
   SearchIcon,
   XCircleIcon,
@@ -202,23 +194,20 @@ function CurrentExecution({
   if (!current) {
     return (
       <Card size="sm">
-        <CardHeader className="border-b">
-          <CardTitle>Execução atual</CardTitle>
-        </CardHeader>
-        <CardContent className="py-2">
-          <Empty className="gap-2 border-0 p-2">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <InboxIcon />
-              </EmptyMedia>
-              <EmptyTitle>Nenhuma execução em andamento</EmptyTitle>
-              <EmptyDescription>
-                {snapshot.globalOccupancy
-                  ? "O executor está ocupado por outro projeto."
-                  : "A próxima execução do projeto aparecerá aqui."}
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+        <CardContent>
+          <Item size="sm" className="px-0 py-0">
+            <ItemMedia>
+              <CircleDotIcon className="size-4 text-muted-foreground" />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>Nenhuma execução em andamento</ItemTitle>
+              {snapshot.globalOccupancy ? (
+                <ItemDescription>
+                  O executor está ocupado por outro projeto.
+                </ItemDescription>
+              ) : null}
+            </ItemContent>
+          </Item>
         </CardContent>
       </Card>
     )
@@ -231,7 +220,7 @@ function CurrentExecution({
 
   return (
     <Card size="sm">
-      <CardHeader className="border-b">
+      <CardHeader>
         <CardTitle>Execução atual</CardTitle>
         <CardAction>{refreshing ? <RefreshingLabel /> : null}</CardAction>
       </CardHeader>
@@ -455,7 +444,7 @@ function StatusStateCards({
             </p>
           )}
         </CardContent>
-        <CardFooter>
+        <CardFooter className="border-0 bg-transparent pt-0">
           <Button type="button" variant="ghost" onClick={() => onOpen("meta")}>
             Abrir meta
           </Button>
@@ -504,7 +493,7 @@ function StatusStateCards({
             <p className="text-sm text-muted-foreground">Nenhuma pendência.</p>
           )}
         </CardContent>
-        <CardFooter>
+        <CardFooter className="border-0 bg-transparent pt-0">
           <Button
             type="button"
             variant="ghost"
@@ -558,31 +547,36 @@ function HistoryToolbar({
         )
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-4">
+      <ToggleGroup
+        type="single"
+        value={mode}
+        onValueChange={(value) => {
+          if (value === "executions" || value === "greens") onMode(value)
+        }}
+        variant="default"
+        spacing={1}
+        aria-label="Modo do histórico"
+      >
+        <ToggleGroupItem value="executions">Execuções</ToggleGroupItem>
+        <ToggleGroupItem value="greens">Últimos verdes</ToggleGroupItem>
+      </ToggleGroup>
       <div className="flex flex-wrap items-center gap-2">
-        <InputGroup className="min-w-40 flex-1 sm:max-w-56">
+        <InputGroup className="min-w-48 flex-1 basis-full sm:basis-48">
           <InputGroupAddon align="inline-start">
             <SearchIcon />
           </InputGroupAddon>
           <InputGroupInput
             value={search}
             onChange={(event) => onSearch(event.target.value)}
-            placeholder="preset, branch, SHA ou ticket"
+            placeholder={
+              mode === "executions"
+                ? "Buscar execuções…"
+                : "Buscar últimos verdes…"
+            }
+            aria-label="Buscar por preset, branch, SHA ou ticket"
           />
         </InputGroup>
-        <ToggleGroup
-          type="single"
-          value={mode}
-          onValueChange={(value) => {
-            if (value === "executions" || value === "greens") onMode(value)
-          }}
-          variant="outline"
-          spacing={0}
-          aria-label="Modo do histórico"
-        >
-          <ToggleGroupItem value="executions">Execuções</ToggleGroupItem>
-          <ToggleGroupItem value="greens">Últimos verdes</ToggleGroupItem>
-        </ToggleGroup>
         <Select
           value={period}
           onValueChange={(value) => onPeriod(value as Period)}
@@ -600,60 +594,63 @@ function HistoryToolbar({
             </SelectGroup>
           </SelectContent>
         </Select>
-        <Select
-          value={grouping}
-          onValueChange={(value) => onGrouping(value as GreenGrouping)}
-        >
-          <SelectTrigger aria-label="Agrupamento do histórico">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="preset">Por preset</SelectItem>
-              <SelectItem value="commit">Por commit</SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+        {mode === "executions" ? (
+          <Select
+            value={result}
+            onValueChange={(value) => onResult(value as HistoryResult)}
+          >
+            <SelectTrigger aria-label="Resultado">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="all">Todos os resultados</SelectItem>
+                <SelectItem value="passed">Passou</SelectItem>
+                <SelectItem value="failed">Falhou</SelectItem>
+                <SelectItem value="cancelled">Cancelado</SelectItem>
+                <SelectItem value="interrupted">Interrompido</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        ) : (
+          <>
+            <Select
+              value={origin}
+              onValueChange={(value) => onOrigin(value as GreenOrigin)}
+            >
+              <SelectTrigger aria-label="Origem">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="both">Máquina e Git</SelectItem>
+                  <SelectItem value="machine">Máquina</SelectItem>
+                  <SelectItem value="git">Git</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select
+              value={grouping}
+              onValueChange={(value) => onGrouping(value as GreenGrouping)}
+            >
+              <SelectTrigger aria-label="Agrupamento do histórico">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="preset">Por preset</SelectItem>
+                  <SelectItem value="commit">Por commit</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </>
+        )}
         {hasFilters ? (
           <Button type="button" variant="ghost" onClick={onClear}>
             Limpar
           </Button>
         ) : null}
       </div>
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        spacing={0}
-        value={mode === "executions" ? result : origin}
-        onValueChange={(value) => {
-          if (
-            mode === "executions" &&
-            ["all", "passed", "failed", "cancelled", "interrupted"].includes(
-              value
-            )
-          )
-            onResult(value as HistoryResult)
-          if (mode === "greens" && ["both", "machine", "git"].includes(value))
-            onOrigin(value as GreenOrigin)
-        }}
-        aria-label={mode === "executions" ? "Resultado" : "Origem"}
-      >
-        {mode === "executions" ? (
-          <>
-            <ToggleGroupItem value="all">Todos</ToggleGroupItem>
-            <ToggleGroupItem value="passed">Passou</ToggleGroupItem>
-            <ToggleGroupItem value="failed">Falhou</ToggleGroupItem>
-            <ToggleGroupItem value="cancelled">Cancelado</ToggleGroupItem>
-            <ToggleGroupItem value="interrupted">Interrompido</ToggleGroupItem>
-          </>
-        ) : (
-          <>
-            <ToggleGroupItem value="both">Todos</ToggleGroupItem>
-            <ToggleGroupItem value="machine">Máquina</ToggleGroupItem>
-            <ToggleGroupItem value="git">Git</ToggleGroupItem>
-          </>
-        )}
-      </ToggleGroup>
     </div>
   )
 }
@@ -1242,8 +1239,7 @@ function HistoryPanel({ onOpenJob }: { onOpenJob: (jobId: string) => void }) {
         />
       ) : filters.grouping === "commit" ? (
         <Card className="gap-0 pb-0">
-          <CardHeader className="gap-3 border-b">
-            <CardTitle>Últimos verdes</CardTitle>
+          <CardHeader className="gap-3">
             <CardDescription>{greenDescription}</CardDescription>
             {toolbar}
           </CardHeader>
