@@ -10,6 +10,8 @@ async function shot(page: Page, name: string) {
 async function inspectDrawer(page: Page) {
   const drawer=page.getByRole('dialog')
   await expect(drawer).toBeVisible()
+  // Measure after the official entry transition, not between animation frames.
+  await drawer.evaluate(async el => { await Promise.all(el.getAnimations().map(animation => animation.finished.catch(() => {}))) })
   await expect(drawer.locator('[data-slot=drawer-title]')).toHaveCSS('text-align','left')
   await expect(drawer.locator('[data-slot=drawer-description]')).toHaveCSS('text-align','left')
   await expect(drawer.locator('[data-slot=detail-drawer-body]')).toBeVisible()
@@ -141,6 +143,8 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
 
     await page.goto('/#analysis')
     await expect(page.getByText('Resultados por preset',{exact:true})).toBeVisible()
+    await page.clock.runFor(2000)
+    expect((await page.locator('.recharts-bar-rectangle path').first().boundingBox())!.height).toBeGreaterThan(0)
     await shot(page,`${prefix}-analysis-results`)
     await page.getByRole('combobox',{name:'Período da análise'}).click()
     await expect(page.getByRole('option',{name:'Últimos 7 dias'})).toBeVisible()
@@ -151,6 +155,8 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     await shot(page,`${prefix}-analysis-presets`)
     await page.getByRole('option',{name:'smoketest',exact:true}).click()
     await expect(page.getByText('Duração de smoketest',{exact:true})).toBeVisible()
+    await page.clock.runFor(2000)
+    await expect(page.locator('.recharts-scatter-symbol')).toHaveCount(2)
     await shot(page,`${prefix}-analysis-duration`)
     await page.getByRole('combobox',{name:'Preset da análise'}).click()
     await page.getByRole('option',{name:'full',exact:true}).click()
