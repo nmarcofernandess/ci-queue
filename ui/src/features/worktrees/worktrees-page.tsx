@@ -62,8 +62,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useRequiredProject } from "@/features/projects/project-context"
+import { scopeKey } from "@/features/projects/scope"
 import {
-  getDashboardState,
   getWorktrees,
   revealWorktree,
   type ApiQuery,
@@ -219,6 +220,7 @@ function WorktreeDrawer({
     reload: worktrees.reload,
   }
   const [opening, setOpening] = React.useState(false)
+  const project = useRequiredProject()
 
   const copy = async (value: string, message: string) => {
     try {
@@ -236,7 +238,11 @@ function WorktreeDrawer({
     }
     setOpening(true)
     try {
-      await revealWorktree(session.data.csrfToken, id)
+      if (!project) {
+        toast.error("Selecione um projeto para abrir a pasta.")
+        return
+      }
+      await revealWorktree(project, session.data.csrfToken, id)
       toast.success("Pasta aberta no sistema.")
     } catch (reason) {
       toast.error(
@@ -667,18 +673,36 @@ function WorktreeTable({
 }
 
 export function WorktreesPage() {
-  const worktreeRequest = React.useCallback(() => getWorktrees(), [])
-  const projectRequest = React.useCallback(() => getDashboardState(), [])
-  const worktrees = useApiQuery("worktrees", worktreeRequest, {
-    pollMs: 60_000,
-  })
-  const project = useApiQuery("worktree-project", projectRequest)
+  const project = useRequiredProject()
+  const worktreeRequest = React.useCallback(
+    () =>
+      project
+        ? getWorktrees(project)
+        : Promise.reject(new Error("Selecione um projeto para ver worktrees.")),
+    [project]
+  )
+  const worktrees = useApiQuery(
+    `worktrees:${project ? scopeKey(project) : "none"}`,
+    worktreeRequest,
+    { pollMs: 60_000, enabled: Boolean(project) }
+  )
   const session = useDashboardSession()
+
+  if (!project) {
+    return (
+      <main className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
+        <ErrorState
+          title="Worktrees exigem um projeto"
+          error={new Error("Cadastre ou selecione um projeto com pasta Git.")}
+        />
+      </main>
+    )
+  }
 
   return (
     <WorktreeTable
-      key={project.data?.projectId || "unresolved-project"}
-      projectId={project.data?.projectId}
+      key={project.projectId}
+      projectId={project.projectId}
       worktrees={worktrees}
       session={session}
     />

@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import type { ProjectScope, ReadScope } from "@/features/projects/scope"
+import { matchesScope, scopeQuery } from "@/features/projects/scope"
 import type {
   AnalysisResponse,
   DashboardSession,
@@ -7,11 +9,15 @@ import type {
   DashboardStateMutation,
   Diagnostic,
   ExecutionsResponse,
+  HealthResponse,
   JobRecord,
   LogExport,
   LogSlice,
   MachineResponse,
   PresetHistoryResponse,
+  ProjectProbe,
+  ProjectsResponse,
+  ResultsResponse,
   RevealResult,
   StatusSnapshot,
   WorktreesResponse,
@@ -71,12 +77,25 @@ async function requestJson<T>(path: string, query?: Query): Promise<T> {
   return body as T
 }
 
+async function requestScoped<T>(
+  scope: ReadScope,
+  path: string,
+  query?: Query
+): Promise<T> {
+  const body = await requestJson<T>(path, query)
+  if (!matchesScope(body, scope)) {
+    throw new ApiError(409, "resposta fora do contexto", body)
+  }
+  return body
+}
+
 async function postJson<T>(
   path: string,
   csrfToken: string,
-  body: unknown
+  body: unknown,
+  query?: Query
 ): Promise<T> {
-  const response = await fetch(path, {
+  const response = await fetch(buildUrl(path, query), {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -98,14 +117,40 @@ async function postJson<T>(
   return payload as T
 }
 
-export function getStatus() {
-  return requestJson<StatusSnapshot>("/api/status")
+export function getHealth() {
+  return requestJson<HealthResponse>("/health")
+}
+
+export function getProjects(includeObserved = false) {
+  return requestJson<ProjectsResponse>(
+    "/api/projects",
+    includeObserved ? { includeObserved: 1 } : undefined
+  )
+}
+
+export function probeProject(
+  csrfToken: string,
+  body: {
+    repositoryPath?: string
+    configPath?: string | null
+    existingProjectId?: string | null
+  }
+) {
+  return postJson<ProjectProbe>("/api/project-probe", csrfToken, body)
+}
+
+export function mutateProjects(csrfToken: string, body: Record<string, unknown>) {
+  return postJson<ProjectsResponse>("/api/projects", csrfToken, body)
+}
+
+export function getStatus(scope: ReadScope) {
+  return requestScoped<StatusSnapshot>(scope, "/api/status", scopeQuery(scope))
 }
 
 export function getExecutions(
+  scope: ReadScope,
   query: {
     q?: string
-    scope?: "terminal" | "legacy"
     result?: string
     from?: string
     to?: string
@@ -114,39 +159,62 @@ export function getExecutions(
     offset?: number
   } = {}
 ) {
-  return requestJson<ExecutionsResponse>("/api/executions", query)
+  return requestScoped<ExecutionsResponse>(scope, "/api/executions", {
+    ...scopeQuery(scope),
+    ...query,
+  })
 }
 
-export function getPresetHistory() {
-  return requestJson<PresetHistoryResponse>("/api/preset-history")
-}
-
-export async function getRemoteSlots() {
-  return parseRemoteSlotsResponse(
-    await requestJson<unknown>("/api/remote-slots")
+export function getPresetHistory(scope: ProjectScope) {
+  return requestScoped<PresetHistoryResponse>(
+    scope,
+    "/api/preset-history",
+    scopeQuery(scope)
   )
 }
 
-export function getAnalysis(
-  query: {
-    from?: string
-    to?: string
-    preset?: string
-  } = {}
+export async function getRemoteSlots(scope: ProjectScope) {
+  return parseRemoteSlotsResponse(
+    await requestScoped<unknown>(scope, "/api/remote-slots", scopeQuery(scope))
+  )
+}
+
+export function getResults(
+  scope: ProjectScope,
+  bounds: { from?: string; to?: string } = {}
 ) {
-  return requestJson<AnalysisResponse>("/api/analysis", query)
+  return requestScoped<ResultsResponse>(scope, "/api/analysis", {
+    ...scopeQuery(scope),
+    ...bounds,
+    metric: "results",
+  })
+}
+
+export function getDuration(
+  scope: ProjectScope,
+  query: { from?: string; to?: string; preset: string }
+) {
+  return requestScoped<AnalysisResponse>(scope, "/api/analysis", {
+    ...scopeQuery(scope),
+    ...query,
+    metric: "duration",
+  })
 }
 
 export function getMachine() {
   return requestJson<MachineResponse>("/api/machine")
 }
 
-export function getWorktrees() {
-  return requestJson<WorktreesResponse>("/api/worktrees")
+export function getWorktrees(scope: ProjectScope) {
+  return requestScoped<WorktreesResponse>(scope, "/api/worktrees", scopeQuery(scope))
 }
 
-export function getDashboardState() {
-  return requestJson<DashboardState>("/api/dashboard-state")
+export function getDashboardState(scope: ProjectScope) {
+  return requestScoped<DashboardState>(
+    scope,
+    "/api/dashboard-state",
+    scopeQuery(scope)
+  )
 }
 
 export function getDashboardSession() {
@@ -154,35 +222,65 @@ export function getDashboardSession() {
 }
 
 export function writeDashboardState(
+  scope: ProjectScope,
   csrfToken: string,
   mutation: DashboardStateMutation
 ) {
-  return postJson<DashboardState>("/api/dashboard-state", csrfToken, mutation)
+  return postJson<DashboardState>(
+    "/api/dashboard-state",
+    csrfToken,
+    mutation,
+    scopeQuery(scope)
+  )
 }
 
-export function revealWorktree(csrfToken: string, id: string) {
-  return postJson<RevealResult>("/api/reveal", csrfToken, {
-    action: "reveal",
-    entity: "worktree",
-    id,
-    target: "directory",
+export function revealWorktree(scope: ProjectScope, csrfToken: string, id: string) {
+  return postJson<RevealResult>(
+    "/api/reveal",
+    csrfToken,
+    {
+      action: "reveal",
+      entity: "worktree",
+      id,
+      target: "directory",
+    },
+    scopeQuery(scope)
+  )
+}
+
+export function getJob(scope: ReadScope, jobId: string) {
+  return requestScoped<JobRecord>(scope, "/api/job", {
+    ...scopeQuery(scope),
+    jobId,
   })
 }
 
-export function getJob(jobId: string) {
-  return requestJson<JobRecord>("/api/job", { jobId })
+export function getLog(
+  scope: ReadScope,
+  jobId: string,
+  offset = 0,
+  length = 512 * 1024
+) {
+  return requestScoped<LogSlice>(scope, "/api/log", {
+    ...scopeQuery(scope),
+    jobId,
+    offset,
+    length,
+  })
 }
 
-export function getLog(jobId: string, offset = 0, length = 512 * 1024) {
-  return requestJson<LogSlice>("/api/log", { jobId, offset, length })
+export function getLogExport(scope: ReadScope, jobId: string) {
+  return requestScoped<LogExport>(scope, "/api/log/export", {
+    ...scopeQuery(scope),
+    jobId,
+  })
 }
 
-export function getLogExport(jobId: string) {
-  return requestJson<LogExport>("/api/log/export", { jobId })
-}
-
-export function getDiagnostic(jobId: string) {
-  return requestJson<Diagnostic>("/api/diagnostic", { jobId }).catch(
+export function getDiagnostic(scope: ReadScope, jobId: string) {
+  return requestScoped<Diagnostic>(scope, "/api/diagnostic", {
+    ...scopeQuery(scope),
+    jobId,
+  }).catch(
     (error) => {
       if (
         error instanceof ApiError &&
@@ -266,7 +364,24 @@ export function useApiQuery<T>(
       } finally {
         if (!disposed) {
           setRefreshing(false)
-          if (pollMs && keepPolling) timer = setTimeout(load, pollMs)
+          if (pollMs && keepPolling) {
+            timer = setTimeout(() => {
+              if (disposed) {
+                return
+              }
+              if (document.hidden) {
+                const resume = () => {
+                  document.removeEventListener("visibilitychange", resume)
+                  if (!disposed && !document.hidden) {
+                    void load()
+                  }
+                }
+                document.addEventListener("visibilitychange", resume)
+                return
+              }
+              void load()
+            }, pollMs)
+          }
         }
       }
     }

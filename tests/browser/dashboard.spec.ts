@@ -1,5 +1,28 @@
 import { test, expect } from '@playwright/test'
 
+const fixtureProjects = {
+  schemaVersion: 1,
+  registryRevision: 1,
+  bootstrapProjectId: 'example',
+  observedUnregistered: [],
+  projects: [{
+    id: 'example',
+    displayName: 'Example',
+    repositoryPath: '/example',
+    configPath: null,
+    archivedAt: null,
+    revision: 1,
+    bindingState: 'linked',
+  }],
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('ci-queue.lastProjectId', 'example'))
+  await page.route('**/health', (route) =>
+    route.fulfill({ json: { ok: true, apiVersion: 1, serverTime: new Date().toISOString() } })
+  )
+})
+
 // Isolated API fixtures exercise the real Vite UI without launching any job.
 const baseJob = { id: 'observed', preset: 'smoke', projectId: 'example', branch: 'example-branch', headSha: 'abcdef12', startedAt: new Date(Date.now()-61000).toISOString(), createdAt: new Date().toISOString(), cwd: '/example' }
 const nodes = [
@@ -26,6 +49,10 @@ test('live drawer preserves identity, recursive counts, cursor and terminal poll
       const offset = Number(url.searchParams.get('offset')); offsets.push(offset)
       const text = terminal ? 'first line\nterminal line\n' : 'first line\n'
       await route.fulfill({ json: { jobId: baseJob.id, content: text.slice(offset), offset, nextOffset: text.length, sourceBytes: text.length, complete: true, error: null } }); return
+    }
+    if (url.pathname === '/api/projects') {
+      await route.fulfill({ json: fixtureProjects })
+      return
     }
     await route.fulfill({ json: data[url.pathname] ?? {} })
   })
@@ -92,7 +119,11 @@ for (const width of [390, 820, 1440]) {
         queries.push(url)
         data[url.pathname] = { jobs: url.searchParams.get('q') ? [] : [job], hasMore: false, coverage: { unattributedRecords: 0 } }
       }
-      await route.fulfill({ json: data[url.pathname] ?? {} })
+      if (url.pathname === '/api/projects') {
+      await route.fulfill({ json: fixtureProjects })
+      return
+    }
+    await route.fulfill({ json: data[url.pathname] ?? {} })
     })
     await page.goto('/#status')
     await expect(page.getByText('Fila livre', { exact: true })).toBeVisible()
@@ -129,6 +160,10 @@ test('worktree selection persists and copy menu exposes only the two formats', a
       '/api/dashboard-state': { projectId: 'example', revision: 0, presets: [], meta: null, pending: [] },
       '/api/worktrees': { worktrees: trees, baseRef: 'main', error: null },
       '/api/worktree-view': trees.find(tree => tree.id === url.searchParams.get('id')),
+    }
+    if (url.pathname === '/api/projects') {
+      await route.fulfill({ json: fixtureProjects })
+      return
     }
     await route.fulfill({ json: data[url.pathname] ?? {} })
   })
@@ -171,6 +206,10 @@ test('log pause preserves visible text, fixed regions and diagnostic bundle', as
       '/api/dashboard-state':{revision:0,presets:[],meta:null,pending:[]}, '/api/machine':{},
       '/api/diagnostic':{available:true,jobId:job.id,ticket:job,coverage:{ticket:'complete',logs:{available:true}},resources:{coverage:'unavailable'}},
       '/api/log/export':{jobId:job.id,content:text,coverage:{available:true,complete:true,sourceBytes:text.length}},
+    }
+    if (url.pathname === '/api/projects') {
+      await route.fulfill({ json: fixtureProjects })
+      return
     }
     await route.fulfill({json:data[url.pathname]??{}})
   })
@@ -217,6 +256,10 @@ test('meta creates, cancels edits, reports save failure and removes without SHA 
       await route.fulfill({json:state});return
     }
     const data:Record<string,unknown>={'/api/session':{csrfToken:'fixture'},'/api/status':{running:null,queued:[],history:[]},'/api/executions':{jobs:[],coverage:{}},'/api/dashboard-state':state,'/api/machine':{}}
+    if (path === '/api/projects') {
+      await route.fulfill({ json: fixtureProjects })
+      return
+    }
     await route.fulfill({json:data[path]??{}})
   })
   await page.goto('/#status')
@@ -263,6 +306,10 @@ test('log tab keeps loading distinct from an unavailable ticket', async ({ page 
       '/api/log': { content: 'retained log', offset: 0, nextOffset: 12, sourceBytes: 12, complete: true, error: null },
     }
     if (url.pathname === '/api/job') { await pendingJob; await route.fulfill({ json: job }); return }
+    if (url.pathname === '/api/projects') {
+      await route.fulfill({ json: fixtureProjects })
+      return
+    }
     await route.fulfill({ json: data[url.pathname] ?? {} })
   })
   await page.goto('/#status')
@@ -287,7 +334,12 @@ test('current stages fit eight, overflow horizontally and follow without stealin
       '/api/executions': {jobs:[],coverage:{}},
       '/api/dashboard-state': {presets:[],meta:null,pending:[]},
     }
-    await route.fulfill({json:data[new URL(route.request().url()).pathname] ?? {}})
+    const path = new URL(route.request().url()).pathname
+    if (path === '/api/projects') {
+      await route.fulfill({ json: fixtureProjects })
+      return
+    }
+    await route.fulfill({json:data[path] ?? {}})
   })
   await page.goto('/')
   const strip = page.getByLabel('Etapas da execução')

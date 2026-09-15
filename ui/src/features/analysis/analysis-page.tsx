@@ -10,13 +10,32 @@ import {
   YAxis,
 } from "recharts"
 
+import { useRequiredProject } from "@/features/projects/project-context"
+import { scopeKey } from "@/features/projects/scope"
 import {
-  getAnalysis,
+  getDuration,
   getPresetHistory,
+  getResults,
   type ApiQuery,
   useApiQuery,
 } from "@/lib/api"
-import type { AnalysisPreset, AnalysisResponse } from "@/lib/types"
+import {
+  parseAnalysisState,
+  writeAnalysisState,
+  type AnalysisPeriod,
+  type AnalysisViewState,
+} from "@/features/analysis/analysis-state"
+import { PresetMultiSelect } from "@/features/analysis/preset-multi-select"
+import {
+  formatShare,
+  projectPercentages,
+  rankResults,
+  resolveSelection,
+  RESULT_STATES,
+  type ResultCounts,
+} from "@/features/analysis/results-model"
+import { FilterSelect } from "@/features/shared/filter-select"
+import type { AnalysisPreset, AnalysisResponse, ResultsResponse } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
@@ -33,14 +52,6 @@ import {
   ItemGroup,
   ItemTitle,
 } from "@/components/ui/item"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   TableBody,
@@ -57,10 +68,13 @@ import {
   formatDuration,
   queryPeriodStart,
 } from "@/features/shared/format"
-type StatisticsView = "results" | "duration"
-type Period = "all" | "week" | "month" | "quarter"
-
-const DURATION_PRESET_QUERY_KEY = "analysisPreset"
+const ANALYSIS_STORAGE_PREFIX = "ci-queue.analysis."
+const PERIOD_OPTIONS = [
+  { value: "all", label: "Todo o período" },
+  { value: "week", label: "Últimos 7 dias" },
+  { value: "month", label: "Últimos 30 dias" },
+  { value: "quarter", label: "Últimos 90 dias" },
+]
 
 const resultChartConfig = {
   passed: { label: "Passou", color: "var(--success)" },
@@ -92,39 +106,69 @@ function paddedDomain(values: number[], minimumPadding: number) {
   return [low - padding, high + padding] as const
 }
 
-function readDurationPreset() {
-  if (typeof window === "undefined") {
-    return ""
-  }
-
-  return (
-    new URLSearchParams(window.location.search).get(
-      DURATION_PRESET_QUERY_KEY
-    ) ?? ""
-  )
-}
-
-function writeDurationPreset(preset: string) {
-  if (typeof window === "undefined") {
-    return
-  }
-
-  const url = new URL(window.location.href)
-  if (preset) {
-    url.searchParams.set(DURATION_PRESET_QUERY_KEY, preset)
-  } else {
-    url.searchParams.delete(DURATION_PRESET_QUERY_KEY)
-  }
-  url.hash = "analysis"
-  window.history.replaceState(
-    window.history.state,
-    "",
-    `${url.pathname}${url.search}${url.hash}`
-  )
-}
-
-function validPreset(value: string, presets: string[]) {
+function validPreset(value: string | null, presets: string[]) {
   return value && presets.includes(value) ? value : ""
+}
+
+function readStoredAnalysis(projectId: string): AnalysisViewState | undefined {
+  try {
+    const raw = window.sessionStorage.getItem(`${ANALYSIS_STORAGE_PREFIX}${projectId}`)
+    return raw ? parseAnalysisState(raw) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function persistAnalysis(projectId: string, state: AnalysisViewState) {
+  const encoded = writeAnalysisState(window.location.search, state)
+  window.sessionStorage.setItem(`${ANALYSIS_STORAGE_PREFIX}${projectId}`, encoded)
+  const url = new URL(window.location.href)
+  url.search = encoded
+  window.history.replaceState(window.history.state, "", url)
+}
+
+function asResultRows(presets: ResultCounts[] | undefined) {
+  return (presets ?? []).flatMap((row) => {
+    try {
+      return [projectPercentages(row)]
+    } catch {
+      return []
+    }
+  })
+}
+
+function ResultsTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean
+  payload?: Array<{ payload?: ResultCounts & { percentages: Record<string, number> | null } }>
+}) {
+  const row = payload?.[0]?.payload
+  if (!active || !row?.percentages) {
+    return null
+  }
+  return (
+    <div className="grid min-w-40 items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
+      <div className="font-medium">{row.preset}</div>
+      <div className="text-muted-foreground">
+        {row.total.toLocaleString("pt-BR")} execuções no período
+      </div>
+      <div className="grid gap-1.5">
+        {RESULT_STATES.map((state) => (
+          <div key={state} className="flex justify-between gap-4">
+            <span className="text-muted-foreground">
+              {resultChartConfig[state].label}
+            </span>
+            <span className="font-mono tabular-nums">
+              {row[state].toLocaleString("pt-BR")} ·{" "}
+              {formatShare(row.percentages?.[state] ?? 0)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function ResultsChart({
@@ -132,7 +176,7 @@ function ResultsChart({
   loading,
   error,
 }: {
-  presets: AnalysisPreset[] | undefined
+  presets: ResultCounts[] | undefined
   loading: boolean
   error: Error | undefined
 }) {
@@ -156,6 +200,15 @@ function ResultsChart({
     )
   }
 
+  const rows = asResultRows(presets).filter((row) => row.percentages)
+  const chartRows = rows.map((row) => ({
+    ...row,
+    passedPct: row.percentages?.passed ?? 0,
+    failedPct: row.percentages?.failed ?? 0,
+    cancelledPct: row.percentages?.cancelled ?? 0,
+    interruptedPct: row.percentages?.interrupted ?? 0,
+  }))
+
   return (
     <Card className="max-w-5xl">
       <CardHeader>
@@ -166,11 +219,11 @@ function ResultsChart({
           <ChartContainer
             config={resultChartConfig}
             className="aspect-auto h-72 max-w-none"
-            style={{ minWidth: Math.max(280, presets.length * 120) }}
+            style={{ minWidth: Math.max(280, chartRows.length * 120) }}
           >
             <BarChart
               accessibilityLayer
-              data={presets}
+              data={chartRows}
               maxBarSize={64}
               margin={{ left: 4, right: 12, top: 12 }}
             >
@@ -185,31 +238,22 @@ function ResultsChart({
                   return label.length > 18 ? `${label.slice(0, 16)}…` : label
                 }}
               />
-              <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-              <ChartTooltip
-                content={<ChartTooltipContent indicator="dashed" />}
+              <YAxis
+                domain={[0, 100]}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value) => `${value}%`}
               />
+              <ChartTooltip content={<ResultsTooltip />} />
               <ChartLegend content={<ChartLegendContent />} />
+              <Bar dataKey="passedPct" stackId="results" fill="var(--color-passed)" name="passed" />
+              <Bar dataKey="failedPct" stackId="results" fill="var(--color-failed)" name="failed" />
+              <Bar dataKey="cancelledPct" stackId="results" fill="var(--color-cancelled)" name="cancelled" />
               <Bar
-                dataKey="passed"
-                stackId="results"
-                fill="var(--color-passed)"
-                radius={[0, 0, 0, 0]}
-              />
-              <Bar
-                dataKey="failed"
-                stackId="results"
-                fill="var(--color-failed)"
-              />
-              <Bar
-                dataKey="cancelled"
-                stackId="results"
-                fill="var(--color-cancelled)"
-              />
-              <Bar
-                dataKey="interrupted"
+                dataKey="interruptedPct"
                 stackId="results"
                 fill="var(--color-interrupted)"
+                name="interrupted"
                 radius={[4, 4, 0, 0]}
               />
             </BarChart>
@@ -227,21 +271,16 @@ function ResultsChart({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {presets.map((preset) => (
+            {rows.map((preset) => (
               <TableRow key={preset.preset}>
-                <TableCell className="font-medium">{preset.preset}</TableCell>
-                <TableCell className="text-right">{preset.passed}</TableCell>
-                <TableCell className="text-right">{preset.failed}</TableCell>
-                <TableCell className="text-right">{preset.cancelled}</TableCell>
-                <TableCell className="text-right">
-                  {preset.interrupted}
+                <TableCell className="min-w-0 font-medium [overflow-wrap:anywhere]">
+                  {preset.preset}
                 </TableCell>
-                <TableCell className="text-right font-medium">
-                  {preset.passed +
-                    preset.failed +
-                    preset.cancelled +
-                    preset.interrupted}
-                </TableCell>
+                <TableCell className="text-right tabular-nums">{preset.passed}</TableCell>
+                <TableCell className="text-right tabular-nums">{preset.failed}</TableCell>
+                <TableCell className="text-right tabular-nums">{preset.cancelled}</TableCell>
+                <TableCell className="text-right tabular-nums">{preset.interrupted}</TableCell>
+                <TableCell className="text-right font-medium tabular-nums">{preset.total}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -404,62 +443,51 @@ function AnalysisControls({
   period,
   preset,
   presets,
+  rows,
+  selection,
   durationRequiresPreset,
   onPeriod,
   onPreset,
+  onSelection,
+  onMenuOpenChange,
 }: {
-  period: Period
+  period: AnalysisPeriod
   preset: string
   presets: string[]
+  rows: ResultCounts[]
+  selection: AnalysisViewState["resultSelection"]
   durationRequiresPreset: boolean
-  onPeriod: (value: Period) => void
+  onPeriod: (value: AnalysisPeriod) => void
   onPreset: (value: string) => void
+  onSelection: (next: AnalysisViewState["resultSelection"]) => void
+  onMenuOpenChange: (open: boolean) => void
 }) {
   return (
-    <div className="flex flex-wrap justify-start gap-2">
-      <Select
+    <>
+      <FilterSelect
+        label="Período da análise"
         value={period}
-        onValueChange={(value) => onPeriod(value as Period)}
-      >
-        <SelectTrigger aria-label="Período da análise">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectItem value="all">Todo o período</SelectItem>
-            <SelectItem value="week">Últimos 7 dias</SelectItem>
-            <SelectItem value="month">Últimos 30 dias</SelectItem>
-            <SelectItem value="quarter">Últimos 90 dias</SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-      <Select
-        value={preset || (durationRequiresPreset ? "" : "all")}
-        onValueChange={(value) => onPreset(value === "all" ? "" : value)}
-      >
-        <SelectTrigger aria-label="Preset da análise">
-          <SelectValue
-            placeholder={
-              durationRequiresPreset
-                ? "Selecione um preset"
-                : "Todos os presets"
-            }
-          />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {!durationRequiresPreset ? (
-              <SelectItem value="all">Todos os presets</SelectItem>
-            ) : null}
-            {presets.map((item) => (
-              <SelectItem key={item} value={item}>
-                {item}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-    </div>
+        onValueChange={(value) => onPeriod(value as AnalysisPeriod)}
+        options={PERIOD_OPTIONS}
+      />
+      {durationRequiresPreset ? (
+        <FilterSelect
+          label="Preset da duração"
+          value={preset}
+          placeholder="Selecione um preset"
+          onValueChange={onPreset}
+          options={presets.map((item) => ({ value: item, label: item }))}
+        />
+      ) : (
+        <PresetMultiSelect
+          key={period}
+          rows={rows}
+          selection={selection}
+          onSelection={onSelection}
+          onOpenChange={onMenuOpenChange}
+        />
+      )}
+    </>
   )
 }
 
@@ -468,21 +496,35 @@ function AnalysisStatistics({
   period,
   preset,
   presets,
-  analysis,
+  results,
+  duration,
+  visibleResults,
+  rows,
+  selection,
+  missing,
   onView,
   onPeriod,
   onPreset,
+  onSelection,
+  onMenuOpenChange,
 }: {
-  view: StatisticsView
-  period: Period
+  view: AnalysisViewState["metric"]
+  period: AnalysisPeriod
   preset: string
   presets: string[]
-  analysis: ApiQuery<AnalysisResponse>
-  onView: (value: StatisticsView) => void
-  onPeriod: (value: Period) => void
+  results: ApiQuery<ResultsResponse>
+  duration: ApiQuery<AnalysisResponse>
+  visibleResults: ResultCounts[] | undefined
+  rows: ResultCounts[]
+  selection: AnalysisViewState["resultSelection"]
+  missing: string[]
+  onView: (value: AnalysisViewState["metric"]) => void
+  onPeriod: (value: AnalysisPeriod) => void
   onPreset: (value: string) => void
+  onSelection: (next: AnalysisViewState["resultSelection"]) => void
+  onMenuOpenChange: (open: boolean) => void
 }) {
-  const selectedPreset = analysis.data?.presets.find(
+  const selectedPreset = duration.data?.presets.find(
     (item) => item.preset === preset
   )
 
@@ -506,23 +548,32 @@ function AnalysisStatistics({
           period={period}
           preset={preset}
           presets={presets}
+          rows={rows}
+          selection={selection}
           durationRequiresPreset={view === "duration"}
           onPeriod={onPeriod}
           onPreset={onPreset}
+          onSelection={onSelection}
+          onMenuOpenChange={onMenuOpenChange}
         />
       </div>
+      {view === "results" && missing.length ? (
+        <p className="pt-2 text-sm text-muted-foreground">
+          Sem amostra no período: {missing.join(", ")}
+        </p>
+      ) : null}
       <div className="pt-5">
         {view === "results" ? (
           <ResultsChart
-            presets={analysis.data?.presets}
-            loading={analysis.loading}
-            error={analysis.error}
+            presets={visibleResults}
+            loading={results.loading}
+            error={results.error}
           />
         ) : (
           <DurationChart
             preset={preset ? selectedPreset : undefined}
-            loading={analysis.loading}
-            error={analysis.error}
+            loading={duration.loading}
+            error={duration.error}
           />
         )}
       </div>
@@ -531,62 +582,128 @@ function AnalysisStatistics({
 }
 
 export function AnalysisPage() {
-  const [view, setView] = React.useState<StatisticsView>("results")
-  const [period, setPeriod] = React.useState<Period>("all")
-  const [preset, setPreset] = React.useState("")
-  const [lastDurationPreset, setLastDurationPreset] =
-    React.useState(readDurationPreset)
+  const project = useRequiredProject()
+  const [state, setState] = React.useState<AnalysisViewState>(() => {
+    const url = parseAnalysisState(window.location.search)
+    if (!project) {
+      return url
+    }
+    const stored = readStoredAnalysis(project.projectId)
+    return window.location.search.includes("analysisMetric") || !stored
+      ? url
+      : stored
+  })
+  const [menuOpen, setMenuOpen] = React.useState(false)
+  const [heldRows, setHeldRows] = React.useState<ResultCounts[]>([])
   const periodStart = React.useMemo(() => {
-    if (period === "quarter") {
+    if (state.period === "quarter") {
       const from = new Date()
       from.setDate(from.getDate() - 90)
       return from.toISOString()
     }
-    return queryPeriodStart(period)
-  }, [period])
-  const presetRequest = React.useCallback(() => getPresetHistory(), [])
-  const presetHistory = useApiQuery("analysis-presets", presetRequest)
+    return queryPeriodStart(state.period)
+  }, [state.period])
+  const commit = React.useCallback(
+    (next: AnalysisViewState) => {
+      setState(next)
+      if (project) {
+        persistAnalysis(project.projectId, next)
+      }
+    },
+    [project]
+  )
+  const presetRequest = React.useCallback(
+    () =>
+      project
+        ? getPresetHistory(project)
+        : Promise.reject(new Error("Análise exige um projeto")),
+    [project]
+  )
+  const presetHistory = useApiQuery(
+    `analysis-presets:${project ? scopeKey(project) : "none"}`,
+    presetRequest,
+    { enabled: Boolean(project) }
+  )
   const presetNames = React.useMemo(
-    () => presetHistory.data?.presets.map((item) => item.preset) ?? [],
+    () =>
+      presetHistory.data?.presets
+        .filter((item) => item.declared)
+        .map((item) => item.preset) ?? [],
     [presetHistory.data]
   )
-  const rememberedDurationPreset = React.useMemo(
-    () => validPreset(lastDurationPreset, presetNames),
-    [lastDurationPreset, presetNames]
-  )
-  const selectedPreset = preset === "all" ? "" : preset
-  const durationPreset =
-    validPreset(selectedPreset, presetNames) || rememberedDurationPreset
-  const handlePreset = React.useCallback((next: string) => {
-    setPreset(next)
-    if (next && next !== "all") {
-      setLastDurationPreset(next)
-      writeDurationPreset(next)
-    }
-  }, [])
-  const effectivePreset = view === "duration" ? durationPreset : selectedPreset
-  const analysisRequest = React.useCallback(
+  const durationPreset = validPreset(state.durationPreset, presetNames)
+  const resultsRequest = React.useCallback(
     () =>
-      getAnalysis({ from: periodStart, preset: effectivePreset || undefined }),
-    [effectivePreset, periodStart]
+      project
+        ? getResults(project, { from: periodStart })
+        : Promise.reject(new Error("Análise exige um projeto")),
+    [periodStart, project]
   )
-  const analysis = useApiQuery(
-    `analysis:${period}:${effectivePreset}`,
-    analysisRequest
+  const results = useApiQuery(
+    `analysis-results:${project ? scopeKey(project) : "none"}:${state.period}`,
+    resultsRequest,
+    { pollMs: 30_000, enabled: Boolean(project) }
   )
+  const durationRequest = React.useCallback(
+    () =>
+      project && durationPreset
+        ? getDuration(project, { from: periodStart, preset: durationPreset })
+        : Promise.reject(new Error("Selecione um preset declarado")),
+    [durationPreset, periodStart, project]
+  )
+  const duration = useApiQuery(
+    `analysis-duration:${project ? scopeKey(project) : "none"}:${state.period}:${durationPreset}`,
+    durationRequest,
+    {
+      enabled:
+        Boolean(project) && state.metric === "duration" && Boolean(durationPreset),
+    }
+  )
+  const latestRows = results.data?.presets ?? []
+  const appliedRows = menuOpen ? heldRows : latestRows
+  const resolved = resolveSelection(appliedRows, state.resultSelection)
+  const visibleResults = rankResults(appliedRows).filter((row) =>
+    resolved.selected.includes(row.preset)
+  )
+
+  if (!project) {
+    return (
+      <main className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
+        <ErrorState
+          title="Análise exige um projeto"
+          error={new Error("Cadastre ou selecione um projeto para ver Resultados e Duração.")}
+        />
+      </main>
+    )
+  }
 
   return (
     <main className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
       <h1 className="text-2xl font-semibold tracking-tight">Análise</h1>
       <AnalysisStatistics
-        view={view}
-        period={period}
-        preset={effectivePreset}
+        view={state.metric}
+        period={state.period}
+        preset={durationPreset}
         presets={presetNames}
-        analysis={analysis}
-        onView={setView}
-        onPeriod={setPeriod}
-        onPreset={handlePreset}
+        results={results}
+        duration={duration}
+        visibleResults={visibleResults}
+        rows={appliedRows}
+        selection={state.resultSelection}
+        missing={resolved.missing}
+        onView={(metric) => commit({ ...state, metric })}
+        onPeriod={(period) => {
+          setMenuOpen(false)
+          commit({ ...state, period })
+        }}
+        onPreset={(preset) => commit({ ...state, durationPreset: preset })}
+        onSelection={(resultSelection) => commit({ ...state, resultSelection })}
+        onMenuOpenChange={(open) => {
+          if (open) {
+            setHeldRows(latestRows)
+          }
+          setMenuOpen(open)
+        }}
       />
     </main>
   )

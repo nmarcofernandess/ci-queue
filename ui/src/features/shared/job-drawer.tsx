@@ -3,6 +3,8 @@ import { useLiveLog } from "./use-live-log"
 import { JobTimeline } from "./live-time"
 import * as React from "react"
 
+import { useProjectContext } from "@/features/projects/project-context"
+import { scopeKey } from "@/features/projects/scope"
 import {
   getDiagnostic,
   getJob,
@@ -246,11 +248,12 @@ function DiagnosticPopover({
   const [exportError, setExportError] = React.useState<Error>()
   const exportCache = React.useRef<LogExport | undefined>(undefined)
   const exportRequest = React.useRef<Promise<LogExport> | undefined>(undefined)
+  const { scope } = useProjectContext()
   const diagnosticRequest = React.useCallback(
-    () => getDiagnostic(jobId),
-    [jobId]
+    () => (scope ? getDiagnostic(scope, jobId) : Promise.reject(new Error("projeto ausente"))),
+    [jobId, scope]
   )
-  const diagnostic = useApiQuery(`diagnostic:${jobId}`, diagnosticRequest, {
+  const diagnostic = useApiQuery(`diagnostic:${scope ? scopeKey(scope) : "none"}:${jobId}`, diagnosticRequest, {
     enabled: diagnosticRequested,
   })
   const ticket = diagnostic.data?.available ? diagnostic.data.ticket : undefined
@@ -281,7 +284,7 @@ function DiagnosticPopover({
 
     setExportError(undefined)
     setExporting(true)
-    const request = getLogExport(jobId)
+    const request = getLogExport(scope!, jobId)
       .then((result) => {
         exportCache.current = result
         return result
@@ -300,7 +303,7 @@ function DiagnosticPopover({
       })
     exportRequest.current = request
     return request
-  }, [jobId])
+  }, [jobId, scope])
 
   const requestExport = React.useCallback(
     (action: DiagnosticExportAction) => {
@@ -427,16 +430,22 @@ const jobIsLive = (job: JobRecord) =>
   job.status === "running" || job.status === "queued"
 
 function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
+  const { scope } = useProjectContext()
   const [activeTab, setActiveTab] = React.useState<"progress" | "log">(
     "progress"
   )
   const [logRequested, setLogRequested] = React.useState(false)
-  const jobRequest = React.useCallback(() => getJob(jobId), [jobId])
-  const job = useApiQuery(`job:${jobId}`, jobRequest, {
+  const jobRequest = React.useCallback(
+    () => (scope ? getJob(scope, jobId) : Promise.reject(new Error("projeto ausente"))),
+    [jobId, scope]
+  )
+  const job = useApiQuery(`job:${scope ? scopeKey(scope) : "none"}:${jobId}`, jobRequest, {
     pollMs: 2000,
     pollWhile: jobIsLive,
+    enabled: Boolean(scope),
   })
   const log = useLiveLog(
+    scope,
     jobId,
     logRequested && Boolean(job.data),
     job.data?.status === "running"

@@ -1,9 +1,11 @@
 import * as React from "react"
 import { getLog, type ApiQuery } from "@/lib/api"
+import type { ReadScope } from "@/features/projects/scope"
 import type { LogSlice } from "@/lib/types"
 import { appendLog } from "./log-buffer"
 
 export function useLiveLog(
+  scope: ReadScope | null,
   jobId: string,
   enabled: boolean,
   running: boolean
@@ -14,13 +16,13 @@ export function useLiveLog(
   const [refreshing, setRefreshing] = React.useState(false)
   const [revision, setRevision] = React.useState(0)
   React.useEffect(() => {
-    if (!enabled) return
+    if (!enabled || !scope) return
     let disposed = false
     let timer: ReturnType<typeof setTimeout> | undefined
     const load = async () => {
       setRefreshing(true)
       try {
-        const chunk = await getLog(jobId, buffer.current?.nextOffset ?? 0)
+        const chunk = await getLog(scope, jobId, buffer.current?.nextOffset ?? 0)
         if (disposed) return
         const next = appendLog(buffer.current, chunk)
         buffer.current = next
@@ -43,7 +45,7 @@ export function useLiveLog(
       disposed = true
       clearTimeout(timer)
     }
-  }, [jobId, enabled, running, revision])
+  }, [scope, jobId, enabled, running, revision])
   const reload = React.useCallback(() => setRevision((value) => value + 1), [])
   return {
     data,

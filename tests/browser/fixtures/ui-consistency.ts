@@ -54,7 +54,15 @@ export const fixtureAnalysis: AnalysisResponse = { schemaVersion:1,projectId:'ex
 export type FixtureOptions = { empty?: boolean; error?: boolean; saveError?: boolean; theme?:'light'|'dark'|'system' }
 export async function installConsistencyFixtures(page: Page, options: FixtureOptions = {}) {
   await page.clock.install({ time: fixtureNow })
-  await page.addInitScript(theme=>localStorage.setItem('ci-queue-theme',theme),options.theme??'light')
+  await page.addInitScript((theme) => {
+    localStorage.setItem('ci-queue-theme', theme)
+    localStorage.setItem('ci-queue.lastProjectId', 'example')
+  }, options.theme ?? 'light')
+  await page.route('**/health', async (route) => {
+    await route.fulfill({
+      json: { ok: true, apiVersion: 1, serverTime: fixtureNow.toISOString(), projectId: 'example' },
+    })
+  })
   const state=fixtureDashboard()
   if(options.empty){state.meta=null;state.pending=[]}
   await page.route('**/api/**', async route => {
@@ -70,21 +78,25 @@ export async function installConsistencyFixtures(page: Page, options: FixtureOpt
     const green={ticketId:'fixture-passed',startedAt:'2026-09-15T11:54:00Z',createdAt:'2026-09-15T11:53:00Z',finishedAt:'2026-09-15T11:55:00Z',status:'passed',headSha:'a'.repeat(40),branch:fixtureJob.branch,custom:false,durationMs:62000}
     const log=Array.from({length:160},(_,i)=>`line ${i}: fixture output available for native text selection`).join('\n')+'\n'
     const offset=Number(url.searchParams.get('offset')??0)
+    const context = { kind: 'project', projectId: 'example' }
     const data: Record<string, unknown> = {
+      '/api/projects': { schemaVersion:1, registryRevision:1, bootstrapProjectId:'example', observedUnregistered:[], projects:[{id:'example',displayName:'Example',repositoryPath:'/example',configPath:'/example/ci-queue.json',archivedAt:null,revision:1,bindingState:'linked'}] },
       '/api/session': { csrfToken: 'fixture', canReveal: true, revealTargets:['directory'], clipboardLimitBytes: 1000000 },
-      '/api/status': { schemaVersion:1,serverTime:fixtureNow.toISOString(),project: { id: 'example', name: 'Example' }, running: options.empty?null:fixtureJob, queued: options.empty?[]:[{...fixtureJob,id:'fixture-queued',preset:'queued-run',status:'queued',startedAt:undefined,progressSummary:undefined}], history: options.empty?[]:fixtureTerminals,lastFailed:null, globalOccupancy: !options.empty },
-      '/api/executions': { schemaVersion:1,jobs: options.empty||url.searchParams.get('q')?[]:fixtureTerminals, hasMore: false, snapshotBefore:fixtureNow.toISOString(),nextCursor: null, coverage: { unattributedRecords: 0 } },
-      '/api/dashboard-state': state,
+      '/api/status': { schemaVersion:1,serverTime:fixtureNow.toISOString(),project: { id: 'example', name: 'Example' }, running: options.empty?null:fixtureJob, queued: options.empty?[]:[{...fixtureJob,id:'fixture-queued',preset:'queued-run',status:'queued',startedAt:undefined,progressSummary:undefined}], history: options.empty?[]:fixtureTerminals,lastFailed:null, globalOccupancy: !options.empty, otherProjectOccupancy:false, context },
+      '/api/executions': { schemaVersion:1,jobs: options.empty||url.searchParams.get('q')?[]:fixtureTerminals, hasMore: false, snapshotBefore:fixtureNow.toISOString(),nextCursor: null, coverage: { unattributedRecords: 0 }, context },
+      '/api/dashboard-state': { ...state, context },
       '/api/machine': {schemaVersion:1,observedAt:fixtureNow.toISOString(),disk:{totalBytes:2000000000,usedBytes:1000000000,freeBytes:1000000000},error:null},
-      '/api/job': selected,
-      '/api/worktrees': {schemaVersion:1,observedAt:fixtureNow.toISOString(), worktrees: options.empty?[]:fixtureTrees, baseRef: 'main',baseSha:'c'.repeat(40), error: null },
+      '/api/job': { ...selected, context },
+      '/api/worktrees': {schemaVersion:1,observedAt:fixtureNow.toISOString(), worktrees: options.empty?[]:fixtureTrees, baseRef: 'main',baseSha:'c'.repeat(40), error: null, context },
       '/api/worktree-view': fixtureTrees.find(tree => tree.id === url.searchParams.get('id')),
-      '/api/analysis':{...fixtureAnalysis,presets:options.empty?[]:fixtureAnalysis.presets.filter(p=>!url.searchParams.get('preset')||p.preset===url.searchParams.get('preset'))},
-      '/api/preset-history':{schemaVersion:1,catalog:{resolved:true,projectId:'example',declaredCount:3},totals:{tickets:12,presets:3},coverage:{unattributedRecords:0},presets:['smoketest','static','full'].map(preset=>({projectId:'example',projectName:'Example',preset,declared:true,runCount:4,canonicalRunCount:4,customRunCount:0,lastGreenCanonical:preset==='smoketest'?green:null,lastRun:null,lastFailure:null,durationReference:null}))},
-      '/api/remote-slots':{schemaVersion:2,source:{kind:'git',available:true,stale:false,remote:'origin',namespace:'ci',readAt:fixtureNow.toISOString(),refreshedAt:null,reason:null},catalog:{projectId:'example',resolved:true,declaredCount:3},coverage:{declaredPresets:3,greenPresets:1,withoutTagPresets:[],invalidPayloads:[]},greens:[{origin:'git',preset:'static',projectId:'example',ticketId:'git-only',jobAvailable:false,status:'passed',headSha:'a'.repeat(40),commitSha:'a'.repeat(40),baseSha:null,branch:'feature/git-only-summary',finishedAt:'2026-09-15T11:56:00Z',publishedAt:'2026-09-15T11:57:00Z',durationMs:null,ref:'refs/tags/fixture'}]},
-      '/api/log':{schemaVersion:1,jobId:selected.id,content:log.slice(offset),offset,nextOffset:log.length,sourceBytes:log.length,complete:true,error:null},
-      '/api/log/export':{schemaVersion:1,jobId:selected.id,content:log,coverage:{available:true,sourceBytes:log.length,capturedBytes:log.length,complete:true,preserved:'complete'}},
-      '/api/diagnostic':{schemaVersion:1,jobId:selected.id,available:true,ticket:selected,resources:{observations:[],coverage:'unavailable'}},
+      '/api/analysis': url.searchParams.get('metric') === 'results'
+        ? { schemaVersion:2, metric:'results', context, from:null, to:null, sampleCount: options.empty?0:12, presets: options.empty?[]:fixtureAnalysis.presets.map(({preset,passed,failed,cancelled,interrupted,total})=>({preset,passed,failed,cancelled,interrupted,total})) }
+        : {...fixtureAnalysis, context, presets:options.empty?[]:fixtureAnalysis.presets.filter(p=>!url.searchParams.get('preset')||p.preset===url.searchParams.get('preset'))},
+      '/api/preset-history':{schemaVersion:1,catalog:{resolved:true,projectId:'example',declaredCount:3},totals:{tickets:12,presets:3},coverage:{unattributedRecords:0},context,presets:['smoketest','static','full'].map(preset=>({projectId:'example',projectName:'Example',preset,declared:true,runCount:4,canonicalRunCount:4,customRunCount:0,lastGreenCanonical:preset==='smoketest'?green:null,lastRun:null,lastFailure:null,durationReference:null}))},
+      '/api/remote-slots':{schemaVersion:2,source:{kind:'git',available:true,stale:false,remote:'origin',namespace:'ci',readAt:fixtureNow.toISOString(),refreshedAt:null,reason:null},catalog:{projectId:'example',resolved:true,declaredCount:3},coverage:{declaredPresets:3,greenPresets:1,withoutTagPresets:[],invalidPayloads:[]},context,greens:[{origin:'git',preset:'static',projectId:'example',ticketId:'git-only',jobAvailable:false,status:'passed',headSha:'a'.repeat(40),commitSha:'a'.repeat(40),baseSha:null,branch:'feature/git-only-summary',finishedAt:'2026-09-15T11:56:00Z',publishedAt:'2026-09-15T11:57:00Z',durationMs:null,ref:'refs/tags/fixture'}]},
+      '/api/log':{schemaVersion:1,jobId:selected.id,content:log.slice(offset),offset,nextOffset:log.length,sourceBytes:log.length,complete:true,error:null,context},
+      '/api/log/export':{schemaVersion:1,jobId:selected.id,content:log,coverage:{available:true,sourceBytes:log.length,capturedBytes:log.length,complete:true,preserved:'complete'},context},
+      '/api/diagnostic':{schemaVersion:1,jobId:selected.id,available:true,ticket:selected,resources:{observations:[],coverage:'unavailable'},context},
     }
     await route.fulfill({ json: data[url.pathname] ?? {} })
   })

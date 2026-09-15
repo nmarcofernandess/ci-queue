@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge"
 import { JobTimeline } from "@/features/shared/live-time"
 import * as React from "react"
 
+import { useProjectContext } from "@/features/projects/project-context"
+import { scopeKey, type ReadScope } from "@/features/projects/scope"
 import {
   getDashboardState,
   getExecutions,
@@ -43,14 +45,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { FilterSelect } from "@/features/shared/filter-select"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -109,9 +104,13 @@ function CurrentExecution({
             </ItemMedia>
             <ItemContent>
               <ItemTitle>Nenhuma execução em andamento</ItemTitle>
-              {snapshot.globalOccupancy ? (
+              {snapshot.otherProjectOccupancy ? (
                 <ItemDescription>
-                  O executor está ocupado por outro projeto.
+                  Há trabalho de outro projeto na fila global.
+                </ItemDescription>
+              ) : snapshot.globalOccupancy ? (
+                <ItemDescription>
+                  O executor está ocupado.
                 </ItemDescription>
               ) : null}
             </ItemContent>
@@ -477,72 +476,52 @@ function HistoryToolbar({
             aria-label="Buscar por preset, branch, SHA ou ticket"
           />
         </InputGroup>
-        <Select
+        <FilterSelect
+          label="Período do histórico"
           value={period}
           onValueChange={(value) => onPeriod(value as Period)}
-        >
-          <SelectTrigger aria-label="Período do histórico">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="all">Todo período</SelectItem>
-              <SelectItem value="today">Hoje</SelectItem>
-              <SelectItem value="48h">48h</SelectItem>
-              <SelectItem value="week">Semana</SelectItem>
-              <SelectItem value="15d">15 dias</SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+          options={[
+            { value: "all", label: "Todo período" },
+            { value: "today", label: "Hoje" },
+            { value: "48h", label: "48h" },
+            { value: "week", label: "Semana" },
+            { value: "15d", label: "15 dias" },
+          ]}
+        />
         {mode === "executions" ? (
-          <Select
+          <FilterSelect
+            label="Resultado"
             value={result}
             onValueChange={(value) => onResult(value as HistoryResult)}
-          >
-            <SelectTrigger aria-label="Resultado">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="all">Todos os resultados</SelectItem>
-                <SelectItem value="passed">Passou</SelectItem>
-                <SelectItem value="failed">Falhou</SelectItem>
-                <SelectItem value="cancelled">Cancelado</SelectItem>
-                <SelectItem value="interrupted">Interrompido</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+            options={[
+              { value: "all", label: "Todos os resultados" },
+              { value: "passed", label: "Passou" },
+              { value: "failed", label: "Falhou" },
+              { value: "cancelled", label: "Cancelado" },
+              { value: "interrupted", label: "Interrompido" },
+            ]}
+          />
         ) : (
           <>
-            <Select
+            <FilterSelect
+              label="Origem"
               value={origin}
               onValueChange={(value) => onOrigin(value as GreenOrigin)}
-            >
-              <SelectTrigger aria-label="Origem">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="both">Máquina e Git</SelectItem>
-                  <SelectItem value="machine">Máquina</SelectItem>
-                  <SelectItem value="git">Git</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <Select
+              options={[
+                { value: "both", label: "Máquina e Git" },
+                { value: "machine", label: "Máquina" },
+                { value: "git", label: "Git" },
+              ]}
+            />
+            <FilterSelect
+              label="Agrupamento do histórico"
               value={grouping}
               onValueChange={(value) => onGrouping(value as GreenGrouping)}
-            >
-              <SelectTrigger aria-label="Agrupamento do histórico">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="preset">Por preset</SelectItem>
-                  <SelectItem value="commit">Por commit</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+              options={[
+                { value: "preset", label: "Por preset" },
+                { value: "commit", label: "Por commit" },
+              ]}
+            />
           </>
         )}
         {hasFilters ? (
@@ -682,16 +661,16 @@ function appendExecutionJobs(
 }
 
 function useExecutionHistory(
+  scope: ReadScope,
   {
     search,
     period,
     result,
   }: Pick<HistoryFilters, "search" | "period" | "result">,
-  legacy = false,
   historyRevision = ""
 ) {
   const periodStart = React.useMemo(() => queryPeriodStart(period), [period])
-  const requestKey = `${search}\u0000${period}\u0000${result}\u0000${legacy}`
+  const requestKey = `${scopeKey(scope)}\u0000${search}\u0000${period}\u0000${result}`
   const requestVersion = React.useRef(0)
   const [state, setState] = React.useState<ExecutionHistoryState>({
     queryKey: requestKey,
@@ -708,8 +687,7 @@ function useExecutionHistory(
   React.useEffect(() => {
     const version = requestVersion.current + 1
     requestVersion.current = version
-    void getExecutions({
-      scope: legacy ? "legacy" : "terminal",
+    void getExecutions(scope, {
       q: search || undefined,
       result,
       from: periodStart,
@@ -747,7 +725,7 @@ function useExecutionHistory(
           nextCursor: null,
         })
       })
-  }, [legacy, historyRevision, periodStart, requestKey, result, search])
+  }, [historyRevision, periodStart, requestKey, result, scope, search])
 
   const loadMore = React.useCallback(() => {
     if (
@@ -769,8 +747,7 @@ function useExecutionHistory(
       loadMoreError: undefined,
     }))
 
-    void getExecutions({
-      scope: legacy ? "legacy" : "terminal",
+    void getExecutions(scope, {
       q: search || undefined,
       result,
       from: periodStart,
@@ -809,7 +786,7 @@ function useExecutionHistory(
           ),
         }))
       })
-  }, [legacy, periodStart, requestKey, result, search, state])
+  }, [periodStart, requestKey, result, scope, search, state])
 
   const visibleState =
     state.queryKey === requestKey
@@ -972,28 +949,51 @@ function sourceFailure<T>(
 function HistoryPanel({
   onOpenJob,
   historyRevision,
+  scope,
 }: {
   onOpenJob: (jobId: string) => void
   historyRevision: string
+  scope: ReadScope
 }) {
   const [filters, setFilters] =
     React.useState<HistoryFilters>(readHistoryFilters)
   const [selectedCommit, setSelectedCommit] = React.useState<GreenCommitGroup>()
-  const [legacy, setLegacy] = React.useState(false)
-  const executions = useExecutionHistory(filters, legacy, historyRevision)
-  const greensMode = filters.mode === "greens"
+  const executions = useExecutionHistory(scope, filters, historyRevision)
+  const projectScope = scope.kind === "project" ? scope : null
+  const historyMode = projectScope ? filters.mode : "executions"
+  const greensMode = historyMode === "greens"
   const needsMachine = filters.origin !== "git"
   const needsGit = filters.origin !== "machine"
-  const presetRequest = React.useCallback(() => getPresetHistory(), [])
-  const remoteRequest = React.useCallback(() => getRemoteSlots(), [])
-  const presetHistory = useApiQuery("preset-history", presetRequest, {
-    enabled: greensMode && needsMachine,
-    pollMs: 10_000,
-  })
-  const remote = useApiQuery("remote-slots", remoteRequest, {
-    enabled: greensMode && needsGit,
-    pollMs: 10_000,
-  })
+  const presetRequest = React.useCallback(
+    () =>
+      projectScope
+        ? getPresetHistory(projectScope)
+        : Promise.reject(new Error("catálogo exige um projeto")),
+    [projectScope]
+  )
+  const remoteRequest = React.useCallback(
+    () =>
+      projectScope
+        ? getRemoteSlots(projectScope)
+        : Promise.reject(new Error("verdes exigem um projeto")),
+    [projectScope]
+  )
+  const presetHistory = useApiQuery(
+    `preset-history:${projectScope ? scopeKey(projectScope) : "none"}`,
+    presetRequest,
+    {
+      enabled: greensMode && needsMachine,
+      pollMs: 10_000,
+    }
+  )
+  const remote = useApiQuery(
+    `remote-slots:${projectScope ? scopeKey(projectScope) : "none"}`,
+    remoteRequest,
+    {
+      enabled: greensMode && needsGit,
+      pollMs: 10_000,
+    }
+  )
 
   React.useEffect(() => {
     writeHistoryFilters(filters)
@@ -1109,13 +1109,18 @@ function HistoryPanel({
   const toolbar = (
     <>
       <HistoryToolbar
-        mode={filters.mode}
+        mode={historyMode}
         search={filters.search}
         period={filters.period}
         result={filters.result}
         origin={filters.origin}
         grouping={filters.grouping}
-        onMode={(mode) => setFilters((current) => ({ ...current, mode }))}
+        onMode={(mode) => {
+          if (!projectScope && mode === "greens") {
+            return
+          }
+          setFilters((current) => ({ ...current, mode }))
+        }}
         onSearch={(search) => setFilters((current) => ({ ...current, search }))}
         onPeriod={(period) => setFilters((current) => ({ ...current, period }))}
         onResult={(result) => setFilters((current) => ({ ...current, result }))}
@@ -1125,25 +1130,12 @@ function HistoryPanel({
         }
         onClear={clear}
       />
-      {filters.mode === "executions" &&
-      (legacy || (executions.unattributedRecords ?? 0) > 0) ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-fit"
-          onClick={() => setLegacy((value) => !value)}
-        >
-          {legacy
-            ? "Voltar ao histórico do projeto"
-            : `Legado sem projeto (${executions.unattributedRecords})`}
-        </Button>
-      ) : null}
     </>
   )
 
   return (
     <section className="min-w-0" aria-label="Histórico">
-      {filters.mode === "executions" ? (
+      {historyMode === "executions" ? (
         <RunTable
           toolbar={toolbar}
           title="Histórico"
@@ -1210,12 +1202,34 @@ function HistoryPanel({
 }
 
 export function StatusPage() {
-  const statusRequest = React.useCallback(() => getStatus(), [])
-  const status = useApiQuery("status", statusRequest, { pollMs: 10_000 })
-  const dashboardRequest = React.useCallback(() => getDashboardState(), [])
-  const dashboard = useApiQuery("dashboard-state", dashboardRequest, {
+  const { scope, loading: projectsLoading } = useProjectContext()
+  const statusRequest = React.useCallback(
+    () =>
+      scope
+        ? getStatus(scope)
+        : Promise.reject(new Error("Selecione um projeto ou o arquivo sem projeto.")),
+    [scope]
+  )
+  const status = useApiQuery(`status:${scope ? scopeKey(scope) : "none"}`, statusRequest, {
     pollMs: 10_000,
+    enabled: Boolean(scope),
   })
+  const projectScope = scope?.kind === "project" ? scope : null
+  const dashboardRequest = React.useCallback(
+    () =>
+      projectScope
+        ? getDashboardState(projectScope)
+        : Promise.reject(new Error("Meta exige um projeto")),
+    [projectScope]
+  )
+  const dashboard = useApiQuery(
+    `dashboard-state:${projectScope ? scopeKey(projectScope) : "none"}`,
+    dashboardRequest,
+    {
+      pollMs: 10_000,
+      enabled: Boolean(projectScope),
+    }
+  )
   const [selectedJobId, setSelectedJobId] = React.useState<string>()
   const [stateDrawerOpen, setStateDrawerOpen] = React.useState(false)
   const [stateSurface, setStateSurface] = React.useState<"meta" | "pending">(
@@ -1225,6 +1239,23 @@ export function StatusPage() {
   const openStatusState = (surface: "meta" | "pending") => {
     setStateSurface(surface)
     setStateDrawerOpen(true)
+  }
+
+  if (projectsLoading || !scope) {
+    return (
+      <main className="flex flex-1 p-4 lg:p-6">
+        <div className="w-full">
+          {projectsLoading ? (
+            <Skeleton className="h-56 w-full" />
+          ) : (
+            <ErrorState
+              title="Nenhum projeto selecionado"
+              error={new Error("Cadastre um projeto no seletor do header ou abra o histórico sem projeto.")}
+            />
+          )}
+        </div>
+      </main>
+    )
   }
 
   if (status.loading) {
@@ -1249,33 +1280,42 @@ export function StatusPage() {
     )
   }
 
+  const unassigned = scope.kind === "unassigned"
+
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 lg:p-6">
-      <CurrentExecution snapshot={status.data} onOpenJob={setSelectedJobId} />
+      {unassigned ? null : (
+        <CurrentExecution snapshot={status.data} onOpenJob={setSelectedJobId} />
+      )}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div className="flex min-w-0 flex-col gap-6">
-          <RunTable
-            title="Fila"
-            kind="queue"
-            jobs={status.data.queued}
-            loading={false}
-            error={undefined}
-            emptyTitle="Fila livre"
-            emptyDescription="A próxima execução aguardando aparecerá aqui."
-            onOpenJob={setSelectedJobId}
-          />
+          {unassigned ? null : (
+            <RunTable
+              title="Fila"
+              kind="queue"
+              jobs={status.data.queued}
+              loading={false}
+              error={undefined}
+              emptyTitle="Fila livre"
+              emptyDescription="A próxima execução aguardando aparecerá aqui."
+              onOpenJob={setSelectedJobId}
+            />
+          )}
           <HistoryPanel
+            scope={scope}
             onOpenJob={setSelectedJobId}
             historyRevision={status.data.history?.[0]?.id ?? ""}
           />
         </div>
         <aside className="flex flex-col gap-4">
           <MachineCard />
-          <StatusStateCards
-            dashboard={dashboard}
-            onOpen={openStatusState}
-            onOpenJob={setSelectedJobId}
-          />
+          {unassigned ? null : (
+            <StatusStateCards
+              dashboard={dashboard}
+              onOpen={openStatusState}
+              onOpenJob={setSelectedJobId}
+            />
+          )}
         </aside>
       </div>
       {selectedJobId ? (

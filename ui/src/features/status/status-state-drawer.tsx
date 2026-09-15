@@ -61,6 +61,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
 import { formatDateTime, shortSha } from "@/features/shared/format"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
+import { useRequiredProject } from "@/features/projects/project-context"
 import { writeDashboardState } from "@/lib/api"
 import type {
   DashboardMeta,
@@ -480,6 +481,7 @@ export function StatusStateDrawer({
   onOpenJob: (jobId: string) => void
 }) {
   const session = useDashboardSession()
+  const project = useRequiredProject()
   const [saving, setSaving] = React.useState(false)
   const [editingMeta, setEditingMeta] = React.useState(false)
   const [metaFormValid, setMetaFormValid] = React.useState(false)
@@ -495,13 +497,15 @@ export function StatusStateDrawer({
   }
 
   const mutate = async (mutation: DashboardStateMutation) => {
-    if (!session.data?.csrfToken) {
+    if (!session.data?.csrfToken || !project) {
       toast.error("A sessão da bridge não está disponível para salvar.")
       return false
     }
+    const target = project
+    const token = session.data.csrfToken
     setSaving(true)
     try {
-      await writeDashboardState(session.data.csrfToken, mutation)
+      await writeDashboardState(target, token, mutation)
       setEditingMeta(false)
       onSaved()
       toast.success("Painel atualizado.")

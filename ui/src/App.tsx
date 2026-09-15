@@ -11,6 +11,11 @@ import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import {
+  ProjectProvider,
+  ProjectScopeBoundary,
+} from "@/features/projects/project-context"
+import { ProjectManagerDrawer } from "@/features/projects/project-manager-drawer"
 
 function routeFromHash(hash: string): AppRoute {
   const candidate = hash.replace(/^#/, "").replace(/^\//, "")
@@ -35,23 +40,34 @@ function useHashRoute() {
 
 export function App() {
   const route = useHashRoute()
+  const [managingProjects, setManagingProjects] = React.useState(false)
 
   return (
     <TooltipProvider>
-      <SidebarProvider
-        style={
-          {
-            "--sidebar-width": "calc(var(--spacing) * 72)",
-            "--header-height": "calc(var(--spacing) * 12)",
-          } as React.CSSProperties
-        }
-      >
-        <AppSidebar activeRoute={route} />
-        <SidebarInset>
-          <SiteHeader title={appRouteLabels[route]} />
-          <RouteContent route={route} />
-        </SidebarInset>
-      </SidebarProvider>
+      <ProjectProvider>
+        <SidebarProvider
+          style={
+            {
+              "--sidebar-width": "calc(var(--spacing) * 72)",
+              "--header-height": "calc(var(--spacing) * 12)",
+            } as React.CSSProperties
+          }
+        >
+          <AppSidebar activeRoute={route} />
+          <SidebarInset>
+            <SiteHeader
+              title={appRouteLabels[route]}
+              onManageProjects={() => setManagingProjects(true)}
+            />
+            <ProjectScopeBoundary>
+              <RouteContent route={route} />
+            </ProjectScopeBoundary>
+            {managingProjects ? (
+              <ProjectManagerDrawer onClose={() => setManagingProjects(false)} />
+            ) : null}
+          </SidebarInset>
+        </SidebarProvider>
+      </ProjectProvider>
       <Toaster position="top-right" />
     </TooltipProvider>
   )
