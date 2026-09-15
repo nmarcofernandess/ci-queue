@@ -116,7 +116,7 @@ export function GreenCommitTable({
                       aria-label={`Ver commit ${shortSha(group.sha)}`}
                       onClick={() => onOpen(group)}
                     >
-                      <EyeIcon />
+                      <EyeIcon data-icon />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Ver commit</TooltipContent>
@@ -169,7 +169,7 @@ export function GreenCommitDrawer({
             </div>
             <DrawerClose asChild>
               <Button variant="ghost" size="icon-sm" aria-label="Fechar commit">
-                <XIcon />
+                <XIcon data-icon />
               </Button>
             </DrawerClose>
           </div>
@@ -243,7 +243,7 @@ export function GreenCommitDrawer({
                             aria-label={`Ver ${row.preset}`}
                             onClick={() => onOpenJob(id)}
                           >
-                            <EyeIcon />
+                            <EyeIcon data-icon />
                           </Button>
                         ) : null}
                       </TableCell>
@@ -256,7 +256,7 @@ export function GreenCommitDrawer({
         </ScrollArea>
         <DrawerFooter className="shrink-0 border-t">
           <Button variant="outline" onClick={() => void copy()}>
-            <ClipboardIcon />
+            <ClipboardIcon data-icon />
             Copiar SHA
           </Button>
         </DrawerFooter>

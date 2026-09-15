@@ -95,17 +95,21 @@ function metaToForm(meta: DashboardMeta | null): MetaForm {
 }
 
 function MetaEditor({
+  formId,
   state,
   saving,
   unavailable,
   onSave,
   onCancel,
+  onValidityChange,
 }: {
+  formId: string
   state: DashboardState
   saving: boolean
   unavailable: boolean
   onSave: (mutation: DashboardStateMutation) => Promise<boolean>
   onCancel: () => void
+  onValidityChange: (valid: boolean) => void
 }) {
   const [form, setForm] = React.useState<MetaForm>(() => metaToForm(state.meta))
   const [futurePreset, setFuturePreset] = React.useState("")
@@ -127,8 +131,15 @@ function MetaEditor({
     setFuturePreset("")
   }
 
+  const valid = Boolean(form.name.trim() && form.presets.length)
+
+  React.useEffect(() => {
+    onValidityChange(valid)
+  }, [onValidityChange, valid])
+
   return (
     <form
+      id={formId}
       className="flex flex-col gap-6"
       onSubmit={(event) => {
         event.preventDefault()
@@ -236,31 +247,6 @@ function MetaEditor({
           </Field>
         </FieldGroup>
       </FieldSet>
-
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={saving}
-        >
-          Cancelar
-        </Button>
-        <Button
-          type="submit"
-          disabled={
-            unavailable ||
-            saving ||
-            !form.name.trim() ||
-            form.presets.length === 0
-          }
-        >
-          {saving ? (
-            <LoaderCircleIcon data-icon className="animate-spin" />
-          ) : null}
-          Salvar meta
-        </Button>
-      </div>
     </form>
   )
 }
@@ -307,16 +293,10 @@ function RemoveMetaButton({
 
 function MetaRead({
   state,
-  onEdit,
   onOpenJob,
-  saving,
-  onMutate,
 }: {
   state: DashboardState
-  onEdit: () => void
   onOpenJob: (jobId: string) => void
-  saving: boolean
-  onMutate: (mutation: DashboardStateMutation) => Promise<boolean>
 }) {
   const meta = state.meta
   if (!meta) {
@@ -324,56 +304,36 @@ function MetaRead({
       <EmptyState
         title="Nenhuma meta declarada"
         description="Declare um único objetivo e as receitas necessárias para chegar a main."
-      >
-        <Button type="button" onClick={onEdit}>
-          <PlusIcon data-icon />
-          Declarar meta
-        </Button>
-      </EmptyState>
+      />
     )
   }
 
-  const passed = meta.checks.filter((check) => check.status === "passed").length
   const total = meta.checks.length
+  const passed = meta.checks.filter((check) => check.status === "passed").length
   const allPassedOnDifferentRevisions =
     total > 0 && passed === total && !meta.candidateSha
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="font-medium">{meta.name}</h3>
-          {meta.description ? (
-            <p className="mt-1 text-sm text-muted-foreground">
-              {meta.description}
-            </p>
-          ) : null}
-        </div>
-        <Button type="button" variant="outline" size="sm" onClick={onEdit}>
-          <PencilIcon data-icon />
-          Editar
-        </Button>
-      </div>
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span>
-            {passed} de {total} requisitos atendidos
-          </span>
-          {meta.candidateSha ? (
-            <span className="text-muted-foreground">
-              Candidato{" "}
-              <span className="font-mono">{shortSha(meta.candidateSha)}</span>
-            </span>
-          ) : null}
-        </div>
-        <Progress value={total ? (passed / total) * 100 : 0} />
-        {allPassedOnDifferentRevisions ? (
-          <p className="text-sm text-muted-foreground">
-            Os verdes atuais ainda não provam uma única revisão comum.
-          </p>
-        ) : null}
-      </div>
-      <Separator />
+      {meta.description ? (
+        <p className="text-sm text-muted-foreground">{meta.description}</p>
+      ) : null}
+      {meta.candidateSha ? (
+        <p className="text-sm text-muted-foreground">
+          Candidato{" "}
+          <span className="font-mono">{shortSha(meta.candidateSha)}</span>
+        </p>
+      ) : null}
+      {allPassedOnDifferentRevisions ? (
+        <p className="text-sm text-muted-foreground">
+          Os verdes atuais ainda não provam uma única revisão comum.
+        </p>
+      ) : null}
+      {meta.description ||
+      meta.candidateSha ||
+      allPassedOnDifferentRevisions ? (
+        <Separator />
+      ) : null}
       {meta.checks.length ? (
         <ItemGroup>
           {meta.checks.map((check) => (
@@ -426,9 +386,6 @@ function MetaRead({
           Nenhum requisito definido.
         </p>
       )}
-      <div className="flex justify-end">
-        <RemoveMetaButton state={state} saving={saving} onMutate={onMutate} />
-      </div>
     </div>
   )
 }
@@ -534,7 +491,17 @@ export function StatusStateDrawer({
   const session = useDashboardSession()
   const [saving, setSaving] = React.useState(false)
   const [editingMeta, setEditingMeta] = React.useState(false)
+  const [metaFormValid, setMetaFormValid] = React.useState(false)
   const unavailable = Boolean(session.error || !session.data)
+  const metaPassed =
+    state.meta?.checks.filter((check) => check.status === "passed").length ?? 0
+  const metaTotal = state.meta?.checks.length ?? 0
+  const metaFormId = "dashboard-meta-form"
+
+  const startMetaEdit = () => {
+    setMetaFormValid(false)
+    setEditingMeta(true)
+  }
 
   const mutate = async (mutation: DashboardStateMutation) => {
     if (!session.data?.csrfToken) {
@@ -570,11 +537,15 @@ export function StatusStateDrawer({
           <div className="flex items-start justify-between gap-3">
             <div>
               <DrawerTitle>
-                {surface === "meta" ? "Meta para main" : "Pendências"}
+                {surface === "meta"
+                  ? state.meta?.name || "Meta para main"
+                  : "Pendências"}
               </DrawerTitle>
               <DrawerDescription>
                 {surface === "meta"
-                  ? "Objetivo e verdes canônicos necessários."
+                  ? state.meta
+                    ? `${metaPassed} de ${metaTotal} requisitos atendidos`
+                    : "Objetivo e verdes canônicos necessários."
                   : `${state.pending.length} ${state.pending.length === 1 ? "recomendação" : "recomendações"} ainda sem verde posterior.`}
               </DrawerDescription>
             </div>
@@ -589,34 +560,88 @@ export function StatusStateDrawer({
               </Button>
             </DrawerClose>
           </div>
+          {surface === "meta" && state.meta ? (
+            <Progress
+              value={metaTotal ? (metaPassed / metaTotal) * 100 : 0}
+              aria-label={`${metaPassed} de ${metaTotal} requisitos atendidos`}
+            />
+          ) : null}
         </DrawerHeader>
         <ScrollArea className="min-h-0 flex-1 p-4">
           {surface === "meta" ? (
             editingMeta ? (
               <MetaEditor
                 key={`meta-${state.revision}`}
+                formId={metaFormId}
                 state={state}
                 saving={saving}
                 unavailable={unavailable}
                 onSave={mutate}
                 onCancel={() => setEditingMeta(false)}
+                onValidityChange={setMetaFormValid}
               />
             ) : (
-              <MetaRead
-                state={state}
-                onEdit={() => setEditingMeta(true)}
-                onOpenJob={onOpenJob}
-                saving={saving}
-                onMutate={mutate}
-              />
+              <MetaRead state={state} onOpenJob={onOpenJob} />
             )
           ) : (
             <PendingSurface state={state} onOpenJob={onOpenJob} />
           )}
         </ScrollArea>
-        {surface === "meta" && session.error ? (
-          <DrawerFooter className="shrink-0 border-t">
-            <p className="text-sm text-destructive">{session.error.message}</p>
+        {surface === "meta" ? (
+          <DrawerFooter className="shrink-0 border-t sm:flex-row sm:justify-end">
+            {session.error ? (
+              <p className="mr-auto text-sm text-destructive">
+                {session.error.message}
+              </p>
+            ) : null}
+            {editingMeta ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditingMeta(false)}
+                  disabled={saving}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  form={metaFormId}
+                  disabled={unavailable || saving || !metaFormValid}
+                >
+                  {saving ? (
+                    <LoaderCircleIcon data-icon className="animate-spin" />
+                  ) : null}
+                  Salvar meta
+                </Button>
+              </>
+            ) : state.meta ? (
+              <>
+                <RemoveMetaButton
+                  state={state}
+                  saving={saving || unavailable}
+                  onMutate={mutate}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={startMetaEdit}
+                  disabled={unavailable}
+                >
+                  <PencilIcon data-icon />
+                  Editar
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="button"
+                onClick={startMetaEdit}
+                disabled={unavailable}
+              >
+                <PlusIcon data-icon />
+                Declarar meta
+              </Button>
+            )}
           </DrawerFooter>
         ) : null}
       </DrawerContent>

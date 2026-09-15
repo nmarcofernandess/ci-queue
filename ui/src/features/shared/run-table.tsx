@@ -243,7 +243,7 @@ function RunDataTable({
                     aria-label={`Ver ${row.original.preset ?? "execução"}`}
                     onClick={() => onOpenJob(id)}
                   >
-                    <EyeIcon />
+                    <EyeIcon data-icon />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Ver execução</TooltipContent>

@@ -480,7 +480,7 @@ function WorktreeDataTable({
                   aria-label={`Ver ${worktreeName(row.original.path)}`}
                   onClick={() => onOpen(row.original.id)}
                 >
-                  <EyeIcon />
+                  <EyeIcon data-icon />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Ver worktree</TooltipContent>

@@ -271,7 +271,7 @@ function CurrentExecution({
                       aria-label={`Ver ${current.preset ?? "execução"}`}
                       onClick={() => onOpenJob(current.id)}
                     >
-                      <EyeIcon />
+                      <EyeIcon data-icon />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Ver execução</TooltipContent>
@@ -515,7 +515,7 @@ function StatusStateCards({
             variant="ghost"
             onClick={() => onOpen("pending")}
           >
-            Abrir pendências
+            Ver pendências
           </Button>
         </CardFooter>
       </Card>

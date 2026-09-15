@@ -248,7 +248,7 @@ function ProgressNodeRow({
             size="icon-sm"
             aria-label={`Expandir ${node.label}`}
           >
-            <ChevronDownIcon />
+            <ChevronDownIcon data-icon />
           </Button>
         </CollapsibleTrigger>
         <div className="min-w-0 flex-1">{content}</div>
