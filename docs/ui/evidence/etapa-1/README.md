@@ -8,16 +8,29 @@ Implementação e revisão interna concluídas. Review humano de Marco aguardand
 
 - Base auditada e origem de dev: `20de7eb5faa73c31b1cf721ccfb3880248d8f649`.
 - Branch: `codex/ui-consistency-phase1`, destino `dev` do CI Queue.
-- HEAD do código, build e capturas finais: `6eab3d67f2479ba898e2346d84df24522cd8167a`.
+- HEAD do código e das capturas da rodada de correção do PR #5: `db6c69a0c872a9d9b29bbd2a93f5fb35f2197137`.
 - Commits posteriores de fechamento adicionam somente documentação e estas evidências. O HEAD entregue e o resultado remoto exato ficam no PR draft.
 - Ambiente local: macOS, Node 25.6.1 (engines >=20), npm 11.9.0, Chromium/Playwright 1.63.0, dependências dos lockfiles sem upgrades.
 - Screenshots reproduzíveis via `CI_QUEUE_CAPTURE_FINAL=1 npm run check`. Fixtures tipadas em `tests/browser/fixtures/ui-consistency.ts`, relógio inicial 15/09/2026 12:00 UTC, dados de exemplo; nenhum registro real foi modificado para criar estados.
 
 ## Validação
 
-`npm run check` passou no HEAD de captura: build TypeScript, 23 testes core, 41 UI, 34 backend, 1 exemplo, 1 release, 5 instalação, lint/build UI e 22 testes de browser. Release e instalação são testes isolados, não operações sobre os serviços instalados.
+`npm run check` passou no código capturado em `db6c69a`: build TypeScript, 23 testes core, 41 UI, 34 backend, 1 exemplo, 1 release, 5 instalação, lint/build UI e 24 testes de browser. Release e instalação são testes isolados, não operações sobre os serviços instalados.
 
-Os 106 screenshots finais foram abertos na revisão integrada: 48 dark, 24 mobile light e 34 desktop/intermediários light. Pendências foi corrigido após essa revisão e suas quatro capturas foram reabertas. A matriz cobre os cinco drawers, menus, seleção, erro/vazio/loading, Log/diagnóstico, formulários e confirmação, árvore de quatro níveis, resize 639/640/700/767/768/820/1440, temas claro/escuro/sistema, faixa de oito etapas em 1600 e zoom CSS 200%. Os testes de interação preservam chevrons, foco, texto selecionável, regiões fixas, triggers, follow/pause e estados terminais.
+Os 106 screenshots finais da etapa e as 3 capturas específicas desta rodada foram abertos na revisão integrada: 48 dark, 24 mobile light, 34 desktop/intermediários light e as tabelas afetadas em 640 px. Pendências foi corrigido após a revisão anterior e suas quatro capturas foram reabertas. A matriz cobre os cinco drawers, menus, seleção, erro/vazio/loading, Log/diagnóstico, formulários e confirmação, árvore de quatro níveis, resize 639/640/700/767/768/820/1440, temas claro/escuro/sistema, faixa de oito etapas em 1600 e zoom CSS 200%. Os testes de interação preservam chevrons, foco, texto selecionável, regiões fixas, triggers, follow/pause e estados terminais.
+
+### Rodada de correção do PR #5
+
+O review de integração R1–R3 foi reproduzido primeiro na aplicação real. A
+identidade flaky quebrava em duas linhas e o Drawer não continha nem devolvia o
+foco; os três orçamentos de tabela foram medidos antes da correção. Depois do
+patch, a suíte focal prova título curto e longo, linhas com e sem flaky, data,
+contagem e origem dentro das células, ações dentro do content box, rolagem
+horizontal, hover, foco, ativação por teclado, Tab/Shift+Tab e retorno ao trigger.
+
+- [Histórico em 640 px, rolado até as ações](screens/review-640-light-history-table.png)
+- [Commits verdes em 640 px, rolado até as ações](screens/review-640-light-commit-list.png)
+- [Tabela do drawer de commit em 640 px](screens/review-640-light-commit-drawer-table.png)
 
 ## Desfecho do review
 

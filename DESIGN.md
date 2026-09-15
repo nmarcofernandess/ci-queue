@@ -31,10 +31,13 @@ DrawerDescription para acessibilidade. A feature fornece conteúdo e callbacks:
 />
 ```
 
-Texto longo quebra sem aumentar a mídia nem comprimir a tipografia. A mídia
-alinha ao topo; badge pode quebrar sem deslocar o X. Ícone de ação pertence ao
-Button; ícone de identidade pertence a StatusIndicator. Em tabela o estado
-permanece em sua célula: não reunir todas as colunas num card.
+Em `current` e `drawer`, texto longo quebra sem aumentar a mídia nem comprimir a
+tipografia; a mídia alinha ao topo e a badge pode quebrar sem deslocar o X. Em
+`table`, título e badge dividem uma única linha: a badge preserva sua largura e
+o título usa ellipsis dentro da área flexível, mantendo o nome completo no nome
+acessível e no atributo `title`. Ícone de ação pertence ao Button; ícone de
+identidade pertence a StatusIndicator. Em tabela o estado permanece em sua
+célula: não reunir todas as colunas num card.
 
 ## Drawers
 
@@ -43,14 +46,19 @@ escolhida pelo hook existente controla também as dimensões: bottom é largura
 inteira, right é painel lateral. Header, tabs e footer permanecem fixos; body
 rola no ScrollArea oficial. Log usa body managed porque seu viewer já possui
 scroll e acompanhamento. Selecionar texto nunca fecha o drawer. X, Escape e
-overlay mantêm o dismiss oficial. Não criar footer sem ações.
+overlay mantêm o dismiss oficial. O Drawer recebe foco ao abrir, contém a
+navegação por Tab e devolve o foco ao trigger original pelo hook oficial de
+close autofocus. Não criar footer sem ações.
 
 ## Tabelas e fichas
 
 `DataTableFrame` é apresentação da Table oficial, sem modelo de dados próprio.
 `placement="card"` recua as células externas pelo gutter do Card; `body` evita
 aplicar esse recuo novamente. Listas conservam rolagem horizontal e larguras de
-coluna sem esticar a página. TanStack v9 continua dono da seleção e das linhas.
+coluna sem esticar a página. Cada consumidor reserva larguras semânticas para
+seu conteúdo; a ação final inclui o Button e os paddings efetivos. Datas de
+tabela mostram o valor absoluto compacto e deixam o relativo no Tooltip.
+TanStack v9 continua dono da seleção e das linhas.
 `FactsTable` é ficha de duas colunas, sem largura mínima de lista nem card
 interno. SHA e caminhos permanecem completos e quebráveis, não truncados.
 

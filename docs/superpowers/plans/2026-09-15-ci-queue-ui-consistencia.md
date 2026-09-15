@@ -1282,3 +1282,21 @@ A documentação pública não substitui a versão instalada nem autoriza copiar
 ### Revisão integrada final
 
 Código e capturas em `6eab3d67f2479ba898e2346d84df24522cd8167a`; check completo verde e inspeção das cinco famílias concluída. Índice: [evidências](../../ui/evidence/etapa-1/README.md). Pendências recebeu badge abaixo do contexto após revisão mobile. PR draft [#5](https://github.com/nmarcofernandess/ci-queue/pull/5) aberto contra dev. Complete check iniciou (run 35001688609); o fechamento exige sucesso também no HEAD final. T9 permanece não autorizado. A entrega do pacote de review conclui T8; o review humano permanece aguardando.
+
+### Rodada de correção solicitada no review do PR #5
+
+- [x] R1 reproduzido: a tabela de commits distribuía seis colunas igualmente e
+  o tempo absoluto + relativo excedia sua célula.
+- [x] R2 reproduzido: a apresentação `table` herdava `flex-wrap`; título e badge
+  flaky ocupavam duas linhas.
+- [x] R3 reproduzido: a coluna de ação de 40 px não reservava Button e paddings.
+- [x] V1 reproduzido: o Drawer não continha Tab nem devolvia foco ao trigger.
+- [x] Proprietários corrigidos sem alterar backend, polling ou dados.
+- [x] Regressões focais e família completa do browser passaram; capturas da
+  rodada abertas em 640 px.
+- [x] `npm run check` passou sobre a árvore documental final: 23 core, 41 UI,
+  34 backend, 1 exemplo, 1 release, 5 instalação e 24 browser.
+- [ ] Publicar no mesmo PR draft e confirmar o novo Complete check remoto.
+
+Código e capturas da rodada: `db6c69a0c872a9d9b29bbd2a93f5fb35f2197137`.
+T9 continua não autorizado.

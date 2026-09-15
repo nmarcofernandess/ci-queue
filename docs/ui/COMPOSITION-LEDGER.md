@@ -75,6 +75,12 @@ are excluded because CI Queue owns its history cursor and does not allow
 rearranging execution records. This is a product adaptation, not permission to
 turn table rows into buttons or to substitute a handmade table.
 
+Column budgets belong to each table consumer. Compact execution identities keep
+title and status badge on one line, truncate only the flexible title, and retain
+the complete accessible value. Card tables reserve the final action width for
+the installed icon Button plus both effective paddings. Compact absolute dates
+remain in the cell; relative time remains available through Tooltip.
+
 ## Named gaps
 
 | Gap                | Allowed composition                                                                                               | Prohibited substitute                                     |
@@ -122,7 +128,9 @@ The current preset uses the prominent title size with a two-line-height status
 indicator. Time, duration and branch share a wrapping metadata row. Collapsible
 chevrons point down while open and right while closed. Drawer content permits
 native text selection; dragging content must never dismiss the drawer. Closing
-remains available through Close, Escape and the outside overlay.
+remains available through Close, Escape and the outside overlay. The controlled
+detail shell enables Vaul autofocus and uses DrawerContent close autofocus to
+return focus to the element that opened it.
 
 ## Shared composition ownership — etapa 1
 
