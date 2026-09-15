@@ -82,7 +82,7 @@ export async function installConsistencyFixtures(page: Page, options: FixtureOpt
     const displayName = options.displayName ?? 'Example'
     const data: Record<string, unknown> = {
       '/api/projects': { schemaVersion:1, registryRevision:1, bootstrapProjectId:'example', observedUnregistered:[], projects:[{id:'example',displayName,repositoryPath:'/example',configPath:'/example/ci-queue.json',archivedAt:null,revision:1,bindingState:'linked'}] },
-      '/api/session': { csrfToken: 'fixture', canReveal: true, revealTargets:['directory'], clipboardLimitBytes: 1000000 },
+      '/api/session': { csrfToken: 'fixture', canReveal: true, canPick: true, revealTargets:['directory'], clipboardLimitBytes: 1000000 },
       '/api/status': { schemaVersion:1,serverTime:fixtureNow.toISOString(),project: { id: 'example', name: displayName }, running: options.empty?null:fixtureJob, queued: options.empty?[]:[{...fixtureJob,id:'fixture-queued',preset:'queued-run',status:'queued',startedAt:undefined,progressSummary:undefined}], history: options.empty?[]:fixtureTerminals,lastFailed:null, globalOccupancy: !options.empty, otherProjectOccupancy:false, context },
       '/api/executions': { schemaVersion:1,jobs: options.empty||url.searchParams.get('q')?[]:fixtureTerminals, hasMore: false, snapshotBefore:fixtureNow.toISOString(),nextCursor: null, coverage: { unattributedRecords: 0 }, context },
       '/api/dashboard-state': { ...state, context },

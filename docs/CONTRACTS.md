@@ -83,7 +83,10 @@ projeto/preset/PR; nunca bloqueiam o executor ou o merge. A resolução exige um
 verde canônico posterior cuja revisão contenha a recomendada. Meta, Abrir pasta e o cadastro local de projetos têm mutações no dashboard;
 loopback, origem, CSRF e IDs observados protegem ações nativas, que usam argv
 fixa sem shell. GET nunca escreve o registry. O probe inspeciona só a pasta
-escolhida, sem rede Git, hooks ou execução de receita.
+escolhida, sem rede Git, hooks ou execução de receita. Procurar pasta ou
+arquivo abre o diálogo nativo do host (`POST /api/project-pick`); o campo
+continua colável. O input file do browser não é tratado como caminho absoluto.
+Cancelar a escolha não escreve o registry.
 
 Análise de Resultados agrega todos os terminais retidos do projeto no período,
 inclusive nomes históricos, e devolve contagens por preset. Duração usa verdes

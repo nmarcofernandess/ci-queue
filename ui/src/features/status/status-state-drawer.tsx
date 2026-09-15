@@ -61,7 +61,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
 import { formatDateTime, shortSha } from "@/features/shared/format"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
-import { useRequiredProject } from "@/features/projects/project-context"
+import { restoreScopedDraft } from "@/features/projects/drafts"
+import { useProjectContext, useRequiredProject } from "@/features/projects/project-context"
 import { writeDashboardState } from "@/lib/api"
 import type {
   DashboardMeta,
@@ -104,17 +105,26 @@ function MetaEditor({
   onSave: (mutation: DashboardStateMutation) => Promise<boolean>
   onValidityChange: (valid: boolean) => void
 }) {
-  const [form, setForm] = React.useState<MetaForm>(() => metaToForm(state.meta))
+  const { saveDraft, takeDraft } = useProjectContext()
+  const [form, setForm] = React.useState<MetaForm>(
+    () =>
+      restoreScopedDraft<MetaForm>(takeDraft(state.projectId), state.revision) ??
+      metaToForm(state.meta)
+  )
   const [futurePreset, setFuturePreset] = React.useState("")
   const availablePresets = [...new Set([...state.presets, ...form.presets])]
+  const commitForm = (next: MetaForm) => {
+    setForm(next)
+    saveDraft(state.projectId, { revision: state.revision, value: next })
+  }
 
   const togglePreset = (preset: string, selected: boolean) => {
-    setForm((current) => ({
-      ...current,
+    commitForm({
+      ...form,
       presets: selected
-        ? [...new Set([...current.presets, preset])]
-        : current.presets.filter((item) => item !== preset),
-    }))
+        ? [...new Set([...form.presets, preset])]
+        : form.presets.filter((item) => item !== preset),
+    })
   }
 
   const addFuturePreset = () => {
@@ -154,10 +164,10 @@ function MetaEditor({
                 maxLength={160}
                 disabled={unavailable || saving}
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
+                  commitForm({
+                    ...form,
                     name: event.target.value,
-                  }))
+                  })
                 }
               />
             </FieldContent>
@@ -171,10 +181,10 @@ function MetaEditor({
                 maxLength={10_000}
                 disabled={unavailable || saving}
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
+                  commitForm({
+                    ...form,
                     description: event.target.value,
-                  }))
+                  })
                 }
               />
             </FieldContent>

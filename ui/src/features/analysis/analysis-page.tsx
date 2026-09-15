@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts"
 
-import { useRequiredProject } from "@/features/projects/project-context"
+import { useProjectContext, useRequiredProject } from "@/features/projects/project-context"
 import { scopeKey } from "@/features/projects/scope"
 import {
   getDuration,
@@ -36,7 +36,9 @@ import {
 } from "@/features/analysis/results-model"
 import { FilterSelect } from "@/features/shared/filter-select"
 import type { AnalysisPreset, AnalysisResponse, ResultsResponse } from "@/lib/types"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   ChartContainer,
   ChartLegend,
@@ -137,19 +139,13 @@ function asResultRows(presets: ResultCounts[] | undefined) {
   })
 }
 
-function ResultsTooltip({
-  active,
-  payload,
+function ResultsShareList({
+  row,
 }: {
-  active?: boolean
-  payload?: Array<{ payload?: ResultCounts & { percentages: Record<string, number> | null } }>
+  row: ResultCounts & { percentages: Record<string, number> | null }
 }) {
-  const row = payload?.[0]?.payload
-  if (!active || !row?.percentages) {
-    return null
-  }
   return (
-    <div className="grid min-w-40 items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
+    <div className="grid min-w-40 items-start gap-1.5 text-xs">
       <div className="font-medium">{row.preset}</div>
       <div className="text-muted-foreground">
         {row.total.toLocaleString("pt-BR")} execuções no período
@@ -171,15 +167,36 @@ function ResultsTooltip({
   )
 }
 
+function ResultsTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean
+  payload?: Array<{ payload?: ResultCounts & { percentages: Record<string, number> | null } }>
+}) {
+  const row = payload?.[0]?.payload
+  if (!active || !row?.percentages) {
+    return null
+  }
+  return (
+    <div className="rounded-lg border border-border/50 bg-background px-2.5 py-1.5 shadow-xl">
+      <ResultsShareList row={row} />
+    </div>
+  )
+}
+
 function ResultsChart({
   presets,
   loading,
   error,
+  emptySelected,
 }: {
   presets: ResultCounts[] | undefined
   loading: boolean
   error: Error | undefined
+  emptySelected: boolean
 }) {
+  const [inspected, setInspected] = React.useState<string>()
   if (loading) {
     return <Skeleton className="h-80 w-full" />
   }
@@ -194,8 +211,12 @@ function ResultsChart({
   if (!presets?.length) {
     return (
       <EmptyState
-        title="Sem resultados no período"
-        description="Não há execuções terminais para os filtros selecionados."
+        title={emptySelected ? "Selecione ao menos um preset" : "Sem resultados no período"}
+        description={
+          emptySelected
+            ? "Limpar deixa a seleção vazia. Nenhum preset selecionado não significa todos."
+            : "Não há execuções terminais para os filtros selecionados."
+        }
       />
     )
   }
@@ -208,11 +229,15 @@ function ResultsChart({
     cancelledPct: row.percentages?.cancelled ?? 0,
     interruptedPct: row.percentages?.interrupted ?? 0,
   }))
+  const inspectedRow = rows.find((row) => row.preset === inspected)
 
   return (
     <Card className="max-w-5xl">
       <CardHeader>
         <CardTitle>Resultados por preset</CardTitle>
+        <CardDescription>
+          Distribuição percentual; quantidades no detalhe e na tabela.
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <div className="overflow-x-auto">
@@ -226,6 +251,12 @@ function ResultsChart({
               data={chartRows}
               maxBarSize={64}
               margin={{ left: 4, right: 12, top: 12 }}
+              onClick={(next) => {
+                const label = next?.activeLabel
+                if (typeof label === "string") {
+                  setInspected(label)
+                }
+              }}
             >
               <CartesianGrid vertical={false} />
               <XAxis
@@ -240,6 +271,7 @@ function ResultsChart({
               />
               <YAxis
                 domain={[0, 100]}
+                ticks={[0, 25, 50, 75, 100]}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(value) => `${value}%`}
@@ -259,6 +291,13 @@ function ResultsChart({
             </BarChart>
           </ChartContainer>
         </div>
+        {inspectedRow ? (
+          <Item variant="outline" size="sm">
+            <ItemContent>
+              <ResultsShareList row={inspectedRow} />
+            </ItemContent>
+          </Item>
+        ) : null}
         <DataTableFrame placement="body" label="Resultados por preset">
           <TableHeader>
             <TableRow>
@@ -273,8 +312,21 @@ function ResultsChart({
           <TableBody>
             {rows.map((preset) => (
               <TableRow key={preset.preset}>
-                <TableCell className="min-w-0 font-medium [overflow-wrap:anywhere]">
-                  {preset.preset}
+                <TableCell className="min-w-0 font-medium">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="h-auto min-w-0 justify-start p-0 font-medium [overflow-wrap:anywhere]"
+                      >
+                        {preset.preset}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-64">
+                      <ResultsShareList row={preset} />
+                    </PopoverContent>
+                  </Popover>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{preset.passed}</TableCell>
                 <TableCell className="text-right tabular-nums">{preset.failed}</TableCell>
@@ -294,10 +346,14 @@ function DurationChart({
   preset,
   loading,
   error,
+  catalogState,
+  onManage,
 }: {
   preset: AnalysisPreset | undefined
   loading: boolean
   error: Error | undefined
+  catalogState: "linked" | "unlinked" | "invalid" | "missing" | undefined
+  onManage: () => void
 }) {
   if (loading) {
     return <Skeleton className="h-80 w-full" />
@@ -305,6 +361,18 @@ function DurationChart({
   if (error) {
     return (
       <ErrorState title="Não foi possível carregar a duração" error={error} />
+    )
+  }
+  if (catalogState && catalogState !== "linked") {
+    return (
+      <EmptyState
+        title="Catálogo de receitas indisponível"
+        description="Duração canônica exige receitas vinculadas. Pasta sem config ou config ilegível não inventam verde."
+      >
+        <Button type="button" variant="outline" onClick={onManage}>
+          Gerenciar projetos
+        </Button>
+      </EmptyState>
     )
   }
   if (!preset) {
@@ -507,6 +575,8 @@ function AnalysisStatistics({
   onPreset,
   onSelection,
   onMenuOpenChange,
+  catalogState,
+  onManage,
 }: {
   view: AnalysisViewState["metric"]
   period: AnalysisPeriod
@@ -523,6 +593,8 @@ function AnalysisStatistics({
   onPreset: (value: string) => void
   onSelection: (next: AnalysisViewState["resultSelection"]) => void
   onMenuOpenChange: (open: boolean) => void
+  catalogState: "linked" | "unlinked" | "invalid" | "missing" | undefined
+  onManage: () => void
 }) {
   const selectedPreset = duration.data?.presets.find(
     (item) => item.preset === preset
@@ -559,7 +631,7 @@ function AnalysisStatistics({
       </div>
       {view === "results" && missing.length ? (
         <p className="pt-2 text-sm text-muted-foreground">
-          Sem amostra no período: {missing.join(", ")}
+          Sem execuções neste período: {missing.join(", ")}
         </p>
       ) : null}
       <div className="pt-5">
@@ -568,12 +640,15 @@ function AnalysisStatistics({
             presets={visibleResults}
             loading={results.loading}
             error={results.error}
+            emptySelected={selection.mode === "custom" && selection.presets.length === 0}
           />
         ) : (
           <DurationChart
             preset={preset ? selectedPreset : undefined}
             loading={duration.loading}
             error={duration.error}
+            catalogState={catalogState}
+            onManage={onManage}
           />
         )}
       </div>
@@ -582,7 +657,11 @@ function AnalysisStatistics({
 }
 
 export function AnalysisPage() {
+  const { projects, openManager } = useProjectContext()
   const project = useRequiredProject()
+  const catalogState = project
+    ? projects.find((item) => item.id === project.projectId)?.bindingState
+    : undefined
   const [state, setState] = React.useState<AnalysisViewState>(() => {
     const url = parseAnalysisState(window.location.search)
     if (!project) {
@@ -698,6 +777,8 @@ export function AnalysisPage() {
         }}
         onPreset={(preset) => commit({ ...state, durationPreset: preset })}
         onSelection={(resultSelection) => commit({ ...state, resultSelection })}
+        catalogState={catalogState}
+        onManage={openManager}
         onMenuOpenChange={(open) => {
           if (open) {
             setHeldRows(latestRows)

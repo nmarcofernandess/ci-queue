@@ -343,8 +343,14 @@ export type DashboardState = {
 export type DashboardSession = {
   csrfToken: string
   canReveal: boolean
+  canPick?: boolean
   revealTargets: string[]
   clipboardLimitBytes: number
+}
+
+export type PickedHostPath = {
+  path: string
+  kind: "directory" | "file"
 }
 
 export type RevealResult = {

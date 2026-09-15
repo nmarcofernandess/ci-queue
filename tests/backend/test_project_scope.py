@@ -109,13 +109,13 @@ class ProjectScopeHttpTests(unittest.TestCase):
         self.addCleanup(self.server.server_close)
         self.base = "http://127.0.0.1:%s" % self.server.server_address[1]
 
-    def _write_job(self, ident, project_id, log_bytes):
+    def _write_job(self, ident, project_id, log_bytes, finished="2026-09-13T10:01:01Z"):
         payload = {
             "id": ident,
             "projectId": project_id,
             "preset": "smoke",
             "status": "passed",
-            "finishedAt": "2026-09-13T10:01:01Z",
+            "finishedAt": finished,
             "argv": ["node", "--version"],
         }
         (self.state / "history" / (ident + ".json")).write_text(json.dumps(payload), encoding="utf-8")
@@ -156,6 +156,25 @@ class ProjectScopeHttpTests(unittest.TestCase):
         self.assertEqual(results["b-status"]["context"]["projectId"], "beta")
         self.assertEqual([job["id"] for job in results["a-history"]["jobs"]], ["job-a"])
         self.assertEqual([job["id"] for job in results["b-history"]["jobs"]], ["job-b"])
+
+    def test_executions_cursor_from_alpha_does_not_leak_into_beta(self):
+        for index in range(51):
+            self._write_job(
+                "job-a-%02d" % index,
+                "alpha",
+                b"UNIQUE_ALPHA_LOG",
+                finished="2026-09-14T10:%02d:01Z" % (index % 60),
+            )
+        self._write_job("job-b", "beta", b"UNIQUE_BETA_LOG", finished="2026-08-01T10:01:01Z")
+        invalidate_history_cache()
+        with self._get("/api/executions?projectId=alpha") as response:
+            page = json.loads(response.read())
+        self.assertTrue(page["hasMore"])
+        cursor = page["nextCursor"]
+        with self._get("/api/executions?projectId=beta&cursor=%s" % cursor) as response:
+            beta = json.loads(response.read())
+        self.assertEqual([job["id"] for job in beta["jobs"]], ["job-b"])
+        self.assertNotIn("job-a-00", [job["id"] for job in beta["jobs"]])
 
     def test_meta_saved_on_alpha_does_not_update_beta(self):
         headers = {
@@ -257,6 +276,26 @@ class ProjectScopeHttpTests(unittest.TestCase):
             payload = json.loads(response.read())
         self.assertTrue(payload["ok"])
         self.assertNotIn("history", payload)
+
+    def test_project_pick_requires_csrf_and_does_not_run_on_get(self):
+        with self.assertRaises(HTTPError) as missing:
+            self._get("/api/project-pick")
+        self.assertEqual(missing.exception.code, 404)
+        with self.assertRaises(HTTPError) as forbidden:
+            self._post("/api/project-pick", {"kind": "directory"}, {"Content-Type": "application/json"})
+        self.assertEqual(forbidden.exception.code, 403)
+
+    def test_project_pick_returns_host_path(self):
+        headers = {
+            "Content-Type": "application/json",
+            "X-CI-CSRF": "csrf-test",
+            "Origin": self.base,
+        }
+        from unittest.mock import patch
+        with patch("ci_queue_api.server.pick_local_path", return_value={"path": "/tmp/picked", "kind": "directory"}):
+            with self._post("/api/project-pick", {"kind": "directory"}, headers) as response:
+                payload = json.loads(response.read())
+        self.assertEqual(payload["path"], "/tmp/picked")
 
     def test_revision_conflict_on_rename(self):
         headers = {

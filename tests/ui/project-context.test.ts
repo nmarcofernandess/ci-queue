@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { restoreScopedDraft } from '../../ui/src/features/projects/drafts'
 import {
   matchesScope,
   parseScopeSearch,
@@ -50,6 +51,14 @@ describe('project scope', () => {
         activeIds: [],
       })
     ).toBeNull()
+  })
+
+  it('restores a draft only for the original project revision', () => {
+    expect(restoreScopedDraft({ revision: 2, value: { name: 'A' } }, 2)).toEqual({
+      name: 'A',
+    })
+    expect(restoreScopedDraft({ revision: 1, value: { name: 'A' } }, 2)).toBeUndefined()
+    expect(restoreScopedDraft(undefined, 2)).toBeUndefined()
   })
 
   it('rejects a late payload from another project', () => {

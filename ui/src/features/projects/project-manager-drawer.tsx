@@ -15,6 +15,13 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
+import { Item, ItemContent, ItemGroup, ItemTitle } from "@/components/ui/item"
+import {
   DetailDrawer,
   DetailDrawerBody,
   DetailDrawerFooter,
@@ -24,13 +31,84 @@ import { FactsTable } from "@/features/shared/facts-table"
 import { useProjectContext } from "@/features/projects/project-context"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
 import {
+  ApiError,
   getProjects,
   mutateProjects,
+  pickHostPath,
   probeProject,
 } from "@/lib/api"
 import type { ProjectProbe, ProjectSummary } from "@/lib/types"
 
 type Mode = { kind: "list" } | { kind: "register" } | { kind: "edit"; id: string }
+
+function HostPathField({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  kind,
+  canPick,
+  disabled,
+  token,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  kind: "directory" | "file"
+  canPick: boolean
+  disabled?: boolean
+  token: string | undefined
+}) {
+  const [picking, setPicking] = React.useState(false)
+  const pick = async () => {
+    if (!token) {
+      toast.error("A sessão da bridge não está disponível.")
+      return
+    }
+    setPicking(true)
+    try {
+      const picked = await pickHostPath(token, kind)
+      onChange(picked.path)
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 409) {
+        return
+      }
+      toast.error(
+        reason instanceof Error ? reason.message : "Falha ao abrir o procurador de pasta."
+      )
+    } finally {
+      setPicking(false)
+    }
+  }
+
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <InputGroup>
+        <InputGroupInput
+          id={id}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          disabled={disabled}
+        />
+        {canPick ? (
+          <InputGroupAddon align="inline-end">
+            <InputGroupButton
+              disabled={disabled || picking || !token}
+              onClick={() => void pick()}
+            >
+              Procurar…
+            </InputGroupButton>
+          </InputGroupAddon>
+        ) : null}
+      </InputGroup>
+    </Field>
+  )
+}
 
 export function ProjectManagerDrawer({ onClose }: { onClose: () => void }) {
   const { projects, registryRevision, reloadProjects, requestScopeChange, scope } =
@@ -53,6 +131,7 @@ export function ProjectManagerDrawer({ onClose }: { onClose: () => void }) {
   }, [])
 
   const token = session.data?.csrfToken
+  const canPick = Boolean(session.data?.canPick)
   const selected = mode.kind === "edit"
     ? projects.find((item) => item.id === mode.id)
     : undefined
@@ -161,32 +240,57 @@ export function ProjectManagerDrawer({ onClose }: { onClose: () => void }) {
               </div>
             ) : null}
             {observed.length ? (
-              <p className="text-sm text-muted-foreground">
-                Identidades observadas sem cadastro: {observed.join(", ")}
-              </p>
+              <div className="flex flex-col gap-2">
+                <h3 className="text-sm font-medium">Com registros, sem cadastro</h3>
+                <ItemGroup>
+                  {observed.map((id) => (
+                    <Item key={id} variant="outline" size="sm" asChild>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode({ kind: "register" })
+                          setObservedId(id)
+                          setPath("")
+                          setConfigPath("")
+                          setDisplayName(id)
+                          setPreview(undefined)
+                        }}
+                      >
+                        <ItemContent>
+                          <ItemTitle>{id}</ItemTitle>
+                        </ItemContent>
+                      </button>
+                    </Item>
+                  ))}
+                </ItemGroup>
+              </div>
             ) : null}
           </div>
         ) : (
           <FieldSet>
             <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="project-path">Pasta Git</FieldLabel>
-                <Input
-                  id="project-path"
-                  value={path}
-                  onChange={(event) => setPath(event.target.value)}
-                  placeholder="/caminho/absoluto/do/repo"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="project-config">Configuração (opcional)</FieldLabel>
-                <Input
-                  id="project-config"
-                  value={configPath}
-                  onChange={(event) => setConfigPath(event.target.value)}
-                  placeholder="/caminho/ci-queue.json"
-                />
-              </Field>
+              <HostPathField
+                id="project-path"
+                label="Pasta Git"
+                value={path}
+                onChange={setPath}
+                placeholder="/caminho/absoluto/do/repo"
+                kind="directory"
+                canPick={canPick}
+                disabled={busy}
+                token={token}
+              />
+              <HostPathField
+                id="project-config"
+                label="Configuração (opcional)"
+                value={configPath}
+                onChange={setConfigPath}
+                placeholder="/caminho/ci-queue.json"
+                kind="file"
+                canPick={canPick}
+                disabled={busy}
+                token={token}
+              />
               <Field>
                 <FieldLabel htmlFor="project-name">Nome no painel</FieldLabel>
                 <Input
@@ -198,13 +302,23 @@ export function ProjectManagerDrawer({ onClose }: { onClose: () => void }) {
               </Field>
               {mode.kind === "register" && observed.length ? (
                 <Field>
-                  <FieldLabel htmlFor="observed-id">Identidade observada (opcional)</FieldLabel>
-                  <Input
-                    id="observed-id"
-                    value={observedId}
-                    onChange={(event) => setObservedId(event.target.value)}
-                    placeholder={observed.join(", ")}
-                  />
+                  <FieldLabel>Com registros, sem cadastro</FieldLabel>
+                  <ItemGroup>
+                    {observed.map((id) => (
+                      <Item
+                        key={id}
+                        variant={observedId === id ? "muted" : "outline"}
+                        size="sm"
+                        asChild
+                      >
+                        <button type="button" onClick={() => setObservedId(id)}>
+                          <ItemContent>
+                            <ItemTitle>{id}</ItemTitle>
+                          </ItemContent>
+                        </button>
+                      </Item>
+                    ))}
+                  </ItemGroup>
                 </Field>
               ) : null}
               <Button type="button" variant="outline" onClick={() => void conferir()} disabled={busy}>

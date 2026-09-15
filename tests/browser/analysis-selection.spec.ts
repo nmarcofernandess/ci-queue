@@ -15,7 +15,11 @@ const fixture = JSON.parse(
 
 const context = { kind: 'project', projectId: 'example' }
 
-async function installAnalysis(page: Page, presets = fixture.rankingSample) {
+async function installAnalysis(
+  page: Page,
+  presets = fixture.rankingSample,
+  bindingState: 'linked' | 'unlinked' | 'invalid' | 'missing' = 'linked'
+) {
   let resultsCalls = 0
   await page.addInitScript(() => localStorage.setItem('ci-queue.lastProjectId', 'example'))
   await page.route('**/health', (route) =>
@@ -51,7 +55,7 @@ async function installAnalysis(page: Page, presets = fixture.rankingSample) {
           configPath: '/example/ci-queue.json',
           archivedAt: null,
           revision: 1,
-          bindingState: 'linked',
+          bindingState,
         }],
       },
       '/api/session': { csrfToken: 'fixture', canReveal: false, clipboardLimitBytes: 1000000 },
@@ -126,6 +130,9 @@ test('AN-01 and AN-03 render per-preset percentages and deterministic top10', as
   await page.goto('/#analysis')
   await expect(page.getByRole('cell', { name: '1000' })).toBeVisible()
   await expect(page.getByRole('cell', { name: 'teste-pequeno' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'smoketest', exact: true }).click()
+  await expect(page.getByText('950 · 95%')).toBeVisible()
+  await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '10 mais executados' }).click()
   await expect(page.getByRole('checkbox', { name: /clinical-readonly/ })).toBeChecked()
   await expect(page.getByRole('checkbox', { name: /proof-numeric/ })).not.toBeChecked()
@@ -257,18 +264,31 @@ test('AN-05 custom keeps the chosen ids after a newer ranking arrives', async ({
   await expect(page.getByRole('cell', { name: 'clinical-readonly' })).toHaveCount(0)
 })
 
-test('UI-02 results menu keeps search and shortcuts while scrolling long names', async ({ page }) => {
+test('UI-02 results menu keeps search, shortcuts and keyboard selection', async ({ page }) => {
   await installAnalysis(page)
   await page.goto('/#analysis')
   await page.getByRole('button', { name: '10 mais executados' }).click()
   const dialog = page.getByRole('dialog', { name: 'Presets de Resultados' })
   await expect(dialog.getByLabel('Buscar preset')).toBeVisible()
   await expect(dialog.getByRole('button', { name: '10 mais executados' })).toBeVisible()
+  const first = dialog.getByRole('checkbox').first()
+  await first.focus()
+  await page.keyboard.press('Space')
+  await expect(page.getByRole('button', { name: '9 selecionados' })).toBeVisible()
   await dialog.getByLabel('Buscar preset').fill('clinical-readonly')
   await expect(dialog.getByRole('checkbox', { name: /clinical-readonly/ })).toBeVisible()
   await expect(dialog.getByRole('checkbox', { name: /smoketest/ })).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
+})
+
+test('duration without a catalog asks to link recipes', async ({ page }) => {
+  await installAnalysis(page, fixture.rankingSample, 'unlinked')
+  await page.goto('/#analysis')
+  await page.getByRole('radio', { name: 'Duração' }).click()
+  await expect(page.getByText('Catálogo de receitas indisponível')).toBeVisible()
+  await page.getByRole('button', { name: 'Gerenciar projetos' }).click()
+  await expect(page.getByRole('heading', { name: 'Projetos locais' })).toBeVisible()
 })
 
 test('AN-06 and AN-07 keep empty custom, all, and duration independent', async ({ page }) => {
@@ -278,7 +298,7 @@ test('AN-06 and AN-07 keep empty custom, all, and duration independent', async (
   await page.getByRole('button', { name: 'Limpar' }).click()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('button', { name: 'Nenhum preset' })).toBeVisible()
-  await expect(page.getByText('Sem resultados no período')).toBeVisible()
+  await expect(page.getByText('Selecione ao menos um preset')).toBeVisible()
   await page.getByRole('button', { name: 'Nenhum preset' }).click()
   await page.getByRole('button', { name: 'Todos', exact: true }).click()
   await page.keyboard.press('Escape')

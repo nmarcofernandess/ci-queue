@@ -44,7 +44,7 @@ export function App() {
 
   return (
     <TooltipProvider>
-      <ProjectProvider>
+      <ProjectProvider onManage={() => setManagingProjects(true)}>
         <SidebarProvider
           style={
             {

@@ -51,8 +51,8 @@ merge, release, instalação e etapa 2 não estão autorizados.
 
 - A instalação macOS permanece na release anterior; esta lane não a atualiza.
 - A prévia temporária não usa a fila real nem inicia worker.
-- Check remoto do GitHub precisa da conta `nmarcofernandess`; a conta ativa
-  `dietflowoficial` não resolve o repositório privado.
+- O Complete check em `9bb5071` falhou no lint do seletor (`setState` em
+  efeito). O seletor agora remonta no `scopeId`.
 - Cronômetros, smoke e reforma de performance continuam fora do corte.
 
 Aguardando Marco. Sem merge, main, release, instalação ou etapa 2.

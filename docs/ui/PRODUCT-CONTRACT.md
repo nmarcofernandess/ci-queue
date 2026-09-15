@@ -111,10 +111,12 @@ não mistura as seleções.
   positivo. O volume global não é o denominador. O padrão inicial é até os dez
   presets com mais execuções terminais no projeto/período, com desempate pelo
   nome; dez é padrão, não teto. Checkbox filtra a resposta já carregada. O
-  Tooltip mostra total, contagem e percentual; a tabela conserva as quantidades
-  exatas. Amostra zero não ganha barra.
+  Tooltip, o clique na barra e a célula focável do preset mostram total,
+  contagem e percentual; a tabela conserva as quantidades exatas. Custom vazio
+  pede para selecionar um preset. Amostra zero não ganha barra.
 - **Duração:** exige um único preset declarado e mostra mediana, faixa e tamanho
-  da amostra antes do scatter. Não mistura receitas nem relaxa verde canônico.
+  da amostra antes do scatter. Catálogo ausente ou ilegível pede vínculo de
+  receitas, não “nenhum ponto”. Não mistura receitas nem relaxa verde canônico.
 
 Charts usam `ChartContainer`, `ChartTooltipContent` e `ChartLegendContent` oficiais da configuração Nova. Recharts fornece apenas séries e eixos. A altura é limitada; não existe gráfico raw, tooltip artesanal, linha interpolada ou histórico de RAM/disco da máquina.
 

@@ -14,6 +14,7 @@ import type {
   LogExport,
   LogSlice,
   MachineResponse,
+  PickedHostPath,
   PresetHistoryResponse,
   ProjectProbe,
   ProjectsResponse,
@@ -141,6 +142,13 @@ export function probeProject(
 
 export function mutateProjects(csrfToken: string, body: Record<string, unknown>) {
   return postJson<ProjectsResponse>("/api/projects", csrfToken, body)
+}
+
+export function pickHostPath(
+  csrfToken: string,
+  kind: "directory" | "file"
+) {
+  return postJson<PickedHostPath>("/api/project-pick", csrfToken, { kind })
 }
 
 export function getStatus(scope: ReadScope) {

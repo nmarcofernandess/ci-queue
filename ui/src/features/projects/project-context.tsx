@@ -24,6 +24,7 @@ type ProjectContextValue = {
   reloadProjects: () => void
   saveDraft: (projectId: string, draft: unknown) => void
   takeDraft: (projectId: string) => unknown
+  openManager: () => void
 }
 
 const ProjectContext = React.createContext<ProjectContextValue | null>(null)
@@ -40,7 +41,13 @@ function pushSearch(search: string) {
   window.history.pushState(window.history.state, "", url)
 }
 
-export function ProjectProvider({ children }: { children: React.ReactNode }) {
+export function ProjectProvider({
+  children,
+  onManage,
+}: {
+  children: React.ReactNode
+  onManage?: () => void
+}) {
   const [projects, setProjects] = React.useState<ProjectSummary[]>([])
   const [registryRevision, setRegistryRevision] = React.useState(0)
   const [bootstrapProjectId, setBootstrapProjectId] = React.useState<string | null>(
@@ -140,6 +147,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     return drafts.current.get(projectId)
   }, [])
 
+  const openManager = React.useCallback(() => {
+    onManage?.()
+  }, [onManage])
+
   const value = React.useMemo<ProjectContextValue>(
     () => ({
       scope,
@@ -152,11 +163,13 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       reloadProjects,
       saveDraft,
       takeDraft,
+      openManager,
     }),
     [
       bootstrapProjectId,
       error,
       loading,
+      openManager,
       projects,
       registryRevision,
       reloadProjects,

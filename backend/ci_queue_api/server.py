@@ -18,7 +18,14 @@ from .dashboard_state import RevisionConflict as DashboardConflict, read_dashboa
 from .diagnostics import read_log_export, read_log_slice, read_diagnostic
 from .history import build_preset_history, read_remote_slots
 from .machine import read_machine
-from .native_actions import TARGETS, available as native_available, reveal
+from .native_actions import (
+    TARGETS,
+    PickCancelled,
+    available as native_available,
+    pick_available,
+    pick_local_path,
+    reveal,
+)
 from .project_context import (
     CapabilityDenied,
     ProjectRequired,
@@ -51,8 +58,8 @@ from .worktrees import list_worktrees, worktree_view
 
 LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 MAX_REQUEST_BYTES = 64 * 1024
-PROJECT_PATHS = {"/api/projects", "/api/project-probe"}
-NO_CORS = {"/api/projects", "/api/project-probe"}
+PROJECT_PATHS = {"/api/projects", "/api/project-probe", "/api/project-pick"}
+NO_CORS = {"/api/projects", "/api/project-probe", "/api/project-pick"}
 
 
 @dataclass
@@ -202,6 +209,8 @@ def create_handler(context):
                 self.error(409, str(error), error.code)
             elif isinstance(error, (DashboardConflict, ProjectConflict)):
                 self.error(409, str(error), "CONFLICT")
+            elif isinstance(error, PickCancelled):
+                self.error(409, str(error), "CANCELLED")
             elif isinstance(error, RegistryError):
                 self.error(503, str(error), "REGISTRY_UNREADABLE")
             elif isinstance(error, LookupError):
@@ -217,13 +226,15 @@ def create_handler(context):
 
         def do_POST(self):
             path = urlparse(self.path).path
-            if path not in {"/api/dashboard-state", "/api/reveal", "/api/projects", "/api/project-probe"}:
+            if path not in {"/api/dashboard-state", "/api/reveal", "/api/projects", "/api/project-probe", "/api/project-pick"}:
                 self.error(404, "endpoint não encontrado")
                 return
             try:
                 body = self._mutating_request()
                 query = parse_qs(urlparse(self.path).query, keep_blank_values=True)
-                if path == "/api/project-probe":
+                if path == "/api/project-pick":
+                    result = pick_local_path(body.get("kind"))
+                elif path == "/api/project-probe":
                     result = probe_project(self.api_context.state_root, body)
                 elif path == "/api/projects":
                     mutate_registry(self.api_context.state_root, body)
@@ -302,7 +313,9 @@ def create_handler(context):
                         self.error(403, "sessão permitida apenas em loopback")
                     else:
                         self.send_payload(200, {"csrfToken": self.api_context.csrf_token,
-                                                "canReveal": native_available(), "revealTargets": sorted(TARGETS),
+                                                "canReveal": native_available(),
+                                                "canPick": pick_available(),
+                                                "revealTargets": sorted(TARGETS),
                                                 "clipboardLimitBytes": 512000})
                     return
                 if parsed.path == "/api/machine":
