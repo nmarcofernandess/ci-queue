@@ -27,6 +27,20 @@ export function ProjectSwitcher({
 }: {
   onManage: () => void
 }) {
+  const { scope } = useProjectContext()
+  return (
+    <ProjectSwitcherMenu
+      key={scope ? scopeKey(scope) : "none"}
+      onManage={onManage}
+    />
+  )
+}
+
+function ProjectSwitcherMenu({
+  onManage,
+}: {
+  onManage: () => void
+}) {
   const { scope, projects, registryRevision, requestScopeChange, reloadProjects } =
     useProjectContext()
   const session = useDashboardSession()
@@ -44,11 +58,6 @@ export function ProjectSwitcher({
         ? `${selected.displayName || selected.id} (arquivado)`
         : selected?.displayName || selected?.id || "Selecionar projeto"
   const visible = active.filter((item) => matchesQuery(item, query))
-  const scopeId = scope ? scopeKey(scope) : "none"
-  React.useEffect(() => {
-    setOpen(false)
-    setQuery("")
-  }, [scopeId])
 
   return (
     <SelectionPanel
