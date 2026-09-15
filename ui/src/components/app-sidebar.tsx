@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import type { AppRoute } from "@/components/app-routes"
-import { getStatus, useApiQuery } from "@/lib/api"
+import { LocalEnvironmentMenu } from "@/components/local-environment-menu"
 import {
   Sidebar,
   SidebarContent,
@@ -14,23 +14,10 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { useTheme } from "@/components/theme-provider"
-import {
   ActivityIcon,
   BarChart3Icon,
-  CircleAlertIcon,
-  CircleCheckIcon,
-  CircleDashedIcon,
   GitBranchIcon,
-  MonitorIcon,
-  MoonIcon,
   ServerCogIcon,
-  SunIcon,
 } from "lucide-react"
 
 type NavigationItem = {
@@ -44,100 +31,6 @@ const navigationItems: NavigationItem[] = [
   { route: "worktrees", label: "Worktrees", icon: GitBranchIcon },
   { route: "analysis", label: "Análise", icon: BarChart3Icon },
 ]
-
-type ThemeMode = "light" | "dark" | "system"
-
-function isThemeMode(value: string): value is ThemeMode {
-  return value === "light" || value === "dark" || value === "system"
-}
-
-function ThemeModeToggle() {
-  const { theme, setTheme } = useTheme()
-
-  return (
-    <ToggleGroup
-      type="single"
-      value={theme}
-      onValueChange={(value) => {
-        if (isThemeMode(value)) {
-          setTheme(value)
-        }
-      }}
-      size="sm"
-      aria-label="Tema da interface"
-    >
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <ToggleGroupItem value="light" aria-label="Tema claro">
-            <SunIcon data-icon />
-            <span className="sr-only">Claro</span>
-          </ToggleGroupItem>
-        </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={6}>
-          Claro
-        </TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <ToggleGroupItem value="dark" aria-label="Tema escuro">
-            <MoonIcon data-icon />
-            <span className="sr-only">Escuro</span>
-          </ToggleGroupItem>
-        </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={6}>
-          Escuro
-        </TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <ToggleGroupItem value="system" aria-label="Tema do sistema">
-            <MonitorIcon data-icon />
-            <span className="sr-only">Sistema</span>
-          </ToggleGroupItem>
-        </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={6}>
-          Sistema
-        </TooltipContent>
-      </Tooltip>
-    </ToggleGroup>
-  )
-}
-
-function BridgeIndicator() {
-  const request = React.useCallback(() => getStatus(), [])
-  const bridge = useApiQuery("sidebar-bridge", request, { pollMs: 10_000 })
-
-  const Icon = bridge.loading
-    ? CircleDashedIcon
-    : bridge.error
-      ? CircleAlertIcon
-      : CircleCheckIcon
-  const label = bridge.loading
-    ? "Verificando bridge"
-    : bridge.error
-      ? "Bridge indisponível"
-      : "Bridge online"
-
-  return (
-    <div
-      className={
-        bridge.error
-          ? "flex min-w-0 items-center gap-2 px-2 py-1 text-sm text-destructive"
-          : "flex min-w-0 items-center gap-2 px-2 py-1 text-sm text-muted-foreground"
-      }
-      role="status"
-      aria-live="polite"
-    >
-      <Icon
-        aria-hidden="true"
-        className={
-          bridge.loading ? "size-4 shrink-0 animate-spin" : "size-4 shrink-0"
-        }
-      />
-      <span className="truncate">{label}</span>
-    </div>
-  )
-}
 
 export function AppSidebar({
   activeRoute,
@@ -183,9 +76,8 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="flex-row items-center justify-between gap-2">
-        <BridgeIndicator />
-        <ThemeModeToggle />
+      <SidebarFooter>
+        <LocalEnvironmentMenu />
       </SidebarFooter>
     </Sidebar>
   )

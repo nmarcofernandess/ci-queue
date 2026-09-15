@@ -59,3 +59,16 @@ class WorktreeContracts(unittest.TestCase):
         with patch.object(native_actions, 'available', return_value=True), patch.object(native_actions, 'resolve_worktree', return_value=Path('/example')):
             with self.assertRaises(RuntimeError):
                 native_actions.reveal(Path('/state'), object(), 'worktree', 'known', runner=runner)
+
+    def test_pick_returns_posix_path_and_treats_cancel_as_cancel(self):
+        runner = Mock(return_value=SimpleNamespace(returncode=0, stdout='/Users/me/repo/\n', stderr=''))
+        with patch.object(native_actions, 'pick_available', return_value=True):
+            self.assertEqual(
+                native_actions.pick_local_path('directory', runner=runner)['path'],
+                '/Users/me/repo',
+            )
+            runner.assert_called_once()
+            self.assertEqual(runner.call_args.args[0][0], '/usr/bin/osascript')
+            cancelled = Mock(return_value=SimpleNamespace(returncode=1, stdout='', stderr='User canceled.\n'))
+            with self.assertRaises(native_actions.PickCancelled):
+                native_actions.pick_local_path('directory', runner=cancelled)

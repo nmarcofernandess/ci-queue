@@ -102,7 +102,22 @@ def _meta(raw, config):
     return {"name": name, "description": description, "presets": normalized}
 
 
-def _decorated(state, state_root, config):
+def _decorated(state, state_root, config, project_id=None):
+    ident = project_id or (config.project_id if config is not None else None)
+    if config is None:
+        pending, pending_error = read_pending_advisories(state_root, None, project_id=ident)
+        result = {
+            **state,
+            "projectId": ident,
+            "presets": [],
+            "catalog": "unlinked",
+            "pending": pending,
+            "pendingError": pending_error,
+        }
+        meta = state.get("meta")
+        if meta:
+            result["meta"] = {**meta, "checks": None, "candidateSha": None, "catalog": "unlinked"}
+        return result
     result = {**state, "projectId": config.project_id, "presets": sorted(config.presets)}
     pending, pending_error = read_pending_advisories(state_root, config)
     result["pending"] = pending
@@ -147,12 +162,17 @@ def _decorated(state, state_root, config):
     return result
 
 
-def read_dashboard_state(state_root, config):
-    state = _project_state(_read(_path(state_root)), config.project_id)
-    return _decorated(state, state_root, config)
+def read_dashboard_state(state_root, config, project_id=None):
+    ident = project_id or (config.project_id if config is not None else None)
+    if not ident:
+        raise ValueError("projeto obrigatório")
+    state = _project_state(_read(_path(state_root)), ident)
+    return _decorated(state, state_root, config, ident)
 
 
 def write_dashboard_state(state_root, config, body):
+    if config is None:
+        raise ValueError("catálogo não vinculado")
     if not isinstance(body, dict) or type(body.get("revision")) is not int:
         raise ValueError("revisão obrigatória")
     path = _path(state_root)

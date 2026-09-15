@@ -1,9 +1,10 @@
+import { ProgressTree } from "./progress-tree"
 import { useLiveLog } from "./use-live-log"
 import { JobTimeline } from "./live-time"
-import { statusColor } from "@/features/shared/status-color"
 import * as React from "react"
 
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useProjectContext } from "@/features/projects/project-context"
+import { scopeKey } from "@/features/projects/scope"
 import {
   getDiagnostic,
   getJob,
@@ -11,33 +12,18 @@ import {
   type ApiQuery,
   useApiQuery,
 } from "@/lib/api"
-import type {
-  Diagnostic,
-  JobRecord,
-  LogExport,
-  LogSlice,
-  ProgressNode,
-} from "@/lib/types"
+import type { Diagnostic, JobRecord, LogExport, LogSlice } from "@/lib/types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer"
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemGroup,
-  ItemMedia,
-  ItemTitle,
-} from "@/components/ui/item"
+  DetailDrawer,
+  DetailDrawerHeader,
+  DetailDrawerTabs,
+  DetailDrawerBody,
+  DetailDrawerFooter,
+} from "./detail-drawer"
+import { FactsTable } from "./facts-table"
+import { describeJobState } from "./presentation"
 import {
   Popover,
   PopoverContent,
@@ -46,40 +32,12 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableRow,
-} from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
-import {
-  formatDuration,
-  statusLabel,
-} from "@/features/shared/format"
-import { JobStatusIcon } from "@/features/shared/run-table"
+import { formatDuration, statusLabel } from "@/features/shared/format"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
-import {
-  CheckCircle2Icon,
-  ChevronDownIcon,
-  ClipboardIcon,
-  CircleDotIcon,
-  DownloadIcon,
-  FileWarningIcon,
-  LoaderCircleIcon,
-  XCircleIcon,
-  XIcon,
-} from "lucide-react"
+import { ClipboardIcon, DownloadIcon, FileWarningIcon } from "lucide-react"
 import { toast } from "sonner"
 
 const DEFAULT_CLIPBOARD_LIMIT_BYTES = 512_000
@@ -135,130 +93,32 @@ function diagnosticBundle(diagnostic: Diagnostic, logExport?: LogExport) {
 
 type DiagnosticExportAction = "copy-diagnostic" | "download-diagnostic"
 
-function StageGlyph({ status }: { status: ProgressNode["status"] }) {
-  if (status === "passed")
-    return (
-      <CheckCircle2Icon className={`size-4 shrink-0 ${statusColor(status)}`} />
-    )
-  if (status === "failed")
-    return <XCircleIcon className={`size-4 shrink-0 ${statusColor(status)}`} />
-  if (status === "running")
-    return (
-      <LoaderCircleIcon
-        className={`size-4 shrink-0 animate-spin ${statusColor(status)}`}
-      />
-    )
-  return <CircleDotIcon className={`size-4 shrink-0 ${statusColor(status)}`} />
-}
-
-
-function stageStatusLabel(
-  status: "pending" | "running" | "passed" | "failed" | "skipped"
-) {
-  const labels = {
-    pending: "Aguardando",
-    running: "Em execução",
-    passed: "Passou",
-    failed: "Falhou",
-    skipped: "Ignorada",
-  }
-  return labels[status]
-}
-
 function JobDetailsTable({ job }: { job: JobRecord }) {
-  const rows = [
-    { label: "Ticket", value: job.id, className: "font-mono" },
-    { label: "Branch", value: job.branch },
-    { label: "SHA", value: job.headSha, className: "font-mono" },
-    { label: "Diretório", value: job.cwd },
-  ]
-
   return (
-    <Table>
-      <TableCaption className="sr-only">Detalhes da execução</TableCaption>
-      <TableBody>
-        {rows.map((row) => (
-          <TableRow key={row.label}>
-            <TableHead scope="row" className="w-28 text-muted-foreground">
-              {row.label}
-            </TableHead>
-            <TableCell
-              className={`break-all whitespace-normal ${row.className ?? ""}`}
-            >
-              {row.value || "Não informado"}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  )
-}
-
-function ProgressNodeRow({
-  node,
-  childrenByParent,
-  jobStatus,
-}: {
-  node: ProgressNode
-  jobStatus: JobRecord["status"]
-  childrenByParent: Map<string, ProgressNode[]>
-}) {
-  const children = childrenByParent.get(node.id) ?? []
-  const stopped = jobStatus !== "running" && (node.status === "running" || node.status === "pending")
-  const label = stopped
-    ? jobStatus === "cancelled" ? "Interrompida pelo cancelamento" : "Execução encerrada; etapa sem conclusão registrada"
-    : stageStatusLabel(node.status)
-  const content = (
-    <Item className="min-w-0 border-transparent px-0 py-1">
-      <ItemContent>
-        <div className="flex min-w-0 items-center gap-2">
-          <span title={label} aria-label={label}><StageGlyph status={stopped ? "skipped" : node.status} /></span>
-          <ItemTitle className="truncate">{node.label}</ItemTitle>
-          {typeof node.retryCount === "number" && node.retryCount > 0 ? (
-            <Badge variant="outline">Flaky detectado</Badge>
-          ) : null}
-        </div>
-        {node.detail ? (
-          <p className="text-sm text-muted-foreground">
-            {typeof node.detail === "string"
-              ? node.detail
-              : `${node.detail.completed} de ${node.detail.total}`}
-          </p>
-        ) : null}
-      </ItemContent>
-      {typeof node.durationMs === "number" ? <ItemActions className="text-sm text-muted-foreground">{formatDuration(node.durationMs)}</ItemActions> : null}
-    </Item>
-  )
-  if (!children.length) return content
-  return (
-    <Collapsible
-      defaultOpen={node.status === "running" || node.status === "failed"}
-    >
-      <div className="flex items-center gap-1">
-        <CollapsibleTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Expandir ${node.label}`}
-            className="group/stage-toggle"
-          >
-            <ChevronDownIcon data-icon className="transition-transform group-data-[state=closed]/stage-toggle:-rotate-90" />
-          </Button>
-        </CollapsibleTrigger>
-        <div className="min-w-0 flex-1">{content}</div>
-      </div>
-      <CollapsibleContent className="ml-5 border-l pl-4">
-        {children.map((child) => (
-          <ProgressNodeRow
-            key={child.id}
-            node={child}
-            childrenByParent={childrenByParent}
-              jobStatus={jobStatus}
-          />
-        ))}
-      </CollapsibleContent>
-    </Collapsible>
+    <FactsTable
+      caption="Detalhes da execução"
+      rows={[
+        {
+          id: "ticket",
+          label: "Ticket",
+          value: job.id || "Não informado",
+          technical: true,
+        },
+        { id: "branch", label: "Branch", value: job.branch || "Não informado" },
+        {
+          id: "sha",
+          label: "SHA",
+          value: job.headSha || "Não informado",
+          technical: true,
+        },
+        {
+          id: "directory",
+          label: "Diretório",
+          value: job.cwd || "Não informado",
+          technical: true,
+        },
+      ]}
+    />
   )
 }
 
@@ -281,19 +141,6 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
     )
   const nodes =
     job.data.progressSummary?.nodes ?? job.data.progressSummary?.roots ?? []
-  const childrenByParent = new Map<string, ProgressNode[]>()
-  for (const node of nodes) {
-    if (!node.parentId) continue
-    childrenByParent.set(node.parentId, [
-      ...(childrenByParent.get(node.parentId) ?? []),
-      node,
-    ])
-  }
-  const roots = nodes.filter(
-    (node) =>
-      !node.parentId ||
-      !nodes.some((candidate) => candidate.id === node.parentId)
-  )
   return (
     <div className="flex flex-col gap-5">
       <JobDetailsTable job={job.data} />
@@ -304,17 +151,8 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
           <AlertDescription>{job.data.failureReason}</AlertDescription>
         </Alert>
       ) : null}
-      {roots.length ? (
-        <ItemGroup className="gap-1">
-          {roots.map((node) => (
-            <ProgressNodeRow
-              key={node.id}
-              node={node}
-              childrenByParent={childrenByParent}
-              jobStatus={job.data?.status}
-            />
-          ))}
-        </ItemGroup>
+      {nodes.length ? (
+        <ProgressTree nodes={nodes} jobStatus={job.data.status} />
       ) : (
         <EmptyState
           title="Progresso não registrado"
@@ -362,7 +200,7 @@ function LogPanel({
     <div className="relative h-full min-h-0">
       <div
         ref={viewport}
-        className="h-full overflow-auto px-4 py-5"
+        className="h-full overflow-auto"
         onScroll={(event) => {
           const target = event.currentTarget
           const atEnd =
@@ -410,11 +248,12 @@ function DiagnosticPopover({
   const [exportError, setExportError] = React.useState<Error>()
   const exportCache = React.useRef<LogExport | undefined>(undefined)
   const exportRequest = React.useRef<Promise<LogExport> | undefined>(undefined)
+  const { scope } = useProjectContext()
   const diagnosticRequest = React.useCallback(
-    () => getDiagnostic(jobId),
-    [jobId]
+    () => (scope ? getDiagnostic(scope, jobId) : Promise.reject(new Error("projeto ausente"))),
+    [jobId, scope]
   )
-  const diagnostic = useApiQuery(`diagnostic:${jobId}`, diagnosticRequest, {
+  const diagnostic = useApiQuery(`diagnostic:${scope ? scopeKey(scope) : "none"}:${jobId}`, diagnosticRequest, {
     enabled: diagnosticRequested,
   })
   const ticket = diagnostic.data?.available ? diagnostic.data.ticket : undefined
@@ -445,7 +284,7 @@ function DiagnosticPopover({
 
     setExportError(undefined)
     setExporting(true)
-    const request = getLogExport(jobId)
+    const request = getLogExport(scope!, jobId)
       .then((result) => {
         exportCache.current = result
         return result
@@ -464,7 +303,7 @@ function DiagnosticPopover({
       })
     exportRequest.current = request
     return request
-  }, [jobId])
+  }, [jobId, scope])
 
   const requestExport = React.useCallback(
     (action: DiagnosticExportAction) => {
@@ -508,7 +347,7 @@ function DiagnosticPopover({
     >
       <PopoverTrigger asChild>
         <Button type="button" variant="ghost">
-          <FileWarningIcon data-icon />
+          <FileWarningIcon data-icon="inline-start" />
           Diagnóstico
         </Button>
       </PopoverTrigger>
@@ -557,7 +396,7 @@ function DiagnosticPopover({
                 disabled={exporting}
                 onClick={() => requestExport("copy-diagnostic")}
               >
-                <ClipboardIcon data-icon />
+                <ClipboardIcon data-icon="inline-start" />
                 Copiar diagnóstico
               </Button>
               <Button
@@ -567,7 +406,7 @@ function DiagnosticPopover({
                 disabled={exporting}
                 onClick={() => requestExport("download-diagnostic")}
               >
-                <DownloadIcon data-icon />
+                <DownloadIcon data-icon="inline-start" />
                 Baixar diagnóstico
               </Button>
             </div>
@@ -591,17 +430,22 @@ const jobIsLive = (job: JobRecord) =>
   job.status === "running" || job.status === "queued"
 
 function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
-  const isMobile = useIsMobile()
+  const { scope } = useProjectContext()
   const [activeTab, setActiveTab] = React.useState<"progress" | "log">(
     "progress"
   )
   const [logRequested, setLogRequested] = React.useState(false)
-  const jobRequest = React.useCallback(() => getJob(jobId), [jobId])
-  const job = useApiQuery(`job:${jobId}`, jobRequest, {
+  const jobRequest = React.useCallback(
+    () => (scope ? getJob(scope, jobId) : Promise.reject(new Error("projeto ausente"))),
+    [jobId, scope]
+  )
+  const job = useApiQuery(`job:${scope ? scopeKey(scope) : "none"}:${jobId}`, jobRequest, {
     pollMs: 2000,
     pollWhile: jobIsLive,
+    enabled: Boolean(scope),
   })
   const log = useLiveLog(
+    scope,
     jobId,
     logRequested && Boolean(job.data),
     job.data?.status === "running"
@@ -625,62 +469,46 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
   }
 
   return (
-    <Drawer
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose()
-      }}
-      direction={isMobile ? "bottom" : "right"}
-    >
-      <DrawerContent className="h-[80vh] min-h-0 sm:h-auto sm:w-[36rem] sm:max-w-[36rem]!">
-        <DrawerHeader className="shrink-0 border-b">
-          <div className="flex items-start justify-between gap-3">
-            <Item className="min-w-0 flex-1 flex-nowrap items-start border-0 p-0">
-              {job.data ? <ItemMedia><JobStatusIcon status={job.data.status} size="drawer" /></ItemMedia> : null}
-              <ItemContent className="min-w-0 gap-0 text-left">
-                <DrawerTitle>{job.data?.preset || "Execução"}</DrawerTitle>
-                <DrawerDescription>
-                  {job.data ? <JobTimeline job={job.data} /> : "Carregando dados da execução…"}
-                </DrawerDescription>
-              </ItemContent>
-            </Item>
-            <DrawerClose asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Fechar execução"
-              >
-                <XIcon data-icon />
-              </Button>
-            </DrawerClose>
-          </div>
-        </DrawerHeader>
-        <Tabs
-          value={activeTab}
-          onValueChange={(value) => {
-            if (value === "log") {
-              setLogRequested(true)
-            }
-            setActiveTab(value as "progress" | "log")
-          }}
-          className="min-h-0 flex-1 gap-0"
-        >
-          <div className="shrink-0 border-b px-4 py-2">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="progress">Progresso</TabsTrigger>
-              <TabsTrigger value="log">Log</TabsTrigger>
-            </TabsList>
-          </div>
-          <TabsContent
-            value="progress"
-            className="min-h-0 overflow-hidden px-0"
-          >
-            <ScrollArea className="h-full px-4 py-5">
-              <ProgressPanel job={job} />
-            </ScrollArea>
-          </TabsContent>
-          <TabsContent value="log" className="min-h-0 overflow-hidden px-0">
+    <DetailDrawer onClose={onClose}>
+      <DetailDrawerHeader
+        title={job.data?.preset || "Execução"}
+        description={
+          job.data ? (
+            <JobTimeline job={job.data} />
+          ) : (
+            "Carregando dados da execução…"
+          )
+        }
+        media={
+          job.data
+            ? { kind: "state", descriptor: describeJobState(job.data.status) }
+            : undefined
+        }
+        closeLabel="Fechar execução"
+      />
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          if (value === "log") {
+            setLogRequested(true)
+          }
+          setActiveTab(value as "progress" | "log")
+        }}
+        className="min-h-0 flex-1 gap-0"
+      >
+        <DetailDrawerTabs>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="progress">Progresso</TabsTrigger>
+            <TabsTrigger value="log">Log</TabsTrigger>
+          </TabsList>
+        </DetailDrawerTabs>
+        <TabsContent value="progress" className="min-h-0 overflow-hidden px-0">
+          <DetailDrawerBody>
+            <ProgressPanel job={job} />
+          </DetailDrawerBody>
+        </TabsContent>
+        <TabsContent value="log" className="min-h-0 overflow-hidden px-0">
+          <DetailDrawerBody scroll="managed">
             {job.loading ? (
               <Skeleton className="h-64 w-full" />
             ) : job.error ? (
@@ -692,26 +520,24 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
             ) : (
               <LogPanel log={log} running={job.data?.status === "running"} />
             )}
-          </TabsContent>
-        </Tabs>
-        <DrawerFooter className="shrink-0 border-t sm:flex-row sm:justify-end">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!job.data}
-              onClick={() => void copyContext()}
-            >
-              <ClipboardIcon data-icon />
-              Copiar contexto
-            </Button>
-            <DiagnosticPopover
-              jobId={jobId}
-              clipboardLimitBytes={session.data?.clipboardLimitBytes}
-            />
-          </div>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+          </DetailDrawerBody>
+        </TabsContent>
+      </Tabs>
+      <DetailDrawerFooter>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!job.data}
+          onClick={() => void copyContext()}
+        >
+          <ClipboardIcon data-icon="inline-start" />
+          Copiar contexto
+        </Button>
+        <DiagnosticPopover
+          jobId={jobId}
+          clipboardLimitBytes={session.data?.clipboardLimitBytes}
+        />
+      </DetailDrawerFooter>
+    </DetailDrawer>
   )
 }

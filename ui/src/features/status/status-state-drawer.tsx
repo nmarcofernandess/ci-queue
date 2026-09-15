@@ -7,7 +7,6 @@ import {
   PencilIcon,
   PlusIcon,
   Trash2Icon,
-  XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -26,14 +25,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer"
+  DetailDrawer,
+  DetailDrawerHeader,
+  DetailDrawerBody,
+  DetailDrawerFooter,
+} from "@/features/shared/detail-drawer"
 import {
   Field,
   FieldContent,
@@ -60,13 +56,13 @@ import {
   ItemTitle,
 } from "@/components/ui/item"
 import { Progress } from "@/components/ui/progress"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
 import { formatDateTime, shortSha } from "@/features/shared/format"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { restoreScopedDraft } from "@/features/projects/drafts"
+import { useProjectContext, useRequiredProject } from "@/features/projects/project-context"
 import { writeDashboardState } from "@/lib/api"
 import type {
   DashboardMeta,
@@ -109,17 +105,26 @@ function MetaEditor({
   onSave: (mutation: DashboardStateMutation) => Promise<boolean>
   onValidityChange: (valid: boolean) => void
 }) {
-  const [form, setForm] = React.useState<MetaForm>(() => metaToForm(state.meta))
+  const { saveDraft, takeDraft } = useProjectContext()
+  const [form, setForm] = React.useState<MetaForm>(
+    () =>
+      restoreScopedDraft<MetaForm>(takeDraft(state.projectId), state.revision) ??
+      metaToForm(state.meta)
+  )
   const [futurePreset, setFuturePreset] = React.useState("")
   const availablePresets = [...new Set([...state.presets, ...form.presets])]
+  const commitForm = (next: MetaForm) => {
+    setForm(next)
+    saveDraft(state.projectId, { revision: state.revision, value: next })
+  }
 
   const togglePreset = (preset: string, selected: boolean) => {
-    setForm((current) => ({
-      ...current,
+    commitForm({
+      ...form,
       presets: selected
-        ? [...new Set([...current.presets, preset])]
-        : current.presets.filter((item) => item !== preset),
-    }))
+        ? [...new Set([...form.presets, preset])]
+        : form.presets.filter((item) => item !== preset),
+    })
   }
 
   const addFuturePreset = () => {
@@ -159,10 +164,10 @@ function MetaEditor({
                 maxLength={160}
                 disabled={unavailable || saving}
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
+                  commitForm({
+                    ...form,
                     name: event.target.value,
-                  }))
+                  })
                 }
               />
             </FieldContent>
@@ -176,10 +181,10 @@ function MetaEditor({
                 maxLength={10_000}
                 disabled={unavailable || saving}
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
+                  commitForm({
+                    ...form,
                     description: event.target.value,
-                  }))
+                  })
                 }
               />
             </FieldContent>
@@ -233,7 +238,7 @@ function MetaEditor({
                       saving
                     }
                   >
-                    <PlusIcon data-icon />
+                    <PlusIcon data-icon="inline-start" />
                     Adicionar
                   </InputGroupButton>
                 </InputGroupAddon>
@@ -262,7 +267,7 @@ function RemoveMetaButton({
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button type="button" variant="destructive" disabled={saving}>
-          <Trash2Icon data-icon />
+          <Trash2Icon data-icon="inline-start" />
           Remover
         </Button>
       </AlertDialogTrigger>
@@ -432,10 +437,10 @@ function PendingItem({
           <span className="font-mono">{shortSha(item.headSha)}</span>
           {` · ${formatDateTime(item.createdAt)}`}
         </ItemDescription>
+        <ItemActions>
+          <Badge variant="outline">{statusLabel(item.latestStatus)}</Badge>
+        </ItemActions>
       </ItemContent>
-      <ItemActions>
-        <Badge variant="outline">{statusLabel(item.latestStatus)}</Badge>
-      </ItemActions>
     </Item>
   )
 }
@@ -485,8 +490,8 @@ export function StatusStateDrawer({
   onSaved: () => void
   onOpenJob: (jobId: string) => void
 }) {
-  const isMobile = useIsMobile()
   const session = useDashboardSession()
+  const project = useRequiredProject()
   const [saving, setSaving] = React.useState(false)
   const [editingMeta, setEditingMeta] = React.useState(false)
   const [metaFormValid, setMetaFormValid] = React.useState(false)
@@ -502,13 +507,15 @@ export function StatusStateDrawer({
   }
 
   const mutate = async (mutation: DashboardStateMutation) => {
-    if (!session.data?.csrfToken) {
+    if (!session.data?.csrfToken || !project) {
       toast.error("A sessão da bridge não está disponível para salvar.")
       return false
     }
+    const target = project
+    const token = session.data.csrfToken
     setSaving(true)
     try {
-      await writeDashboardState(session.data.csrfToken, mutation)
+      await writeDashboardState(target, token, mutation)
       setEditingMeta(false)
       onSaved()
       toast.success("Painel atualizado.")
@@ -526,125 +533,110 @@ export function StatusStateDrawer({
   }
 
   return (
-    <Drawer
-      open
-      onOpenChange={(open) => !open && onClose()}
-      direction={isMobile ? "bottom" : "right"}
-    >
-      <DrawerContent className="min-h-0 sm:w-[36rem] sm:max-w-[36rem]!">
-        <DrawerHeader className="shrink-0 border-b">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <DrawerTitle>
-                {surface === "meta"
-                  ? state.meta?.name || "Meta para main"
-                  : "Pendências"}
-              </DrawerTitle>
-              <DrawerDescription>
-                {surface === "meta"
-                  ? state.meta
-                    ? `${metaPassed} de ${metaTotal} requisitos atendidos`
-                    : "Objetivo e verdes canônicos necessários."
-                  : `${state.pending.length} ${state.pending.length === 1 ? "recomendação" : "recomendações"} ainda sem verde posterior.`}
-              </DrawerDescription>
-            </div>
-            <DrawerClose asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Fechar"
-              >
-                <XIcon data-icon />
-              </Button>
-            </DrawerClose>
-          </div>
-          {surface === "meta" && state.meta ? (
-            <Progress
-              value={metaTotal ? (metaPassed / metaTotal) * 100 : 0}
-              aria-label={`${metaPassed} de ${metaTotal} requisitos atendidos`}
-            />
-          ) : null}
-        </DrawerHeader>
-        <ScrollArea className="min-h-0 flex-1 p-4">
-          {surface === "meta" ? (
-            editingMeta ? (
-              <MetaEditor
-                key={`meta-${state.revision}`}
-                formId={metaFormId}
-                state={state}
-                saving={saving}
-                unavailable={unavailable}
-                onSave={mutate}
-                onValidityChange={setMetaFormValid}
-              />
-            ) : (
-              <MetaRead state={state} onOpenJob={onOpenJob} />
-            )
-          ) : (
-            <PendingSurface state={state} onOpenJob={onOpenJob} />
-          )}
-        </ScrollArea>
+    <DetailDrawer onClose={onClose}>
+      <DetailDrawerHeader
+        title={
+          surface === "meta"
+            ? state.meta?.name || "Meta para main"
+            : "Pendências"
+        }
+        description={
+          surface === "meta"
+            ? state.meta
+              ? `${metaPassed} de ${metaTotal} requisitos atendidos`
+              : "Objetivo e verdes canônicos necessários."
+            : `${state.pending.length} ${state.pending.length === 1 ? "recomendação" : "recomendações"} ainda sem verde posterior.`
+        }
+        closeLabel="Fechar"
+      >
+        {surface === "meta" && state.meta ? (
+          <Progress
+            value={metaTotal ? (metaPassed / metaTotal) * 100 : 0}
+            aria-label={`${metaPassed} de ${metaTotal} requisitos atendidos`}
+          />
+        ) : null}
+      </DetailDrawerHeader>
+      <DetailDrawerBody>
         {surface === "meta" ? (
-          <DrawerFooter className="shrink-0 border-t sm:flex-row sm:justify-end">
-            {session.error ? (
-              <p className="mr-auto text-sm text-destructive">
-                {session.error.message}
-              </p>
-            ) : null}
-            {editingMeta ? (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setEditingMeta(false)}
-                  disabled={saving}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  key="save-meta"
-                  type="submit"
-                  form={metaFormId}
-                  disabled={unavailable || saving || !metaFormValid}
-                >
-                  {saving ? (
-                    <LoaderCircleIcon data-icon className="animate-spin" />
-                  ) : null}
-                  Salvar meta
-                </Button>
-              </>
-            ) : state.meta ? (
-              <>
-                <RemoveMetaButton
-                  state={state}
-                  saving={saving || unavailable}
-                  onMutate={mutate}
-                />
-                <Button
-                  key="edit-meta"
-                  type="button"
-                  variant="outline"
-                  onClick={startMetaEdit}
-                  disabled={unavailable}
-                >
-                  <PencilIcon data-icon />
-                  Editar
-                </Button>
-              </>
-            ) : (
+          editingMeta ? (
+            <MetaEditor
+              key={`meta-${state.revision}`}
+              formId={metaFormId}
+              state={state}
+              saving={saving}
+              unavailable={unavailable}
+              onSave={mutate}
+              onValidityChange={setMetaFormValid}
+            />
+          ) : (
+            <MetaRead state={state} onOpenJob={onOpenJob} />
+          )
+        ) : (
+          <PendingSurface state={state} onOpenJob={onOpenJob} />
+        )}
+      </DetailDrawerBody>
+      {surface === "meta" ? (
+        <DetailDrawerFooter>
+          {session.error ? (
+            <p className="mr-auto text-sm text-destructive">
+              {session.error.message}
+            </p>
+          ) : null}
+          {editingMeta ? (
+            <>
               <Button
                 type="button"
+                variant="outline"
+                onClick={() => setEditingMeta(false)}
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                key="save-meta"
+                type="submit"
+                form={metaFormId}
+                disabled={unavailable || saving || !metaFormValid}
+              >
+                {saving ? (
+                  <LoaderCircleIcon
+                    data-icon="inline-start"
+                    className="animate-spin"
+                  />
+                ) : null}
+                Salvar meta
+              </Button>
+            </>
+          ) : state.meta ? (
+            <>
+              <RemoveMetaButton
+                state={state}
+                saving={saving || unavailable}
+                onMutate={mutate}
+              />
+              <Button
+                key="edit-meta"
+                type="button"
+                variant="outline"
                 onClick={startMetaEdit}
                 disabled={unavailable}
               >
-                <PlusIcon data-icon />
-                Declarar meta
+                <PencilIcon data-icon="inline-start" />
+                Editar
               </Button>
-            )}
-          </DrawerFooter>
-        ) : null}
-      </DrawerContent>
-    </Drawer>
+            </>
+          ) : (
+            <Button
+              type="button"
+              onClick={startMetaEdit}
+              disabled={unavailable}
+            >
+              <PlusIcon data-icon="inline-start" />
+              Declarar meta
+            </Button>
+          )}
+        </DetailDrawerFooter>
+      ) : null}
+    </DetailDrawer>
   )
 }

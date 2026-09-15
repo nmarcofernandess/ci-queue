@@ -70,20 +70,54 @@ def _covers(repository_path, required_sha, green_sha, cache):
     return cache[key]
 
 
-def read_pending_advisories(state_root, config):
+def _documents_for(plan, project_id):
+    result = []
+    for entry in plan:
+        if not isinstance(entry, dict) or entry.get("projectId") != project_id:
+            continue
+        preset = entry.get("preset")
+        requirements = entry.get("requirements")
+        if not isinstance(preset, str) or not isinstance(requirements, list):
+            continue
+        for requirement in requirements:
+            if not isinstance(requirement, dict):
+                continue
+            sha = requirement.get("sha")
+            reason = requirement.get("reason")
+            created_at = requirement.get("createdAt")
+            pr = requirement.get("pr")
+            identity = str(pr) if pr is not None else sha
+            result.append({
+                "id": "%s:%s" % (preset, identity),
+                "preset": preset,
+                "headSha": sha,
+                "reason": reason.strip() if isinstance(reason, str) else "",
+                "pr": pr,
+                "createdAt": created_at,
+                "latestTicketId": None,
+                "latestStatus": None,
+            })
+    result.sort(key=lambda item: item["createdAt"] or "", reverse=True)
+    return result
+
+
+def read_pending_advisories(state_root, config, project_id=None):
     """Return only unresolved, project-scoped advisory requirements.
 
     A later canonical green resolves a recommendation when it ran the current
     recipe and its Git revision contains the requested revision. Failure to
     read Git never guesses that an advisory was resolved.
     """
+    ident = project_id or (config.project_id if config is not None else None)
     try:
         plan = _plan(state_root)
     except ValueError as error:
         return [], str(error)
+    if config is None:
+        return _documents_for(plan, ident), None
 
     jobs = [job for job in read_history(state_root)
-            if job.get("projectId") == config.project_id]
+            if job.get("projectId") == ident]
     jobs.sort(key=history_key, reverse=True)
     remote = read_remote_slots(config.remote_slots_path, config, state_root)
     remote_greens = remote.get("greens") if isinstance(remote, dict) else []
@@ -93,7 +127,7 @@ def read_pending_advisories(state_root, config):
     result = []
     try:
         for entry in plan:
-            if not isinstance(entry, dict) or entry.get("projectId") != config.project_id:
+            if not isinstance(entry, dict) or entry.get("projectId") != ident:
                 continue
             preset = entry.get("preset")
             requirements = entry.get("requirements")

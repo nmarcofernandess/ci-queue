@@ -106,8 +106,10 @@ the observed commit and original ticket digest. Keep this small ledger with stat
 backups; removing it reverses the attribution without changing any ticket.
 CLI history, API history, statistics and canonical greens read the same explicit
 ownership. Tickets without sufficient evidence stay available through
-`ci-queue history --legacy --json` and **Legado sem projeto** in the history
-surface. They do not contribute to a project's green or statistics.
+`ci-queue history --legacy --json` and **Histórico sem projeto** in the global
+project selector. They do not contribute to a project's green or statistics.
+This source checkout can start the API without `--config`; the installed LaunchAgent
+command is not rewritten by etapa 1B.
 
 A missing historical log is unavailable, not a successful empty log. The
 installation never reruns a job to reconstruct it and does not expire old logs.

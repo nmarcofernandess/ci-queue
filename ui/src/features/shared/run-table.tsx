@@ -1,3 +1,7 @@
+import { EntityIdentity } from "./entity-identity"
+import { StatusIndicator } from "./status-indicator"
+import { describeJobState } from "./presentation"
+import { DataTableFrame } from "./data-table-frame"
 import { RelativeTime, JobDuration, QueueWait } from "./live-time"
 import * as React from "react"
 import {
@@ -5,15 +9,7 @@ import {
   tableFeatures,
   useTable,
 } from "@tanstack/react-table"
-import {
-  CheckCircle2Icon,
-  CircleDotIcon,
-  EyeIcon,
-  InboxIcon,
-  LoaderCircleIcon,
-  MinusCircleIcon,
-  XCircleIcon,
-} from "lucide-react"
+import { EyeIcon, InboxIcon } from "lucide-react"
 
 import {
   Card,
@@ -35,7 +31,6 @@ import {
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -75,49 +70,6 @@ export function JobStatusBadge({ status }: { status: JobStatus | undefined }) {
     </Badge>
   )
 }
-const indicatorSizes = {
-  table: { container: "size-8", icon: "size-4" },
-  drawer: { container: "size-11", icon: "size-11" },
-  current: { container: "size-12", icon: "size-12" },
-} as const
-
-export function JobStatusIcon({
-  status,
-  size = "table",
-}: {
-  status: JobStatus | undefined
-  size?: keyof typeof indicatorSizes
-}) {
-  const dimensions = indicatorSizes[size]
-  const Icon =
-    status === "passed"
-      ? CheckCircle2Icon
-      : status === "running"
-        ? LoaderCircleIcon
-        : status === "failed" ||
-            status === "interrupted" ||
-            status === "cancelled"
-          ? XCircleIcon
-          : status === "queued"
-            ? CircleDotIcon
-            : MinusCircleIcon
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          className={`inline-flex shrink-0 items-center justify-center ${dimensions.container} ${statusColor(status)}`}
-          aria-label={statusLabel(status)}
-        >
-          <Icon
-            className={`${dimensions.icon} ${status === "running" ? "animate-spin" : ""}`}
-          />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{statusLabel(status)}</TooltipContent>
-    </Tooltip>
-  )
-}
-
 export type RunTableProps = {
   title: string
   description?: string
@@ -144,10 +96,10 @@ function detailId(job: RunTableJob) {
 
 function columnClass(id: string) {
   if (id === "status") return "w-16"
-  if (id === "execution") return "w-36"
-  if (id === "time") return "w-36"
+  if (id === "execution") return "w-52"
+  if (id === "time") return "w-28"
   if (id === "duration") return "w-20"
-  if (id === "actions") return "w-10"
+  if (id === "actions") return "w-14 text-right"
   return undefined
 }
 
@@ -167,7 +119,12 @@ function RunDataTable({
         helper.display({
           id: "status",
           header: "Estado",
-          cell: ({ row }) => <JobStatusIcon status={row.original.status} />,
+          cell: ({ row }) => (
+            <StatusIndicator
+              descriptor={describeJobState(row.original.status)}
+              presentation="table"
+            />
+          ),
         }),
         helper.display({
           id: "execution",
@@ -175,27 +132,19 @@ function RunDataTable({
           cell: ({ row }) => {
             const job = row.original
             const id = detailId(job)
-            return job.preset ? (
-              id ? (
-                <Button
-                  variant="link"
-                  className="h-auto w-full min-w-0 justify-start truncate p-0"
-                  onClick={() => onOpenJob(id)}
-                >
-                  {job.preset}
-                  {job.progressSummary?.nodes?.some(
+            return (
+              <EntityIdentity
+                presentation="table"
+                title={job.preset || "Não informada"}
+                onOpen={id && job.preset ? () => onOpenJob(id) : undefined}
+                badge={
+                  job.progressSummary?.nodes?.some(
                     (node) => (node.retryCount ?? 0) > 0
                   ) ? (
                     <Badge variant="outline">Flaky detectado</Badge>
-                  ) : null}
-                </Button>
-              ) : (
-                <span className="block w-full min-w-0 truncate font-medium">
-                  {job.preset}
-                </span>
-              )
-            ) : (
-              <span className="text-muted-foreground">Não informada</span>
+                  ) : undefined
+                }
+              />
             )
           },
         }),
@@ -210,8 +159,17 @@ function RunDataTable({
                 : (job.finishedAt ?? job.startedAt ?? job.createdAt)
             return (
               <Tooltip>
-                <TooltipTrigger asChild><span tabIndex={0} className="block truncate whitespace-nowrap text-muted-foreground">{formatTimelineDate(at)}</span></TooltipTrigger>
-                <TooltipContent><RelativeTime value={at} /></TooltipContent>
+                <TooltipTrigger asChild>
+                  <span
+                    tabIndex={0}
+                    className="block truncate whitespace-nowrap text-muted-foreground"
+                  >
+                    {formatTimelineDate(at)}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <RelativeTime value={at} />
+                </TooltipContent>
               </Tooltip>
             )
           },
@@ -270,7 +228,7 @@ function RunDataTable({
                     aria-label={`Ver ${row.original.preset ?? "execução"}`}
                     onClick={() => onOpenJob(id)}
                   >
-                    <EyeIcon data-icon />
+                    <EyeIcon />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Ver execução</TooltipContent>
@@ -289,8 +247,8 @@ function RunDataTable({
       row.rowKey ?? row.id ?? row.ticketId ?? `${row.preset}-${row.finishedAt}`,
   })
   return (
-    <Table className="min-w-[40rem] table-fixed">
-      <TableHeader className="[&_th]:font-normal [&_th]:text-muted-foreground">
+    <DataTableFrame placement="card" label="Execuções">
+      <TableHeader>
         {table.getHeaderGroups().map((group) => (
           <TableRow key={group.id}>
             {group.headers.map((header) => (
@@ -312,7 +270,7 @@ function RunDataTable({
             {row.getAllCells().map((cell) => (
               <TableCell
                 key={cell.id}
-                className={`h-12 overflow-hidden py-2 ${columnClass(cell.column.id) ?? ""}`}
+                className={`overflow-hidden ${columnClass(cell.column.id) ?? ""}`}
               >
                 <table.FlexRender cell={cell} />
               </TableCell>
@@ -320,7 +278,7 @@ function RunDataTable({
           </TableRow>
         ))}
       </TableBody>
-    </Table>
+    </DataTableFrame>
   )
 }
 
@@ -344,8 +302,8 @@ function EmptyTable({
   kind: "queue" | "terminal"
 }) {
   return (
-    <Table className="table-fixed">
-      <TableHeader className="[&_th]:font-normal [&_th]:text-muted-foreground">
+    <DataTableFrame placement="card" label="Execuções">
+      <TableHeader>
         <TableRow>
           {headers(kind).map((header, index) => (
             <TableHead
@@ -381,7 +339,7 @@ function EmptyTable({
           </TableCell>
         </TableRow>
       </TableBody>
-    </Table>
+    </DataTableFrame>
   )
 }
 
@@ -433,8 +391,8 @@ export function RunTable({
       <CardContent className="px-0">
         {loading ? (
           <div className="overflow-hidden">
-            <Table>
-              <TableHeader className="[&_th]:font-normal [&_th]:text-muted-foreground">
+            <DataTableFrame placement="card" label="Carregando execuções">
+              <TableHeader>
                 <TableRow>
                   {headers(kind).map((h, i) => (
                     <TableHead key={`${h}-${i}`}>{h}</TableHead>
@@ -452,7 +410,7 @@ export function RunTable({
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </DataTableFrame>
           </div>
         ) : null}
         {!loading && error ? (
@@ -471,13 +429,11 @@ export function RunTable({
           </div>
         ) : null}
         {!loading && !error && data.length ? (
-          <div className="overflow-x-auto">
-            <RunDataTable
-              jobs={data}
-              onOpenJob={onOpenJob}
-              showOrigin={showOrigin}
-            />
-          </div>
+          <RunDataTable
+            jobs={data}
+            onOpenJob={onOpenJob}
+            showOrigin={showOrigin}
+          />
         ) : null}
       </CardContent>
       {loadMoreError ? (

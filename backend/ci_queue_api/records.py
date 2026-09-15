@@ -228,7 +228,9 @@ def public_job(job):
     return result
 
 
-def lookup_job(state_root, job_id, project_id=None):
+def lookup_job(state_root, job_id, project_id=None, unassigned=False):
+    if unassigned and project_id:
+        raise RecordError("projectId e context=unassigned são mutuamente exclusivos")
     job_id = validate_job_id(job_id)
     root = Path(state_root)
     candidates = [
@@ -240,7 +242,10 @@ def lookup_job(state_root, job_id, project_id=None):
     for candidate in candidates:
         candidate = attribute_legacy(candidate, ledger)
         if isinstance(candidate, dict) and candidate.get("id") == job_id:
-            if project_id is not None and not project_record(candidate, project_id) and (candidate.get("projectId") or candidate.get("status") not in TERMINAL):
+            if unassigned:
+                if candidate.get("projectId"):
+                    return None
+            elif project_id is not None and not project_record(candidate, project_id):
                 return None
             progress = read_progress(root, job_id) if candidate.get("status") == "running" else None
             return progress_summary(candidate, progress)
@@ -265,6 +270,8 @@ def status_snapshot(state_root, project_id, project_name):
     last_failed = next((row for row in project_history if row.get("status") in {"failed", "interrupted"}), None)
     project_running = running if project_record(running, project_id) else None
     project_queued = [row for row in queued if project_record(row, project_id)]
+    other_running = bool(running) and not project_record(running, project_id)
+    other_queued = any(not project_record(row, project_id) for row in queued)
     return {
         "schemaVersion": 1,
         "project": {"id": project_id, "name": project_name},
@@ -274,6 +281,29 @@ def status_snapshot(state_root, project_id, project_name):
         "history": [public_job(row) for row in project_history[:50]],
         "lastFailed": public_job(last_failed),
         "globalOccupancy": bool(running or queued),
+        "otherProjectOccupancy": bool(other_running or other_queued),
+    }
+
+
+def status_snapshot_unassigned(state_root):
+    root = Path(state_root)
+    history = sorted(read_history(root), key=history_key, reverse=True)
+    running = read_running(root)
+    queued = [row for row in read_queued(root) if row.get("status") == "queued"]
+    unassigned = [progress_summary(row) for row in history
+                  if row.get("status") in TERMINAL and not row.get("projectId")]
+    last_failed = next((row for row in unassigned if row.get("status") in {"failed", "interrupted"}), None)
+    occupied = bool(running or queued)
+    return {
+        "schemaVersion": 1,
+        "project": None,
+        "serverTime": iso_now(),
+        "running": None,
+        "queued": [],
+        "history": [public_job(row) for row in unassigned[:50]],
+        "lastFailed": public_job(last_failed),
+        "globalOccupancy": occupied,
+        "otherProjectOccupancy": occupied,
     }
 
 

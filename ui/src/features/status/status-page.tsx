@@ -1,8 +1,12 @@
+import { EntityIdentity } from "@/features/shared/entity-identity"
+import { describeJobState } from "@/features/shared/presentation"
+import { ExecutionStages } from "@/features/shared/execution-stages"
 import { Badge } from "@/components/ui/badge"
 import { JobTimeline } from "@/features/shared/live-time"
 import * as React from "react"
-import { statusColor } from "@/features/shared/status-color"
 
+import { useProjectContext } from "@/features/projects/project-context"
+import { scopeKey, type ReadScope } from "@/features/projects/scope"
 import {
   getDashboardState,
   getExecutions,
@@ -15,9 +19,7 @@ import {
 } from "@/lib/api"
 import type {
   DashboardState,
-  JobStatus,
   PresetHistoryEntry,
-  ProgressNode,
   RemoteGreen,
   StatusSnapshot,
 } from "@/lib/types"
@@ -43,16 +45,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item"
-import { Separator } from "@/components/ui/separator"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { FilterSelect } from "@/features/shared/filter-select"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -64,16 +57,11 @@ import {
 import { ErrorState } from "@/features/shared/async-state"
 import {
   formatBytes,
-  formatDuration,
   shortSha,
   queryPeriodStart,
 } from "@/features/shared/format"
 import { JobDrawer } from "@/features/shared/job-drawer"
-import {
-  JobStatusIcon,
-  type RunTableJob,
-  RunTable,
-} from "@/features/shared/run-table"
+import { type RunTableJob, RunTable } from "@/features/shared/run-table"
 import { StatusStateDrawer } from "@/features/status/status-state-drawer"
 import {
   GreenCommitDrawer,
@@ -88,9 +76,7 @@ import {
   CircleDotIcon,
   HardDriveIcon,
   EyeIcon,
-  LoaderCircleIcon,
   SearchIcon,
-  XCircleIcon,
 } from "lucide-react"
 
 type HistoryResult = "all" | "passed" | "failed" | "cancelled" | "interrupted"
@@ -98,86 +84,6 @@ type Period = "all" | "today" | "48h" | "week" | "15d"
 type HistoryMode = "executions" | "greens"
 type GreenOrigin = "machine" | "git" | "both"
 type GreenGrouping = "preset" | "commit"
-
-function stageIcon(status: JobStatus | "pending" | "skipped") {
-  if (status === "passed") {
-    return CheckCircle2Icon
-  }
-  if (
-    status === "failed" ||
-    status === "interrupted" ||
-    status === "cancelled"
-  ) {
-    return XCircleIcon
-  }
-  if (status === "running") {
-    return LoaderCircleIcon
-  }
-  return CircleDotIcon
-}
-
-function ExecutionStages({ stages }: { stages: ProgressNode[] }) {
-  const root = React.useRef<HTMLDivElement>(null)
-  const following = React.useRef(true)
-  const activeIndex = stages.findIndex((stage) => stage.status === "running")
-  const targetIndex = activeIndex >= 0 ? activeIndex : stages.length - 1
-  const targetId = stages[targetIndex]?.id
-
-  React.useEffect(() => {
-    const viewport = root.current?.querySelector<HTMLElement>(
-      '[data-slot="scroll-area-viewport"]'
-    )
-    if (!viewport) return
-    const track = () => {
-      if (viewport.scrollWidth - viewport.clientWidth - viewport.scrollLeft < 24) following.current = true
-    }
-    viewport.addEventListener("scroll", track, { passive: true })
-    return () => viewport.removeEventListener("scroll", track)
-  }, [])
-
-  React.useEffect(() => {
-    if (!following.current) return
-    const viewport = root.current?.querySelector<HTMLElement>(
-      '[data-slot="scroll-area-viewport"]'
-    )
-    const target = root.current?.querySelector<HTMLElement>(`[data-stage-index="${targetIndex}"]`)
-    if (!viewport || !target) return
-    // Move only this strip, never the page or the execution drawer.
-    const right = target.offsetLeft + target.offsetWidth
-    if (right > viewport.scrollLeft + viewport.clientWidth) {
-      viewport.scrollLeft = right - viewport.clientWidth
-    }
-  }, [targetId, targetIndex])
-
-  return (
-    <ScrollArea ref={root} className="@container min-w-0 w-full" aria-label="Etapas da execução"
-      onWheelCapture={() => { following.current = false }}
-      onPointerDownCapture={() => { following.current = false }}
-      onKeyDownCapture={(event) => {
-        if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) following.current = false
-      }}>
-      <ItemGroup className="flex-row gap-0 has-data-[size=sm]:gap-0 pb-3">
-        {stages.map((stage, index) => {
-          const Icon = stageIcon(stage.status)
-          return (
-            <Item key={stage.id} data-stage-index={index} size="sm"
-              className="w-[12.5cqw] min-w-28 shrink-0 flex-col items-start gap-2 border-transparent px-0 py-0 pr-3">
-              <div className="flex w-full items-center gap-2">
-                <Icon role="img" aria-label={stage.status === "running" ? "Em execução" : stage.status === "passed" ? "Passou" : stage.status === "pending" ? "Aguardando" : stage.status === "failed" ? "Falhou" : "Etapa encerrada"} className={`${statusColor(stage.status)} size-5 shrink-0 ${stage.status === "running" ? "animate-spin" : ""}`} />
-                {index < stages.length - 1 ? <Separator className="flex-1" /> : null}
-              </div>
-              <ItemContent className="min-w-0 w-full">
-                <ItemTitle className="max-w-full truncate text-base" title={stage.label}>{stage.label}</ItemTitle>
-                {typeof stage.durationMs === "number" ? <ItemDescription>{formatDuration(stage.durationMs)}</ItemDescription> : null}
-              </ItemContent>
-            </Item>
-          )
-        })}
-      </ItemGroup>
-      <ScrollBar orientation="horizontal" />
-    </ScrollArea>
-  )
-}
 
 function CurrentExecution({
   snapshot,
@@ -198,9 +104,13 @@ function CurrentExecution({
             </ItemMedia>
             <ItemContent>
               <ItemTitle>Nenhuma execução em andamento</ItemTitle>
-              {snapshot.globalOccupancy ? (
+              {snapshot.otherProjectOccupancy ? (
                 <ItemDescription>
-                  O executor está ocupado por outro projeto.
+                  Há trabalho de outro projeto na fila global.
+                </ItemDescription>
+              ) : snapshot.globalOccupancy ? (
+                <ItemDescription>
+                  O executor está ocupado.
                 </ItemDescription>
               ) : null}
             </ItemContent>
@@ -221,62 +131,53 @@ function CurrentExecution({
       </CardHeader>
       <CardContent>
         <div className="flex min-w-0 flex-col gap-5">
-          <Item variant="default" className="border-transparent px-0 py-0">
-            <ItemMedia variant="icon" className="self-start">
-              <JobStatusIcon status={current.status} size="current" />
-            </ItemMedia>
-            <ItemContent>
-              <div className="flex items-center gap-1">
-                <ItemTitle>
-                  {current.preset ? (
-                    <Button
-                      type="button"
-                      variant="link"
-                      className="h-auto px-0 py-0 text-xl font-semibold"
-                      onClick={() => onOpenJob(current.id)}
-                    >
-                      {current.preset}
-                    </Button>
-                  ) : (
-                    "Preset não informado"
-                  )}
-                </ItemTitle>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Ver ${current.preset ?? "execução"}`}
-                      onClick={() => onOpenJob(current.id)}
-                    >
-                      <EyeIcon data-icon />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Ver execução</TooltipContent>
-                </Tooltip>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              <ItemDescription>
-                <JobTimeline job={current} />
-              </ItemDescription>
-              <ItemDescription>
-                {current.branch || "Branch não informada"} ·{" "}
-                <span className="font-mono">{shortSha(current.headSha)}</span>
-              </ItemDescription>
-              </div>
-              {current.progressSummary?.nodes?.some(
-                (node) => (node.retryCount ?? 0) > 0
-              ) ? (
-                <Badge variant="outline">Flaky detectado</Badge>
-              ) : null}
-              {current.commitSubject ? (
-                <ItemDescription>{current.commitSubject}</ItemDescription>
-              ) : null}
-            </ItemContent>
-          </Item>
+          <div className="flex min-w-0 items-start gap-2">
+            <EntityIdentity
+              presentation="current"
+              title={current.preset || "Preset não informado"}
+              media={{
+                kind: "state",
+                descriptor: describeJobState(current.status),
+              }}
+              onOpen={() => onOpenJob(current.id)}
+              description={
+                <>
+                  <JobTimeline job={current} /> ·{" "}
+                  {current.branch || "Branch não informada"} ·{" "}
+                  <span className="font-mono">{shortSha(current.headSha)}</span>
+                </>
+              }
+              badge={
+                current.progressSummary?.nodes?.some(
+                  (node) => (node.retryCount ?? 0) > 0
+                ) ? (
+                  <Badge variant="outline">Flaky detectado</Badge>
+                ) : undefined
+              }
+            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Ver ${current.preset ?? "execução"}`}
+                  onClick={() => onOpenJob(current.id)}
+                >
+                  <EyeIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Ver execução</TooltipContent>
+            </Tooltip>
+          </div>
+          {current.commitSubject ? (
+            <ItemDescription>{current.commitSubject}</ItemDescription>
+          ) : null}
           {stages.length ? (
-            <ExecutionStages key={current.id} stages={stages} />
+            <ExecutionStages
+              key={current.id}
+              stages={stages}
+              jobStatus={current.status}
+            />
           ) : null}
         </div>
       </CardContent>
@@ -575,72 +476,52 @@ function HistoryToolbar({
             aria-label="Buscar por preset, branch, SHA ou ticket"
           />
         </InputGroup>
-        <Select
+        <FilterSelect
+          label="Período do histórico"
           value={period}
           onValueChange={(value) => onPeriod(value as Period)}
-        >
-          <SelectTrigger aria-label="Período do histórico">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="all">Todo período</SelectItem>
-              <SelectItem value="today">Hoje</SelectItem>
-              <SelectItem value="48h">48h</SelectItem>
-              <SelectItem value="week">Semana</SelectItem>
-              <SelectItem value="15d">15 dias</SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+          options={[
+            { value: "all", label: "Todo período" },
+            { value: "today", label: "Hoje" },
+            { value: "48h", label: "48h" },
+            { value: "week", label: "Semana" },
+            { value: "15d", label: "15 dias" },
+          ]}
+        />
         {mode === "executions" ? (
-          <Select
+          <FilterSelect
+            label="Resultado"
             value={result}
             onValueChange={(value) => onResult(value as HistoryResult)}
-          >
-            <SelectTrigger aria-label="Resultado">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="all">Todos os resultados</SelectItem>
-                <SelectItem value="passed">Passou</SelectItem>
-                <SelectItem value="failed">Falhou</SelectItem>
-                <SelectItem value="cancelled">Cancelado</SelectItem>
-                <SelectItem value="interrupted">Interrompido</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+            options={[
+              { value: "all", label: "Todos os resultados" },
+              { value: "passed", label: "Passou" },
+              { value: "failed", label: "Falhou" },
+              { value: "cancelled", label: "Cancelado" },
+              { value: "interrupted", label: "Interrompido" },
+            ]}
+          />
         ) : (
           <>
-            <Select
+            <FilterSelect
+              label="Origem"
               value={origin}
               onValueChange={(value) => onOrigin(value as GreenOrigin)}
-            >
-              <SelectTrigger aria-label="Origem">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="both">Máquina e Git</SelectItem>
-                  <SelectItem value="machine">Máquina</SelectItem>
-                  <SelectItem value="git">Git</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <Select
+              options={[
+                { value: "both", label: "Máquina e Git" },
+                { value: "machine", label: "Máquina" },
+                { value: "git", label: "Git" },
+              ]}
+            />
+            <FilterSelect
+              label="Agrupamento do histórico"
               value={grouping}
               onValueChange={(value) => onGrouping(value as GreenGrouping)}
-            >
-              <SelectTrigger aria-label="Agrupamento do histórico">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="preset">Por preset</SelectItem>
-                  <SelectItem value="commit">Por commit</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+              options={[
+                { value: "preset", label: "Por preset" },
+                { value: "commit", label: "Por commit" },
+              ]}
+            />
           </>
         )}
         {hasFilters ? (
@@ -780,16 +661,16 @@ function appendExecutionJobs(
 }
 
 function useExecutionHistory(
+  scope: ReadScope,
   {
     search,
     period,
     result,
   }: Pick<HistoryFilters, "search" | "period" | "result">,
-  legacy = false,
   historyRevision = ""
 ) {
   const periodStart = React.useMemo(() => queryPeriodStart(period), [period])
-  const requestKey = `${search}\u0000${period}\u0000${result}\u0000${legacy}`
+  const requestKey = `${scopeKey(scope)}\u0000${search}\u0000${period}\u0000${result}`
   const requestVersion = React.useRef(0)
   const [state, setState] = React.useState<ExecutionHistoryState>({
     queryKey: requestKey,
@@ -806,8 +687,7 @@ function useExecutionHistory(
   React.useEffect(() => {
     const version = requestVersion.current + 1
     requestVersion.current = version
-    void getExecutions({
-      scope: legacy ? "legacy" : "terminal",
+    void getExecutions(scope, {
       q: search || undefined,
       result,
       from: periodStart,
@@ -845,7 +725,7 @@ function useExecutionHistory(
           nextCursor: null,
         })
       })
-  }, [legacy, historyRevision, periodStart, requestKey, result, search])
+  }, [historyRevision, periodStart, requestKey, result, scope, search])
 
   const loadMore = React.useCallback(() => {
     if (
@@ -867,8 +747,7 @@ function useExecutionHistory(
       loadMoreError: undefined,
     }))
 
-    void getExecutions({
-      scope: legacy ? "legacy" : "terminal",
+    void getExecutions(scope, {
       q: search || undefined,
       result,
       from: periodStart,
@@ -907,7 +786,7 @@ function useExecutionHistory(
           ),
         }))
       })
-  }, [legacy, periodStart, requestKey, result, search, state])
+  }, [periodStart, requestKey, result, scope, search, state])
 
   const visibleState =
     state.queryKey === requestKey
@@ -1070,28 +949,51 @@ function sourceFailure<T>(
 function HistoryPanel({
   onOpenJob,
   historyRevision,
+  scope,
 }: {
   onOpenJob: (jobId: string) => void
   historyRevision: string
+  scope: ReadScope
 }) {
   const [filters, setFilters] =
     React.useState<HistoryFilters>(readHistoryFilters)
   const [selectedCommit, setSelectedCommit] = React.useState<GreenCommitGroup>()
-  const [legacy, setLegacy] = React.useState(false)
-  const executions = useExecutionHistory(filters, legacy, historyRevision)
-  const greensMode = filters.mode === "greens"
+  const executions = useExecutionHistory(scope, filters, historyRevision)
+  const projectScope = scope.kind === "project" ? scope : null
+  const historyMode = projectScope ? filters.mode : "executions"
+  const greensMode = historyMode === "greens"
   const needsMachine = filters.origin !== "git"
   const needsGit = filters.origin !== "machine"
-  const presetRequest = React.useCallback(() => getPresetHistory(), [])
-  const remoteRequest = React.useCallback(() => getRemoteSlots(), [])
-  const presetHistory = useApiQuery("preset-history", presetRequest, {
-    enabled: greensMode && needsMachine,
-    pollMs: 10_000,
-  })
-  const remote = useApiQuery("remote-slots", remoteRequest, {
-    enabled: greensMode && needsGit,
-    pollMs: 10_000,
-  })
+  const presetRequest = React.useCallback(
+    () =>
+      projectScope
+        ? getPresetHistory(projectScope)
+        : Promise.reject(new Error("catálogo exige um projeto")),
+    [projectScope]
+  )
+  const remoteRequest = React.useCallback(
+    () =>
+      projectScope
+        ? getRemoteSlots(projectScope)
+        : Promise.reject(new Error("verdes exigem um projeto")),
+    [projectScope]
+  )
+  const presetHistory = useApiQuery(
+    `preset-history:${projectScope ? scopeKey(projectScope) : "none"}`,
+    presetRequest,
+    {
+      enabled: greensMode && needsMachine,
+      pollMs: 10_000,
+    }
+  )
+  const remote = useApiQuery(
+    `remote-slots:${projectScope ? scopeKey(projectScope) : "none"}`,
+    remoteRequest,
+    {
+      enabled: greensMode && needsGit,
+      pollMs: 10_000,
+    }
+  )
 
   React.useEffect(() => {
     writeHistoryFilters(filters)
@@ -1207,13 +1109,18 @@ function HistoryPanel({
   const toolbar = (
     <>
       <HistoryToolbar
-        mode={filters.mode}
+        mode={historyMode}
         search={filters.search}
         period={filters.period}
         result={filters.result}
         origin={filters.origin}
         grouping={filters.grouping}
-        onMode={(mode) => setFilters((current) => ({ ...current, mode }))}
+        onMode={(mode) => {
+          if (!projectScope && mode === "greens") {
+            return
+          }
+          setFilters((current) => ({ ...current, mode }))
+        }}
         onSearch={(search) => setFilters((current) => ({ ...current, search }))}
         onPeriod={(period) => setFilters((current) => ({ ...current, period }))}
         onResult={(result) => setFilters((current) => ({ ...current, result }))}
@@ -1223,25 +1130,12 @@ function HistoryPanel({
         }
         onClear={clear}
       />
-      {filters.mode === "executions" &&
-      (legacy || (executions.unattributedRecords ?? 0) > 0) ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-fit"
-          onClick={() => setLegacy((value) => !value)}
-        >
-          {legacy
-            ? "Voltar ao histórico do projeto"
-            : `Legado sem projeto (${executions.unattributedRecords})`}
-        </Button>
-      ) : null}
     </>
   )
 
   return (
     <section className="min-w-0" aria-label="Histórico">
-      {filters.mode === "executions" ? (
+      {historyMode === "executions" ? (
         <RunTable
           toolbar={toolbar}
           title="Histórico"
@@ -1308,12 +1202,34 @@ function HistoryPanel({
 }
 
 export function StatusPage() {
-  const statusRequest = React.useCallback(() => getStatus(), [])
-  const status = useApiQuery("status", statusRequest, { pollMs: 10_000 })
-  const dashboardRequest = React.useCallback(() => getDashboardState(), [])
-  const dashboard = useApiQuery("dashboard-state", dashboardRequest, {
+  const { scope, loading: projectsLoading } = useProjectContext()
+  const statusRequest = React.useCallback(
+    () =>
+      scope
+        ? getStatus(scope)
+        : Promise.reject(new Error("Selecione um projeto ou o arquivo sem projeto.")),
+    [scope]
+  )
+  const status = useApiQuery(`status:${scope ? scopeKey(scope) : "none"}`, statusRequest, {
     pollMs: 10_000,
+    enabled: Boolean(scope),
   })
+  const projectScope = scope?.kind === "project" ? scope : null
+  const dashboardRequest = React.useCallback(
+    () =>
+      projectScope
+        ? getDashboardState(projectScope)
+        : Promise.reject(new Error("Meta exige um projeto")),
+    [projectScope]
+  )
+  const dashboard = useApiQuery(
+    `dashboard-state:${projectScope ? scopeKey(projectScope) : "none"}`,
+    dashboardRequest,
+    {
+      pollMs: 10_000,
+      enabled: Boolean(projectScope),
+    }
+  )
   const [selectedJobId, setSelectedJobId] = React.useState<string>()
   const [stateDrawerOpen, setStateDrawerOpen] = React.useState(false)
   const [stateSurface, setStateSurface] = React.useState<"meta" | "pending">(
@@ -1323,6 +1239,23 @@ export function StatusPage() {
   const openStatusState = (surface: "meta" | "pending") => {
     setStateSurface(surface)
     setStateDrawerOpen(true)
+  }
+
+  if (projectsLoading || !scope) {
+    return (
+      <main className="flex flex-1 p-4 lg:p-6">
+        <div className="w-full">
+          {projectsLoading ? (
+            <Skeleton className="h-56 w-full" />
+          ) : (
+            <ErrorState
+              title="Nenhum projeto selecionado"
+              error={new Error("Cadastre um projeto no seletor do header ou abra o histórico sem projeto.")}
+            />
+          )}
+        </div>
+      </main>
+    )
   }
 
   if (status.loading) {
@@ -1347,36 +1280,42 @@ export function StatusPage() {
     )
   }
 
+  const unassigned = scope.kind === "unassigned"
+
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 lg:p-6">
-      <CurrentExecution
-        snapshot={status.data}
-        onOpenJob={setSelectedJobId}
-      />
+      {unassigned ? null : (
+        <CurrentExecution snapshot={status.data} onOpenJob={setSelectedJobId} />
+      )}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div className="flex min-w-0 flex-col gap-6">
-          <RunTable
-            title="Fila"
-            kind="queue"
-            jobs={status.data.queued}
-            loading={false}
-            error={undefined}
-            emptyTitle="Fila livre"
-            emptyDescription="A próxima execução aguardando aparecerá aqui."
-            onOpenJob={setSelectedJobId}
-          />
+          {unassigned ? null : (
+            <RunTable
+              title="Fila"
+              kind="queue"
+              jobs={status.data.queued}
+              loading={false}
+              error={undefined}
+              emptyTitle="Fila livre"
+              emptyDescription="A próxima execução aguardando aparecerá aqui."
+              onOpenJob={setSelectedJobId}
+            />
+          )}
           <HistoryPanel
+            scope={scope}
             onOpenJob={setSelectedJobId}
             historyRevision={status.data.history?.[0]?.id ?? ""}
           />
         </div>
         <aside className="flex flex-col gap-4">
           <MachineCard />
-          <StatusStateCards
-            dashboard={dashboard}
-            onOpen={openStatusState}
-            onOpenJob={setSelectedJobId}
-          />
+          {unassigned ? null : (
+            <StatusStateCards
+              dashboard={dashboard}
+              onOpen={openStatusState}
+              onOpenJob={setSelectedJobId}
+            />
+          )}
         </aside>
       </div>
       {selectedJobId ? (

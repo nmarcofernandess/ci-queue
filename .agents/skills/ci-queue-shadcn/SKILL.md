@@ -12,7 +12,9 @@ not a visual review after code exists.
 
 1. State the user need in one semantic noun: shell, navigation, table, filter,
    status item, drawer, form, menu, empty/error/loading, or chart.
-2. Read the matching row in `docs/ui/COMPOSITION-LEDGER.md`. That ledger is the
+2. Read DESIGN.md and .context/domains/manifest.yaml, then the referenced
+   .context/patterns/ui-composition.yaml and its shared owners/consumers.
+   Read the matching row in `docs/ui/COMPOSITION-LEDGER.md`. That ledger is the
    product decision record and names the only accepted adaptation gaps.
 3. From `ui/`, run `npx shadcn@latest info --json`, then
    `npx shadcn@latest docs <component>` for every component selected. For a

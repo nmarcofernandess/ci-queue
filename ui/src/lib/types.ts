@@ -65,6 +65,9 @@ export type StatusSnapshot = {
   history: JobRecord[]
   lastFailed: JobRecord | null
   globalOccupancy: boolean
+  otherProjectOccupancy?: boolean
+  context?: { kind: "project" | "unassigned"; projectId?: string }
+  contextRevision?: number
 }
 
 export type ExecutionsResponse = {
@@ -197,6 +200,72 @@ export type AnalysisResponse = {
   total: number
   presets: AnalysisPreset[]
   coverage: { unattributedRecords: number }
+  context?: { kind: "project" | "unassigned"; projectId?: string }
+}
+
+export type ResultCounts = {
+  preset: string
+  passed: number
+  failed: number
+  cancelled: number
+  interrupted: number
+  total: number
+}
+
+export type ResultsResponse = {
+  schemaVersion: 2
+  metric: "results"
+  context: { kind: "project"; projectId: string }
+  from: string | null
+  to: string | null
+  presets: ResultCounts[]
+  sampleCount: number
+}
+
+export type ProjectSummary = {
+  id: string
+  displayName: string
+  repositoryPath: string | null
+  resolvedRepositoryPath: string | null
+  repositoryAvailable: boolean
+  configPath: string | null
+  archivedAt: string | null
+  revision: number
+  bindingState: "linked" | "unlinked" | "invalid" | "missing"
+}
+
+export type ProjectsResponse = {
+  schemaVersion: number
+  registryRevision: number
+  bootstrapProjectId: string | null
+  projects: ProjectSummary[]
+  observedUnregistered: string[]
+}
+
+export type ProjectProbe = {
+  repositoryPath: string | null
+  gitCommonDir: string | null
+  bare: boolean
+  configPath: string | null
+  bindingState: string
+  projectId: string | null
+  displayName: string | null
+  presets: string[]
+  catalogValid: boolean
+  conflicts: Array<{ code: string; message: string; projectId?: string }>
+  signature: {
+    repositoryPath: string | null
+    gitCommonDir: string | null
+    configSha256: string | null
+  }
+}
+
+export type HealthResponse = {
+  ok: boolean
+  apiVersion: number
+  serverTime: string
+  projectId?: string
+  bootstrapError?: string
 }
 
 export type MachineResponse = {
@@ -276,8 +345,14 @@ export type DashboardState = {
 export type DashboardSession = {
   csrfToken: string
   canReveal: boolean
+  canPick?: boolean
   revealTargets: string[]
   clipboardLimitBytes: number
+}
+
+export type PickedHostPath = {
+  path: string
+  kind: "directory" | "file"
 }
 
 export type RevealResult = {

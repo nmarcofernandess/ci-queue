@@ -1,3 +1,5 @@
+import { EntityIdentity } from "@/features/shared/entity-identity"
+import { DataTableFrame } from "@/features/shared/data-table-frame"
 import * as React from "react"
 import {
   createColumnHelper,
@@ -11,11 +13,9 @@ import {
   ChevronDownIcon,
   CopyIcon,
   EyeIcon,
-  FolderGit2Icon,
   FolderOpenIcon,
   InboxIcon,
   SearchIcon,
-  XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -24,14 +24,12 @@ import { Button } from "@/components/ui/button"
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer"
+  DetailDrawer,
+  DetailDrawerHeader,
+  DetailDrawerBody,
+  DetailDrawerFooter,
+} from "@/features/shared/detail-drawer"
+import { FactsTable } from "@/features/shared/facts-table"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,7 +49,6 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Tooltip,
   TooltipContent,
@@ -59,16 +56,15 @@ import {
 } from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useRequiredProject } from "@/features/projects/project-context"
+import { scopeKey } from "@/features/projects/scope"
 import {
-  getDashboardState,
   getWorktrees,
   revealWorktree,
   type ApiQuery,
@@ -139,7 +135,8 @@ function baseLabel(worktree: WorktreeRecord) {
 }
 
 function sizeLabel(worktree: WorktreeRecord) {
-  if (typeof worktree.size.bytes === "number") return formatBytes(worktree.size.bytes)
+  if (typeof worktree.size.bytes === "number")
+    return formatBytes(worktree.size.bytes)
   if (worktree.size.state === "measuring") return "Medindo…"
   return worktree.size.error || "Atualização automática pendente."
 }
@@ -184,19 +181,19 @@ function CopyMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button type="button" variant="outline" disabled={disabled}>
-          <CopyIcon data-icon />
+          <CopyIcon data-icon="inline-start" />
           {label}
-          <ChevronDownIcon data-icon />
+          <ChevronDownIcon data-icon="inline-end" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>
           <DropdownMenuItem onSelect={onCopyPaths}>
-            <CopyIcon data-icon />
+            <CopyIcon data-icon="inline-start" />
             Copiar {plural ? "caminhos" : "caminho"}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={onCopyContext}>
-            <CopyIcon data-icon />
+            <CopyIcon data-icon="inline-start" />
             Copiar {plural ? "contextos" : "contexto"}
           </DropdownMenuItem>
         </DropdownMenuGroup>
@@ -216,7 +213,6 @@ function WorktreeDrawer({
   session: ApiQuery<DashboardSession>
   onClose: () => void
 }) {
-  const isMobile = useIsMobile()
   const detail = {
     data: worktrees.data?.worktrees.find((item) => item.id === id),
     loading: worktrees.loading,
@@ -224,6 +220,7 @@ function WorktreeDrawer({
     reload: worktrees.reload,
   }
   const [opening, setOpening] = React.useState(false)
+  const project = useRequiredProject()
 
   const copy = async (value: string, message: string) => {
     try {
@@ -241,7 +238,11 @@ function WorktreeDrawer({
     }
     setOpening(true)
     try {
-      await revealWorktree(session.data.csrfToken, id)
+      if (!project) {
+        toast.error("Selecione um projeto para abrir a pasta.")
+        return
+      }
+      await revealWorktree(project, session.data.csrfToken, id)
       toast.success("Pasta aberta no sistema.")
     } catch (reason) {
       toast.error(
@@ -255,125 +256,86 @@ function WorktreeDrawer({
   }
 
   return (
-    <Drawer
-      open
-      onOpenChange={(open) => !open && onClose()}
-      direction={isMobile ? "bottom" : "right"}
-    >
-      <DrawerContent className="min-h-0 sm:w-[36rem] sm:max-w-[36rem]!">
-        <DrawerHeader className="shrink-0 border-b">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <FolderGit2Icon className="size-4 shrink-0" />
-                <DrawerTitle className="truncate">
-                  {detail.data ? worktreeName(detail.data.path) : "Worktree"}
-                </DrawerTitle>
-                {detail.data ? (
-                  <Badge variant="outline">
-                    {detail.data.dirty === false ? (
-                      <CheckIcon data-icon />
-                    ) : null}
-                    {cleanlinessLabel(detail.data)}
-                  </Badge>
-                ) : null}
-              </div>
-              <DrawerDescription className="truncate">
-                {detail.data?.branch || "Carregando…"}
-              </DrawerDescription>
-            </div>
-            <DrawerClose asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Fechar worktree"
-              >
-                <XIcon data-icon />
-              </Button>
-            </DrawerClose>
-          </div>
-        </DrawerHeader>
+    <DetailDrawer onClose={onClose}>
+      <DetailDrawerHeader
+        title={detail.data ? worktreeName(detail.data.path) : "Worktree"}
+        description={detail.data?.branch || "Carregando…"}
+        media={{ kind: "worktree" }}
+        badge={
+          detail.data ? (
+            <Badge variant="outline">
+              {detail.data.dirty === false ? (
+                <CheckIcon data-icon="inline-start" />
+              ) : null}
+              {cleanlinessLabel(detail.data)}
+            </Badge>
+          ) : undefined
+        }
+        closeLabel="Fechar worktree"
+      />
+      <DetailDrawerBody>
+        {detail.loading ? <Skeleton className="h-64 w-full" /> : null}
+        {detail.error ? (
+          <ErrorState
+            title="Não foi possível carregar a worktree"
+            error={detail.error}
+            onRetry={detail.reload}
+          />
+        ) : null}
+        {detail.data ? (
+          <FactsTable
+            caption="Detalhes da worktree"
+            rows={[
+              {
+                id: "path",
+                label: "Caminho",
+                value: detail.data.path,
+                technical: true,
+              },
+              {
+                id: "sha",
+                label: "SHA",
+                value: detail.data.headSha || "Indisponível",
+                technical: true,
+              },
+              {
+                id: "changes",
+                label: "Alterações",
+                value: detail.data.changedEntries ?? "Indisponível",
+              },
+              {
+                id: "base",
+                label: "Em relação à base",
+                value: baseLabel(detail.data),
+              },
+              { id: "size", label: "Tamanho", value: sizeLabel(detail.data) },
+            ]}
+          />
+        ) : null}
+      </DetailDrawerBody>
 
-        <ScrollArea className="min-h-0 flex-1 p-4">
-          {detail.loading ? <Skeleton className="h-64 w-full" /> : null}
-          {detail.error ? (
-            <ErrorState
-              title="Não foi possível carregar a worktree"
-              error={detail.error}
-              onRetry={detail.reload}
-            />
-          ) : null}
-          {detail.data ? (
-            <div className="overflow-hidden rounded-lg border">
-              <Table>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="w-36 text-muted-foreground">
-                      Caminho
-                    </TableCell>
-                    <TableCell className="font-medium break-all whitespace-normal">
-                      {detail.data.path}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="text-muted-foreground">SHA</TableCell>
-                    <TableCell className="font-mono text-xs break-all whitespace-normal">
-                      {detail.data.headSha || "Indisponível"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="text-muted-foreground">
-                      Alterações
-                    </TableCell>
-                    <TableCell>
-                      {detail.data.changedEntries ?? "Indisponível"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="text-muted-foreground">
-                      Em relação à base
-                    </TableCell>
-                    <TableCell>{baseLabel(detail.data)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="text-muted-foreground">
-                      Tamanho
-                    </TableCell>
-                    <TableCell>
-                      {sizeLabel(detail.data)}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          ) : null}
-        </ScrollArea>
-
-        <DrawerFooter className="shrink-0 border-t">
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button
-              type="button"
-              onClick={reveal}
-              disabled={opening || !session.data?.canReveal}
-            >
-              <FolderOpenIcon data-icon />
-              Abrir pasta
-            </Button>
-            <CopyMenu
-              disabled={!detail.data}
-              onCopyPaths={() =>
-                detail.data && void copy(detail.data.path, "Caminho copiado.")
-              }
-              onCopyContext={() =>
-                detail.data &&
-                void copy(worktreeContext(detail.data), "Contexto copiado.")
-              }
-            />
-          </div>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+      <DetailDrawerFooter>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={reveal}
+          disabled={opening || !session.data?.canReveal}
+        >
+          <FolderOpenIcon data-icon="inline-start" />
+          Abrir pasta
+        </Button>
+        <CopyMenu
+          disabled={!detail.data}
+          onCopyPaths={() =>
+            detail.data && void copy(detail.data.path, "Caminho copiado.")
+          }
+          onCopyContext={() =>
+            detail.data &&
+            void copy(worktreeContext(detail.data), "Contexto copiado.")
+          }
+        />
+      </DetailDrawerFooter>
+    </DetailDrawer>
   )
 }
 
@@ -426,20 +388,22 @@ function WorktreeDataTable({
         worktreeColumnHelper.accessor("path", {
           header: "Worktree",
           cell: ({ row }) => (
-            <Button
-              type="button"
-              variant="link"
-              className="h-auto max-w-72 justify-start truncate p-0 font-medium"
-              onClick={() => onOpen(row.original.id)}
-            >
-              {worktreeName(row.original.path)}
-            </Button>
+            <EntityIdentity
+              presentation="table"
+              title={worktreeName(row.original.path)}
+              onOpen={() => onOpen(row.original.id)}
+            />
           ),
         }),
         worktreeColumnHelper.accessor("branch", {
           header: "Branch",
           cell: ({ getValue }) => (
-            <span className="font-mono text-xs">{getValue()}</span>
+            <span
+              className="block truncate font-mono text-xs"
+              title={getValue()}
+            >
+              {getValue()}
+            </span>
           ),
         }),
         worktreeColumnHelper.display({
@@ -456,7 +420,7 @@ function WorktreeDataTable({
           header: "Estado",
           cell: ({ row }) => (
             <Badge variant="outline">
-              {row.original.dirty === false ? <CheckIcon data-icon /> : null}
+              {row.original.dirty === false ? <CheckIcon /> : null}
               {cleanlinessLabel(row.original)}
             </Badge>
           ),
@@ -474,7 +438,7 @@ function WorktreeDataTable({
                   aria-label={`Ver ${worktreeName(row.original.path)}`}
                   onClick={() => onOpen(row.original.id)}
                 >
-                  <EyeIcon data-icon />
+                  <EyeIcon />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Ver worktree</TooltipContent>
@@ -497,61 +461,68 @@ function WorktreeDataTable({
   })
 
   return (
-    <div className="overflow-hidden rounded-lg border">
-      <Table>
-        <TableHeader className="bg-muted">
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  className={
-                    header.column.id === "selection" ? "w-11" : undefined
-                  }
-                >
-                  {header.isPlaceholder ? null : (
-                    <table.FlexRender header={header} />
-                  )}
-                </TableHead>
+    <DataTableFrame placement="body" label="Worktrees">
+      <TableHeader>
+        {table.getHeaderGroups().map((headerGroup) => (
+          <TableRow key={headerGroup.id}>
+            {headerGroup.headers.map((header) => (
+              <TableHead
+                key={header.id}
+                className={
+                  header.column.id === "selection"
+                    ? "w-11"
+                    : header.column.id === "actions"
+                      ? "w-10"
+                      : header.column.id === "path"
+                        ? "w-44"
+                        : header.column.id === "size" ||
+                            header.column.id === "state"
+                          ? "w-28"
+                          : undefined
+                }
+              >
+                {header.isPlaceholder ? null : (
+                  <table.FlexRender header={header} />
+                )}
+              </TableHead>
+            ))}
+          </TableRow>
+        ))}
+      </TableHeader>
+      <TableBody>
+        {table.getRowModel().rows.length ? (
+          table.getRowModel().rows.map((row) => (
+            <TableRow
+              key={row.id}
+              data-state={row.getIsSelected() ? "selected" : undefined}
+            >
+              {row.getAllCells().map((cell) => (
+                <TableCell key={cell.id} className="overflow-hidden">
+                  <table.FlexRender cell={cell} />
+                </TableCell>
               ))}
             </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() ? "selected" : undefined}
-              >
-                {row.getAllCells().map((cell) => (
-                  <TableCell key={cell.id} className="h-12 align-middle">
-                    <table.FlexRender cell={cell} />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell
-                colSpan={table.getAllLeafColumns().length}
-                className="p-0"
-              >
-                <Empty className="min-h-56 border-0">
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <InboxIcon />
-                    </EmptyMedia>
-                    <EmptyTitle>Nenhuma worktree</EmptyTitle>
-                    <EmptyDescription>{emptyDescription}</EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
-    </div>
+          ))
+        ) : (
+          <TableRow>
+            <TableCell
+              colSpan={table.getAllLeafColumns().length}
+              className="p-0"
+            >
+              <Empty className="min-h-56 border-0">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <InboxIcon />
+                  </EmptyMedia>
+                  <EmptyTitle>Nenhuma worktree</EmptyTitle>
+                  <EmptyDescription>{emptyDescription}</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </TableCell>
+          </TableRow>
+        )}
+      </TableBody>
+    </DataTableFrame>
   )
 }
 
@@ -702,18 +673,36 @@ function WorktreeTable({
 }
 
 export function WorktreesPage() {
-  const worktreeRequest = React.useCallback(() => getWorktrees(), [])
-  const projectRequest = React.useCallback(() => getDashboardState(), [])
-  const worktrees = useApiQuery("worktrees", worktreeRequest, {
-    pollMs: 60_000,
-  })
-  const project = useApiQuery("worktree-project", projectRequest)
+  const project = useRequiredProject()
+  const worktreeRequest = React.useCallback(
+    () =>
+      project
+        ? getWorktrees(project)
+        : Promise.reject(new Error("Selecione um projeto para ver worktrees.")),
+    [project]
+  )
+  const worktrees = useApiQuery(
+    `worktrees:${project ? scopeKey(project) : "none"}`,
+    worktreeRequest,
+    { pollMs: 60_000, enabled: Boolean(project) }
+  )
   const session = useDashboardSession()
+
+  if (!project) {
+    return (
+      <main className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
+        <ErrorState
+          title="Worktrees exigem um projeto"
+          error={new Error("Cadastre ou selecione um projeto com pasta Git.")}
+        />
+      </main>
+    )
+  }
 
   return (
     <WorktreeTable
-      key={project.data?.projectId || "unresolved-project"}
-      projectId={project.data?.projectId}
+      key={project.projectId}
+      projectId={project.projectId}
       worktrees={worktrees}
       session={session}
     />

@@ -43,10 +43,17 @@ def worktree_id(path):
     return hashlib.sha256(os.path.abspath(str(path)).encode("utf-8")).hexdigest()[:24]
 
 
-def discover(config):
-    if config.repository_path is None:
+def _source(source):
+    repository_path = getattr(source, "repository_path", None)
+    base_ref = getattr(source, "base_ref", None) or "HEAD"
+    return repository_path, base_ref
+
+
+def discover(source):
+    repository_path, _base_ref = _source(source)
+    if repository_path is None:
         return None
-    raw = _git(config.repository_path, "worktree", "list", "--porcelain", "-z")
+    raw = _git(repository_path, "worktree", "list", "--porcelain", "-z")
     if raw is None:
         return None
     rows = []
@@ -132,18 +139,19 @@ def schedule_size(path):
     return {**report, "state": "measuring" if pending else report["state"]}
 
 
-def list_worktrees(config):
-    rows = discover(config)
+def list_worktrees(source):
+    repository_path, base_ref = _source(source)
+    rows = discover(source)
     if rows is None:
-        return {"schemaVersion": 1, "observedAt": _now(), "baseRef": config.base_ref,
+        return {"schemaVersion": 1, "observedAt": _now(), "baseRef": base_ref,
                 "baseSha": None, "worktrees": [], "error": "Worktrees indisponíveis para este projeto."}
     deadline = time.monotonic() + 12
-    base = _git(config.repository_path, "rev-parse", "--verify", config.base_ref, timeout=_remaining(deadline))
+    base = _git(repository_path, "rev-parse", "--verify", base_ref, timeout=_remaining(deadline))
     base_sha = base.strip() if base else None
     for row in rows:
         status = _git(row["path"], "status", "--porcelain=v1", "-z", "--untracked-files=normal", timeout=_remaining(deadline))
         changed = _changed_count(status)
-        counts = _git(config.repository_path, "rev-list", "--left-right", "--count", "%s...%s" % (config.base_ref, row.get("headSha") or ""), timeout=_remaining(deadline)) if base_sha and row.get("headSha") else None
+        counts = _git(repository_path, "rev-list", "--left-right", "--count", "%s...%s" % (base_ref, row.get("headSha") or ""), timeout=_remaining(deadline)) if base_sha and row.get("headSha") else None
         behind = ahead = None
         if counts:
             try:
@@ -155,12 +163,13 @@ def list_worktrees(config):
                     "changedEntries": changed, "ahead": ahead, "behind": behind,
                     "gitObservedAt": _now(), "size": schedule_size(row["path"]),
                     "error": "Orçamento de leitura das worktrees esgotado." if timed_out else None})
-    return {"schemaVersion": 1, "observedAt": _now(), "baseRef": config.base_ref,
+    return {"schemaVersion": 1, "observedAt": _now(), "baseRef": base_ref,
             "baseSha": base_sha, "worktrees": rows, "error": None}
 
 
-def worktree_view(config, identifier):
-    rows = discover(config)
+def worktree_view(source, identifier):
+    _repository_path, base_ref = _source(source)
+    rows = discover(source)
     if rows is None:
         raise LookupError("Inventário de worktrees indisponível.")
     row = next((item for item in rows if item["id"] == identifier), None)
@@ -168,7 +177,7 @@ def worktree_view(config, identifier):
         raise LookupError("Worktree não encontrada.")
     status = _git(row["path"], "status", "--porcelain=v1", "-z", "--untracked-files=normal")
     changed = _changed_count(status)
-    counts = _git(config.repository_path, "rev-list", "--left-right", "--count", "%s...%s" % (config.base_ref, row.get("headSha") or ""))
+    counts = _git(_repository_path, "rev-list", "--left-right", "--count", "%s...%s" % (base_ref, row.get("headSha") or ""))
     behind = ahead = None
     if counts:
         try:

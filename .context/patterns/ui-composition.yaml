@@ -1,0 +1,68 @@
+pattern: ui-composition
+version: 1
+status: active
+updated: 2026-09-15
+foundation:
+  registry: radix-nova
+  primitives: ui/src/components/ui
+  behavior: docs/ui/PRODUCT-CONTRACT.md
+  visual_language: DESIGN.md
+  official_compositions: docs/ui/COMPOSITION-LEDGER.md
+read_when:
+  - "Criar ou alterar identidade, drawer, tabela, árvore, ação ou estado visual."
+  - "Modificar um primitivo consumido por mais de uma superfície."
+composition:
+  identity:
+    source: ui/src/features/shared/entity-identity.tsx
+    variants_source: ui/src/features/shared/presentation.ts
+    use: "Mesma identidade com apresentações current/drawer/table; passar conteúdo, não estilo."
+  drawer:
+    source: ui/src/features/shared/detail-drawer.tsx
+    consumers:
+      - ui/src/features/shared/job-drawer.tsx
+      - ui/src/features/worktrees/worktrees-page.tsx
+      - ui/src/features/status/status-state-drawer.tsx
+      - ui/src/features/status/green-commit-table.tsx
+      - ui/src/features/projects/project-manager-drawer.tsx
+  filters:
+    source: ui/src/features/shared/filter-select.tsx
+    consumers:
+      - ui/src/features/status/status-page.tsx
+      - ui/src/features/analysis/analysis-page.tsx
+  selection_panel:
+    source: ui/src/features/shared/selection-panel.tsx
+    consumers:
+      - ui/src/features/projects/project-switcher.tsx
+      - ui/src/features/analysis/preset-multi-select.tsx
+  project_scope:
+    source: ui/src/features/projects/project-context.tsx
+    use: "Uma aba, um ReadScope. Relê status, fila, worktrees, análise, meta e detalhe."
+    consumers:
+      - ui/src/features/status/status-page.tsx
+      - ui/src/features/worktrees/worktrees-page.tsx
+      - ui/src/features/analysis/analysis-page.tsx
+      - ui/src/features/shared/job-drawer.tsx
+  local_environment:
+    source: ui/src/components/local-environment-menu.tsx
+    use: "Único dono de Bridge e tema no rodapé."
+  facts:
+    source: ui/src/features/shared/facts-table.tsx
+    use: "Ficha de metadados de detalhe, sem card adicional."
+  table:
+    source: ui/src/features/shared/data-table-frame.tsx
+    use: "Tabela de lista com placement card/body; não mudar modelo de dados."
+  progress:
+    tree: ui/src/features/shared/progress-tree.tsx
+    strip: ui/src/features/shared/execution-stages.tsx
+    indicator: ui/src/features/shared/status-indicator.tsx
+  states:
+    source: ui/src/features/shared/async-state.tsx
+change_protocol:
+  - "Localizar os consumidores do proprietário antes de editar."
+  - "Alterar a composição compartilhada e migrar todos os consumidores afetados."
+  - "Não corrigir a estrutura só no local mostrado no print."
+  - "Verificar a família inteira no browser, incluindo estados e largura intermediária."
+enforcement:
+  lint: ui/eslint.config.js
+  semantics: tests/ui/presentation.test.ts
+  browser: tests/browser/ui-consistency.spec.ts

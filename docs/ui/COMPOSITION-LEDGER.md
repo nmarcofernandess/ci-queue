@@ -22,12 +22,14 @@ adapting shadcn sources rather than re-inventing surfaces.
 
 | Need                                   | Selected composition                                                                                                                | Adaptation boundary                                                                                                                                                                                                                                                                                                                                |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App shell                              | `SidebarProvider` → `Sidebar variant="inset" collapsible="offcanvas"` → `SidebarInset` → header with `SidebarTrigger`               | Brand, routes and bridge data only. No `SidebarRail`; trigger stays in header.                                                                                                                                                                                                                                                                     |
-| Sidebar navigation and theme           | `SidebarHeader`, `SidebarContent`, `SidebarMenu`, `SidebarMenuButton`, `SidebarFooter`, `ToggleGroup`, `Tooltip`                    | Footer contains Bridge and Claro/Escuro/Sistema only.                                                                                                                                                                                                                                                                                              |
+| App shell                              | `SidebarProvider` → `Sidebar variant="inset" collapsible="offcanvas"` → `SidebarInset` → header with `SidebarTrigger`               | Brand, routes and project context only. No `SidebarRail`; trigger stays in header; project switcher stays at the header's end.                                                                                                                                                                                                                      |
+| Sidebar navigation and local environment | `SidebarHeader`, `SidebarContent`, `SidebarMenu`, `SidebarMenuButton`, `SidebarFooter`, `DropdownMenu`                            | Footer is `LocalEnvironmentMenu`: Bridge from `/health` and theme radios. No fake user.                                                                                                                                                                                                                                                            |
+| Project switcher                       | Shared `SelectionPanel` (`Popover` + `ScrollArea` + `InputGroup`) + `Button`                                                        | Searchable exclusive list of active projects plus unassigned history. Archived entries stay in the manager.                                                                                                                                                                                                                                         |
+| Project manager                        | Shared `DetailDrawer` + `FieldSet`/`Field` + `InputGroup` + `AlertDialog` + `Badge`                                                  | Local register/rename/relocate/link/archive/restore. Path fields stay pasteable. **Procurar…** calls the host folder/file dialog via `/api/project-pick`; it does not use a browser file input as a fake absolute path. Probe is Conferir pasta. Archive does not cancel jobs. Observed identities are an explicit list, not a free-text default. List uses `Badge` when no living worktree remains. |
 | Current execution                      | `Card` → `CardHeader`/`CardContent`, `Item`, `ItemGroup`, `Empty`, `Tooltip`, icon `Button`                                         | Region is always visible. Running has one state icon; title and final eye open the drawer.                                                                                                                                                                                                                                                          |
 | Queue                                  | Dashboard 01 `DataTable` composition adapted into shared `RunTable`                                                                 | Only queued tickets; no filter toolbar. The terminal receipt moves to history, never becomes a queue summary.                                                                                                                                                                                                                                      |
 | Queue, history and last greens          | Dashboard 01 `DataTable` composition (`@tanstack/react-table`, `table.FlexRender`, `Table`) adapted into shared `RunTable` renderer | One-line rows with status icon, execution, time, duration, revision and final eye. Commit grouping has a dedicated aggregate table and official Drawer.                                                                                                                                                                                             |
-| History controls                       | `InputGroup`, default `ToggleGroup`, direct `Select`, `Button ghost`                                                              | Controls live in the owning CardHeader, above the table, and wrap left-to-right. No Calendar, interval or nested popup. Executions search server-side across preset, branch, SHA, ticket, cwd, command and extra arguments without exposing the latter two; last greens search the four fields the normalized legacy data actually contained: preset, branch, SHA and ticket. |
+| History controls                       | `InputGroup`, default `ToggleGroup`, shared `FilterSelect`, `Button ghost`                                                        | Controls live in the owning CardHeader, above the table, and wrap left-to-right. No Calendar, interval or nested popup. Executions search server-side across preset, branch, SHA, ticket, cwd, command and extra arguments without exposing the latter two; last greens search the four fields the normalized legacy data actually contained: preset, branch, SHA and ticket. |
 | Machine                                | `Card` → `CardHeader`/`CardContent`, `Item`                                                                                         | Only measurable disk capacity. No action, invented normal state, memory total or per-card refresh.                                                                                                                                                                                                                                                  |
 | Meta and pending items                 | Separate `Card` summaries; Meta uses a `Drawer` with `FieldSet`/`FieldGroup`/`Field`, while Pendências uses a read-only `Drawer` with `ItemGroup`/`Item` | Meta persists only name, description and selected presets; candidate SHA is derived from their current canonical greens. Pendências renders idempotent validation recommendations emitted by consumers and offers no manual form. Neither surface gates CI or merge.                                                                                  |
 | Worktrees                              | Dashboard 01 `DataTable` composition + `Checkbox`, `InputGroup`, `ButtonGroup`, `DropdownMenu`                                      | Persistent selected IDs is a named state-management gap; rows do not become buttons.                                                                                                                                                                                                                                                               |
@@ -41,7 +43,7 @@ adapting shadcn sources rather than re-inventing surfaces.
 The route has a single statistics surface using `flex flex-wrap justify-start gap-2`:
 
 ```text
-[Resultados | Duração] [Período] [Preset]
+[Resultados | Duração] [Período] [Presets ▾]
 ```
 
 It does not use `space-between`, a date-picker, a calendar or a Select nested
@@ -50,7 +52,7 @@ the remaining controls wrap in this order.
 
 | View     | Selected composition                                                                                   | Contract                                                                                                                                                                                                                                                                              |
 | -------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Results  | `Card` + Nova `ChartContainer`, `ChartTooltipContent`, `ChartLegendContent`, Recharts `BarChart`       | Vertical stacked bars for passed, failed, cancelled and interrupted. Statuses use semantic design tokens. Every filtered preset remains visible; the chart scrolls horizontally instead of collapsing labels or hiding a top-N, and the table preserves exact counts.                                        |
+| Results  | `Card` + Nova `ChartContainer`, custom tooltip payload, `ChartLegendContent`, Recharts `BarChart` + shared `PresetMultiSelect` | Per-preset percentage stacks on a 0–100 axis. Tooltip keeps count · percent and the preset total. Default visible set is top 10 by volume; filtering is local. The table keeps exact counts in the same order.                                        |
 | Duration | `Card` + `ItemGroup` + Nova `ChartContainer`, `ChartTooltipContent`, Recharts `ScatterChart`/`Scatter` | Specific preset required. Visible median/range/N above the chart. Both numerical axes derive bounded domains from the visible points, so timestamps never fall back to the epoch. Points only; no `Line`, curve or interpolation. Tooltip contains point-specific temporal/unit data. |
 
 `ChartContainer` is the official Nova chart shell and owns chart config, theme
@@ -74,6 +76,12 @@ Demo-specific drag-and-drop, arbitrary document columns and generic pagination
 are excluded because CI Queue owns its history cursor and does not allow
 rearranging execution records. This is a product adaptation, not permission to
 turn table rows into buttons or to substitute a handmade table.
+
+Column budgets belong to each table consumer. Compact execution identities keep
+title and status badge on one line, truncate only the flexible title, and retain
+the complete accessible value. Card tables reserve the final action width for
+the installed icon Button plus both effective paddings. Compact absolute dates
+remain in the cell; relative time remains available through Tooltip.
 
 ## Named gaps
 
@@ -122,16 +130,18 @@ The current preset uses the prominent title size with a two-line-height status
 indicator. Time, duration and branch share a wrapping metadata row. Collapsible
 chevrons point down while open and right while closed. Drawer content permits
 native text selection; dragging content must never dismiss the drawer. Closing
-remains available through Close, Escape and the outside overlay.
+remains available through Close, Escape and the outside overlay. The controlled
+detail shell enables Vaul autofocus and uses DrawerContent close autofocus to
+return focus to the element that opened it.
 
-## Execution identity scale — approved 15 September 2026
+## Shared composition ownership — etapa 1
 
-Identity -> official ItemMedia + ItemContent; drawer retains DrawerTitle and
-DrawerDescription for accessible semantics. Current title is 20 px, drawer
-uses the native Nova 16 px title and 14 px description, history retains its
-compact table typography. JobStatusIcon owns explicit current/drawer/table
-sizes (48/44/16 px glyphs); callers never resize descendant SVGs.
-Drawer identity is left-aligned with zero gap between its two text lines.
-These are product presentation choices, not official shadcn variants.
-Metadata may wrap naturally on narrow screens; neither text nor icon scales
-to force a fixed two-line height.
+The previous indicator-only scale is superseded by `presentation.ts` and the
+complete `EntityIdentity` composition. Executable values live only in code;
+`DESIGN.md` explains their roles. DetailDrawer owns all five detail surfaces,
+FactsTable owns their metadata sheets, DataTableFrame owns list gutters, and
+ProgressTree/ExecutionStages share StatusIndicator descriptors. These compose
+installed Nova primitives; they add no backend or data model.
+
+This candidate is subject to human review. Prior approvals do not approve this
+new family implementation. See the etapa-1 evidence index for actual proof.
