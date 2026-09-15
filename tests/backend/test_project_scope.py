@@ -157,6 +157,35 @@ class ProjectScopeHttpTests(unittest.TestCase):
         self.assertEqual([job["id"] for job in results["a-history"]["jobs"]], ["job-a"])
         self.assertEqual([job["id"] for job in results["b-history"]["jobs"]], ["job-b"])
 
+    def test_meta_saved_on_alpha_does_not_update_beta(self):
+        headers = {
+            "Content-Type": "application/json",
+            "X-CI-CSRF": "csrf-test",
+            "Origin": self.base,
+        }
+        with self._post("/api/dashboard-state?projectId=alpha", {
+            "revision": 0,
+            "action": "save-meta",
+            "meta": {"name": "Alpha meta", "description": "only-a", "presets": ["smoke"]},
+        }, headers) as response:
+            written = json.loads(response.read())
+        self.assertEqual(written["context"]["projectId"], "alpha")
+        self.assertEqual(written["meta"]["name"], "Alpha meta")
+        with self._get("/api/dashboard-state?projectId=beta") as response:
+            beta = json.loads(response.read())
+        self.assertEqual(beta["context"]["projectId"], "beta")
+        self.assertIsNone(beta["meta"])
+        with self._get("/api/dashboard-state?projectId=alpha") as response:
+            alpha = json.loads(response.read())
+        self.assertEqual(alpha["meta"]["name"], "Alpha meta")
+        with self.assertRaises(HTTPError) as stale:
+            self._post("/api/dashboard-state?projectId=alpha", {
+                "revision": 0,
+                "action": "save-meta",
+                "meta": {"name": "Stale", "description": "", "presets": ["smoke"]},
+            }, headers)
+        self.assertEqual(stale.exception.code, 409)
+
     def test_cross_project_job_and_log_hide_bytes(self):
         for suffix in ("/api/job?projectId=beta&jobId=job-a",
                        "/api/log?projectId=beta&jobId=job-a",

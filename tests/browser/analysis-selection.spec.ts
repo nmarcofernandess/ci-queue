@@ -194,6 +194,83 @@ test('AN-05 keeps menu order while a newer ranking arrives', async ({ page }) =>
   await expect(page.getByRole('cell', { name: 'teste-pequeno' })).toBeVisible()
 })
 
+test('AN-05 custom keeps the chosen ids after a newer ranking arrives', async ({ page }) => {
+  let presets = fixture.rankingSample
+  await page.clock.install()
+  await page.addInitScript(() => localStorage.setItem('ci-queue.lastProjectId', 'example'))
+  await page.route('**/health', (route) =>
+    route.fulfill({ json: { ok: true, apiVersion: 1, serverTime: new Date().toISOString() } })
+  )
+  await page.route('**/api/**', async (route) => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/api/analysis' && url.searchParams.get('metric') === 'results') {
+      await route.fulfill({
+        json: {
+          schemaVersion: 2,
+          metric: 'results',
+          context,
+          from: null,
+          to: null,
+          sampleCount: presets.reduce((sum, row) => sum + row.total, 0),
+          presets,
+        },
+      })
+      return
+    }
+    await route.fulfill({
+      json: url.pathname === '/api/projects'
+        ? {
+            schemaVersion: 1,
+            registryRevision: 1,
+            bootstrapProjectId: 'example',
+            observedUnregistered: [],
+            projects: [{
+              id: 'example',
+              displayName: 'Example',
+              repositoryPath: '/example',
+              configPath: null,
+              archivedAt: null,
+              revision: 1,
+              bindingState: 'unlinked',
+            }],
+          }
+        : url.pathname === '/api/preset-history'
+          ? { presets: [], context }
+          : { csrfToken: 'fixture' },
+    })
+  })
+  await page.goto('/#analysis')
+  await expect(page.getByRole('cell', { name: 'smoketest' })).toBeVisible()
+  await page.getByRole('button', { name: '10 mais executados' }).click()
+  await page.getByRole('checkbox', { name: /clinical-readonly/ }).click()
+  await expect(page.getByRole('button', { name: '9 selecionados' })).toBeVisible()
+  presets = fixture.rankingSample.map((row) =>
+    row.preset === 'teste-pequeno'
+      ? { ...row, passed: 2000, failed: 0, cancelled: 0, interrupted: 0, total: 2000 }
+      : row
+  )
+  await page.clock.runFor(30_000)
+  await expect(page.getByRole('checkbox').first()).toHaveAccessibleName(/smoketest/)
+  await page.getByRole('dialog', { name: 'Presets de Resultados' }).press('Escape')
+  await expect(page.getByRole('button', { name: '9 selecionados' })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'teste-pequeno' })).toHaveCount(0)
+  await expect(page.getByRole('cell', { name: 'clinical-readonly' })).toHaveCount(0)
+})
+
+test('UI-02 results menu keeps search and shortcuts while scrolling long names', async ({ page }) => {
+  await installAnalysis(page)
+  await page.goto('/#analysis')
+  await page.getByRole('button', { name: '10 mais executados' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Presets de Resultados' })
+  await expect(dialog.getByLabel('Buscar preset')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: '10 mais executados' })).toBeVisible()
+  await dialog.getByLabel('Buscar preset').fill('clinical-readonly')
+  await expect(dialog.getByRole('checkbox', { name: /clinical-readonly/ })).toBeVisible()
+  await expect(dialog.getByRole('checkbox', { name: /smoketest/ })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+})
+
 test('AN-06 and AN-07 keep empty custom, all, and duration independent', async ({ page }) => {
   await installAnalysis(page)
   await page.goto('/#analysis')

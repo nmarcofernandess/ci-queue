@@ -23,7 +23,7 @@ export function FilterSelect({
   className?: string
 }) {
   return (
-    <Select value={value || undefined} onValueChange={onValueChange}>
+    <Select key={value || "empty"} value={value || undefined} onValueChange={onValueChange}>
       <SelectTrigger aria-label={label} className={className ?? "max-w-56 min-w-0"}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>

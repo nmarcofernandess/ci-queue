@@ -51,7 +51,7 @@ export function fixtureDashboard(): DashboardState {
   }
 }
 export const fixtureAnalysis: AnalysisResponse = { schemaVersion:1,projectId:'example',from:null,to:null,preset:null,total:12,coverage:{unattributedRecords:0},presets:['smoketest','static','full'].map((preset,i)=>({preset,passed:2,failed:1,cancelled:1,interrupted:0,total:4,passRate:50,points:i===2?[]:[{id:'fixture-passed',at:'2026-09-14T12:00:00Z',durationMs:62000},{id:'fixture-failed',at:'2026-09-15T11:00:00Z',durationMs:92000}],duration:{count:i===2?0:2,medianMs:i===2?null:77000,minMs:i===2?null:62000,maxMs:i===2?null:92000},failedDurationMs:92000,failedDurationCount:1,failedDurationMissing:0})) }
-export type FixtureOptions = { empty?: boolean; error?: boolean; saveError?: boolean; theme?:'light'|'dark'|'system' }
+export type FixtureOptions = { empty?: boolean; error?: boolean; saveError?: boolean; theme?:'light'|'dark'|'system'; displayName?: string }
 export async function installConsistencyFixtures(page: Page, options: FixtureOptions = {}) {
   await page.clock.install({ time: fixtureNow })
   await page.addInitScript((theme) => {
@@ -79,10 +79,11 @@ export async function installConsistencyFixtures(page: Page, options: FixtureOpt
     const log=Array.from({length:160},(_,i)=>`line ${i}: fixture output available for native text selection`).join('\n')+'\n'
     const offset=Number(url.searchParams.get('offset')??0)
     const context = { kind: 'project', projectId: 'example' }
+    const displayName = options.displayName ?? 'Example'
     const data: Record<string, unknown> = {
-      '/api/projects': { schemaVersion:1, registryRevision:1, bootstrapProjectId:'example', observedUnregistered:[], projects:[{id:'example',displayName:'Example',repositoryPath:'/example',configPath:'/example/ci-queue.json',archivedAt:null,revision:1,bindingState:'linked'}] },
+      '/api/projects': { schemaVersion:1, registryRevision:1, bootstrapProjectId:'example', observedUnregistered:[], projects:[{id:'example',displayName,repositoryPath:'/example',configPath:'/example/ci-queue.json',archivedAt:null,revision:1,bindingState:'linked'}] },
       '/api/session': { csrfToken: 'fixture', canReveal: true, revealTargets:['directory'], clipboardLimitBytes: 1000000 },
-      '/api/status': { schemaVersion:1,serverTime:fixtureNow.toISOString(),project: { id: 'example', name: 'Example' }, running: options.empty?null:fixtureJob, queued: options.empty?[]:[{...fixtureJob,id:'fixture-queued',preset:'queued-run',status:'queued',startedAt:undefined,progressSummary:undefined}], history: options.empty?[]:fixtureTerminals,lastFailed:null, globalOccupancy: !options.empty, otherProjectOccupancy:false, context },
+      '/api/status': { schemaVersion:1,serverTime:fixtureNow.toISOString(),project: { id: 'example', name: displayName }, running: options.empty?null:fixtureJob, queued: options.empty?[]:[{...fixtureJob,id:'fixture-queued',preset:'queued-run',status:'queued',startedAt:undefined,progressSummary:undefined}], history: options.empty?[]:fixtureTerminals,lastFailed:null, globalOccupancy: !options.empty, otherProjectOccupancy:false, context },
       '/api/executions': { schemaVersion:1,jobs: options.empty||url.searchParams.get('q')?[]:fixtureTerminals, hasMore: false, snapshotBefore:fixtureNow.toISOString(),nextCursor: null, coverage: { unattributedRecords: 0 }, context },
       '/api/dashboard-state': { ...state, context },
       '/api/machine': {schemaVersion:1,observedAt:fixtureNow.toISOString(),disk:{totalBytes:2000000000,usedBytes:1000000000,freeBytes:1000000000},error:null},

@@ -98,6 +98,16 @@ class ProjectRegistryTests(unittest.TestCase):
         mode = stat.S_IMODE((self.state / "state" / "projects.json").stat().st_mode)
         self.assertEqual(mode, 0o600)
 
+    def test_registration_survives_reread_without_rewrite(self):
+        repo = _init_repo(self.root / "repo")
+        config = _write_config(repo)
+        bootstrap_registry(self.state, config)
+        path = self.state / "state" / "projects.json"
+        before = path.read_bytes()
+        document = read_registry(self.state)
+        self.assertEqual(list(document["projects"]), ["alpha"])
+        self.assertEqual(path.read_bytes(), before)
+
     def test_invalid_first_bootstrap_does_not_invent_a_project(self):
         repo = _init_repo(self.root / "broken")
         config = repo / "ci-queue.json"
