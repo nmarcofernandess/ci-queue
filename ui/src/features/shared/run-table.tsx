@@ -96,10 +96,10 @@ function detailId(job: RunTableJob) {
 
 function columnClass(id: string) {
   if (id === "status") return "w-16"
-  if (id === "execution") return "w-36"
-  if (id === "time") return "w-36"
+  if (id === "execution") return "w-52"
+  if (id === "time") return "w-28"
   if (id === "duration") return "w-20"
-  if (id === "actions") return "w-10"
+  if (id === "actions") return "w-14 text-right"
   return undefined
 }
 

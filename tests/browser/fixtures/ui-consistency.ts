@@ -18,7 +18,27 @@ export const fixtureJob: JobRecord = {
   cwd: '/example/projects/a-long-project-name/checkout-with-a-long-directory-name', commitSubject:'Preserve readable progress and shared detail composition',
   progressSummary: { available: true, schemaVersion: 1, nodes: fixtureNodes, roots: fixtureNodes.filter(n => !n.parentId), active: fixtureNodes.filter(n => n.status === 'running') },
 }
-export const fixtureTerminals: JobRecord[] = (['passed','failed','cancelled','interrupted'] as const).map((status,i)=>({...fixtureJob,id:`fixture-${status}`,preset:`${status}-run`,status,headSha:(i%2?'b':'a').repeat(i%2?64:40),finishedAt:'2026-09-15T11:55:00Z',startedAt:status==='cancelled'?undefined:'2026-09-15T11:54:00Z',durationMs:i===2?null:62000, failureReason:status==='failed'?'A recorded fixture assertion failed':null}))
+const nodesWithoutRetries = fixtureNodes.map(node => ({
+  ...node,
+  retryCount: undefined,
+}))
+const progressWithoutRetries = {
+  ...fixtureJob.progressSummary!,
+  nodes: nodesWithoutRetries,
+  roots: nodesWithoutRetries.filter(node => !node.parentId),
+  active: nodesWithoutRetries.filter(node => node.status === 'running'),
+}
+export const fixtureTerminals: JobRecord[] = [
+  ...(['passed','failed','cancelled','interrupted'] as const).map((status,i)=>({...fixtureJob,id:`fixture-${status}`,preset:`${status}-run`,status,headSha:(i%2?'b':'a').repeat(i%2?64:40),finishedAt:'2026-09-15T11:55:00Z',startedAt:status==='cancelled'?undefined:'2026-09-15T11:54:00Z',durationMs:i===2?null:62000, failureReason:status==='failed'?'A recorded fixture assertion failed':null,progressSummary:status==='failed'?progressWithoutRetries:fixtureJob.progressSummary})),
+  {
+    ...fixtureJob,
+    id: 'fixture-long-preset',
+    preset: 'a-very-long-preset-name-for-density',
+    status: 'passed',
+    finishedAt: '2026-09-15T11:55:00Z',
+    durationMs: 62000,
+  },
+]
 export const fixtureTrees: WorktreeRecord[] = ['example-clean', 'example-dirty', 'example-measuring'].map((id, index) => ({
   id, path: `/example/projects/${id}`, branch: `feature/${id}`, headSha: 'b'.repeat(64),
   dirty: index === 1, changedEntries: index, ahead: 2, behind: 3, locked: false,

@@ -1,4 +1,4 @@
-import type { ComponentProps, ReactNode } from "react"
+import { useRef, useState, type ComponentProps, type ReactNode } from "react"
 import { XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -20,13 +20,29 @@ export function DetailDrawer({
   onClose: () => void
 }) {
   const isMobile = useIsMobile()
+  const [open, setOpen] = useState(true)
+  const returnFocus = useRef<HTMLElement | null>(
+    typeof document === "undefined"
+      ? null
+      : (document.activeElement as HTMLElement | null)
+  )
   return (
     <Drawer
-      open
+      open={open}
+      autoFocus
       direction={isMobile ? "bottom" : "right"}
-      onOpenChange={(open) => !open && onClose()}
+      onOpenChange={setOpen}
+      onAnimationEnd={(isOpen) => !isOpen && onClose()}
     >
-      <DrawerContent size="detail">{children}</DrawerContent>
+      <DrawerContent
+        size="detail"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          returnFocus.current?.focus()
+        }}
+      >
+        {children}
+      </DrawerContent>
     </Drawer>
   )
 }

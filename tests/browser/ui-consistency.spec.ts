@@ -247,6 +247,100 @@ test('table gutters, wide stages and zoom retain structural alignment',async({pa
   await expect(drawer).toHaveCount(0)
 })
 
+test('review regressions keep dense identities and table actions inside their cells',async({page})=>{
+  await page.setViewportSize({width:640,height:1000})
+  await installConsistencyFixtures(page)
+  await page.goto('/#status')
+
+  const history=page.getByRole('table',{name:'Execuções'}).last()
+  const flakyRow=history.getByRole('row').filter({has:page.getByRole('button',{name:'passed-run',exact:true})})
+  const plainRow=history.getByRole('row').filter({has:page.getByRole('button',{name:'failed-run',exact:true})})
+  const longRow=history.getByRole('row').filter({has:page.getByRole('button',{name:'a-very-long-preset-name-for-density',exact:true})})
+  const flakyIdentity=flakyRow.locator('[data-slot=entity-identity]')
+  const titleBox=(await flakyIdentity.getByRole('button',{name:'passed-run',exact:true}).boundingBox())!
+  const badgeBox=(await flakyIdentity.getByText('Flaky detectado',{exact:true}).boundingBox())!
+  expect(Math.abs((titleBox.y+titleBox.height/2)-(badgeBox.y+badgeBox.height/2))).toBeLessThanOrEqual(1)
+  expect((await flakyRow.boundingBox())!.height).toBe((await plainRow.boundingBox())!.height)
+  await expect(longRow.getByText('Flaky detectado',{exact:true})).toBeVisible()
+
+  const historyAction=flakyRow.getByRole('button',{name:'Ver passed-run',exact:true})
+  const actionGeometry=await historyAction.evaluate(button=>{
+    const cell=button.closest('td')!
+    const b=button.getBoundingClientRect(),c=cell.getBoundingClientRect(),style=getComputedStyle(cell)
+    return {left:b.left,right:b.right,contentLeft:c.left+parseFloat(style.paddingLeft),contentRight:c.right-parseFloat(style.paddingRight)}
+  })
+  expect(actionGeometry.left).toBeGreaterThanOrEqual(actionGeometry.contentLeft-1)
+  expect(actionGeometry.right).toBeLessThanOrEqual(actionGeometry.contentRight+1)
+  const historyScroller=history.locator('..')
+  await historyScroller.evaluate(element=>{element.scrollLeft=element.scrollWidth})
+  await historyAction.hover()
+  await historyAction.focus()
+  await expect(historyAction).toBeFocused()
+  await page.keyboard.press('Enter')
+  await inspectDrawer(page)
+  await closeDrawer(page)
+  await expect(historyAction).toBeFocused()
+  await shot(page,'review-640-light-history-table')
+
+  await page.getByRole('radio',{name:'Últimos verdes',exact:true}).click()
+  await page.getByRole('combobox').filter({hasText:'Por preset'}).click()
+  await page.getByRole('option',{name:'Por commit',exact:true}).click()
+  const commits=page.getByRole('table',{name:'Commits verdes',exact:true})
+  const commitRow=commits.getByRole('row').nth(1)
+  const timeCell=commitRow.getByRole('cell').nth(2)
+  expect(await timeCell.evaluate(cell=>cell.scrollWidth<=cell.clientWidth+1)).toBe(true)
+  const countCell=commitRow.getByRole('cell').nth(3)
+  const originCell=commitRow.getByRole('cell').nth(4)
+  expect(await countCell.evaluate(cell=>cell.scrollWidth<=cell.clientWidth+1)).toBe(true)
+  expect(await originCell.evaluate(cell=>cell.scrollWidth<=cell.clientWidth+1)).toBe(true)
+  const commitAction=commitRow.getByRole('button',{name:/Ver commit/})
+  const commitActionGeometry=await commitAction.evaluate(button=>{
+    const cell=button.closest('td')!
+    const b=button.getBoundingClientRect(),c=cell.getBoundingClientRect(),style=getComputedStyle(cell)
+    return {left:b.left,right:b.right,contentLeft:c.left+parseFloat(style.paddingLeft),contentRight:c.right-parseFloat(style.paddingRight)}
+  })
+  expect(commitActionGeometry.left).toBeGreaterThanOrEqual(commitActionGeometry.contentLeft-1)
+  expect(commitActionGeometry.right).toBeLessThanOrEqual(commitActionGeometry.contentRight+1)
+  const commitScroller=commits.locator('..')
+  await commitScroller.evaluate(element=>{element.scrollLeft=element.scrollWidth})
+  await shot(page,'review-640-light-commit-list')
+  await commitAction.hover()
+  await commitAction.focus()
+  await expect(commitAction).toBeFocused()
+  await page.keyboard.press('Enter')
+  const commitDrawer=await inspectDrawer(page)
+  const drawerTable=commitDrawer.getByRole('table',{name:'Execuções do commit',exact:true})
+  const drawerAction=drawerTable.getByRole('button',{name:'Ver smoketest',exact:true})
+  const drawerActionGeometry=await drawerAction.evaluate(button=>{
+    const cell=button.closest('td')!
+    const b=button.getBoundingClientRect(),c=cell.getBoundingClientRect(),style=getComputedStyle(cell)
+    return {left:b.left,right:b.right,contentLeft:c.left+parseFloat(style.paddingLeft),contentRight:c.right-parseFloat(style.paddingRight)}
+  })
+  expect(drawerActionGeometry.left).toBeGreaterThanOrEqual(drawerActionGeometry.contentLeft-1)
+  expect(drawerActionGeometry.right).toBeLessThanOrEqual(drawerActionGeometry.contentRight+1)
+  await drawerTable.locator('..').evaluate(element=>{element.scrollLeft=element.scrollWidth})
+  await shot(page,'review-640-light-commit-drawer-table')
+  await closeDrawer(page)
+  await expect(commitAction).toBeFocused()
+})
+
+test('drawer keyboard flow traps and returns focus to its trigger',async({page})=>{
+  await page.setViewportSize({width:1440,height:1000})
+  await installConsistencyFixtures(page)
+  await page.goto('/#status')
+  const trigger=page.locator('[data-presentation=current]').getByRole('button',{name:'smoketest',exact:true})
+  await trigger.focus()
+  await page.keyboard.press('Enter')
+  const drawer=await inspectDrawer(page)
+  await page.keyboard.press('Tab')
+  expect(await drawer.evaluate((element)=>element.contains(document.activeElement))).toBe(true)
+  await page.keyboard.press('Shift+Tab')
+  expect(await drawer.evaluate((element)=>element.contains(document.activeElement))).toBe(true)
+  await page.keyboard.press('Escape')
+  await expect(drawer).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+})
+
 test('worktrees and analysis distinguish loading from errors',async({page})=>{
   await installConsistencyFixtures(page)
   let release!:()=>void

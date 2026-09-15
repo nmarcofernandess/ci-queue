@@ -62,7 +62,12 @@ export function EntityIdentity({
         </ItemMedia>
       ) : null}
       <ItemContent className="min-w-0 gap-0">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <div
+          className={cn(
+            "flex min-w-0 items-center gap-x-2 gap-y-1",
+            presentation === "table" ? "flex-nowrap" : "flex-wrap"
+          )}
+        >
           {presentation === "drawer" ? (
             <DrawerTitle className={titleClass}>{title}</DrawerTitle>
           ) : onOpen ? (
@@ -71,15 +76,30 @@ export function EntityIdentity({
               onClick={onOpen}
               className={cn(
                 "h-auto max-w-full min-w-0 justify-start p-0 text-left",
+                presentation === "table" &&
+                  "min-w-0 flex-1 shrink overflow-hidden",
                 titleClass
               )}
+              title={presentation === "table" ? title : undefined}
             >
-              {title}
+              <span
+                className={cn(
+                  presentation === "table" && "block min-w-0 truncate"
+                )}
+              >
+                {title}
+              </span>
             </Button>
           ) : (
             <span className={titleClass}>{title}</span>
           )}
-          {badge}
+          {badge ? (
+            presentation === "table" ? (
+              <span className="shrink-0">{badge}</span>
+            ) : (
+              badge
+            )
+          ) : null}
         </div>
         {description != null ? (
           presentation === "drawer" ? (
