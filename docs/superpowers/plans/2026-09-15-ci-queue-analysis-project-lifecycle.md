@@ -14,9 +14,11 @@
 - [Decisões](./2026-09-15-ci-queue-analysis-project-lifecycle/01-DECISOES-E-REVIEW.md)
 - [Contratos](./2026-09-15-ci-queue-analysis-project-lifecycle/02-CONTRATOS.md)
 - [Plano detalhado](./2026-09-15-ci-queue-analysis-project-lifecycle/03-PLANO-EXECUTAVEL.md)
+- [Aceite](./2026-09-15-ci-queue-analysis-project-lifecycle/04-ACEITE-E-CENARIOS.md)
+- [Roadmap](./2026-09-15-ci-queue-analysis-project-lifecycle/05-ROADMAP-E-FONTES.md)
 - [Casos sintéticos de Análise](./2026-09-15-ci-queue-analysis-project-lifecycle/fixtures/analysis-cases.json)
 
-`04-ACEITE-E-CENARIOS.md` e `05-ROADMAP-E-FONTES.md` não estavam no disco do pacote. O aceite usa os IDs de `01` (A-01…C-01), a matriz de `02` e as transições de `03`. O roadmap permanente será reconciliado em B7 a partir de `01` §7 e dos contratos, sem inventar etapas 2–5.
+`04` e `05` chegaram no corpo da entrega, não como anexos. O aceite obrigatório usa os IDs AN/PR/SC/UI/SE/EV. O roadmap permanente será reconciliado em B7 a partir deste texto, sem inventar etapas 2–5.
 
 ## Substituições autorizadas
 
