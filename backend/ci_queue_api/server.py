@@ -433,6 +433,9 @@ def create_handler(context):
                 ), scope, revision))
                 return
             if path == "/api/analysis":
+                metric = query.get("metric", [""])[0]
+                if metric == "duration":
+                    require_capability(project, "duration")
                 source = project.config
                 if source is None:
                     source = type("AnalysisSource", (), {
@@ -443,6 +446,7 @@ def create_handler(context):
                     self.api_context.state_root, source,
                     query.get("from", [""])[0], query.get("to", [""])[0],
                     query.get("preset", [""])[0],
+                    metric,
                 ), scope, revision))
                 return
             if path == "/api/worktrees":

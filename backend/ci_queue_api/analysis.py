@@ -12,20 +12,20 @@ def _duration(job):
     return value if type(value) in (int, float) and math.isfinite(value) and value >= 0 and parse_instant(job.get("startedAt")) else None
 
 
-def read_analysis(state_root, config, from_time="", to_time="", preset=""):
+def _bounds(from_time, to_time):
     lower = parse_instant(from_time) if from_time else None
     upper = parse_instant(to_time) if to_time else None
     if (from_time and lower is None) or (to_time and upper is None) or (lower and upper and lower >= upper):
         raise ValueError("intervalo inválido")
-    if preset and preset not in config.presets:
-        # An unknown recipe must not look like an empty duration series for an
-        # arbitrary similarly named historical job.
-        raise ValueError("preset não declarado")
+    return lower, upper
 
+
+def _project_terminals(state_root, project_id, from_time, to_time, preset=""):
+    lower, upper = _bounds(from_time, to_time)
     rows = []
     unknown = 0
     for job in read_history(state_root):
-        if job.get("projectId") != config.project_id:
+        if job.get("projectId") != project_id:
             if job.get("projectId") is None:
                 unknown += 1
             continue
@@ -38,6 +38,45 @@ def read_analysis(state_root, config, from_time="", to_time="", preset=""):
             continue
         rows.append(job)
     rows.sort(key=lambda job: (str(job.get("finishedAt") or ""), str(job.get("id") or "")), reverse=True)
+    return rows, unknown
+
+
+def read_results(state_root, config, from_time="", to_time=""):
+    rows, _unknown = _project_terminals(state_root, config.project_id, from_time, to_time)
+    groups = {}
+    for job in rows:
+        name = job.get("preset") or "Não informado"
+        group = groups.setdefault(name, {
+            "preset": name, "passed": 0, "failed": 0, "cancelled": 0, "interrupted": 0,
+        })
+        status = job.get("status")
+        if status in group:
+            group[status] += 1
+    presets = []
+    for group in groups.values():
+        group["total"] = sum(group[key] for key in ("passed", "failed", "cancelled", "interrupted"))
+        presets.append(group)
+    presets.sort(key=lambda group: group["preset"])
+    return {
+        "schemaVersion": 2,
+        "metric": "results",
+        "projectId": config.project_id,
+        "from": from_time or None,
+        "to": to_time or None,
+        "presets": presets,
+        "sampleCount": sum(item["total"] for item in presets),
+    }
+
+
+def read_analysis(state_root, config, from_time="", to_time="", preset="", metric=""):
+    if metric == "results":
+        return read_results(state_root, config, from_time, to_time)
+    if metric not in {"", "duration"}:
+        raise ValueError("metric inválida")
+    rows, unknown = _project_terminals(state_root, config.project_id, from_time, to_time, preset)
+    if preset and preset not in getattr(config, "presets", {}):
+        raise ValueError("preset não declarado")
+
     groups = {}
     for job in rows:
         name = job.get("preset") or "Não informado"
