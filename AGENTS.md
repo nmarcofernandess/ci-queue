@@ -19,6 +19,15 @@ tests. A consuming project owns its recipes, preparation and test harness.
 
 ## UI: retrieve, select, adapt
 
+Before changing UI, read `DESIGN.md`, locate the surface in
+`.context/domains/manifest.yaml` and open `.context/patterns/ui-composition.yaml`.
+Recover the installed composition and its consumers before JSX. Features pass
+data/actions; shared owners decide geometry/presentation. Family corrections
+must verify all consumers. Types/lint prove mechanical limits; the rendered
+candidate proves composition. Internal review never implies human approval.
+Work requested against dev does not authorize main promotion or installation.
+
+
 Treat shadcn as the available construction vocabulary, never as a styling
 constraint applied after generating markup.
 

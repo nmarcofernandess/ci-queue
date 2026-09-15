@@ -81,7 +81,7 @@ Execuções oferece período Todo período, Hoje, 48h, Semana ou 15 dias, e resu
 - Log vivo abre acompanhando o final. Enquanto o usuário permanece no fim, novas linhas mantêm o scroll no fim; subir pausa o acompanhamento sem parar a leitura. **Acompanhar** ou **Ir ao fim** retoma conforme o job esteja vivo ou terminal.
 - Diagnóstico abre em Popover no footer e permite copiar/baixar o bundle; nunca vira um card abaixo do log.
 - Copiar contexto usa o mesmo conjunto de fatos visíveis e não inventa campos.
-- Não existe botão Fechar redundante no footer; o X do header e os gestos do Drawer encerram a superfície.
+- Não existe botão Fechar redundante no footer; o X do header, Escape e overlay encerram a superfície; arrastar o conteúdo não fecha.
 
 ## Worktrees
 
@@ -146,3 +146,10 @@ Etapas concluídas conservam seu resultado. Se o ticket encerrou e deixou etapas
 pendentes/em execução no registro, elas não animam nem aparentam atividade viva;
 a apresentação informa o encerramento sem inventar conclusão ou alterar arquivos.
 O conteúdo do drawer permite seleção nativa de texto e não fecha por arraste.
+
+## Proprietários de composição
+
+Identidade completa, cinco drawers, fichas, tabelas e indicadores usam os donos
+compartilhados mapeados em `.context/patterns/ui-composition.yaml`. DESIGN.md
+explica a linguagem visual; presentation.ts contém a escala executável. Esta
+centralização não altera filtros, tempos, ações, dados ou semântica aprovada.

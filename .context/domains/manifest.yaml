@@ -1,0 +1,42 @@
+version: 1
+project: ci-queue
+read_first:
+  - AGENTS.md
+  - DESIGN.md
+  - docs/ui/PRODUCT-CONTRACT.md
+patterns:
+  ui: .context/patterns/ui-composition.yaml
+system_map:
+  status:
+    route: "#status"
+    entry: ui/src/features/status/status-page.tsx
+    patterns: [ui]
+    related:
+      - ui/src/features/shared/run-table.tsx
+      - ui/src/features/shared/job-drawer.tsx
+      - ui/src/features/status/status-state-drawer.tsx
+      - ui/src/features/status/green-commit-table.tsx
+  worktrees:
+    route: "#worktrees"
+    entry: ui/src/features/worktrees/worktrees-page.tsx
+    patterns: [ui]
+    related:
+      - ui/src/features/shared/detail-drawer.tsx
+      - ui/src/features/shared/facts-table.tsx
+      - ui/src/features/shared/data-table-frame.tsx
+  analysis:
+    route: "#analysis"
+    entry: ui/src/features/analysis/analysis-page.tsx
+    patterns: [ui]
+    related:
+      - ui/src/components/ui/chart.tsx
+      - ui/src/features/shared/data-table-frame.tsx
+  shell:
+    entry: ui/src/App.tsx
+    related:
+      - ui/src/components/app-sidebar.tsx
+      - ui/src/components/site-header.tsx
+  data_boundary:
+    entry: ui/src/lib/api.ts
+    types: ui/src/lib/types.ts
+    rule: "Features consomem os fatos atuais; composições visuais não fazem fetch."

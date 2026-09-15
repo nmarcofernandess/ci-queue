@@ -299,15 +299,17 @@ test('current stages fit eight, overflow horizontally and follow without stealin
   })
   expect(geometry.eighth - geometry.first).toBeLessThanOrEqual(geometry.width + 1)
   expect(geometry.total).toBeGreaterThan(geometry.width)
+  // The status snapshot polls every 10 seconds; wait for its next published state.
   active = 10
-  await page.clock.fastForward(6000)
+  await page.clock.fastForward(10_000)
+  await expect(strip.locator('[data-stage-index="10"]').getByLabel("Em execução", {exact:true})).toBeVisible()
   await expect.poll(() => viewport.evaluate(el => el.scrollLeft)).toBeGreaterThan(0)
   await viewport.hover()
   await page.mouse.wheel(-1200, 0)
   await expect.poll(() => viewport.evaluate(el => el.scrollLeft)).toBe(0)
   active = 11
-  await page.clock.fastForward(6000)
-  await expect(strip.getByText('Etapa 12', {exact:true})).toBeAttached()
+  await page.clock.fastForward(10_000)
+  await expect(strip.locator('[data-stage-index="11"]').getByLabel("Em execução", {exact:true})).toBeAttached()
   expect(await viewport.evaluate(el => el.scrollLeft)).toBe(0)
   await page.setViewportSize({width:390,height:844})
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)

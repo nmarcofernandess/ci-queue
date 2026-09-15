@@ -124,14 +124,14 @@ chevrons point down while open and right while closed. Drawer content permits
 native text selection; dragging content must never dismiss the drawer. Closing
 remains available through Close, Escape and the outside overlay.
 
-## Execution identity scale — approved 15 September 2026
+## Shared composition ownership — etapa 1
 
-Identity -> official ItemMedia + ItemContent; drawer retains DrawerTitle and
-DrawerDescription for accessible semantics. Current title is 20 px, drawer
-uses the native Nova 16 px title and 14 px description, history retains its
-compact table typography. JobStatusIcon owns explicit current/drawer/table
-sizes (48/44/16 px glyphs); callers never resize descendant SVGs.
-Drawer identity is left-aligned with zero gap between its two text lines.
-These are product presentation choices, not official shadcn variants.
-Metadata may wrap naturally on narrow screens; neither text nor icon scales
-to force a fixed two-line height.
+The previous indicator-only scale is superseded by `presentation.ts` and the
+complete `EntityIdentity` composition. Executable values live only in code;
+`DESIGN.md` explains their roles. DetailDrawer owns all five detail surfaces,
+FactsTable owns their metadata sheets, DataTableFrame owns list gutters, and
+ProgressTree/ExecutionStages share StatusIndicator descriptors. These compose
+installed Nova primitives; they add no backend or data model.
+
+This candidate is subject to human review. Prior approvals do not approve this
+new family implementation. See the etapa-1 evidence index for actual proof.

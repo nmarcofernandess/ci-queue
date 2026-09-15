@@ -1,3 +1,4 @@
+import { DataTableFrame } from "@/features/shared/data-table-frame"
 import * as React from "react"
 import {
   Bar,
@@ -42,7 +43,6 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -215,41 +215,37 @@ function ResultsChart({
             </BarChart>
           </ChartContainer>
         </div>
-        <div className="overflow-hidden rounded-lg border">
-          <Table>
-            <TableHeader className="bg-muted">
-              <TableRow>
-                <TableHead>Preset</TableHead>
-                <TableHead className="text-right">Passou</TableHead>
-                <TableHead className="text-right">Falhou</TableHead>
-                <TableHead className="text-right">Cancelado</TableHead>
-                <TableHead className="text-right">Interrompido</TableHead>
-                <TableHead className="text-right">Total</TableHead>
+        <DataTableFrame placement="body" label="Resultados por preset">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Preset</TableHead>
+              <TableHead className="text-right">Passou</TableHead>
+              <TableHead className="text-right">Falhou</TableHead>
+              <TableHead className="text-right">Cancelado</TableHead>
+              <TableHead className="text-right">Interrompido</TableHead>
+              <TableHead className="text-right">Total</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {presets.map((preset) => (
+              <TableRow key={preset.preset}>
+                <TableCell className="font-medium">{preset.preset}</TableCell>
+                <TableCell className="text-right">{preset.passed}</TableCell>
+                <TableCell className="text-right">{preset.failed}</TableCell>
+                <TableCell className="text-right">{preset.cancelled}</TableCell>
+                <TableCell className="text-right">
+                  {preset.interrupted}
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {preset.passed +
+                    preset.failed +
+                    preset.cancelled +
+                    preset.interrupted}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {presets.map((preset) => (
-                <TableRow key={preset.preset}>
-                  <TableCell className="font-medium">{preset.preset}</TableCell>
-                  <TableCell className="text-right">{preset.passed}</TableCell>
-                  <TableCell className="text-right">{preset.failed}</TableCell>
-                  <TableCell className="text-right">
-                    {preset.cancelled}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {preset.interrupted}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {preset.passed +
-                      preset.failed +
-                      preset.cancelled +
-                      preset.interrupted}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+            ))}
+          </TableBody>
+        </DataTableFrame>
       </CardContent>
     </Card>
   )

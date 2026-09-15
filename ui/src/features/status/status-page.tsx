@@ -1,7 +1,9 @@
+import { EntityIdentity } from "@/features/shared/entity-identity"
+import { describeJobState } from "@/features/shared/presentation"
+import { ExecutionStages } from "@/features/shared/execution-stages"
 import { Badge } from "@/components/ui/badge"
 import { JobTimeline } from "@/features/shared/live-time"
 import * as React from "react"
-import { statusColor } from "@/features/shared/status-color"
 
 import {
   getDashboardState,
@@ -15,9 +17,7 @@ import {
 } from "@/lib/api"
 import type {
   DashboardState,
-  JobStatus,
   PresetHistoryEntry,
-  ProgressNode,
   RemoteGreen,
   StatusSnapshot,
 } from "@/lib/types"
@@ -43,8 +43,6 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item"
-import { Separator } from "@/components/ui/separator"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -64,16 +62,11 @@ import {
 import { ErrorState } from "@/features/shared/async-state"
 import {
   formatBytes,
-  formatDuration,
   shortSha,
   queryPeriodStart,
 } from "@/features/shared/format"
 import { JobDrawer } from "@/features/shared/job-drawer"
-import {
-  JobStatusIcon,
-  type RunTableJob,
-  RunTable,
-} from "@/features/shared/run-table"
+import { type RunTableJob, RunTable } from "@/features/shared/run-table"
 import { StatusStateDrawer } from "@/features/status/status-state-drawer"
 import {
   GreenCommitDrawer,
@@ -88,9 +81,7 @@ import {
   CircleDotIcon,
   HardDriveIcon,
   EyeIcon,
-  LoaderCircleIcon,
   SearchIcon,
-  XCircleIcon,
 } from "lucide-react"
 
 type HistoryResult = "all" | "passed" | "failed" | "cancelled" | "interrupted"
@@ -98,86 +89,6 @@ type Period = "all" | "today" | "48h" | "week" | "15d"
 type HistoryMode = "executions" | "greens"
 type GreenOrigin = "machine" | "git" | "both"
 type GreenGrouping = "preset" | "commit"
-
-function stageIcon(status: JobStatus | "pending" | "skipped") {
-  if (status === "passed") {
-    return CheckCircle2Icon
-  }
-  if (
-    status === "failed" ||
-    status === "interrupted" ||
-    status === "cancelled"
-  ) {
-    return XCircleIcon
-  }
-  if (status === "running") {
-    return LoaderCircleIcon
-  }
-  return CircleDotIcon
-}
-
-function ExecutionStages({ stages }: { stages: ProgressNode[] }) {
-  const root = React.useRef<HTMLDivElement>(null)
-  const following = React.useRef(true)
-  const activeIndex = stages.findIndex((stage) => stage.status === "running")
-  const targetIndex = activeIndex >= 0 ? activeIndex : stages.length - 1
-  const targetId = stages[targetIndex]?.id
-
-  React.useEffect(() => {
-    const viewport = root.current?.querySelector<HTMLElement>(
-      '[data-slot="scroll-area-viewport"]'
-    )
-    if (!viewport) return
-    const track = () => {
-      if (viewport.scrollWidth - viewport.clientWidth - viewport.scrollLeft < 24) following.current = true
-    }
-    viewport.addEventListener("scroll", track, { passive: true })
-    return () => viewport.removeEventListener("scroll", track)
-  }, [])
-
-  React.useEffect(() => {
-    if (!following.current) return
-    const viewport = root.current?.querySelector<HTMLElement>(
-      '[data-slot="scroll-area-viewport"]'
-    )
-    const target = root.current?.querySelector<HTMLElement>(`[data-stage-index="${targetIndex}"]`)
-    if (!viewport || !target) return
-    // Move only this strip, never the page or the execution drawer.
-    const right = target.offsetLeft + target.offsetWidth
-    if (right > viewport.scrollLeft + viewport.clientWidth) {
-      viewport.scrollLeft = right - viewport.clientWidth
-    }
-  }, [targetId, targetIndex])
-
-  return (
-    <ScrollArea ref={root} className="@container min-w-0 w-full" aria-label="Etapas da execução"
-      onWheelCapture={() => { following.current = false }}
-      onPointerDownCapture={() => { following.current = false }}
-      onKeyDownCapture={(event) => {
-        if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) following.current = false
-      }}>
-      <ItemGroup className="flex-row gap-0 has-data-[size=sm]:gap-0 pb-3">
-        {stages.map((stage, index) => {
-          const Icon = stageIcon(stage.status)
-          return (
-            <Item key={stage.id} data-stage-index={index} size="sm"
-              className="w-[12.5cqw] min-w-28 shrink-0 flex-col items-start gap-2 border-transparent px-0 py-0 pr-3">
-              <div className="flex w-full items-center gap-2">
-                <Icon role="img" aria-label={stage.status === "running" ? "Em execução" : stage.status === "passed" ? "Passou" : stage.status === "pending" ? "Aguardando" : stage.status === "failed" ? "Falhou" : "Etapa encerrada"} className={`${statusColor(stage.status)} size-5 shrink-0 ${stage.status === "running" ? "animate-spin" : ""}`} />
-                {index < stages.length - 1 ? <Separator className="flex-1" /> : null}
-              </div>
-              <ItemContent className="min-w-0 w-full">
-                <ItemTitle className="max-w-full truncate text-base" title={stage.label}>{stage.label}</ItemTitle>
-                {typeof stage.durationMs === "number" ? <ItemDescription>{formatDuration(stage.durationMs)}</ItemDescription> : null}
-              </ItemContent>
-            </Item>
-          )
-        })}
-      </ItemGroup>
-      <ScrollBar orientation="horizontal" />
-    </ScrollArea>
-  )
-}
 
 function CurrentExecution({
   snapshot,
@@ -221,62 +132,53 @@ function CurrentExecution({
       </CardHeader>
       <CardContent>
         <div className="flex min-w-0 flex-col gap-5">
-          <Item variant="default" className="border-transparent px-0 py-0">
-            <ItemMedia variant="icon" className="self-start">
-              <JobStatusIcon status={current.status} size="current" />
-            </ItemMedia>
-            <ItemContent>
-              <div className="flex items-center gap-1">
-                <ItemTitle>
-                  {current.preset ? (
-                    <Button
-                      type="button"
-                      variant="link"
-                      className="h-auto px-0 py-0 text-xl font-semibold"
-                      onClick={() => onOpenJob(current.id)}
-                    >
-                      {current.preset}
-                    </Button>
-                  ) : (
-                    "Preset não informado"
-                  )}
-                </ItemTitle>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Ver ${current.preset ?? "execução"}`}
-                      onClick={() => onOpenJob(current.id)}
-                    >
-                      <EyeIcon data-icon />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Ver execução</TooltipContent>
-                </Tooltip>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              <ItemDescription>
-                <JobTimeline job={current} />
-              </ItemDescription>
-              <ItemDescription>
-                {current.branch || "Branch não informada"} ·{" "}
-                <span className="font-mono">{shortSha(current.headSha)}</span>
-              </ItemDescription>
-              </div>
-              {current.progressSummary?.nodes?.some(
-                (node) => (node.retryCount ?? 0) > 0
-              ) ? (
-                <Badge variant="outline">Flaky detectado</Badge>
-              ) : null}
-              {current.commitSubject ? (
-                <ItemDescription>{current.commitSubject}</ItemDescription>
-              ) : null}
-            </ItemContent>
-          </Item>
+          <div className="flex min-w-0 items-start gap-2">
+            <EntityIdentity
+              presentation="current"
+              title={current.preset || "Preset não informado"}
+              media={{
+                kind: "state",
+                descriptor: describeJobState(current.status),
+              }}
+              onOpen={() => onOpenJob(current.id)}
+              description={
+                <>
+                  <JobTimeline job={current} /> ·{" "}
+                  {current.branch || "Branch não informada"} ·{" "}
+                  <span className="font-mono">{shortSha(current.headSha)}</span>
+                </>
+              }
+              badge={
+                current.progressSummary?.nodes?.some(
+                  (node) => (node.retryCount ?? 0) > 0
+                ) ? (
+                  <Badge variant="outline">Flaky detectado</Badge>
+                ) : undefined
+              }
+            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Ver ${current.preset ?? "execução"}`}
+                  onClick={() => onOpenJob(current.id)}
+                >
+                  <EyeIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Ver execução</TooltipContent>
+            </Tooltip>
+          </div>
+          {current.commitSubject ? (
+            <ItemDescription>{current.commitSubject}</ItemDescription>
+          ) : null}
           {stages.length ? (
-            <ExecutionStages key={current.id} stages={stages} />
+            <ExecutionStages
+              key={current.id}
+              stages={stages}
+              jobStatus={current.status}
+            />
           ) : null}
         </div>
       </CardContent>
@@ -1349,10 +1251,7 @@ export function StatusPage() {
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 lg:p-6">
-      <CurrentExecution
-        snapshot={status.data}
-        onOpenJob={setSelectedJobId}
-      />
+      <CurrentExecution snapshot={status.data} onOpenJob={setSelectedJobId} />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div className="flex min-w-0 flex-col gap-6">
           <RunTable

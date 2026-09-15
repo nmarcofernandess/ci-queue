@@ -1,17 +1,15 @@
 import { RelativeTime } from "@/features/shared/live-time"
-import { ClipboardIcon, EyeIcon, GitCommitIcon, XIcon } from "lucide-react"
+import { ClipboardIcon, EyeIcon, GitCommitIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer"
+  DetailDrawer,
+  DetailDrawerHeader,
+  DetailDrawerBody,
+  DetailDrawerFooter,
+} from "@/features/shared/detail-drawer"
+import { FactsTable } from "@/features/shared/facts-table"
 import {
   Empty,
   EmptyDescription,
@@ -19,9 +17,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -38,9 +34,11 @@ import {
   formatTimelineDate,
   shortSha,
 } from "@/features/shared/format"
-import { JobStatusIcon } from "@/features/shared/run-table"
+import { StatusIndicator } from "@/features/shared/status-indicator"
+import { describeJobState } from "@/features/shared/presentation"
+import { EntityIdentity } from "@/features/shared/entity-identity"
+import { DataTableFrame } from "@/features/shared/data-table-frame"
 import type { GreenCommitGroup } from "@/features/status/green-commit"
-import { useIsMobile } from "@/hooks/use-mobile"
 
 function originLabel(origins: GreenCommitGroup["origins"]) {
   return origins
@@ -74,65 +72,64 @@ export function GreenCommitTable({
       </div>
     )
   return (
-    <div
-      className={
-        embedded ? "overflow-x-auto" : "overflow-x-auto rounded-lg border"
-      }
+    <DataTableFrame
+      placement={embedded ? "card" : "body"}
+      label="Commits verdes"
     >
-      <Table>
-        <TableHeader className="[&_th]:font-normal [&_th]:text-muted-foreground">
-          <TableRow>
-            <TableHead>Estado</TableHead>
-            <TableHead>Commit</TableHead>
-            <TableHead>Último verde</TableHead>
-            <TableHead>Execuções</TableHead>
-            <TableHead>Origem</TableHead>
-            <TableHead>
-              <span className="sr-only">Ações</span>
-            </TableHead>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Estado</TableHead>
+          <TableHead>Commit</TableHead>
+          <TableHead>Último verde</TableHead>
+          <TableHead>Execuções</TableHead>
+          <TableHead>Origem</TableHead>
+          <TableHead>
+            <span className="sr-only">Ações</span>
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {groups.map((group) => (
+          <TableRow key={group.sha}>
+            <TableCell>
+              <StatusIndicator
+                descriptor={describeJobState("passed")}
+                presentation="table"
+              />
+            </TableCell>
+            <TableCell>
+              <EntityIdentity
+                presentation="table"
+                title={shortSha(group.sha)}
+                monospaceTitle
+                onOpen={() => onOpen(group)}
+              />
+            </TableCell>
+            <TableCell className="whitespace-nowrap text-muted-foreground">
+              {formatTimelineDate(group.finishedAt)} ·{" "}
+              {<RelativeTime value={group.finishedAt} />}
+            </TableCell>
+            <TableCell>{group.rows.length}</TableCell>
+            <TableCell>{originLabel(group.origins)}</TableCell>
+            <TableCell>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Ver commit ${shortSha(group.sha)}`}
+                    onClick={() => onOpen(group)}
+                  >
+                    <EyeIcon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Ver commit</TooltipContent>
+              </Tooltip>
+            </TableCell>
           </TableRow>
-        </TableHeader>
-        <TableBody>
-          {groups.map((group) => (
-            <TableRow key={group.sha}>
-              <TableCell>
-                <JobStatusIcon status="passed" />
-              </TableCell>
-              <TableCell>
-                <Button
-                  variant="link"
-                  className="h-auto p-0 font-mono"
-                  onClick={() => onOpen(group)}
-                >
-                  {shortSha(group.sha)}
-                </Button>
-              </TableCell>
-              <TableCell className="whitespace-nowrap text-muted-foreground">
-                {formatTimelineDate(group.finishedAt)} ·{" "}
-                {<RelativeTime value={group.finishedAt} />}
-              </TableCell>
-              <TableCell>{group.rows.length}</TableCell>
-              <TableCell>{originLabel(group.origins)}</TableCell>
-              <TableCell>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Ver commit ${shortSha(group.sha)}`}
-                      onClick={() => onOpen(group)}
-                    >
-                      <EyeIcon data-icon />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Ver commit</TooltipContent>
-                </Tooltip>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+        ))}
+      </TableBody>
+    </DataTableFrame>
   )
 }
 
@@ -145,7 +142,6 @@ export function GreenCommitDrawer({
   onClose: () => void
   onOpenJob: (id: string) => void
 }) {
-  const isMobile = useIsMobile()
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(group.sha)
@@ -155,118 +151,114 @@ export function GreenCommitDrawer({
     }
   }
   return (
-    <Drawer
-      open
-      onOpenChange={(open) => !open && onClose()}
-      direction={isMobile ? "bottom" : "right"}
-    >
-      <DrawerContent className="min-h-0 sm:w-[36rem] sm:max-w-[36rem]!">
-        <DrawerHeader className="shrink-0 border-b">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <DrawerTitle className="font-mono">
-                {shortSha(group.sha)}
-              </DrawerTitle>
-              <DrawerDescription>
-                {group.rows.length} execuções verdes ·{" "}
-                {formatTimelineDate(group.finishedAt)} ·{" "}
-                {<RelativeTime value={group.finishedAt} />}
-              </DrawerDescription>
-            </div>
-            <DrawerClose asChild>
-              <Button variant="ghost" size="icon-sm" aria-label="Fechar commit">
-                <XIcon data-icon />
-              </Button>
-            </DrawerClose>
-          </div>
-        </DrawerHeader>
-        <ScrollArea className="min-h-0 flex-1 p-4">
-          <div className="mb-4 grid gap-2 text-sm">
-            <p>
-              <span className="text-muted-foreground">SHA </span>
-              <span className="font-mono break-all">{group.sha}</span>
-            </p>
-            <p>
-              <span className="text-muted-foreground">Branches </span>
-              {group.branches.join(", ") || "Não informadas"}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Origem </span>
-              {originLabel(group.origins)}
-            </p>
-          </div>
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
-              <TableHeader className="[&_th]:font-normal [&_th]:text-muted-foreground">
-                <TableRow>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Preset</TableHead>
-                  <TableHead>Término</TableHead>
-                  <TableHead>Duração</TableHead>
-                  <TableHead>
-                    <span className="sr-only">Ações</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {group.rows.map((row) => {
-                  const id =
-                    row.detailsJobId ??
-                    (row.detailsAvailable !== false ? row.id : undefined)
-                  return (
-                    <TableRow
-                      key={
-                        row.rowKey ??
-                        row.ticketId ??
-                        `${row.preset}-${row.finishedAt}`
-                      }
-                    >
-                      <TableCell>
-                        <JobStatusIcon status="passed" />
-                      </TableCell>
-                      <TableCell>
-                        {id ? (
-                          <Button
-                            variant="link"
-                            className="h-auto p-0"
-                            onClick={() => onOpenJob(id)}
-                          >
-                            {row.preset}
-                          </Button>
-                        ) : (
-                          row.preset
-                        )}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {formatTimelineDate(row.finishedAt)}
-                      </TableCell>
-                      <TableCell>{formatDuration(row.durationMs)}</TableCell>
-                      <TableCell>
-                        {id ? (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`Ver ${row.preset}`}
-                            onClick={() => onOpenJob(id)}
-                          >
-                            <EyeIcon data-icon />
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </ScrollArea>
-        <DrawerFooter className="shrink-0 border-t">
-          <Button variant="outline" onClick={() => void copy()}>
-            <ClipboardIcon data-icon />
-            Copiar SHA
-          </Button>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+    <DetailDrawer onClose={onClose}>
+      <DetailDrawerHeader
+        title={shortSha(group.sha)}
+        monospaceTitle
+        description={
+          <>
+            {group.rows.length} execuções verdes ·{" "}
+            {formatTimelineDate(group.finishedAt)} ·{" "}
+            <RelativeTime value={group.finishedAt} />
+          </>
+        }
+        closeLabel="Fechar commit"
+      />
+      <DetailDrawerBody>
+        <div className="flex min-w-0 flex-col gap-4">
+          <FactsTable
+            caption="Detalhes do commit"
+            rows={[
+              { id: "sha", label: "SHA", value: group.sha, technical: true },
+              {
+                id: "branches",
+                label: "Branches",
+                value: group.branches.join(", ") || "Não informadas",
+              },
+              {
+                id: "origin",
+                label: "Origem",
+                value: originLabel(group.origins),
+              },
+            ]}
+          />
+          <DataTableFrame placement="body" label="Execuções do commit">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Estado</TableHead>
+                <TableHead>Preset</TableHead>
+                <TableHead>Término</TableHead>
+                <TableHead>Duração</TableHead>
+                <TableHead>
+                  <span className="sr-only">Ações</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {group.rows.map((row) => {
+                const id =
+                  row.detailsJobId ??
+                  (row.detailsAvailable !== false ? row.id : undefined)
+                return (
+                  <TableRow
+                    key={
+                      row.rowKey ??
+                      row.ticketId ??
+                      `${row.preset}-${row.finishedAt}`
+                    }
+                  >
+                    <TableCell>
+                      <StatusIndicator
+                        descriptor={describeJobState("passed")}
+                        presentation="table"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <EntityIdentity
+                        presentation="table"
+                        title={row.preset || "Não informada"}
+                        onOpen={
+                          id
+                            ? () => {
+                                onClose()
+                                onOpenJob(id)
+                              }
+                            : undefined
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatTimelineDate(row.finishedAt)}
+                    </TableCell>
+                    <TableCell>{formatDuration(row.durationMs)}</TableCell>
+                    <TableCell>
+                      {id ? (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Ver ${row.preset}`}
+                          onClick={() => {
+                            onClose()
+                            onOpenJob(id)
+                          }}
+                        >
+                          <EyeIcon />
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </DataTableFrame>
+        </div>
+      </DetailDrawerBody>
+      <DetailDrawerFooter>
+        <Button variant="outline" onClick={() => void copy()}>
+          <ClipboardIcon data-icon="inline-start" />
+          Copiar SHA
+        </Button>
+      </DetailDrawerFooter>
+    </DetailDrawer>
   )
 }

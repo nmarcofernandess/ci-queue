@@ -69,7 +69,7 @@ function ThemeModeToggle() {
       <Tooltip>
         <TooltipTrigger asChild>
           <ToggleGroupItem value="light" aria-label="Tema claro">
-            <SunIcon data-icon />
+            <SunIcon />
             <span className="sr-only">Claro</span>
           </ToggleGroupItem>
         </TooltipTrigger>
@@ -80,7 +80,7 @@ function ThemeModeToggle() {
       <Tooltip>
         <TooltipTrigger asChild>
           <ToggleGroupItem value="dark" aria-label="Tema escuro">
-            <MoonIcon data-icon />
+            <MoonIcon />
             <span className="sr-only">Escuro</span>
           </ToggleGroupItem>
         </TooltipTrigger>
@@ -91,7 +91,7 @@ function ThemeModeToggle() {
       <Tooltip>
         <TooltipTrigger asChild>
           <ToggleGroupItem value="system" aria-label="Tema do sistema">
-            <MonitorIcon data-icon />
+            <MonitorIcon />
             <span className="sr-only">Sistema</span>
           </ToggleGroupItem>
         </TooltipTrigger>
