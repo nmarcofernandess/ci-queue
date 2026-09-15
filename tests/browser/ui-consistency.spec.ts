@@ -16,6 +16,9 @@ async function inspectDrawer(page: Page) {
   const bounds=await drawer.boundingBox()
   expect(bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width+1)
   expect(bounds!.y).toBeGreaterThanOrEqual(-1)
+  const bodyBounds=(await drawer.locator('[data-slot=detail-drawer-body]').boundingBox())!
+  expect(bodyBounds.width).toBeLessThanOrEqual(bounds!.width)
+  expect(bodyBounds.x+bodyBounds.width).toBeLessThanOrEqual(bounds!.x+bounds!.width+1)
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
   return drawer
 }
@@ -39,6 +42,11 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     const tableFont=await tableTitle.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))
     await page.locator('[data-slot=entity-identity][data-presentation=current]').getByRole('button',{name:'smoketest',exact:true}).click()
     let drawer=await inspectDrawer(page)
+    const factsRow=drawer.getByRole('table',{name:'Detalhes da execução',exact:true}).getByRole('row').first()
+    const labelWidth=(await factsRow.getByRole('rowheader').boundingBox())!.width
+    const valueWidth=(await factsRow.getByRole('cell').boundingBox())!.width
+    // Values must receive the remaining space, not an accidental equal split.
+    expect(valueWidth).toBeGreaterThan(labelWidth)
     const drawerFont=await drawer.locator('[data-slot=drawer-title]').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))
     expect(currentFont).toBeGreaterThan(drawerFont)
     expect(drawerFont).toBeGreaterThan(tableFont)
@@ -83,6 +91,8 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     await page.getByRole('alertdialog').getByRole('button',{name:'Cancelar',exact:true}).click()
     await expect(drawer.getByRole('button',{name:'Remover',exact:true})).toBeFocused()
     await closeDrawer(page)
+    await page.clock.fastForward(5000)
+    await expect(page.getByText('Fixture save rejected',{exact:true})).toHaveCount(0)
     await page.getByRole('button',{name:'Ver pendências',exact:true}).click()
     drawer=await inspectDrawer(page)
     await expect(drawer.getByRole('textbox')).toHaveCount(0)
@@ -95,6 +105,13 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     await page.getByRole('button',{name:'aaaaaaaa',exact:true}).click()
     drawer=await inspectDrawer(page)
     await expect(drawer.getByRole('button',{name:'static',exact:true})).toHaveCount(0)
+    const commitBounds=(await drawer.boundingBox())!
+    const facts=drawer.getByRole('table',{name:'Detalhes do commit',exact:true})
+    const factsBounds=(await facts.boundingBox())!
+    expect(factsBounds.x+factsBounds.width).toBeLessThanOrEqual(commitBounds.x+commitBounds.width)
+    const listContainer=drawer.getByRole('table',{name:'Execuções do commit',exact:true}).locator('..')
+    expect(await listContainer.evaluate(el=>el.scrollWidth>el.clientWidth)).toBe(true)
+
     await shot(page,`${prefix}-commit`)
     await drawer.getByRole('button',{name:'smoketest',exact:true}).click()
     drawer=await inspectDrawer(page)
@@ -146,6 +163,10 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     await page.goto('/#status')
     await expect(page.getByText('Fila livre',{exact:true})).toBeVisible()
     await shot(page,`final-${width}-${theme}-status-empty`)
+    await page.getByRole('textbox',{name:'Buscar por preset, branch, SHA ou ticket'}).fill('not-in-fixture')
+    await expect(page.getByText('Nenhuma execução corresponde aos filtros',{exact:true})).toBeVisible()
+    await shot(page,`final-${width}-${theme}-filtered-empty`)
+
     await page.getByRole('button',{name:'Abrir meta',exact:true}).click()
     await inspectDrawer(page)
     await shot(page,`final-${width}-${theme}-meta-empty`)

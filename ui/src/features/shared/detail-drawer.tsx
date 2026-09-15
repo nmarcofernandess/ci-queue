@@ -92,7 +92,11 @@ export function DetailDrawerBody({
     )
   return (
     <ScrollArea className="h-full min-h-0 flex-1">
-      <div data-slot="detail-drawer-body" className="min-w-0 p-4">
+      {/* Keep the ScrollArea intrinsic table wrapper from adopting a nested list's minimum width; the list retains its own horizontal scroll. */}
+      <div
+        data-slot="detail-drawer-body"
+        className="min-w-0 p-4 [contain:inline-size]"
+      >
         {children}
       </div>
     </ScrollArea>

@@ -97,6 +97,9 @@ system paralelo. APIs das composições não aceitam estilo arbitrário.
 
 - `components/ui/drawer.tsx`: handleOnly e select-text! compensam o user-select
   do Vaul e preservam seleção; `size="detail"` é a única adaptação direcional.
+- `DetailDrawerBody`: contenção de tamanho inline impede o wrapper de medição
+  do ScrollArea de adotar a largura mínima de listas internas; a tabela conserva
+  sua própria rolagem horizontal, sem cortar a ficha que a acompanha.
 - Definições de colunas: larguras semânticas podem variar; gutter e densidade
   pertencem a DataTableFrame.
 - `analysis-page.tsx`: altura de Chart limitada para não crescer com viewport;

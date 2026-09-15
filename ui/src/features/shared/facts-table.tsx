@@ -20,12 +20,16 @@ export function FactsTable({ caption, rows }: FactsTableProps) {
   return (
     <Table className="table-fixed">
       <TableCaption className="sr-only">{caption}</TableCaption>
+      <colgroup>
+        <col className="w-32" />
+        <col />
+      </colgroup>
       <TableBody>
         {rows.map((row) => (
           <TableRow key={row.id}>
             <TableHead
               scope="row"
-              className="w-32 py-2 pl-0 align-top whitespace-normal text-muted-foreground"
+              className="py-2 pl-0 align-top whitespace-normal text-muted-foreground"
             >
               {row.label}
             </TableHead>
