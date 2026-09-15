@@ -11,9 +11,13 @@ Primitivos isolados não bastam para declarar uma superfície como shadcn. Shell
 ## Shell
 
 - `SidebarProvider`, `Sidebar variant="inset" collapsible="offcanvas"`, `SidebarInset` e header vêm do Dashboard 01.
-- O `SidebarTrigger` fica no header ao lado da marca.
+- O `SidebarTrigger` fica no header ao lado da marca. O seletor global de
+  projeto fica à direita do mesmo header; ele não mora nas tabs do Histórico
+  nem no rodapé.
 - Navegação: Status, Worktrees e Análise.
-- O rodapé contém somente Bridge online/offline e os três controles de tema Claro, Escuro e Sistema.
+- O rodapé da sidebar é o menu **Ambiente local**: estado da Bridge
+  (`/health`, 10s) e as três escolhas de tema. Não há avatar, usuário, logout
+  ou atalho desabilitado para GitHub.
 - Não existe ação Recolher no rodapé nem divisória CSS improvisada entre sidebar e conteúdo.
 
 ## Status
@@ -25,7 +29,7 @@ de tabela vazia. Execução ativa e Fila preenchida mantêm identificação pró
 O histórico usa `CardHeader` com modo, busca e filtros; “Execuções / Últimos
 verdes” identifica a superfície sem repetir “Histórico”. A busca usa placeholder
 curto e nome acessível com os campos pesquisáveis. Período, Resultado e Origem
-usam Select direto; agrupamento só aparece em Últimos verdes. Os headers da
+usam `FilterSelect` direto; agrupamento só aparece em Últimos verdes. Os headers da
 tabela usam texto secundário sem faixa de fundo. Não há card dentro de card.
 
 Os indicadores usam cores semânticas consistentes em tabelas, etapas, drawers
@@ -96,10 +100,21 @@ Execuções oferece período Todo período, Hoje, 48h, Semana ou 15 dias, e resu
 
 ## Análise
 
-A rota contém somente **Estatísticas**. Usa ToggleGroup **Resultados / Duração**, seguido por selects diretos de Período e Preset, todos alinhados à esquerda e quebrando linha em viewport estreita.
+A rota contém somente **Estatísticas**. Usa ToggleGroup **Resultados / Duração**,
+`FilterSelect` de período e, em Resultados, um `SelectionPanel` de presets com
+busca e checkboxes. Duração usa um `FilterSelect` próprio de receita declarada.
+Os controles alinham à esquerda e quebram em viewport estreita. Trocar a métrica
+não mistura as seleções.
 
-- **Resultados:** barras verticais empilhadas por preset para Passou, Falhou, Cancelado e Interrompido. O backend agrega toda a população retida do período, sem teto silencioso de 200 registros. Quando há muitos presets, o gráfico mantém largura legível e rola horizontalmente; a tabela abaixo conserva todas as contagens exatas.
-- **Duração:** exige um preset específico e mostra mediana, faixa e tamanho da amostra antes do scatter plot. Usa apenas execuções aprovadas e comparáveis, com duração válida.
+- **Resultados:** cada preset tem distribuição própria
+  `(passou+falhou+cancelado+interrompido)` somando 100% quando o total é
+  positivo. O volume global não é o denominador. O padrão inicial é até os dez
+  presets com mais execuções terminais no projeto/período, com desempate pelo
+  nome; dez é padrão, não teto. Checkbox filtra a resposta já carregada. O
+  Tooltip mostra total, contagem e percentual; a tabela conserva as quantidades
+  exatas. Amostra zero não ganha barra.
+- **Duração:** exige um único preset declarado e mostra mediana, faixa e tamanho
+  da amostra antes do scatter. Não mistura receitas nem relaxa verde canônico.
 
 Charts usam `ChartContainer`, `ChartTooltipContent` e `ChartLegendContent` oficiais da configuração Nova. Recharts fornece apenas séries e eixos. A altura é limitada; não existe gráfico raw, tooltip artesanal, linha interpolada ou histórico de RAM/disco da máquina.
 
@@ -128,9 +143,10 @@ no mesmo job. Repetir `running` não incrementa o contador. O fato permanece no
 terminal e aparece na execução atual, histórico e árvore do drawer. O consumidor
 continua responsável pelo veredito de flaky; observabilidade nunca fabrica verde.
 
-Histórico sem projeto fica acessível por **Legado sem projeto**. A atribuição
-explícita é operacional e auditável, descrita em `docs/INSTALL.md`; a UI não
-adivinha projeto por caminho nem oferece ação de reclassificar registros.
+Histórico sem projeto é um arquivo separado no seletor global, não um card do
+projeto atual. A atribuição explícita é operacional e auditável, descrita em
+`docs/INSTALL.md`; a UI não adivinha projeto por caminho nem oferece ação de
+reclassificar os registros ainda sem evidência.
 
 O cursor do log respeita linhas completas. Linhas maiores que o trecho de leitura podem ser omitidas com aviso, e a exportação limitada a 8 MiB declara quando preserva somente início e fim. A redação de chaves reconhecidas não substitui a obrigação do consumidor de não imprimir segredos.
 

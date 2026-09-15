@@ -17,4 +17,5 @@ consumer fixture for success, failure, wait, cancellation and interrupted
 worker recovery.
 
 Configuration, progress, records and ownership are documented in
-[`docs/CONTRACTS.md`](./docs/CONTRACTS.md).
+[`docs/CONTRACTS.md`](./docs/CONTRACTS.md). Product direction lives in
+[`docs/ROADMAP.md`](./docs/ROADMAP.md).

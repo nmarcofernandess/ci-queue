@@ -63,10 +63,13 @@ retry deve configurá-lo em seu próprio test runner. O protocolo não decide me
 
 ## Leitura e ações
 
-A API lê fatos por projeto: status, executions, preset-history, remote-slots,
-job, log, diagnostic, worktrees, analysis e dashboard-state. Fila/running de
+A API lê fatos por contexto de requisição: `projectId` ou `context=unassigned`.
+Não existe `activeProject` mutável no servidor. Status, executions,
+preset-history, remote-slots, job, log, diagnostic, worktrees, analysis e
+dashboard-state recebem somente os fatos daquele contexto. Fila/running de
 outro projeto só produzem ocupação global, não links inacessíveis. Histórico
-legado sem atribuição fica em bucket explícito. Instalação descreve a atribuição
+sem `projectId` comprovado fica no arquivo separado. O cadastro local mora em
+`state/projects.json` e não controla a fila. Instalação descreve a atribuição
 por commit comprovado e seu rollback; nenhum reader adivinha origem pelo path.
 
 O verde local exige receita atual, argv idêntico, projeto, passed, exitCode 0 e
@@ -77,11 +80,13 @@ HTTP têm implementações próprias, com testes de paridade de fatos.
 Meta é um único objetivo editável por projeto, sem SHA informado. Pendências
 são recomendações readonly geradas por `advisory upsert`, idempotentes por
 projeto/preset/PR; nunca bloqueiam o executor ou o merge. A resolução exige um
-verde canônico posterior cuja revisão contenha a recomendada. Somente Meta e
-Abrir pasta têm mutações no dashboard; loopback, origem, CSRF e IDs observados
-protegem ações nativas, que usam argv fixa sem shell.
+verde canônico posterior cuja revisão contenha a recomendada. Meta, Abrir pasta e o cadastro local de projetos têm mutações no dashboard;
+loopback, origem, CSRF e IDs observados protegem ações nativas, que usam argv
+fixa sem shell. GET nunca escreve o registry. O probe inspeciona só a pasta
+escolhida, sem rede Git, hooks ou execução de receita.
 
-Análise agrega todos os terminais retidos no período. Duração usa verdes da
-receita atual com início e duração válidos. Máquina publica somente disco livre
-atual. Não existe causalidade inferida de RAM/OOM, catálogo de Problemas ou
-histórico de recursos neste MVP.
+Análise de Resultados agrega todos os terminais retidos do projeto no período,
+inclusive nomes históricos, e devolve contagens por preset. Duração usa verdes
+da receita atual com início e duração válidos e um único preset declarado.
+Máquina publica somente disco livre atual. Não existe causalidade inferida de
+RAM/OOM, catálogo de Problemas ou histórico de recursos neste MVP.

@@ -39,6 +39,10 @@ acessível e no atributo `title`. Ícone de ação pertence ao Button; ícone de
 identidade pertence a StatusIndicator. Em tabela o estado permanece em sua
 célula: não reunir todas as colunas num card.
 
+O header global carrega o seletor de projeto à direita. O rodapé da sidebar é
+o ambiente local, não um usuário. Menus pesquisáveis usam `SelectionPanel`;
+filtros simples usam `FilterSelect`. Não aninhar Select em Popover para período.
+
 ## Drawers
 
 Execução, Worktree, Meta, Pendências e Commit usam `DetailDrawer`. A direção

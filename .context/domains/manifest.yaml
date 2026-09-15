@@ -29,14 +29,28 @@ system_map:
     entry: ui/src/features/analysis/analysis-page.tsx
     patterns: [ui]
     related:
+      - ui/src/features/analysis/results-model.ts
+      - ui/src/features/analysis/analysis-state.ts
+      - ui/src/features/analysis/preset-multi-select.tsx
       - ui/src/components/ui/chart.tsx
       - ui/src/features/shared/data-table-frame.tsx
+      - ui/src/features/shared/filter-select.tsx
+  projects:
+    entry: ui/src/features/projects/project-context.tsx
+    related:
+      - ui/src/features/projects/scope.ts
+      - ui/src/features/projects/project-switcher.tsx
+      - ui/src/features/projects/project-manager-drawer.tsx
+      - backend/ci_queue_api/projects.py
+      - backend/ci_queue_api/project_context.py
+    rule: "Trocar o contexto de projeto exige reler todos os consumidores scoped."
   shell:
     entry: ui/src/App.tsx
     related:
       - ui/src/components/app-sidebar.tsx
       - ui/src/components/site-header.tsx
+      - ui/src/components/local-environment-menu.tsx
   data_boundary:
     entry: ui/src/lib/api.ts
     types: ui/src/lib/types.ts
-    rule: "Features consomem os fatos atuais; composições visuais não fazem fetch."
+    rule: "Features consomem os fatos atuais via APIs scoped; composições visuais não fazem fetch."

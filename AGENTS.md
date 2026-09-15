@@ -81,7 +81,10 @@ CSS grid when an API name differs.
 - A title may open a job or worktree drawer; table rows and metadata are not
   whole-row buttons.
 - Filters remain above the controlled surface. Never nest Select inside a
-  Popover/Calendar to represent a fixed period.
+  Popover/Calendar to represent a fixed period. Results presets use the shared
+  searchable multi-select; Duration keeps a single declared recipe.
+- The project selector lives in the global header. The sidebar footer is the
+  local environment (Bridge + theme), not a user account.
 - The Analysis duration view is point data: `ChartContainer` plus `Scatter`,
   with no line, curve or invented trend.
 

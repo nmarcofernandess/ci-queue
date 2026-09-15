@@ -23,6 +23,28 @@ composition:
       - ui/src/features/worktrees/worktrees-page.tsx
       - ui/src/features/status/status-state-drawer.tsx
       - ui/src/features/status/green-commit-table.tsx
+      - ui/src/features/projects/project-manager-drawer.tsx
+  filters:
+    source: ui/src/features/shared/filter-select.tsx
+    consumers:
+      - ui/src/features/status/status-page.tsx
+      - ui/src/features/analysis/analysis-page.tsx
+  selection_panel:
+    source: ui/src/features/shared/selection-panel.tsx
+    consumers:
+      - ui/src/features/projects/project-switcher.tsx
+      - ui/src/features/analysis/preset-multi-select.tsx
+  project_scope:
+    source: ui/src/features/projects/project-context.tsx
+    use: "Uma aba, um ReadScope. Relê status, fila, worktrees, análise, meta e detalhe."
+    consumers:
+      - ui/src/features/status/status-page.tsx
+      - ui/src/features/worktrees/worktrees-page.tsx
+      - ui/src/features/analysis/analysis-page.tsx
+      - ui/src/features/shared/job-drawer.tsx
+  local_environment:
+    source: ui/src/components/local-environment-menu.tsx
+    use: "Único dono de Bridge e tema no rodapé."
   facts:
     source: ui/src/features/shared/facts-table.tsx
     use: "Ficha de metadados de detalhe, sem card adicional."
