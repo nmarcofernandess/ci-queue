@@ -56,11 +56,16 @@ def _read(path, offset, length, terminal=False):
     return content, size, end, end >= size, None
 
 
-def read_log_slice(state_root, config, job_id, offset=0, length=LOG_SLICE_LIMIT):
+def _lookup(state_root, config, job_id, unassigned=False):
+    project_id = None if unassigned else config.project_id
+    return lookup_job(state_root, job_id, project_id, unassigned=unassigned)
+
+
+def read_log_slice(state_root, config, job_id, offset=0, length=LOG_SLICE_LIMIT, unassigned=False):
     validate_job_id(job_id)
     if not isinstance(offset, int) or offset < 0 or not isinstance(length, int) or not 0 < length <= MAX_EXPORT_BYTES:
         raise ValueError("intervalo de leitura inválido")
-    job = lookup_job(state_root, job_id, config.project_id)
+    job = _lookup(state_root, config, job_id, unassigned)
     if job is None:
         return {"schemaVersion": 1, "jobId": job_id, "content": "", "offset": offset,
                 "nextOffset": offset, "sourceBytes": 0, "complete": False, "error": "ticket não encontrado"}
@@ -69,9 +74,9 @@ def read_log_slice(state_root, config, job_id, offset=0, length=LOG_SLICE_LIMIT)
             "nextOffset": next_offset, "sourceBytes": source, "complete": complete, "error": error}
 
 
-def read_log_export(state_root, config, job_id):
+def read_log_export(state_root, config, job_id, unassigned=False):
     validate_job_id(job_id)
-    if lookup_job(state_root, job_id, config.project_id) is None:
+    if _lookup(state_root, config, job_id, unassigned) is None:
         return {"schemaVersion": 1, "jobId": job_id, "content": "",
                 "coverage": {"available": False, "reason": "ticket não encontrado"}}
     path = _path(state_root, job_id)
@@ -123,9 +128,9 @@ def _log_coverage(path):
     }
 
 
-def read_diagnostic(state_root, config, job_id):
+def read_diagnostic(state_root, config, job_id, unassigned=False):
     validate_job_id(job_id)
-    job = lookup_job(state_root, job_id, config.project_id)
+    job = _lookup(state_root, config, job_id, unassigned)
     if job is None:
         return {"schemaVersion": 1, "jobId": job_id, "available": False, "reason": "ticket não encontrado"}
     progress = job.get("progress") or job.get("progressSummary")
