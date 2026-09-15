@@ -4,6 +4,11 @@ Esta pasta guarda recortes sanitizados de logs reais observados enquanto o CI
 Queue acompanhava receitas do DietFlow. Ela existe para investigação, contexto
 e onboarding de quem opera ou integra a ferramenta.
 
+Também guarda o `CI-QUEUE-VERDADE.tsv`: o inventário reconciliado das decisões,
+contratos, defeitos, evidências e exclusões que encerraram a convergência da
+Spec 121 em 15/09/2026. Ele é histórico de decisão compartilhável; a fonte
+operacional atual continua sendo os contratos e o código deste repositório.
+
 Os arquivos não são fixtures, testes, contratos de saída ou prova do estado
 atual de uma máquina. Um recorte mostra apenas o sintoma registrado; não prova
 a causa raiz nem autoriza uma correção automática.
@@ -26,3 +31,4 @@ o conteúdo bruto de uma execução.
 | `jest-worker-sigsegv.log` | worker Jest terminou com `SIGSEGV` | falha do processo, não um assertion failure comum |
 | `storage-enospc.log` | `ENOSPC` ao gravar build ou artefato | espaço esgotado e limpeza/capacidade do executor |
 | `supervisor-lost.log` | job marcado como `interrupted` | perda de supervisão, distinta de falha do teste |
+| `CI-QUEUE-VERDADE.tsv` | decisões e evidências da convergência | contexto para investigação e planejamento, sem substituir o código atual |
