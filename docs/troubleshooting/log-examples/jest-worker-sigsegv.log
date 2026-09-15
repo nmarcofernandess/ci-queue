@@ -1,0 +1,11 @@
+FAIL <test-suite>
+  ● Test suite failed to run
+
+    A jest worker process (pid=<pid>) was terminated by another process:
+    signal=SIGSEGV, exitCode=null.
+    Operating system logs may contain more information on why this occurred.
+
+      at ChildProcessWorker._onExit (node_modules/jest-worker/build/index.js:<line>:<column>)
+
+# Curated from a failed DietFlow full run observed by CI Queue.
+# This is a process crash signal. It does not identify the cause by itself.

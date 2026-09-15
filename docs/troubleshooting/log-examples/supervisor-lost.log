@@ -1,0 +1,9 @@
+@@ci-queue-progress	1	node	gate-55	static-gates	gate	running	-	typecheck
+@@ci-queue-progress	1	counts	static-gates	gates	54	56	54	0	1	1	0
+
+[<timestamp>] job marked as interrupted: supervisor lost
+
+# Curated from a DietFlow smoketest observed by CI Queue.
+# The terminal state is interrupted because supervision ended before the job
+# wrote a terminal result. It is not a passed result and not evidence that the
+# active stage failed.
