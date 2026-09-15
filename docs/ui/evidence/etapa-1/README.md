@@ -2,6 +2,8 @@
 
 Implementação e revisão interna concluídas. Review humano de Marco aguardando; T9, merge, release e instalação não autorizados nesta entrega.
 
+[PR draft #5](https://github.com/nmarcofernandess/ci-queue/pull/5), base `dev`. O job Complete check iniciou no PR (run 35001688609); o resultado do HEAD final deve ser consultado no próprio PR, sem reutilizar resultado de um SHA anterior.
+
 ## Procedência
 
 - Base auditada e origem de dev: `20de7eb5faa73c31b1cf721ccfb3880248d8f649`.
@@ -15,7 +17,7 @@ Implementação e revisão interna concluídas. Review humano de Marco aguardand
 
 `npm run check` passou no HEAD de captura: build TypeScript, 23 testes core, 41 UI, 34 backend, 1 exemplo, 1 release, 5 instalação, lint/build UI e 22 testes de browser. Release e instalação são testes isolados, não operações sobre os serviços instalados.
 
-Os 104 screenshots finais foram abertos na revisão integrada: 48 dark, 24 mobile light e 32 desktop/intermediários light. Pendências foi corrigido após essa revisão e suas quatro capturas foram reabertas. A matriz cobre os cinco drawers, menus, seleção, erro/vazio/loading, Log/diagnóstico, formulários e confirmação, árvore de quatro níveis, resize 639/640/700/767/768/820/1440, temas claro/escuro/sistema, faixa de oito etapas em 1600 e zoom CSS 200%. Os testes de interação preservam chevrons, foco, texto selecionável, regiões fixas, triggers, follow/pause e estados terminais.
+Os 106 screenshots finais foram abertos na revisão integrada: 48 dark, 24 mobile light e 34 desktop/intermediários light. Pendências foi corrigido após essa revisão e suas quatro capturas foram reabertas. A matriz cobre os cinco drawers, menus, seleção, erro/vazio/loading, Log/diagnóstico, formulários e confirmação, árvore de quatro níveis, resize 639/640/700/767/768/820/1440, temas claro/escuro/sistema, faixa de oito etapas em 1600 e zoom CSS 200%. Os testes de interação preservam chevrons, foco, texto selecionável, regiões fixas, triggers, follow/pause e estados terminais.
 
 ## Desfecho do review
 

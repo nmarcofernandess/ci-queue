@@ -989,9 +989,9 @@ rg -n 'DetailDrawer|EntityIdentity|StatusIndicator|DataTableFrame|FactsTable' ui
 - [x] Servir o bundle compilado em preview separado e inspecionar a aplicação com API instalada em leitura, identificando revisão/URL. Não apontar o serviço instalado para a worktree.
 - [x] Criar/atualizar o índice de evidências com capturas da candidata final, resultados dos testes e limitações reais.
 - [x] Fazer review do diff: sem backend/receita/polling, sem estilo autoral duplicado, sem lints relaxados, sem dependência nova de runtime.
-- [ ] Publicar a branch e abrir PR **draft** contra `dev`; não fazer merge.
-- [ ] Confirmar no GitHub a base, o HEAD, o estado draft e a execução do job Complete check.
-- [ ] Informar a Marco: implementação e revisão interna concluídas, aguardando seu review; incluir o pacote da seção 11.
+- [x] Publicar a branch e abrir PR **draft** contra `dev`; não fazer merge.
+- [x] Confirmar no GitHub a base, o HEAD, o estado draft e a execução do job Complete check.
+- [x] Informar a Marco: implementação e revisão interna concluídas, aguardando seu review; incluir o pacote da seção 11.
 
 **Saída:** PR draft revisável, sem pendência conhecida da etapa 1 escondida como “polimento futuro”.
 
@@ -1205,19 +1205,19 @@ Após T9, acrescentar PR merged, SHA do merge e confirmação de `dev`. A etapa 
 
 ## 14. Checklist de fechamento do executor
 
-- [ ] Todos os UI-01…UI-12 têm desfecho comprovado, sem confundir histórico com estado atual.
-- [ ] Nenhum dos cinco drawers ficou na composição anterior.
-- [ ] Identidade completa é compartilhada; seus consumidores não escolhem dimensões internas.
-- [ ] Árvore não desloca folhas; chevrons são funcionais; estados/tempos preservados.
-- [ ] A tabela não atravessa o gutter por decisão local despercebida.
-- [ ] Bottom e right não misturam breakpoints.
-- [ ] Tipos/lints testados e sem suppressions que escondam o patch.
-- [ ] Workflow não pula o check de código; PR contra dev coberto.
-- [ ] `.context`, AGENTS, DESIGN e docs canônicas não se contradizem.
-- [ ] Prova visual feita depois da integração de todas as mudanças, em temas e larguras.
-- [ ] Testes da candidata final e screenshots têm revisão identificável.
-- [ ] PR draft aberto, HEAD informado, review humano ainda distinguido da revisão interna.
-- [ ] Nenhuma alteração de backend, DietFlow, release, instalação ou etapa 2.
+- [x] Todos os UI-01…UI-12 têm desfecho comprovado, sem confundir histórico com estado atual.
+- [x] Nenhum dos cinco drawers ficou na composição anterior.
+- [x] Identidade completa é compartilhada; seus consumidores não escolhem dimensões internas.
+- [x] Árvore não desloca folhas; chevrons são funcionais; estados/tempos preservados.
+- [x] A tabela não atravessa o gutter por decisão local despercebida.
+- [x] Bottom e right não misturam breakpoints.
+- [x] Tipos/lints testados e sem suppressions que escondam o patch.
+- [x] Workflow não pula o check de código; PR contra dev coberto.
+- [x] `.context`, AGENTS, DESIGN e docs canônicas não se contradizem.
+- [x] Prova visual feita depois da integração de todas as mudanças, em temas e larguras.
+- [x] Testes da candidata final e screenshots têm revisão identificável.
+- [x] PR draft aberto, HEAD informado, review humano ainda distinguido da revisão interna.
+- [x] Nenhuma alteração de backend, DietFlow, release, instalação ou etapa 2.
 - [ ] Após autorização, merge em dev confirmado; main permanece fora desta entrega.
 
 ---
@@ -1281,4 +1281,4 @@ A documentação pública não substitui a versão instalada nem autoriza copiar
 
 ### Revisão integrada final
 
-Código e capturas em `6eab3d67f2479ba898e2346d84df24522cd8167a`; check completo verde e inspeção das cinco famílias concluída. Índice: [evidências](../../ui/evidence/etapa-1/README.md). Pendências recebeu badge abaixo do contexto após revisão mobile. Publicação e check remoto continuam pendentes até o recibo no PR; T9 permanece não autorizado.
+Código e capturas em `6eab3d67f2479ba898e2346d84df24522cd8167a`; check completo verde e inspeção das cinco famílias concluída. Índice: [evidências](../../ui/evidence/etapa-1/README.md). Pendências recebeu badge abaixo do contexto após revisão mobile. PR draft [#5](https://github.com/nmarcofernandess/ci-queue/pull/5) aberto contra dev. Complete check iniciou (run 35001688609); o fechamento exige sucesso também no HEAD final. T9 permanece não autorizado. A entrega do pacote de review conclui T8; o review humano permanece aguardando.
