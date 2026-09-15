@@ -1296,7 +1296,8 @@ Código e capturas em `6eab3d67f2479ba898e2346d84df24522cd8167a`; check completo
   rodada abertas em 640 px.
 - [x] `npm run check` passou sobre a árvore documental final: 23 core, 41 UI,
   34 backend, 1 exemplo, 1 release, 5 instalação e 24 browser.
-- [ ] Publicar no mesmo PR draft e confirmar o novo Complete check remoto.
+- [x] Mesmo PR #5 preservado como draft contra `dev`; run `35008082065`
+  executou Complete check e passou no HEAD de código/evidências `5205298`.
 
 Código e capturas da rodada: `db6c69a0c872a9d9b29bbd2a93f5fb35f2197137`.
 T9 continua não autorizado.

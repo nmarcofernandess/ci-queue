@@ -2,7 +2,7 @@
 
 Implementação e revisão interna concluídas. Review humano de Marco aguardando; T9, merge, release e instalação não autorizados nesta entrega.
 
-[PR draft #5](https://github.com/nmarcofernandess/ci-queue/pull/5), base `dev`. O job Complete check iniciou no PR (run 35001688609); o resultado do HEAD final deve ser consultado no próprio PR, sem reutilizar resultado de um SHA anterior.
+[PR draft #5](https://github.com/nmarcofernandess/ci-queue/pull/5), base `dev`. O run [35008082065](https://github.com/nmarcofernandess/ci-queue/actions/runs/35008082065) executou o job Complete check e passou no HEAD `5205298`; o commit documental de recibo recebe sua própria execução causal no PR.
 
 ## Procedência
 
