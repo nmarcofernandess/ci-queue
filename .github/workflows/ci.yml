@@ -14,8 +14,71 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    name: Classify changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.changed-paths.outputs.docs_only }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        id: changed-paths
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          PR_BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            base="origin/$PR_BASE_REF"
+          else
+            base="$EVENT_BEFORE"
+          fi
+
+          if [ -z "$base" ] || printf '%s' "$base" | grep -q '^0\{40\}$'; then
+            changed="$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA")"
+          else
+            changed="$(git diff --name-only "$base" "$GITHUB_SHA")"
+          fi
+
+          if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qv '^docs/'; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  documentation:
+    name: Documentation check
+    needs: scope
+    if: needs.scope.outputs.docs_only == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check whitespace errors
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          PR_BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            git diff --check "origin/$PR_BASE_REF...$GITHUB_SHA"
+          elif [ -n "$EVENT_BEFORE" ] && ! printf '%s' "$EVENT_BEFORE" | grep -q '^0\{40\}$'; then
+            git diff --check "$EVENT_BEFORE" "$GITHUB_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
   check:
     name: Complete check
+    needs: scope
+    if: needs.scope.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
