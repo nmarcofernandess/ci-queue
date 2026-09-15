@@ -426,10 +426,10 @@ function PendingItem({
           <span className="font-mono">{shortSha(item.headSha)}</span>
           {` · ${formatDateTime(item.createdAt)}`}
         </ItemDescription>
+        <ItemActions>
+          <Badge variant="outline">{statusLabel(item.latestStatus)}</Badge>
+        </ItemActions>
       </ItemContent>
-      <ItemActions>
-        <Badge variant="outline">{statusLabel(item.latestStatus)}</Badge>
-      </ItemActions>
     </Item>
   )
 }
