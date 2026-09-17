@@ -1,17 +1,21 @@
 name: CI Queue checks
 
-# Sem crédito, qualquer job que peça runs-on falha vermelho ANTES dos steps.
-# Remoto OFF por padrão (variable CI_QUEUE_REMOTE_CI != true): todos os jobs
-# ficam skipped → a check suite não fica vermelha.
-# Liga Actions: Settings → Secrets and variables → Actions → Variables →
-#   CI_QUEUE_REMOTE_CI = true
-# Prova local (sem minutos): npm run ci:attest-check → status local/check.
+# Modelo DietFlow (não é “desligar Actions”):
+# - PR draft: jobs skipped (0 min) — push não gasta crédito e não fica vermelho.
+# - PR ready / push main: workflow RODA. Prova local/check dispensa o Complete
+#   check caro; Classify ainda precisa de ~1 min de runner quando há crédito.
+# - Sem crédito no momento do ready: o GitHub falha vermelho antes dos steps
+#   (igual DietFlow). Exceção administrativa: merge com status local/check +
+#   sem esperar Actions (equivalente a ship --no-remote) — fora deste YAML.
+# Não usar variable para desligar o CI remoto: se o CI no Git existe, ready
+# tem que poder executá-lo.
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main, dev]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -24,7 +28,7 @@ concurrency:
 jobs:
   scope:
     name: Classify changed paths
-    if: ${{ vars.CI_QUEUE_REMOTE_CI == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     outputs:
       docs_only: ${{ steps.changed-paths.outputs.docs_only }}
@@ -81,7 +85,7 @@ jobs:
   documentation:
     name: Documentation check
     needs: scope
-    if: ${{ vars.CI_QUEUE_REMOTE_CI == 'true' && needs.scope.outputs.docs_only == 'true' }}
+    if: needs.scope.outputs.docs_only == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -107,7 +111,6 @@ jobs:
     name: Local check proof accepted
     needs: scope
     if: >-
-      vars.CI_QUEUE_REMOTE_CI == 'true' &&
       github.event_name == 'pull_request' &&
       needs.scope.outputs.docs_only != 'true' &&
       needs.scope.outputs.local_proof_valid == 'true'
@@ -121,10 +124,8 @@ jobs:
     name: Complete check
     needs: scope
     if: >-
-      vars.CI_QUEUE_REMOTE_CI == 'true' &&
       needs.scope.outputs.docs_only != 'true' &&
-      (github.event_name != 'pull_request' || needs.scope.outputs.local_proof_valid != 'true') &&
-      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+      (github.event_name != 'pull_request' || needs.scope.outputs.local_proof_valid != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
