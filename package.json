@@ -21,7 +21,8 @@
     "release:verify": "node scripts/release.mjs verify",
     "check:ui": "npm --prefix ui run lint && npm --prefix ui run build",
     "test:backend": "python3 -m unittest discover -s tests/backend -p 'test_*.py'",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "ci:attest-check": "bash scripts/ci/publish-local-check-status.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "id": "070e4c47-709b-4fe1-9f98-d80d313a87f4",
+    "name": "CI Queue"
+  },
+  "execution": {
+    "executor": "queue",
+    "queue": {
+      "command": "ci-queue"
+    }
+  },
+  "presets": {
+    "check": {
+      "progress": true,
+      "argv": ["npm", "run", "check"],
+      "requireCleanTree": true,
+      "fetchBase": "origin/dev",
+      "requireGitStability": true,
+      "abortOnStaleBase": true
+    }
+  }
+}
