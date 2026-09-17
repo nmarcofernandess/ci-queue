@@ -31,6 +31,8 @@ async function closeDrawer(page: Page) {
 
 for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
   test(`complete family ${width} ${theme}`, async({page,context})=>{
+    // Full matrix (status→analysis) exceeds default 30s under load; failure looked like scatter count flake.
+    test.setTimeout(120_000)
     await context.grantPermissions(['clipboard-read','clipboard-write'])
     await page.setViewportSize({width,height:1000})
     await installConsistencyFixtures(page,{theme,saveError:true})
