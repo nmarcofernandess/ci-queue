@@ -11,12 +11,14 @@ describe("progressDurationView", () => {
     ).toMatchObject({ text: "0 ms", show: true })
   })
 
-  it("prefixes collector observations", () => {
+  it("prefixes collector observations and includes exact ms", () => {
     const view = progressDurationView(
       { id: "a", label: "A", status: "passed", durationMs: 1500, durationSource: "collector" },
       "passed",
     )
     expect(view.text.startsWith("≈")).toBe(true)
+    expect(view.description).toContain("1500 ms")
+    expect(view.description.toLowerCase()).toContain("buffer")
     expect(view.show).toBe(true)
   })
 
@@ -32,6 +34,16 @@ describe("progressDurationView", () => {
         "failed",
       ),
     ).toMatchObject({ text: "—", show: true })
+  })
+
+  it("shows em dash for legacy terminal without reason", () => {
+    expect(
+      progressDurationView({ id: "a", label: "A", status: "passed" }, "passed"),
+    ).toMatchObject({
+      text: "—",
+      description: "Duração ausente na publicação legada",
+      show: true,
+    })
   })
 
   it("hides running without a number", () => {

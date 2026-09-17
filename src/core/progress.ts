@@ -148,9 +148,17 @@ export class ProgressLineDecoder {
   }
 }
 
+function cloneProgressNode(node: ProgressNode): ProgressNode {
+  return {
+    ...node,
+    ...(node.detail ? { detail: { ...node.detail } } : {}),
+  }
+}
+
 export class ProgressCollector {
   private state: JobProgress
   private readonly timing: ProgressTimingTracker
+  private readonly clock: ProgressClock
   private finalized = false
 
   constructor(
@@ -158,13 +166,14 @@ export class ProgressCollector {
     private readonly id: string,
     options?: { clock?: ProgressClock },
   ) {
+    this.clock = options?.clock ?? systemProgressClock()
     this.state = readProgressSnapshot(root, id) ?? createProgressState()
-    this.timing = new ProgressTimingTracker(options?.clock ?? systemProgressClock(), this.state.nodes)
+    this.timing = new ProgressTimingTracker(this.clock, this.state.nodes)
   }
 
   ingest(line: string): void {
     if (this.finalized) return
-    const next = applyProgressLine(this.state, line, new Date().toISOString(), this.timing)
+    const next = applyProgressLine(this.state, line, this.clock.wallNowIso(), this.timing)
     if (next === this.state) return
     this.state = next
     try { writeProgressSnapshot(this.root, this.id, this.state) } catch { /* non-fatal */ }
@@ -178,7 +187,7 @@ export class ProgressCollector {
     return {
       schema: this.state.schema,
       updatedAt: this.state.updatedAt,
-      nodes: this.state.nodes.map((node) => ({ ...node })),
+      nodes: this.state.nodes.map(cloneProgressNode),
     }
   }
 
@@ -189,7 +198,7 @@ export class ProgressCollector {
       const nodes = this.timing.finalize(this.state.nodes)
       this.state = {
         ...this.state,
-        updatedAt: new Date().toISOString(),
+        updatedAt: this.clock.wallNowIso(),
         nodes,
       }
       try { writeProgressSnapshot(this.root, this.id, this.state) } catch { /* non-fatal */ }

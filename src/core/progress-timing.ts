@@ -31,10 +31,10 @@ function nsToMs(deltaNs: bigint): number | undefined {
   return Number(ms)
 }
 
-type Anchor = {
-  startedNs: bigint
-  discontinuous: boolean
-}
+type Anchor =
+  | { kind: "live"; startedNs: bigint }
+  | { kind: "discontinuous" }
+  | { kind: "clock-invalid" }
 
 /**
  * Owns only duration metadata. Status/hierarchy/retryCount stay in the reducer.
@@ -49,9 +49,8 @@ export class ProgressTimingTracker {
     this.#clock = clock
     for (const node of restoredNodes) {
       if (node.status === "running") {
-        // Restored running nodes lost their in-memory anchor — do not invent
-        // one from updatedAt. A later failed→running may start a fresh attempt.
-        this.#anchors.set(node.id, { startedNs: 0n, discontinuous: true })
+        // Restored running lost its in-memory anchor — never invent continuity.
+        this.#anchors.set(node.id, { kind: "discontinuous" })
       }
     }
   }
@@ -73,22 +72,61 @@ export class ProgressTimingTracker {
       delete node.durationUnavailableReason
     }
 
-    if (event.status === "running") {
-      const existing = this.#anchors.get(event.id)
-      if (!existing || existing.discontinuous || isNewAttempt) {
-        try {
-          this.#anchors.set(event.id, {
-            startedNs: this.#clock.monotonicNowNs(),
-            discontinuous: false,
-          })
-        } catch {
-          this.#anchors.set(event.id, { startedNs: 0n, discontinuous: true })
-          node.durationUnavailableReason = "clock-invalid"
-        }
-      }
-      // Running never publishes a live timer number.
+    if (event.status === "pending") {
+      // Retreat invalidates any live interval; a later running starts fresh.
+      this.#anchors.delete(event.id)
       delete node.durationMs
       delete node.durationSource
+      delete node.durationUnavailableReason
+      return node
+    }
+
+    if (event.status === "running") {
+      const existing = this.#anchors.get(event.id)
+
+      // Discontinuous / clock-invalid stay sticky across repeated running.
+      if (existing?.kind === "discontinuous" || existing?.kind === "clock-invalid") {
+        delete node.durationSource
+        if (typeof event.durationMs === "number") {
+          node.durationMs = event.durationMs
+          node.durationSource = "emitter"
+          delete node.durationUnavailableReason
+        } else {
+          delete node.durationMs
+          if (existing.kind === "clock-invalid") {
+            node.durationUnavailableReason = "clock-invalid"
+          } else {
+            delete node.durationUnavailableReason
+          }
+        }
+        return node
+      }
+
+      if (!existing || isNewAttempt) {
+        try {
+          this.#anchors.set(event.id, {
+            kind: "live",
+            startedNs: this.#clock.monotonicNowNs(),
+          })
+        } catch {
+          this.#anchors.set(event.id, { kind: "clock-invalid" })
+          delete node.durationMs
+          delete node.durationSource
+          node.durationUnavailableReason = "clock-invalid"
+          return node
+        }
+      }
+
+      // Preserve explicit emitter snapshot on running; do not invent a live timer.
+      if (typeof event.durationMs === "number") {
+        node.durationMs = event.durationMs
+        node.durationSource = "emitter"
+        delete node.durationUnavailableReason
+      } else {
+        delete node.durationMs
+        delete node.durationSource
+        delete node.durationUnavailableReason
+      }
       return node
     }
 
@@ -115,6 +153,9 @@ export class ProgressTimingTracker {
       if (typeof previous.durationMs === "number") {
         node.durationMs = previous.durationMs
         if (previous.durationSource) node.durationSource = previous.durationSource
+      } else {
+        delete node.durationMs
+        delete node.durationSource
       }
       if (previous.durationUnavailableReason) {
         node.durationUnavailableReason = previous.durationUnavailableReason
@@ -123,13 +164,26 @@ export class ProgressTimingTracker {
     }
 
     const anchor = this.#anchors.get(event.id)
-    if (!anchor || anchor.discontinuous) {
+    this.#anchors.delete(event.id)
+
+    if (!anchor) {
       delete node.durationMs
       delete node.durationSource
-      node.durationUnavailableReason = anchor?.discontinuous
-        ? "collector-restarted"
-        : "missing-start"
-      this.#anchors.delete(event.id)
+      node.durationUnavailableReason = "missing-start"
+      return node
+    }
+
+    if (anchor.kind === "discontinuous") {
+      delete node.durationMs
+      delete node.durationSource
+      node.durationUnavailableReason = "collector-restarted"
+      return node
+    }
+
+    if (anchor.kind === "clock-invalid") {
+      delete node.durationMs
+      delete node.durationSource
+      node.durationUnavailableReason = "clock-invalid"
       return node
     }
 
@@ -140,12 +194,10 @@ export class ProgressTimingTracker {
       delete node.durationMs
       delete node.durationSource
       node.durationUnavailableReason = "clock-invalid"
-      this.#anchors.delete(event.id)
       return node
     }
 
     const measured = nsToMs(nowNs - anchor.startedNs)
-    this.#anchors.delete(event.id)
     if (measured === undefined) {
       delete node.durationMs
       delete node.durationSource
@@ -165,11 +217,15 @@ export class ProgressTimingTracker {
       const next: ProgressNode = { ...node }
       delete next.durationMs
       delete next.durationSource
-      next.durationUnavailableReason =
-        this.#anchors.get(node.id)?.discontinuous
-          ? "collector-restarted"
-          : "open-at-finalize"
+      const anchor = this.#anchors.get(node.id)
       this.#anchors.delete(node.id)
+      if (anchor?.kind === "discontinuous") {
+        next.durationUnavailableReason = "collector-restarted"
+      } else if (anchor?.kind === "clock-invalid") {
+        next.durationUnavailableReason = "clock-invalid"
+      } else {
+        next.durationUnavailableReason = "missing-end"
+      }
       return next
     })
   }

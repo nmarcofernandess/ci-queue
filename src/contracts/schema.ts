@@ -148,7 +148,7 @@ export type ProgressDurationUnavailableReason =
   | "missing-start"
   | "collector-restarted"
   | "clock-invalid"
-  | "open-at-finalize"
+  | "missing-end"
 
 export type ProgressNode = {
   id: string

@@ -24,6 +24,13 @@ composition:
       - ui/src/features/status/status-state-drawer.tsx
       - ui/src/features/status/green-commit-table.tsx
       - ui/src/features/projects/project-manager-drawer.tsx
+  progress_duration:
+    source: ui/src/features/shared/progress-duration.tsx
+    model: ui/src/features/shared/progress-duration-model.ts
+    use: "Árvore e faixa compartilham o mesmo conteúdo de duração/origem/ausência."
+    consumers:
+      - ui/src/features/shared/progress-tree.tsx
+      - ui/src/features/shared/execution-stages.tsx
   filters:
     source: ui/src/features/shared/filter-select.tsx
     consumers:

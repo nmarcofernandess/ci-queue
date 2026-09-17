@@ -1,0 +1,1277 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Exemplos sintéticos de comportamento esperado, não testes executados do produto.",
+  "clockUnit": "milliseconds converted to bigint nanoseconds by test harness",
+  "notes": [
+    "atMs ajusta o relógio do coletor vigente; recreate perde as âncoras em memória.",
+    "Início/fim simulados são eventos completos. Fragmentação de pipes tem testes próprios.",
+    "expectedNodes é subconjunto dos campos; absent exige ausência de propriedade."
+  ],
+  "cases": [
+    {
+      "id": "inferred-basic",
+      "acceptance": [
+        "D01"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1250,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "status": "passed",
+          "durationMs": 1250,
+          "durationSource": "collector",
+          "absent": [
+            "durationUnavailableReason"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "emitter-wins",
+      "acceptance": [
+        "D02"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 200,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "90000",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "status": "passed",
+          "durationMs": 90000,
+          "durationSource": "emitter",
+          "absent": []
+        }
+      ]
+    },
+    {
+      "id": "emitter-zero",
+      "acceptance": [
+        "D02",
+        "D23"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 500,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "0",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "durationMs": 0,
+          "durationSource": "emitter",
+          "absent": []
+        }
+      ]
+    },
+    {
+      "id": "running-repeat",
+      "acceptance": [
+        "D03"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 100,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 900,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1600,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "durationMs": 1500,
+          "durationSource": "collector",
+          "absent": []
+        }
+      ]
+    },
+    {
+      "id": "counts-do-not-reset",
+      "acceptance": [
+        "D03"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 100,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 400,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "counts",
+            "g1",
+            "gates",
+            "0",
+            "1",
+            "0",
+            "0",
+            "1",
+            "0",
+            "0"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1100,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "durationMs": 1000,
+          "durationSource": "collector",
+          "absent": []
+        }
+      ]
+    },
+    {
+      "id": "retry-last-attempt",
+      "acceptance": [
+        "D04"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 600,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "failed",
+            "600",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1200,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1300,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "durationMs": 300,
+          "durationSource": "collector",
+          "retryCount": 1,
+          "absent": []
+        }
+      ]
+    },
+    {
+      "id": "terminal-duplicate",
+      "acceptance": [
+        "D05"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 9000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "durationMs": 1000,
+          "durationSource": "collector",
+          "absent": []
+        }
+      ]
+    },
+    {
+      "id": "late-emitter-replaces-inference",
+      "acceptance": [
+        "D05"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 9000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "700",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "durationMs": 700,
+          "durationSource": "emitter",
+          "absent": []
+        }
+      ]
+    },
+    {
+      "id": "terminal-without-start",
+      "acceptance": [
+        "D06"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "durationUnavailableReason": "missing-start",
+          "absent": [
+            "durationMs",
+            "durationSource"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "skipped-without-start",
+      "acceptance": [
+        "D06"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "skipped",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "status": "skipped",
+          "durationUnavailableReason": "missing-start",
+          "absent": [
+            "durationMs",
+            "durationSource"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "open-node-at-finish",
+      "acceptance": [
+        "D07"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "finalize",
+          "atMs": 3000
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "status": "running",
+          "durationUnavailableReason": "missing-end",
+          "absent": [
+            "durationMs",
+            "durationSource"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "restart-loses-anchor",
+      "acceptance": [
+        "D08"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "recreate",
+          "atMs": 10
+        },
+        {
+          "op": "ingest",
+          "atMs": 900,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1500,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "durationUnavailableReason": "collector-restarted",
+          "absent": [
+            "durationMs",
+            "durationSource"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "restart-explicit-terminal-valid",
+      "acceptance": [
+        "D08",
+        "D02"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "recreate",
+          "atMs": 10
+        },
+        {
+          "op": "ingest",
+          "atMs": 1500,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "50",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "durationMs": 50,
+          "durationSource": "emitter",
+          "absent": [
+            "durationUnavailableReason"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "legacy-duration-preserved",
+      "acceptance": [
+        "D08",
+        "D22"
+      ],
+      "events": [
+        {
+          "op": "finalize",
+          "atMs": 9999
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "status": "passed",
+          "durationMs": 1234,
+          "absent": [
+            "durationSource",
+            "durationUnavailableReason"
+          ]
+        }
+      ],
+      "initialNodes": [
+        {
+          "id": "g1",
+          "parentId": null,
+          "kind": "gate",
+          "label": "Legado",
+          "status": "passed",
+          "durationMs": 1234
+        }
+      ]
+    },
+    {
+      "id": "overlapping-children",
+      "acceptance": [
+        "D09"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "parent",
+            "-",
+            "group",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 100,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "a",
+            "parent",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 200,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "b",
+            "parent",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 900,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "a",
+            "parent",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "b",
+            "parent",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "parent",
+            "-",
+            "group",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "parent",
+          "durationMs": 1000,
+          "durationSource": "collector",
+          "absent": []
+        },
+        {
+          "id": "a",
+          "durationMs": 800,
+          "durationSource": "collector",
+          "absent": []
+        },
+        {
+          "id": "b",
+          "durationMs": 800,
+          "durationSource": "collector",
+          "absent": []
+        }
+      ]
+    },
+    {
+      "id": "wall-clock-jump",
+      "acceptance": [
+        "D10"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ],
+          "wallIso": "2026-09-17T12:00:00.000Z"
+        },
+        {
+          "op": "ingest",
+          "atMs": 6000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ],
+          "wallIso": "2026-09-17T10:00:00.000Z"
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "durationMs": 5000,
+          "durationSource": "collector",
+          "absent": []
+        }
+      ]
+    },
+    {
+      "id": "clock-negative-delta",
+      "acceptance": [
+        "D10"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 900,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "durationUnavailableReason": "clock-invalid",
+          "absent": [
+            "durationMs",
+            "durationSource"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "long-interval-no-sleep",
+      "acceptance": [
+        "D01",
+        "D10"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1800000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "durationMs": 1800000,
+          "durationSource": "collector",
+          "absent": []
+        }
+      ]
+    },
+    {
+      "id": "parent-is-not-sum",
+      "acceptance": [
+        "D09"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "parent",
+            "-",
+            "group",
+            "pending",
+            "-",
+            "Pai"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "child",
+            "parent",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "child",
+            "parent",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "parent",
+            "-",
+            "group",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "child",
+          "durationMs": 1000,
+          "durationSource": "collector",
+          "absent": []
+        },
+        {
+          "id": "parent",
+          "durationUnavailableReason": "missing-start",
+          "absent": [
+            "durationMs",
+            "durationSource"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "skip-after-observed-start",
+      "acceptance": [
+        "D06"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 250,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "skipped",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "status": "skipped",
+          "durationMs": 250,
+          "durationSource": "collector",
+          "absent": []
+        }
+      ]
+    },
+    {
+      "id": "running-duration-not-final",
+      "acceptance": [
+        "D02"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 100,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "10",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 500,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "durationMs": 500,
+          "durationSource": "collector",
+          "absent": []
+        }
+      ]
+    },
+    {
+      "id": "finalize-is-idempotent",
+      "acceptance": [
+        "D05",
+        "D16"
+      ],
+      "events": [
+        {
+          "op": "ingest",
+          "atMs": 0,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "ingest",
+          "atMs": 1000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "passed",
+            "-",
+            "Verificação"
+          ]
+        },
+        {
+          "op": "finalize",
+          "atMs": 2000
+        },
+        {
+          "op": "finalize",
+          "atMs": 5000
+        },
+        {
+          "op": "ingest",
+          "atMs": 9000,
+          "fields": [
+            "@@ci-queue-progress",
+            "1",
+            "node",
+            "g1",
+            "-",
+            "gate",
+            "running",
+            "-",
+            "Verificação"
+          ]
+        }
+      ],
+      "expectedNodes": [
+        {
+          "id": "g1",
+          "status": "passed",
+          "durationMs": 1000,
+          "durationSource": "collector",
+          "absent": []
+        }
+      ]
+    }
+  ]
+}

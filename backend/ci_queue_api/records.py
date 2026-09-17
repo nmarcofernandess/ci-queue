@@ -172,9 +172,10 @@ def progress_summary(job, progress=None):
     allowed = {"pending", "running", "passed", "failed", "skipped"}
     known = {}
     for node in nodes:
+        status = node.get("status") if isinstance(node, dict) else None
         if (not isinstance(node, dict) or not isinstance(node.get("id"), str)
                 or not isinstance(node.get("label"), str) or node["id"] in known
-                or node.get("status") not in allowed):
+                or not isinstance(status, str) or status not in allowed):
             return {**job, "progressSummary": {"schemaVersion": 1, "available": False, "reason": "invalid-hierarchy"}}
         parent = node.get("parentId")
         if parent is not None and not isinstance(parent, str):
@@ -199,19 +200,25 @@ def progress_summary(job, progress=None):
                 result[key] = node[key]
         detail = node.get("detail")
         count_keys = ("completed", "total", "passed", "failed", "running", "pending", "skipped")
-        if (isinstance(detail, dict) and detail.get("kind") in {"gates", "suites", "cases", "artifacts", "items"}
+        detail_kind = detail.get("kind") if isinstance(detail, dict) else None
+        if (isinstance(detail, dict) and isinstance(detail_kind, str)
+                and detail_kind in {"gates", "suites", "cases", "artifacts", "items"}
                 and all(type(detail.get(key)) is int and 0 <= detail[key] <= 9007199254740991 for key in count_keys)
                 and detail["passed"] + detail["failed"] + detail["skipped"] == detail["completed"]
                 and detail["completed"] + detail["running"] + detail["pending"] == detail["total"]):
             result["detail"] = {key: detail[key] for key in ("kind", *count_keys)}
         value = node.get("durationMs")
-        if type(value) is int and 0 <= value <= 9007199254740991:
+        has_valid_duration = type(value) is int and 0 <= value <= 9007199254740991
+        if has_valid_duration:
             result["durationMs"] = value
         source = node.get("durationSource")
-        if source in {"emitter", "collector"}:
+        # Source only beside a valid duration; require str before set membership (R03).
+        if has_valid_duration and isinstance(source, str) and source in {"emitter", "collector"}:
             result["durationSource"] = source
         reason = node.get("durationUnavailableReason")
-        if reason in {"missing-start", "collector-restarted", "clock-invalid", "open-at-finalize"}:
+        # Reason only in the absence of a valid number; drop contradictory pairs.
+        if (not has_valid_duration and isinstance(reason, str)
+                and reason in {"missing-start", "collector-restarted", "clock-invalid", "missing-end"}):
             result["durationUnavailableReason"] = reason
         retry_count = node.get("retryCount")
         if type(retry_count) is int and retry_count >= 0:

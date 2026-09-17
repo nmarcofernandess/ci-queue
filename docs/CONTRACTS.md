@@ -56,7 +56,7 @@ Campos opcionais e retrocompatíveis em cada nó de progresso:
 
 - `durationMs` — inteiro ≥ 0; **0 é valor real** quando o emissor o publica.
 - `durationSource` — `emitter` (valor do TSV) ou `collector` (intervalo monotônico `running→terminal` observado pelo coletor).
-- `durationUnavailableReason` — ausência honesta: `missing-start`, `collector-restarted`, `clock-invalid`, `open-at-finalize`.
+- `durationUnavailableReason` — ausência honesta: `missing-start`, `collector-restarted`, `clock-invalid`, `missing-end`.
 
 Precedência: valor explícito do emissor vence, inclusive 0. Sem duração no terminal, o coletor mede se viu um `running` contínuo na mesma tentativa; caso contrário publica reason, nunca inventa 0. Pai não é soma dos filhos. Retry mantém a duração da tentativa atual/última. Árvore, faixa, API, CLI e diagnóstico preservam os mesmos campos.
 
