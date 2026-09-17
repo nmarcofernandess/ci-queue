@@ -74,14 +74,21 @@ class ApiContext:
 
 
 class _UnassignedConfig:
-    project_id = None
-    project_name = None
-    presets = {}
-    remote_slots_path = None
-    repository_path = None
-    base_ref = "HEAD"
+    def __init__(self, project_id=None, project_name=None):
+        self.project_id = project_id
+        self.project_name = project_name
+        self.presets = {}
+        self.remote_slots_path = None
+        self.repository_path = None
+        self.base_ref = "HEAD"
 
     def public(self):
+        if self.project_id:
+            return {
+                "schemaVersion": 1,
+                "project": {"id": self.project_id, "name": self.project_name},
+                "presets": [],
+            }
         return {"schemaVersion": 1, "project": None, "presets": []}
 
 
@@ -398,7 +405,9 @@ def create_handler(context):
             self._serve_static(path)
 
         def _serve_project(self, path, query, scope, project):
-            config = project.config if project.config is not None else _UnassignedConfig()
+            config = project.config if project.config is not None else _UnassignedConfig(
+                project.project_id, project.display_name,
+            )
             revision = project.entry_revision
             if path == "/api/config":
                 if project.config is None:
@@ -424,10 +433,13 @@ def create_handler(context):
                 ), scope, revision))
                 return
             if path == "/api/executions":
+                reader_scope = query.get("scope", ["terminal"])[0]
+                if reader_scope == "legacy":
+                    reader_scope = "terminal"
                 payload = read_executions(
                     self.api_context.state_root, project.project_id,
                     q=query.get("q", [""])[0], result=query.get("result", ["all"])[0],
-                    scope=query.get("scope", ["terminal"])[0], from_time=query.get("from", [""])[0],
+                    scope=reader_scope, from_time=query.get("from", [""])[0],
                     to_time=query.get("to", [""])[0], snapshot_before=query.get("snapshotBefore", [""])[0],
                     cursor=query.get("cursor", [""])[0], offset=_integer(query.get("offset", ["0"])[0], "offset"),
                 )

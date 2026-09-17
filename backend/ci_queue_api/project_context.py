@@ -115,8 +115,6 @@ def resolve_project(project_id, registry, bootstrap_config=None):
         raise LookupError("projeto não encontrado")
     locators = resolve_repository(entry)
     config = resolve_config_for_entry(entry)
-    if config is None and bootstrap_config is not None and bootstrap_config.project_id == project_id:
-        config = bootstrap_config
     repo = locators["effective"] or (
         Path(entry["repositoryPath"]) if entry.get("repositoryPath") else (
             config.repository_path if config else None

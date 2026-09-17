@@ -205,6 +205,40 @@ class ProjectScopeHttpTests(unittest.TestCase):
             }, headers)
         self.assertEqual(stale.exception.code, 409)
 
+    def test_diagnostic_stays_scoped_when_catalog_is_missing(self):
+        mutate_registry(self.state, {
+            "action": "unlink-config",
+            "expectedRevision": read_registry(self.state)["revision"],
+            "projectId": "beta",
+        })
+        with self.assertRaises(HTTPError) as rejected:
+            self._get("/api/diagnostic?projectId=beta&jobId=job-a")
+        self.assertEqual(rejected.exception.code, 404)
+        self.assertNotIn(b"UNIQUE_ALPHA_LOG", rejected.exception.read())
+        with self._get("/api/diagnostic?projectId=beta&jobId=job-b") as response:
+            payload = json.loads(response.read())
+        self.assertTrue(payload["available"])
+        self.assertEqual(payload["context"]["projectId"], "beta")
+
+    def test_unlink_does_not_reuse_bootstrap_catalog(self):
+        mutate_registry(self.state, {
+            "action": "unlink-config",
+            "expectedRevision": read_registry(self.state)["revision"],
+            "projectId": "alpha",
+        })
+        with self.assertRaises(HTTPError) as denied:
+            self._get("/api/preset-history?projectId=alpha")
+        self.assertEqual(denied.exception.code, 409)
+        body = json.loads(denied.exception.read())
+        self.assertEqual(body["code"], "CATALOG_UNLINKED")
+
+    def test_legacy_scope_does_not_override_explicit_project(self):
+        with self._get("/api/executions?projectId=alpha&scope=legacy") as response:
+            payload = json.loads(response.read())
+        self.assertEqual(payload["context"]["projectId"], "alpha")
+        self.assertEqual([job["id"] for job in payload["jobs"]], ["job-a"])
+        self.assertNotIn("job-none", [job["id"] for job in payload["jobs"]])
+
     def test_cross_project_job_and_log_hide_bytes(self):
         for suffix in ("/api/job?projectId=beta&jobId=job-a",
                        "/api/log?projectId=beta&jobId=job-a",

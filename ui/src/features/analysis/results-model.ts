@@ -93,6 +93,10 @@ export function resolveSelection(
   }
 }
 
+export function mapResultRows(presets: ResultCounts[] | undefined): ResultRow[] {
+  return (presets ?? []).map((row) => projectPercentages(row))
+}
+
 export function formatShare(value: number): string {
   if (value === 0) {
     return "0%"

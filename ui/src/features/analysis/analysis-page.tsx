@@ -28,11 +28,12 @@ import {
 import { PresetMultiSelect } from "@/features/analysis/preset-multi-select"
 import {
   formatShare,
-  projectPercentages,
+  mapResultRows,
   rankResults,
   resolveSelection,
   RESULT_STATES,
   type ResultCounts,
+  type ResultRow,
 } from "@/features/analysis/results-model"
 import { FilterSelect } from "@/features/shared/filter-select"
 import type { AnalysisPreset, AnalysisResponse, ResultsResponse } from "@/lib/types"
@@ -129,14 +130,21 @@ function persistAnalysis(projectId: string, state: AnalysisViewState) {
   window.history.replaceState(window.history.state, "", url)
 }
 
-function asResultRows(presets: ResultCounts[] | undefined) {
-  return (presets ?? []).flatMap((row) => {
-    try {
-      return [projectPercentages(row)]
-    } catch {
-      return []
+function resultRowsOrError(presets: ResultCounts[] | undefined): {
+  rows?: ResultRow[]
+  dataError?: Error
+} {
+  if (!presets) {
+    return {}
+  }
+  try {
+    return { rows: mapResultRows(presets).filter((row) => row.percentages) }
+  } catch (reason) {
+    return {
+      dataError:
+        reason instanceof Error ? reason : new Error("Contagem de resultado inválida"),
     }
-  })
+  }
 }
 
 function ResultsShareList({
@@ -200,7 +208,11 @@ function ResultsChart({
   if (loading) {
     return <Skeleton className="h-80 w-full" />
   }
-  if (error) {
+  const { rows: mappedRows, dataError } = resultRowsOrError(presets)
+  if (dataError) {
+    return <ErrorState title="Dados de resultados inválidos" error={dataError} />
+  }
+  if (error && !presets?.length) {
     return (
       <ErrorState
         title="Não foi possível carregar os resultados"
@@ -221,7 +233,7 @@ function ResultsChart({
     )
   }
 
-  const rows = asResultRows(presets).filter((row) => row.percentages)
+  const rows = mappedRows ?? []
   const chartRows = rows.map((row) => ({
     ...row,
     passedPct: row.percentages?.passed ?? 0,
@@ -301,24 +313,24 @@ function ResultsChart({
         <DataTableFrame placement="body" label="Resultados por preset">
           <TableHeader>
             <TableRow>
-              <TableHead>Preset</TableHead>
-              <TableHead className="text-right">Passou</TableHead>
-              <TableHead className="text-right">Falhou</TableHead>
-              <TableHead className="text-right">Cancelado</TableHead>
-              <TableHead className="text-right">Interrompido</TableHead>
-              <TableHead className="text-right">Total</TableHead>
+              <TableHead className="w-[40%]">Preset</TableHead>
+              <TableHead className="w-[12%] text-right">Passou</TableHead>
+              <TableHead className="w-[12%] text-right">Falhou</TableHead>
+              <TableHead className="w-[12%] text-right">Cancelado</TableHead>
+              <TableHead className="w-[12%] text-right">Interrompido</TableHead>
+              <TableHead className="w-[12%] text-right">Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((preset) => (
               <TableRow key={preset.preset}>
-                <TableCell className="min-w-0 font-medium">
+                <TableCell className="min-w-0 max-w-0 font-medium">
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
                         type="button"
                         variant="link"
-                        className="h-auto min-w-0 justify-start p-0 font-medium [overflow-wrap:anywhere]"
+                        className="h-auto max-w-full min-w-0 justify-start p-0 text-left font-medium break-words whitespace-normal [overflow-wrap:anywhere]"
                       >
                         {preset.preset}
                       </Button>
@@ -358,11 +370,6 @@ function DurationChart({
   if (loading) {
     return <Skeleton className="h-80 w-full" />
   }
-  if (error) {
-    return (
-      <ErrorState title="Não foi possível carregar a duração" error={error} />
-    )
-  }
   if (catalogState && catalogState !== "linked") {
     return (
       <EmptyState
@@ -373,6 +380,11 @@ function DurationChart({
           Gerenciar projetos
         </Button>
       </EmptyState>
+    )
+  }
+  if (error && !preset?.points.length) {
+    return (
+      <ErrorState title="Não foi possível carregar a duração" error={error} />
     )
   }
   if (!preset) {

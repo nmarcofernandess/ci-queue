@@ -32,13 +32,35 @@ export function parseScopeSearch(search: string): ReadScope | null {
   return null
 }
 
+const PROJECT_SCOPED_SEARCH_KEYS = [
+  "analysisMetric",
+  "analysisPeriod",
+  "analysisMode",
+  "analysisPreset",
+  "durationPreset",
+] as const
+
+function stripProjectScopedSearch(params: URLSearchParams) {
+  for (const key of PROJECT_SCOPED_SEARCH_KEYS) {
+    params.delete(key)
+  }
+}
+
 export function writeScopeSearch(search: string, scope: ReadScope): string {
   const params = new URLSearchParams(search)
+  const previousProject = params.get("projectId")
+  const previousUnassigned = params.get("context") === "unassigned"
   params.delete("projectId")
   params.delete("context")
   if (scope.kind === "project") {
+    if (previousUnassigned || (previousProject !== null && previousProject !== scope.projectId)) {
+      stripProjectScopedSearch(params)
+    }
     params.set("projectId", scope.projectId)
   } else {
+    if (previousProject !== null) {
+      stripProjectScopedSearch(params)
+    }
     params.set("context", "unassigned")
   }
   return params.toString()

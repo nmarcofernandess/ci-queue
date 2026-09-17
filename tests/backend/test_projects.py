@@ -283,15 +283,15 @@ class ProjectRegistryTests(unittest.TestCase):
         })
         second = probe_project(self.state, {"repositoryPath": str(linked)})
         self.assertEqual(second["conflicts"][0]["code"], "git-common-dir-bound")
-        with self.assertRaises(RevisionConflict):
-            mutate_registry(self.state, {
-                "action": "register",
-                "expectedRevision": created["revision"],
-                "identitySource": "new",
-                "repositoryPath": str(linked),
-                "signature": second["signature"],
-            })
-        self.assertEqual(list(read_registry(self.state)["projects"]), ["alpha"])
+        updated = mutate_registry(self.state, {
+            "action": "register",
+            "expectedRevision": created["revision"],
+            "identitySource": "new",
+            "repositoryPath": str(linked),
+            "signature": second["signature"],
+        })
+        self.assertEqual(list(updated["projects"]), ["alpha"])
+        self.assertEqual(Path(updated["projects"]["alpha"]["repositoryPath"]), repo.resolve())
 
     def test_same_id_other_clone_is_an_explicit_conflict(self):
         first_repo = _init_repo(self.root / "clone-a")
@@ -484,6 +484,75 @@ class ProjectRegistryTests(unittest.TestCase):
         loaded = resolve_config_for_entry(entry)
         self.assertEqual(loaded.project_id, "alpha")
         self.assertEqual(loaded.path.resolve(), config.resolve())
+
+    def test_reused_registered_path_is_not_treated_as_this_worktree(self):
+        first = _init_repo(self.root / "clone-a")
+        second = _init_repo(self.root / "clone-b")
+        _write_config(first)
+        bootstrap_registry(self.state, first / "ci-queue.json")
+        entry = dict(read_registry(self.state)["projects"]["alpha"])
+        entry["repositoryPath"] = str(second.resolve())
+        locators = resolve_repository(entry)
+        self.assertTrue(locators["available"])
+        self.assertEqual(locators["effective"], first.resolve())
+        self.assertNotEqual(locators["effective"], second.resolve())
+
+    def test_existing_directory_without_common_dir_is_unavailable(self):
+        folder = self.root / "plain"
+        folder.mkdir()
+        locators = resolve_repository({
+            "repositoryPath": str(folder),
+            "gitCommonDir": None,
+        })
+        self.assertFalse(locators["available"])
+        self.assertIsNone(locators["effective"])
+
+    def test_explicit_unlink_does_not_rediscover_or_heal_config(self):
+        repo = _init_repo(self.root / "repo")
+        config = _write_config(repo)
+        created = bootstrap_registry(self.state, config)
+        unlinked = mutate_registry(self.state, {
+            "action": "unlink-config",
+            "expectedRevision": created["revision"],
+            "projectId": "alpha",
+        })
+        entry = unlinked["projects"]["alpha"]
+        self.assertIsNone(entry["configPath"])
+        self.assertIsNone(resolve_config_for_entry(entry))
+        healed = bootstrap_registry(self.state, config)
+        self.assertIsNone(healed["projects"]["alpha"]["configPath"])
+        self.assertIsNone(resolve_config_for_entry(healed["projects"]["alpha"]))
+
+    def test_reregister_same_common_dir_without_catalog_updates_locators(self):
+        main = _init_repo(self.root / "durable")
+        preview = probe_project(self.state, {"repositoryPath": str(main)})
+        created = mutate_registry(self.state, {
+            "action": "register",
+            "expectedRevision": 0,
+            "identitySource": "new",
+            "repositoryPath": str(main),
+            "signature": preview["signature"],
+        })
+        project_id = next(iter(created["projects"]))
+        linked = self.root / "lane"
+        subprocess.run(["git", "-C", str(main), "worktree", "add", str(linked)],
+                       check=True, capture_output=True)
+        path = self.state / "state" / "projects.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["projects"][project_id]["repositoryPath"] = str(self.root / "gone")
+        path.write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
+        second = probe_project(self.state, {"repositoryPath": str(linked)})
+        self.assertEqual(second["conflicts"][0]["code"], "git-common-dir-bound")
+        self.assertEqual(second["conflicts"][0]["projectId"], project_id)
+        updated = mutate_registry(self.state, {
+            "action": "register",
+            "expectedRevision": created["revision"],
+            "identitySource": "new",
+            "repositoryPath": str(linked),
+            "signature": second["signature"],
+        })
+        self.assertEqual(list(updated["projects"]), [project_id])
+        self.assertEqual(Path(updated["projects"][project_id]["repositoryPath"]), main.resolve())
 
 
 if __name__ == "__main__":

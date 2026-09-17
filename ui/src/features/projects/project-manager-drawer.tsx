@@ -30,6 +30,11 @@ import {
 } from "@/features/shared/detail-drawer"
 import { FactsTable } from "@/features/shared/facts-table"
 import { useProjectContext } from "@/features/projects/project-context"
+import {
+  editFormFromProject,
+  editLinkMutation,
+  registerIdentitySource,
+} from "@/features/projects/project-manager-state"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
 import {
   ApiError,
@@ -151,10 +156,16 @@ export function ProjectManagerDrawer({ onClose }: { onClose: () => void }) {
       })
       reloadProjects()
       if (body.action === "register") {
+        const boundId = preview?.conflicts.find(
+          (item) => item.code === "git-common-dir-bound"
+        )?.projectId
         const created =
           payload.projects.find((item) => !known.has(item.id)) ??
           payload.projects.find(
-            (item) => item.id === preview?.projectId || item.id === observedId
+            (item) =>
+              item.id === preview?.projectId ||
+              item.id === observedId ||
+              item.id === boundId
           )
         if (created) {
           requestScopeChange({ kind: "project", projectId: created.id })
@@ -220,10 +231,11 @@ export function ProjectManagerDrawer({ onClose }: { onClose: () => void }) {
                 key={item.id}
                 item={item}
                 onEdit={() => {
+                  const form = editFormFromProject(item)
                   setMode({ kind: "edit", id: item.id })
-                  setDisplayName(item.displayName || item.id)
-                  setPath(item.resolvedRepositoryPath || item.repositoryPath || "")
-                  setConfigPath(item.configPath || "")
+                  setDisplayName(form.displayName)
+                  setPath(form.path)
+                  setConfigPath(form.configPath)
                   setPreview(undefined)
                 }}
               />
@@ -235,7 +247,14 @@ export function ProjectManagerDrawer({ onClose }: { onClose: () => void }) {
                   <ProjectRow
                     key={item.id}
                     item={item}
-                    onEdit={() => setMode({ kind: "edit", id: item.id })}
+                    onEdit={() => {
+                      const form = editFormFromProject(item)
+                      setMode({ kind: "edit", id: item.id })
+                      setDisplayName(form.displayName)
+                      setPath(form.path)
+                      setConfigPath(form.configPath)
+                      setPreview(undefined)
+                    }}
                   />
                 ))}
               </div>
@@ -394,13 +413,7 @@ export function ProjectManagerDrawer({ onClose }: { onClose: () => void }) {
                 type="button"
                 disabled={busy}
                 onClick={() =>
-                  void run({
-                    action: path && path !== selected.repositoryPath ? "relocate" : "link-config",
-                    projectId: selected.id,
-                    repositoryPath: path || undefined,
-                    configPath: configPath || null,
-                    signature: preview.signature,
-                  })
+                  void run(editLinkMutation(selected, path, configPath, preview.signature))
                 }
               >
                 Salvar vínculo
@@ -413,11 +426,10 @@ export function ProjectManagerDrawer({ onClose }: { onClose: () => void }) {
                 onClick={() =>
                   void run({
                     action: "register",
-                    identitySource: observedId
-                      ? "observed"
-                      : preview?.catalogValid
-                        ? "config"
-                        : "new",
+                    identitySource: registerIdentitySource({
+                      observedId,
+                      catalogValid: preview?.catalogValid,
+                    }),
                     existingProjectId: observedId || undefined,
                     repositoryPath: path || undefined,
                     configPath: configPath || null,

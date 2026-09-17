@@ -71,5 +71,14 @@ describe('project scope', () => {
     expect(writeScopeSearch('analysisMetric=results', alpha)).toBe(
       'analysisMetric=results&projectId=alpha'
     )
+    expect(
+      writeScopeSearch(
+        'analysisMetric=results&analysisPeriod=week&analysisMode=custom&analysisPreset=alpha-only&projectId=alpha',
+        { kind: 'project', projectId: 'beta' }
+      )
+    ).toBe('projectId=beta')
+    expect(writeScopeSearch('analysisMetric=duration&projectId=alpha', alpha)).toBe(
+      'analysisMetric=duration&projectId=alpha'
+    )
   })
 })

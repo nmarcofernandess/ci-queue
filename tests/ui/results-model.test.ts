@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   formatShare,
+  mapResultRows,
   projectPercentages,
   rankResults,
   resolveSelection,
@@ -58,6 +59,10 @@ describe('results-model', () => {
     for (const row of fixture.invalidCounts) {
       expect(() => projectPercentages(row)).toThrow(/inválida|inconsistente/)
     }
+    expect(() =>
+      mapResultRows([fixture.thirds.row, fixture.invalidCounts[0]])
+    ).toThrow(/inválida|inconsistente/)
+    expect(mapResultRows([fixture.thirds.row])[0].percentages?.passed).toBeCloseTo(100 / 3, 12)
   })
 
   it('ranks by volume then name and defaults top10 to clinical-readonly', () => {

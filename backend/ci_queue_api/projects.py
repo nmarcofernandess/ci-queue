@@ -261,7 +261,8 @@ def resolve_repository(entry):
         living = [path for path in list_worktree_paths(common) if path.exists()]
     except (ValueError, TimeoutError, OSError):
         living = []
-    if registered is not None and registered.exists():
+    living_set = {path.resolve() for path in living}
+    if registered is not None and registered in living_set:
         effective = registered
     elif living:
         effective = living[0]
@@ -278,7 +279,9 @@ def resolve_repository(entry):
 def resolve_config_for_entry(entry):
     expected = entry.get("id")
     registered = entry.get("configPath")
-    if registered and Path(registered).is_file():
+    if not registered:
+        return None
+    if Path(registered).is_file():
         try:
             config = load_project_config(registered)
         except (ConfigError, OSError):
@@ -393,7 +396,7 @@ def _conflicts(document, git_common_dir, project_id, config_repo_common, config_
             if bound and Path(bound) == git_common_dir:
                 conflicts.append({
                     "code": "git-common-dir-bound",
-                    "message": "Este Git já está vinculado a um cadastro.",
+                    "message": "Este Git já está cadastrado. Salvar atualiza os localizadores do cadastro existente.",
                     "projectId": entry["id"],
                 })
                 break
@@ -550,14 +553,29 @@ def _register(document, state_root, body, now):
         name = _display_name(body.get("displayName"), preview["displayName"] or project_id)
         _require_clean(preview, allow_project_id=project_id)
     else:
-        _require_clean(preview)
         if preview["bindingState"] == "linked":
             raise ValueError("pasta com config deve usar identitySource=config")
-        project_id = "proj-" + uuid.uuid4().hex
-        name = _display_name(body.get("displayName"), preview["displayName"] or project_id)
+        bound = next(
+            (item for item in preview["conflicts"] if item["code"] == "git-common-dir-bound"),
+            None,
+        )
+        if bound and bound.get("projectId"):
+            project_id = bound["projectId"]
+            name = _display_name(body.get("displayName"), preview["displayName"] or project_id)
+            _require_clean(preview, allow_project_id=project_id)
+        else:
+            _require_clean(preview)
+            project_id = "proj-" + uuid.uuid4().hex
+            name = _display_name(body.get("displayName"), preview["displayName"] or project_id)
     existing = document["projects"].get(project_id)
     persisted = persist_repository_path(preview["gitCommonDir"], preview["repositoryPath"])
-    if existing and existing.get("gitCommonDir") == preview["gitCommonDir"]:
+    same_common = (
+        existing
+        and existing.get("gitCommonDir")
+        and preview["gitCommonDir"]
+        and Path(existing["gitCommonDir"]) == Path(preview["gitCommonDir"])
+    )
+    if same_common:
         entry = dict(existing)
         next_path = str(persisted) if persisted else existing.get("repositoryPath")
         next_config = preview["configPath"] or existing.get("configPath")

@@ -10,6 +10,14 @@ export type AnalysisViewState = {
   durationPreset: string | null
 }
 
+export const ANALYSIS_SEARCH_KEYS = [
+  "analysisMetric",
+  "analysisPeriod",
+  "analysisMode",
+  "analysisPreset",
+  "durationPreset",
+] as const
+
 const PERIODS: AnalysisPeriod[] = ["all", "week", "month", "quarter"]
 
 function isPeriod(value: string | null): value is AnalysisPeriod {
@@ -64,7 +72,7 @@ export function writeAnalysisState(
   state: AnalysisViewState
 ): string {
   const params = new URLSearchParams(search)
-  for (const key of ["analysisMetric", "analysisPeriod", "analysisMode", "analysisPreset", "durationPreset"]) {
+  for (const key of ANALYSIS_SEARCH_KEYS) {
     params.delete(key)
   }
   params.set("analysisMetric", state.metric)
