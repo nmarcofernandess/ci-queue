@@ -60,6 +60,49 @@ def _valid_duration(value):
         return False
 
 
+def duration_reference_from_samples(samples):
+    window = sorted(samples, reverse=True)[:10]
+    if not window:
+        return None
+    durations = [item[1] for item in window]
+    return {
+        "medianMs": statistics.median(durations),
+        "meanMs": statistics.fmean(durations),
+        "sampleCount": len(durations),
+        "window": "latest-green-canonical",
+    }
+
+
+def duration_reference_for_running(state_root, job):
+    """Mean of the ticket's catalog, not the request filter. Absent when unknown."""
+    if not isinstance(job, dict):
+        return None
+    project_id = job.get("projectId")
+    preset = job.get("preset")
+    if not isinstance(project_id, str) or not project_id or not isinstance(preset, str) or not preset:
+        return None
+    from .projects import RegistryError, read_registry, resolve_config_for_entry
+    try:
+        registry = read_registry(state_root)
+    except (RegistryError, OSError):
+        return None
+    projects = registry.get("projects") if isinstance(registry, dict) else {}
+    entry = projects.get(project_id) if isinstance(projects, dict) else None
+    if not isinstance(entry, dict):
+        return None
+    config = resolve_config_for_entry(entry)
+    recipe = config.presets.get(preset) if config is not None else None
+    if not isinstance(recipe, dict):
+        return None
+    samples = []
+    for row in read_history(state_root):
+        if row.get("projectId") != project_id or row.get("preset") != preset:
+            continue
+        if canonical_green(row, recipe) and _valid_duration(row.get("durationMs")):
+            samples.append((history_key(row), row["durationMs"]))
+    return duration_reference_from_samples(samples)
+
+
 def build_preset_history(state_root, config):
     buckets = {}
     for preset, recipe in config.presets.items():
@@ -117,15 +160,7 @@ def build_preset_history(state_root, config):
                 entry["lastFailure"] = {**_run_ref(job), "failureReason": job.get("failureReason"), "_key": key}
     values = []
     for entry in buckets.values():
-        samples = sorted(entry.pop("_durations"), reverse=True)[:10]
-        if samples:
-            durations = [item[1] for item in samples]
-            entry["durationReference"] = {
-                "medianMs": statistics.median(durations),
-                "meanMs": statistics.fmean(durations),
-                "sampleCount": len(durations),
-                "window": "latest-green-canonical",
-            }
+        entry["durationReference"] = duration_reference_from_samples(entry.pop("_durations"))
         for key in ("lastRun", "lastGreenCanonical", "lastFailure"):
             if entry[key] is not None:
                 entry[key].pop("_key", None)

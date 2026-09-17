@@ -16,6 +16,29 @@ composition:
     source: ui/src/features/shared/entity-identity.tsx
     variants_source: ui/src/features/shared/presentation.ts
     use: "Mesma identidade com apresentações current/drawer/table; passar conteúdo, não estilo."
+  inspect:
+    source: ui/src/features/shared/inspect-button.tsx
+    use: "Olho compartilhado; label Inspecionar; tamanho em presentation.inspect; sem data-icon."
+    consumers:
+      - ui/src/features/shared/live-time.tsx
+      - ui/src/features/shared/run-table.tsx
+      - ui/src/features/status/green-commit-table.tsx
+      - ui/src/features/worktrees/worktrees-page.tsx
+  elapsed:
+    source: ui/src/features/shared/live-time.tsx
+    use: "ElapsedItem no fim do CardContent da execução atual; JobTimeline permanece no drawer."
+    consumers:
+      - ui/src/features/status/status-page.tsx
+      - ui/src/features/shared/job-drawer.tsx
+  project_chip:
+    source: ui/src/features/shared/project-chip.tsx
+    model: ui/src/features/shared/project-chip-model.ts
+    use: "Badge outline do dono quando o filtro não identifica o ticket sozinho."
+    consumers:
+      - ui/src/features/status/status-page.tsx
+      - ui/src/features/shared/run-table.tsx
+      - ui/src/features/shared/job-drawer.tsx
+      - ui/src/features/worktrees/worktrees-page.tsx
   drawer:
     source: ui/src/features/shared/detail-drawer.tsx
     consumers:
@@ -43,7 +66,7 @@ composition:
       - ui/src/features/analysis/preset-multi-select.tsx
   project_scope:
     source: ui/src/features/projects/project-context.tsx
-    use: "Uma aba, um ReadScope. Relê status, fila, worktrees, análise, meta e detalhe."
+    use: "Uma aba, um ReadScope (project | all | unassigned). Occupancy global relê o mesmo fato; detalhe é por jobId."
     consumers:
       - ui/src/features/status/status-page.tsx
       - ui/src/features/worktrees/worktrees-page.tsx

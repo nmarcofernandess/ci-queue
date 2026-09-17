@@ -188,7 +188,7 @@ export async function getRemoteSlots(scope: ProjectScope) {
 }
 
 export function getResults(
-  scope: ProjectScope,
+  scope: Extract<ReadScope, { kind: "project" | "all" }>,
   bounds: { from?: string; to?: string } = {}
 ) {
   return requestScoped<ResultsResponse>(scope, "/api/analysis", {
@@ -199,7 +199,7 @@ export function getResults(
 }
 
 export function getDuration(
-  scope: ProjectScope,
+  scope: Extract<ReadScope, { kind: "project" | "all" }>,
   query: { from?: string; to?: string; preset: string }
 ) {
   return requestScoped<AnalysisResponse>(scope, "/api/analysis", {
@@ -213,7 +213,7 @@ export function getMachine() {
   return requestJson<MachineResponse>("/api/machine")
 }
 
-export function getWorktrees(scope: ProjectScope) {
+export function getWorktrees(scope: Extract<ReadScope, { kind: "project" | "all" }>) {
   return requestScoped<WorktreesResponse>(scope, "/api/worktrees", scopeQuery(scope))
 }
 
@@ -242,7 +242,12 @@ export function writeDashboardState(
   )
 }
 
-export function revealWorktree(scope: ProjectScope, csrfToken: string, id: string) {
+export function revealWorktree(
+  scope: ProjectScope | Extract<ReadScope, { kind: "all" }>,
+  csrfToken: string,
+  id: string,
+  ownerProjectId?: string
+) {
   return postJson<RevealResult>(
     "/api/reveal",
     csrfToken,
@@ -251,6 +256,7 @@ export function revealWorktree(scope: ProjectScope, csrfToken: string, id: strin
       entity: "worktree",
       id,
       target: "directory",
+      ...(ownerProjectId ? { projectId: ownerProjectId } : {}),
     },
     scopeQuery(scope)
   )

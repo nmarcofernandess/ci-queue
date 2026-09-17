@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
-from .analysis import read_analysis
+from .analysis import read_analysis, read_duration_all, read_results_all
 from .config import ConfigError, load_project_config
 from .dashboard_state import RevisionConflict as DashboardConflict, read_dashboard_state, write_dashboard_state
 from .diagnostics import read_log_export, read_log_slice, read_diagnostic
@@ -51,9 +51,10 @@ from .records import (
     public_job,
     read_executions,
     status_snapshot,
+    status_snapshot_all,
     status_snapshot_unassigned,
 )
-from .worktrees import list_worktrees, worktree_view
+from .worktrees import list_worktrees, list_worktrees_all, worktree_view
 
 
 LOOPBACK = {"127.0.0.1", "::1", "localhost"}
@@ -258,7 +259,16 @@ def create_handler(context):
                     if body.get("action") != "reveal":
                         raise ValueError("ação não permitida")
                     scope = self._scope(query)
-                    project = require_capability(self._resolved(scope), "reveal-worktree")
+                    if scope.kind == "all":
+                        owner_id = body.get("projectId")
+                        if not isinstance(owner_id, str) or not owner_id:
+                            raise ValueError("reveal em Todos exige o projeto dono")
+                        project = require_capability(
+                            resolve_project(owner_id, load_registry(self.api_context.state_root)),
+                            "reveal-worktree",
+                        )
+                    else:
+                        project = require_capability(self._resolved(scope), "reveal-worktree")
                     result = reveal(self.api_context.state_root, project, body.get("entity"), body.get("id"),
                                     body.get("target", "directory"))
             except Exception as error:
@@ -340,6 +350,9 @@ def create_handler(context):
                 if scope.kind == "unassigned":
                     self._serve_unassigned(parsed.path, query, scope)
                     return
+                if scope.kind == "all":
+                    self._serve_all(parsed.path, query, scope)
+                    return
                 project = self._resolved(scope)
                 self._serve_project(parsed.path, query, scope, project)
                 return
@@ -351,8 +364,48 @@ def create_handler(context):
                     self.error(400, str(error))
                     return
 
-        def _serve_unassigned(self, path, query, scope):
+        def _serve_ticket(self, path, query, scope, revision=None):
+            if path not in {"/api/job", "/api/log", "/api/log/export", "/api/diagnostic"}:
+                return False
+            job_id = query.get("jobId", [""])[0]
+            job = lookup_job(self.api_context.state_root, job_id)
             anon = _UnassignedConfig()
+            if path == "/api/job":
+                if job is None:
+                    self.error(404, "ticket não encontrado")
+                else:
+                    self.send_payload(200, with_context(public_job(job), scope, revision))
+                return True
+            if path == "/api/log":
+                if job is None:
+                    self.error(404, "ticket não encontrado")
+                    return True
+                self.send_payload(200, with_context(read_log_slice(
+                    self.api_context.state_root, anon, job_id,
+                    _integer(query.get("offset", ["0"])[0], "offset"),
+                    _integer(query.get("length", [str(512 * 1024)])[0], "length"),
+                ), scope, revision))
+                return True
+            if path == "/api/log/export":
+                if job is None:
+                    self.error(404, "ticket não encontrado")
+                    return True
+                self.send_payload(200, with_context(read_log_export(
+                    self.api_context.state_root, anon, job_id,
+                ), scope, revision))
+                return True
+            if path == "/api/diagnostic":
+                payload = read_diagnostic(self.api_context.state_root, anon, job_id)
+                self.send_payload(
+                    200 if payload.get("available") else 404,
+                    with_context(payload, scope, revision),
+                )
+                return True
+            return False
+
+        def _serve_unassigned(self, path, query, scope):
+            if self._serve_ticket(path, query, scope):
+                return
             if path == "/api/status":
                 self.send_payload(200, with_context(status_snapshot_unassigned(self.api_context.state_root), scope))
                 return
@@ -366,38 +419,65 @@ def create_handler(context):
                 )
                 self.send_payload(200, with_context(payload, scope))
                 return
-            if path == "/api/job":
-                job = lookup_job(self.api_context.state_root, query.get("jobId", [""])[0], unassigned=True)
-                if job is None:
-                    self.error(404, "ticket não encontrado neste arquivo")
-                else:
-                    self.send_payload(200, with_context(public_job(job), scope))
-                return
-            if path == "/api/log":
-                if lookup_job(self.api_context.state_root, query.get("jobId", [""])[0], unassigned=True) is None:
-                    self.error(404, "ticket não encontrado neste arquivo")
-                    return
-                self.send_payload(200, with_context(read_log_slice(
-                    self.api_context.state_root, anon, query.get("jobId", [""])[0],
-                    _integer(query.get("offset", ["0"])[0], "offset"),
-                    _integer(query.get("length", [str(512 * 1024)])[0], "length"),
-                    unassigned=True,
-                ), scope))
-                return
-            if path == "/api/log/export":
-                if lookup_job(self.api_context.state_root, query.get("jobId", [""])[0], unassigned=True) is None:
-                    self.error(404, "ticket não encontrado neste arquivo")
-                    return
-                self.send_payload(200, with_context(read_log_export(
-                    self.api_context.state_root, anon, query.get("jobId", [""])[0], unassigned=True,
-                ), scope))
-                return
-            if path == "/api/diagnostic":
-                payload = read_diagnostic(self.api_context.state_root, anon, query.get("jobId", [""])[0], unassigned=True)
-                self.send_payload(200 if payload.get("available") else 404, with_context(payload, scope))
-                return
             if path in {"/api/worktrees", "/api/preset-history", "/api/remote-slots", "/api/analysis",
                         "/api/dashboard-state", "/api/config"}:
+                raise CapabilityDenied("esta view exige um projeto", "PROJECT_REQUIRED")
+            if path.startswith("/api/"):
+                self.error(404, "endpoint não encontrado")
+                return
+            self._serve_static(path)
+
+        def _serve_all(self, path, query, scope):
+            if self._serve_ticket(path, query, scope):
+                return
+            if path == "/api/status":
+                self.send_payload(200, with_context(status_snapshot_all(self.api_context.state_root), scope))
+                return
+            if path == "/api/executions":
+                payload = read_executions(
+                    self.api_context.state_root, "",
+                    q=query.get("q", [""])[0], result=query.get("result", ["all"])[0],
+                    scope="all", from_time=query.get("from", [""])[0],
+                    to_time=query.get("to", [""])[0], snapshot_before=query.get("snapshotBefore", [""])[0],
+                    cursor=query.get("cursor", [""])[0], offset=_integer(query.get("offset", ["0"])[0], "offset"),
+                )
+                self.send_payload(200, with_context(payload, scope))
+                return
+            if path == "/api/worktrees":
+                self.send_payload(200, with_context(list_worktrees_all(self.api_context.state_root), scope))
+                return
+            if path == "/api/worktree-view":
+                owner_id = query.get("ownerProjectId", [""])[0]
+                if not owner_id:
+                    raise ValueError("worktree-view em Todos exige o projeto dono")
+                owner = require_capability(
+                    resolve_project(owner_id, load_registry(self.api_context.state_root)),
+                    "worktrees",
+                )
+                self.send_payload(200, with_context(
+                    worktree_view(owner, query.get("id", [""])[0]),
+                    scope,
+                    owner.entry_revision,
+                ))
+                return
+            if path == "/api/analysis":
+                metric = query.get("metric", [""])[0]
+                from_time = query.get("from", [""])[0]
+                to_time = query.get("to", [""])[0]
+                if metric == "results":
+                    payload = read_results_all(self.api_context.state_root, from_time, to_time)
+                elif metric == "duration":
+                    payload = read_duration_all(
+                        self.api_context.state_root,
+                        query.get("preset", [""])[0],
+                        from_time,
+                        to_time,
+                    )
+                else:
+                    raise ValueError("metric inválida")
+                self.send_payload(200, with_context(payload, scope))
+                return
+            if path in {"/api/preset-history", "/api/remote-slots", "/api/dashboard-state", "/api/config"}:
                 raise CapabilityDenied("esta view exige um projeto", "PROJECT_REQUIRED")
             if path.startswith("/api/"):
                 self.error(404, "endpoint não encontrado")
@@ -409,6 +489,8 @@ def create_handler(context):
                 project.project_id, project.display_name,
             )
             revision = project.entry_revision
+            if self._serve_ticket(path, query, scope, revision):
+                return
             if path == "/api/config":
                 if project.config is None:
                     self.send_payload(200, with_context({
@@ -488,35 +570,6 @@ def create_handler(context):
                     scope,
                     revision,
                 ))
-                return
-            if path == "/api/job":
-                job = lookup_job(self.api_context.state_root, query.get("jobId", [""])[0], project.project_id)
-                if job is None:
-                    self.error(404, "ticket não encontrado neste projeto")
-                else:
-                    self.send_payload(200, with_context(public_job(job), scope, revision))
-                return
-            if path == "/api/log":
-                if lookup_job(self.api_context.state_root, query.get("jobId", [""])[0], project.project_id) is None:
-                    self.error(404, "ticket não encontrado neste projeto")
-                    return
-                self.send_payload(200, with_context(read_log_slice(
-                    self.api_context.state_root, config, query.get("jobId", [""])[0],
-                    _integer(query.get("offset", ["0"])[0], "offset"),
-                    _integer(query.get("length", [str(512 * 1024)])[0], "length"),
-                ), scope, revision))
-                return
-            if path == "/api/log/export":
-                if lookup_job(self.api_context.state_root, query.get("jobId", [""])[0], project.project_id) is None:
-                    self.error(404, "ticket não encontrado neste projeto")
-                    return
-                self.send_payload(200, with_context(read_log_export(
-                    self.api_context.state_root, config, query.get("jobId", [""])[0],
-                ), scope, revision))
-                return
-            if path == "/api/diagnostic":
-                payload = read_diagnostic(self.api_context.state_root, config, query.get("jobId", [""])[0])
-                self.send_payload(200 if payload.get("available") else 404, with_context(payload, scope, revision))
                 return
             if path.startswith("/api/"):
                 self.error(404, "endpoint não encontrado")

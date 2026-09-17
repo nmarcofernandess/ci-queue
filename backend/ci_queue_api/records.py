@@ -242,6 +242,7 @@ def public_job(job):
 
 
 def lookup_job(state_root, job_id, project_id=None, unassigned=False):
+    """Resolve a ticket by id. Filter belongs on list endpoints, not detail."""
     if unassigned and project_id:
         raise RecordError("projectId e context=unassigned são mutuamente exclusivos")
     job_id = validate_job_id(job_id)
@@ -255,18 +256,13 @@ def lookup_job(state_root, job_id, project_id=None, unassigned=False):
     for candidate in candidates:
         candidate = attribute_legacy(candidate, ledger)
         if isinstance(candidate, dict) and candidate.get("id") == job_id:
-            if unassigned:
-                if candidate.get("projectId"):
-                    return None
-            elif project_id is not None and not project_record(candidate, project_id):
-                return None
             progress = read_progress(root, job_id) if candidate.get("status") == "running" else None
             return progress_summary(candidate, progress)
     return None
 
 
-def status_snapshot(state_root, project_id, project_name):
-    """Global occupancy plus project-scoped terminal context, without duplicates."""
+def _living(state_root):
+    """Machine occupancy: one running ticket and the queued remainder."""
     root = Path(state_root)
     history = sorted(read_history(root), key=history_key, reverse=True)
     terminal_ids = {row.get("id") for row in history if row.get("status") in TERMINAL}
@@ -279,52 +275,72 @@ def status_snapshot(state_root, project_id, project_name):
     for row in sorted(read_queued(root), key=execution_key):
         if row.get("status") == "queued" and row.get("id") not in terminal_ids and (not running or row.get("id") != running.get("id")):
             queued.append(row)
-    project_history = [progress_summary(row) for row in history if project_record(row, project_id)]
-    last_failed = next((row for row in project_history if row.get("status") in {"failed", "interrupted"}), None)
-    project_running = running if project_record(running, project_id) else None
-    project_queued = [row for row in queued if project_record(row, project_id)]
-    other_running = bool(running) and not project_record(running, project_id)
-    other_queued = any(not project_record(row, project_id) for row in queued)
+    return history, running, queued
+
+
+def _public_running(state_root, running):
+    payload = public_job(running)
+    if not isinstance(payload, dict):
+        return payload
+    from .history import duration_reference_for_running
+    reference = duration_reference_for_running(state_root, running)
+    if reference is not None:
+        payload["durationReference"] = reference
+    return payload
+
+
+def _status_body(state_root, project, history_rows, running, queued, other_occupancy):
+    last_failed = next((row for row in history_rows if row.get("status") in {"failed", "interrupted"}), None)
     return {
         "schemaVersion": 1,
-        "project": {"id": project_id, "name": project_name},
+        "project": project,
         "serverTime": iso_now(),
-        "running": public_job(project_running),
-        "queued": [public_job(row) for row in project_queued],
-        "history": [public_job(row) for row in project_history[:50]],
+        "running": _public_running(state_root, running),
+        "queued": [public_job(row) for row in queued],
+        "history": [public_job(row) for row in history_rows[:50]],
         "lastFailed": public_job(last_failed),
         "globalOccupancy": bool(running or queued),
-        "otherProjectOccupancy": bool(other_running or other_queued),
+        "otherProjectOccupancy": other_occupancy,
     }
+
+
+def status_snapshot(state_root, project_id, project_name):
+    """Global occupancy plus project-scoped terminal history."""
+    history, running, queued = _living(state_root)
+    project_history = [progress_summary(row) for row in history if project_record(row, project_id)]
+    other_running = bool(running) and not project_record(running, project_id)
+    other_queued = any(not project_record(row, project_id) for row in queued)
+    return _status_body(
+        state_root,
+        {"id": project_id, "name": project_name},
+        project_history,
+        running,
+        queued,
+        bool(other_running or other_queued),
+    )
 
 
 def status_snapshot_unassigned(state_root):
-    root = Path(state_root)
-    history = sorted(read_history(root), key=history_key, reverse=True)
-    running = read_running(root)
-    queued = [row for row in read_queued(root) if row.get("status") == "queued"]
+    history, running, queued = _living(state_root)
     unassigned = [progress_summary(row) for row in history
                   if row.get("status") in TERMINAL and not row.get("projectId")]
-    last_failed = next((row for row in unassigned if row.get("status") in {"failed", "interrupted"}), None)
     occupied = bool(running or queued)
-    return {
-        "schemaVersion": 1,
-        "project": None,
-        "serverTime": iso_now(),
-        "running": None,
-        "queued": [],
-        "history": [public_job(row) for row in unassigned[:50]],
-        "lastFailed": public_job(last_failed),
-        "globalOccupancy": occupied,
-        "otherProjectOccupancy": occupied,
-    }
+    return _status_body(state_root, None, unassigned, running, queued, occupied)
+
+
+def status_snapshot_all(state_root):
+    history, running, queued = _living(state_root)
+    attributed = [progress_summary(row) for row in history
+                  if row.get("status") in TERMINAL and row.get("projectId")]
+    occupied = bool(running or queued)
+    return _status_body(state_root, None, attributed, running, queued, occupied)
 
 
 def _matches_query(job, query):
     if not query:
         return True
     needle = query.casefold()
-    fields = ("preset", "branch", "headSha", "id", "cwd", "command")
+    fields = ("preset", "branch", "headSha", "id", "cwd", "command", "projectName")
     values = [job.get(field) for field in fields]
     extra = job.get("extraArgs")
     if isinstance(extra, list):
@@ -353,7 +369,7 @@ def _cursor_value(value):
 def read_executions(state_root, project_id, q="", result="all", scope="terminal", from_time="", to_time="", snapshot_before="", cursor="", offset=0):
     if result not in {"all", *TERMINAL}:
         raise RecordError("result inválido")
-    if scope not in {"terminal", "legacy"}:
+    if scope not in {"terminal", "legacy", "all"}:
         raise RecordError("scope inválido")
     if not isinstance(q, str):
         raise RecordError("q inválido")
@@ -374,7 +390,13 @@ def read_executions(state_root, project_id, q="", result="all", scope="terminal"
         unassigned = not row.get("projectId")
         if unassigned:
             unknown += 1
-        if (scope == "legacy" and not unassigned) or (scope == "terminal" and row.get("projectId") != project_id):
+        if scope == "legacy":
+            if not unassigned:
+                continue
+        elif scope == "all":
+            if unassigned:
+                continue
+        elif row.get("projectId") != project_id:
             continue
         if row.get("status") not in TERMINAL or not _matches_query(row, q):
             continue

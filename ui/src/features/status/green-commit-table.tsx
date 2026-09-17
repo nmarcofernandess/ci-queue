@@ -1,5 +1,5 @@
 import { RelativeTime } from "@/features/shared/live-time"
-import { ClipboardIcon, EyeIcon, GitCommitIcon } from "lucide-react"
+import { ClipboardIcon, GitCommitIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -37,6 +37,7 @@ import {
 import { StatusIndicator } from "@/features/shared/status-indicator"
 import { describeJobState } from "@/features/shared/presentation"
 import { EntityIdentity } from "@/features/shared/entity-identity"
+import { InspectButton } from "@/features/shared/inspect-button"
 import { DataTableFrame } from "@/features/shared/data-table-frame"
 import type { GreenCommitGroup } from "@/features/status/green-commit"
 
@@ -157,19 +158,10 @@ export function GreenCommitTable({
               {originLabel(group.origins)}
             </TableCell>
             <TableCell className={commitColumnClass("actions", placement)}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Ver commit ${shortSha(group.sha)}`}
-                    onClick={() => onOpen(group)}
-                  >
-                    <EyeIcon />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Ver commit</TooltipContent>
-              </Tooltip>
+              <InspectButton
+                presentation="table"
+                onClick={() => onOpen(group)}
+              />
             </TableCell>
           </TableRow>
         ))}
@@ -288,17 +280,13 @@ export function GreenCommitDrawer({
                     </TableCell>
                     <TableCell className={commitRunColumnClass("actions")}>
                       {id ? (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Ver ${row.preset}`}
+                        <InspectButton
+                          presentation="table"
                           onClick={() => {
                             onClose()
                             onOpenJob(id)
                           }}
-                        >
-                          <EyeIcon />
-                        </Button>
+                        />
                       ) : null}
                     </TableCell>
                   </TableRow>

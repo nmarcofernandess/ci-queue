@@ -105,7 +105,12 @@ test('EV-01 real UI and API keep Alpha and Beta isolated', async ({ page }) => {
     await expect(page.getByRole('cell', { name: 'static' })).toBeVisible()
     await expect(page.getByRole('cell', { name: 'smoketest' })).toHaveCount(0)
     const crossed = await page.request.get('/api/job?projectId=beta&jobId=alpha-1')
-    expect(crossed.status()).toBe(404)
+    expect(crossed.status()).toBe(200)
+    expect(await crossed.json()).toMatchObject({
+      id: 'alpha-1',
+      projectId: 'alpha',
+      context: { kind: 'project', projectId: 'beta' },
+    })
     const own = await page.request.get('/api/job?projectId=alpha&jobId=alpha-1')
     expect(own.status()).toBe(200)
     expect(await own.json()).toMatchObject({ id: 'alpha-1', projectId: 'alpha' })

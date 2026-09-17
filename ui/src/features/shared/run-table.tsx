@@ -2,14 +2,17 @@ import { EntityIdentity } from "./entity-identity"
 import { StatusIndicator } from "./status-indicator"
 import { describeJobState } from "./presentation"
 import { DataTableFrame } from "./data-table-frame"
+import { InspectButton } from "./inspect-button"
 import { RelativeTime, JobDuration, QueueWait } from "./live-time"
+import { ProjectChip } from "./project-chip"
+import { projectChipFacts, projectChipVisible } from "./project-chip-model"
 import * as React from "react"
 import {
   createColumnHelper,
   tableFeatures,
   useTable,
 } from "@tanstack/react-table"
-import { EyeIcon, InboxIcon } from "lucide-react"
+import { InboxIcon } from "lucide-react"
 
 import {
   Card,
@@ -87,6 +90,8 @@ export type RunTableProps = {
   showOrigin?: boolean
   showFailureReason?: boolean
   kind?: "queue" | "terminal"
+  showProjectChip?: boolean
+  filterProjectId?: string
 }
 function detailId(job: RunTableJob) {
   return (
@@ -103,14 +108,39 @@ function columnClass(id: string) {
   return undefined
 }
 
+function identityBadge(
+  job: RunTableJob,
+  chip: { always?: boolean; filterProjectId?: string }
+) {
+  const flaky = job.progressSummary?.nodes?.some(
+    (node) => (node.retryCount ?? 0) > 0
+  )
+  const chipVisible = projectChipVisible(job, chip)
+  if (!flaky && !chipVisible) {
+    return undefined
+  }
+  return (
+    <>
+      {chipVisible && job.projectName ? (
+        <ProjectChip name={job.projectName} facts={projectChipFacts(job)} />
+      ) : null}
+      {flaky ? <Badge variant="outline">Flaky detectado</Badge> : null}
+    </>
+  )
+}
+
 function RunDataTable({
   jobs,
   onOpenJob,
   showOrigin = false,
+  showProjectChip = false,
+  filterProjectId,
 }: {
   jobs: RunTableJob[]
   onOpenJob: (jobId: string) => void
   showOrigin?: boolean
+  showProjectChip?: boolean
+  filterProjectId?: string
 }) {
   const queued = jobs.some((job) => job.status === "queued")
   const columns = React.useMemo(
@@ -137,13 +167,10 @@ function RunDataTable({
                 presentation="table"
                 title={job.preset || "Não informada"}
                 onOpen={id && job.preset ? () => onOpenJob(id) : undefined}
-                badge={
-                  job.progressSummary?.nodes?.some(
-                    (node) => (node.retryCount ?? 0) > 0
-                  ) ? (
-                    <Badge variant="outline">Flaky detectado</Badge>
-                  ) : undefined
-                }
+                badge={identityBadge(job, {
+                  always: showProjectChip,
+                  filterProjectId,
+                })}
               />
             )
           },
@@ -220,24 +247,15 @@ function RunDataTable({
           cell: ({ row }) => {
             const id = detailId(row.original)
             return id ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Ver ${row.original.preset ?? "execução"}`}
-                    onClick={() => onOpenJob(id)}
-                  >
-                    <EyeIcon />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Ver execução</TooltipContent>
-              </Tooltip>
+              <InspectButton
+                presentation="table"
+                onClick={() => onOpenJob(id)}
+              />
             ) : null
           },
         }),
       ]),
-    [onOpenJob, queued, showOrigin]
+    [filterProjectId, onOpenJob, queued, showOrigin, showProjectChip]
   )
   const table = useTable({
     columns,
@@ -359,6 +377,8 @@ export function RunTable({
   onLoadMore,
   showOrigin = false,
   kind = "terminal",
+  showProjectChip = false,
+  filterProjectId,
 }: RunTableProps) {
   const data = jobs ?? EMPTY
   if (kind === "queue" && !loading && !error && !data.length) {
@@ -433,6 +453,8 @@ export function RunTable({
             jobs={data}
             onOpenJob={onOpenJob}
             showOrigin={showOrigin}
+            showProjectChip={showProjectChip}
+            filterProjectId={filterProjectId}
           />
         ) : null}
       </CardContent>

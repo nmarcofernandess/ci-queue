@@ -21,7 +21,15 @@ from ci_queue_api.config import ConfigError, load_project_config
 from ci_queue_api.dashboard_state import RevisionConflict, read_dashboard_state, write_dashboard_state
 from ci_queue_api.diagnostics import MAX_EXPORT_BYTES, read_diagnostic, read_log_export, read_log_slice
 from ci_queue_api.history import build_preset_history, read_remote_slots
-from ci_queue_api.records import invalidate_history_cache, lookup_job, read_executions, status_snapshot, progress_summary
+from ci_queue_api.records import (
+    invalidate_history_cache,
+    lookup_job,
+    read_executions,
+    status_snapshot,
+    status_snapshot_all,
+    status_snapshot_unassigned,
+    progress_summary,
+)
 from ci_queue_api.server import ApiContext, create_server
 from ci_queue_api.worktrees import list_worktrees, worktree_view
 
@@ -191,10 +199,95 @@ class HistoryAndAnalysisTests(Fixture):
         (self.state / "running.json").write_text(json.dumps({
             "id": "other-running", "projectId": "other", "preset": "test", "status": "running"
         }), encoding="utf-8")
+        (self.state / "jobs" / "other-queued.json").write_text(json.dumps({
+            "id": "other-queued", "projectId": "other", "preset": "test", "status": "queued"
+        }), encoding="utf-8")
         payload = status_snapshot(self.state, "example", "Example project")
         self.assertTrue(payload["globalOccupancy"])
-        self.assertIsNone(payload["running"])
+        self.assertEqual(payload["running"]["id"], "other-running")
+        self.assertEqual([item["id"] for item in payload["queued"]], ["other-queued"])
         self.assertEqual([item["id"] for item in payload["history"]], ["old"])
+        self.assertNotIn("durationReference", payload["running"])
+
+    def test_unassigned_status_keeps_global_living(self):
+        self.job("owned")
+        self.job("orphan", projectId=None)
+        (self.state / "running.json").write_text(json.dumps({
+            "id": "live", "projectId": "example", "preset": "smoke", "status": "running"
+        }), encoding="utf-8")
+        payload = status_snapshot_unassigned(self.state)
+        self.assertIsNone(payload["project"])
+        self.assertEqual(payload["running"]["id"], "live")
+        self.assertEqual([item["id"] for item in payload["history"]], ["orphan"])
+
+    def test_all_status_excludes_orphans(self):
+        self.job("owned")
+        self.job("orphan", projectId=None)
+        payload = status_snapshot_all(self.state)
+        self.assertIsNone(payload["project"])
+        self.assertIsNone(payload["running"])
+        self.assertEqual([item["id"] for item in payload["history"]], ["owned"])
+
+    def test_running_duration_reference_uses_ticket_catalog(self):
+        (self.state / "state").mkdir(exist_ok=True)
+        (self.state / "state" / "projects.json").write_text(json.dumps({
+            "schemaVersion": 1,
+            "revision": 1,
+            "bootstrapProjectId": "example",
+            "projects": {
+                "example": {
+                    "id": "example",
+                    "displayName": "Example project",
+                    "configPath": str(self.config_path),
+                    "revision": 1,
+                }
+            },
+        }), encoding="utf-8")
+        self.job("green", durationMs=60000)
+        (self.state / "running.json").write_text(json.dumps({
+            "id": "live", "projectId": "example", "preset": "smoke", "status": "running"
+        }), encoding="utf-8")
+        payload = status_snapshot(self.state, "other", "Other")
+        reference = payload["running"]["durationReference"]
+        self.assertEqual(payload["running"]["id"], "live")
+        self.assertEqual(reference["meanMs"], 60000)
+        self.assertEqual(reference["sampleCount"], 1)
+        self.assertEqual(reference["window"], "latest-green-canonical")
+        self.assertEqual([item["id"] for item in payload["history"]], [])
+
+    def test_running_duration_reference_omitted_without_catalog(self):
+        (self.state / "state").mkdir(exist_ok=True)
+        (self.state / "state" / "projects.json").write_text(json.dumps({
+            "schemaVersion": 1,
+            "revision": 1,
+            "bootstrapProjectId": "example",
+            "projects": {
+                "example": {
+                    "id": "example",
+                    "displayName": "Example project",
+                    "configPath": str(self.root / "missing-ci-queue.json"),
+                    "revision": 1,
+                }
+            },
+        }), encoding="utf-8")
+        self.job("green")
+        (self.state / "running.json").write_text(json.dumps({
+            "id": "live", "projectId": "example", "preset": "smoke", "status": "running"
+        }), encoding="utf-8")
+        payload = status_snapshot(self.state, "example", "Example project")
+        self.assertEqual(payload["running"]["id"], "live")
+        self.assertNotIn("durationReference", payload["running"])
+
+    def test_executions_all_excludes_orphans_and_matches_project_name(self):
+        self.job("owned", projectName="Example project")
+        self.job("orphan", projectId=None)
+        self.job("foreign", projectId="other", projectName="Other lane")
+        page = read_executions(self.state, "", scope="all", snapshot_before="2026-09-14T00:00:00Z")
+        self.assertEqual({item["id"] for item in page["jobs"]}, {"owned", "foreign"})
+        named = read_executions(
+            self.state, "", scope="all", q="Example", snapshot_before="2026-09-14T00:00:00Z",
+        )
+        self.assertEqual([item["id"] for item in named["jobs"]], ["owned"])
 
     def test_status_preserves_the_recursive_progress_contract(self):
         (self.state / "running.json").write_text(json.dumps({
@@ -267,8 +360,7 @@ class HistoryAndAnalysisTests(Fixture):
         dietflow = read_executions(self.state, "da61d8ae-19f9-4dce-bafb-02271a6f1601")
         self.assertEqual([job["id"] for job in dietflow["jobs"]], ["dietflow"])
         self.assertEqual(dietflow["coverage"]["unattributedRecords"], 0)
-        self.assertEqual(lookup_job(self.state, "dietflow", project_id="da61d8ae-19f9-4dce-bafb-02271a6f1601")["id"], "dietflow")
-        self.assertIsNone(lookup_job(self.state, "dietflow", unassigned=True))
+        self.assertEqual(lookup_job(self.state, "dietflow")["id"], "dietflow")
         self.assertEqual([job["id"] for job in read_executions(self.state, "other-project")["jobs"]], ["foreign"])
         self.assertEqual((self.state / "history" / "dietflow.json").read_bytes(), original)
 
@@ -526,7 +618,10 @@ class StateAndDiagnosticTests(Fixture):
         self.assertNotIn("super-secret", exported["content"])
         self.job("foreign", projectId="other")
         (self.state / "logs" / "foreign.log").write_text("secret=x", encoding="utf-8")
-        self.assertFalse(read_diagnostic(self.state, self.config, "foreign")["available"])
+        self.assertTrue(read_diagnostic(self.state, self.config, "foreign")["available"])
+        exported_foreign = read_log_export(self.state, self.config, "foreign")
+        self.assertIn("[REDACTED]", exported_foreign["content"])
+        self.assertNotIn("secret=x", exported_foreign["content"])
 
     def test_diagnostic_keeps_facts_without_classifying_log_text(self):
         self.job(

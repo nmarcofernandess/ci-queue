@@ -139,6 +139,73 @@ def schedule_size(path):
     return {**report, "state": "measuring" if pending else report["state"]}
 
 
+def list_worktrees_all(state_root):
+    """Aggregate living worktrees from active registry projects. One failure stays local."""
+    from .project_context import resolve_project
+    from .projects import RegistryError, read_registry
+
+    try:
+        registry = read_registry(state_root)
+    except (RegistryError, OSError):
+        return {
+            "schemaVersion": 1,
+            "observedAt": _now(),
+            "baseRef": "HEAD",
+            "baseSha": None,
+            "worktrees": [],
+            "error": "Cadastro de projetos indisponível.",
+            "projectErrors": [],
+        }
+    entries = [
+        entry
+        for entry in (registry.get("projects") or {}).values()
+        if isinstance(entry, dict) and not entry.get("archivedAt")
+    ]
+    entries.sort(key=lambda item: (str(item.get("displayName") or ""), str(item.get("id") or "")))
+    rows = []
+    project_errors = []
+    for entry in entries:
+        project_id = entry.get("id")
+        project_name = entry.get("displayName") or project_id
+        if not isinstance(project_id, str) or not project_id:
+            continue
+        try:
+            project = resolve_project(project_id, registry)
+            payload = list_worktrees(project)
+        except Exception as error:
+            project_errors.append({
+                "projectId": project_id,
+                "projectName": project_name,
+                "error": str(error),
+            })
+            continue
+        project_error = payload.get("error")
+        if project_error:
+            project_errors.append({
+                "projectId": project_id,
+                "projectName": project.display_name,
+                "error": project_error,
+            })
+        for row in payload.get("worktrees") or []:
+            tagged = {
+                **row,
+                "projectId": project.project_id,
+                "projectName": project.display_name,
+            }
+            if project_error and not tagged.get("error"):
+                tagged["error"] = project_error
+            rows.append(tagged)
+    return {
+        "schemaVersion": 1,
+        "observedAt": _now(),
+        "baseRef": "HEAD",
+        "baseSha": None,
+        "worktrees": rows,
+        "error": None if rows else (project_errors[0]["error"] if project_errors else None),
+        "projectErrors": project_errors,
+    }
+
+
 def list_worktrees(source):
     repository_path, base_ref = _source(source)
     rows = discover(source)

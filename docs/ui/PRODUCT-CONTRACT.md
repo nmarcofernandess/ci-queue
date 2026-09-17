@@ -13,7 +13,9 @@ Primitivos isolados não bastam para declarar uma superfície como shadcn. Shell
 - `SidebarProvider`, `Sidebar variant="inset" collapsible="offcanvas"`, `SidebarInset` e header vêm do Dashboard 01.
 - O `SidebarTrigger` fica no header ao lado da marca. O seletor global de
   projeto fica à direita do mesmo header; ele não mora nas tabs do Histórico
-  nem no rodapé.
+  nem no rodapé. O seletor é um **filtro**: um projeto, **Todos os projetos**
+  (acima da lista) ou **Histórico sem projeto**. `projectId=all` nunca significa
+  Todos. Trocar o filtro não muda o job vivo da máquina.
 - Navegação: Status, Worktrees e Análise.
 - O rodapé da sidebar é o menu **Ambiente local**: estado da Bridge
   (`/health`, 10s) e as três escolhas de tema. Não há avatar, usuário, logout
@@ -42,21 +44,31 @@ A página tem uma faixa de execução atual acima de um grid com coluna principa
 
 ### Execução atual
 
-- A região permanece visível; vazia usa `Item` compacto com **Nenhuma execução em andamento**.
-- Quando há ticket `running`, preset e a ação ocular final abrem o mesmo drawer.
-- Existe um único indicador de estado, no início do item.
-- Abaixo: data e hora de início e **Decorrido:** ao vivo; sem tempo relativo enquanto roda.
-- Branch e SHA compartilham a linha de metadados quando couberem; o assunto do commit aparece somente aqui.
+- A região permanece visível em qualquer filtro, inclusive Todos e sem projeto;
+  vazia usa `Item` compacto com **Nenhuma execução em andamento** somente quando
+  a máquina não tem `running`.
+- Quando há ticket `running`, a identidade mostra preset, chip `Badge outline`
+  com o nome do projeto dono, `branch · sha` (sem prefixo `branch:`) e o
+  assunto do commit. As etapas vêm abaixo. Tempo decorrido e olho ficam no fim
+  do `CardContent`: `Item` + `ItemContent` + `ItemActions`, número grande
+  tabular (`Xm Ys`), rótulo `decorrido` e ` · média …` só quando o snapshot
+  publica `durationReference.meanMs`. Sem amostra, a média some.
+- Preset e o olho compartilhado (`InspectButton`, aria-label **Inspecionar**)
+  abrem o drawer do ticket. O olho da execução atual existe só no `ItemActions`
+  do bloco de tempo. Abrir o drawer **não** troca o seletor.
+- Existe um único indicador de estado, no início da identidade.
 - As etapas formam uma faixa horizontal abaixo da identidade, com oito visíveis no desktop e rolagem lateral. Nomes e ícones legíveis, sem rótulos redundantes de estado; contagens e durações reais permanecem. A faixa acompanha a etapa ativa até o usuário voltar manualmente. Não existe percentual, ETA ou barra de progresso temporal.
 - Ao terminar, o ticket sai imediatamente desta faixa e passa ao histórico. Um terminal ou queued nunca ocupa esta região.
 
 ### Fila e histórico
 
-Fila, histórico e últimos verdes usam a mesma composição DataTable do Dashboard 01. Cada execução ocupa uma única linha: **Estado** por ícone, **Execução**, **Término/Entrada**, **Duração/Espera**, **Revisão** com SHA curto e branch e **Ações**. Preset e a ação ocular final abrem o drawer; a linha e os demais fatos são inertes.
+Últimos verdes, Meta e Pendências existem só com um projeto selecionado. Em Todos ou sem projeto esses cards/modos não misturam.
 
-A fila contém apenas tickets `queued`, na ordem da fila, e não possui busca ou filtros. Seu vazio usa o `Empty` oficial com o título **Fila livre** e sem repetir a última execução.
+A fila e o histórico compartilham a composição DataTable do Dashboard 01. Cada execução ocupa uma única linha: **Estado** por ícone, **Execução**, **Término/Entrada**, **Duração/Espera**, **Revisão** com SHA curto e branch e **Ações**. Preset e a ação ocular final abrem o drawer; a linha e os demais fatos são inertes.
 
-O histórico contém apenas tickets terminais. Acima e fora da borda da tabela ficam:
+A fila contém apenas tickets `queued` **da máquina**, na ordem da fila, e não possui busca ou filtros. O filtro de projeto não esconde a fila. Chip de projeto aparece quando o filtro não identifica o dono sozinho. Seu vazio usa o `Empty` oficial com o título **Fila livre** e sem repetir a última execução.
+
+O histórico contém apenas tickets terminais do filtro atual: um projeto, atribuídos em Todos, ou sem `projectId` em Histórico sem projeto. Em Todos o chip nomeia o dono. Acima e fora da borda da tabela ficam:
 
 1. ToggleGroup Execuções / Últimos verdes na primeira linha;
 2. InputGroup de busca na segunda linha, seguido dos Selects diretos de período e resultado;
@@ -70,13 +82,13 @@ Execuções oferece período Todo período, Hoje, 48h, Semana ou 15 dias, e resu
 ### Coluna direita
 
 - **Máquina:** somente disco livre atual. Não exibe ação, estado “normal”, memória, idade da leitura ou refresh por card.
-- **Meta para main:** uma única meta, formada por nome, descrição e presets acompanhados. O usuário não digita SHA. Cada requisito lê o último verde canônico da receita atual; o título de um requisito atendido abre esse ticket. O progresso `x de y` é a quantidade real de presets com verde canônico. Só existe `candidateSha` quando todos os requisitos estão verdes na mesma revisão; verdes em revisões diferentes são mostrados como tal e não fabricam um candidato. A meta pode ser criada, editada e removida e nunca bloqueia CI ou merge.
-- **Pendências:** recomendações automáticas e não bloqueantes de validação, emitidas de forma idempotente por um consumidor para um preset declarado. Cada item preserva preset, motivo, revisão, data e PR quando houver, além da tentativa posterior mais recente. Não existem nota livre, título manual, tags, vínculo com arquivo, `progressNodeId`, botão **Nova pendência** nem edição no dashboard. Um verde canônico posterior da máquina ou de um slot Git verificado, cuja revisão contém a revisão recomendada, resolve o item automaticamente. Falha ao registrar ou publicar a recomendação permanece observável e nunca bloqueia o fluxo. O vazio é **Nenhuma pendência**.
+- **Meta para main:** só com um projeto selecionado. Uma única meta, formada por nome, descrição e presets acompanhados. O usuário não digita SHA. Cada requisito lê o último verde canônico da receita atual; o título de um requisito atendido abre esse ticket. O progresso `x de y` é a quantidade real de presets com verde canônico. Só existe `candidateSha` quando todos os requisitos estão verdes na mesma revisão; verdes em revisões diferentes são mostrados como tal e não fabricam um candidato. A meta pode ser criada, editada e removida e nunca bloqueia CI ou merge.
+- **Pendências:** só com um projeto selecionado. Recomendações automáticas e não bloqueantes de validação, emitidas de forma idempotente por um consumidor para um preset declarado. Cada item preserva preset, motivo, revisão, data e PR quando houver, além da tentativa posterior mais recente. Não existem nota livre, título manual, tags, vínculo com arquivo, `progressNodeId`, botão **Nova pendência** nem edição no dashboard. Um verde canônico posterior da máquina ou de um slot Git verificado, cuja revisão contém a revisão recomendada, resolve o item automaticamente. Falha ao registrar ou publicar a recomendação permanece observável e nunca bloqueia o fluxo. O vazio é **Nenhuma pendência**.
 
 ## Drawer de execução
 
 - Drawer oficial à direita no desktop e embaixo no mobile.
-- Header fixo: estado, preset, data/hora, tempo relativo e duração.
+- Header fixo: estado, preset, chip do projeto dono, data/hora, tempo relativo e duração. O drawer é o ticket, não o filtro: abrir um job alheio não troca o seletor.
 - Tabs Progresso/Log fixas; footer de ações fixo; somente o conteúdo central rola.
 - Progresso não repete estado, preset, início, duração ou saída. A tabela de detalhes contém somente Ticket, Branch, SHA e Diretório.
 - Etapas preservam a árvore recursiva completa; nós com filhos usam `Collapsible` oficial. Cada nó mantém identidade, parentesco, tipo, estado, duração, detalhe e retry quando publicados. Não existe barra temporal.
@@ -96,14 +108,18 @@ Execuções oferece período Todo período, Hoje, 48h, Semana ou 15 dias, e resu
 - Copiar abre DropdownMenu com Copiar caminho e Copiar contexto.
 - O drawer contém caminho, SHA, alterações, relação com a base e tamanho quando medido. Oferece Abrir e o mesmo menu Copiar.
 - Inventário Git e tamanhos atualizam automaticamente a cada 60 segundos por uma única fonte. Medições de tamanho são serializadas e preservam o último valor válido quando uma atualização falha. Não existe ação manual de medir ou atualizar.
+- Em Todos, a API agrega os projetos ativos, cada linha leva chip do dono, e a persistência de seleção usa `ci-queue:worktrees:all`. Reveal e a vista do drawer usam o `projectId` dono da linha. Sem projeto a rota continua exigindo um projeto.
 - Carregamento navegado preserva dados anteriores; não pisca um empty state técnico a cada entrada na rota.
 
 ## Análise
 
 A rota contém somente **Estatísticas**. Usa ToggleGroup **Resultados / Duração**,
 `FilterSelect` de período e, em Resultados, um `SelectionPanel` de presets com
-busca e checkboxes. Duração usa um `FilterSelect` próprio de receita declarada.
-Os controles alinham à esquerda e quebram em viewport estreita. Trocar a métrica
+busca e checkboxes. Duração usa um `FilterSelect` próprio de receita declarada. Em Todos, Resultados
+identifica cada barra por `projeto + preset` (rótulo `Nome · preset`) e Duração
+escolhe um par namespaced; a URL custom nesse filtro é `projectId:preset`. Com um
+projeto único a URL antiga `analysisPreset=check` permanece. Sem projeto a rota
+é `PROJECT_REQUIRED`. Os controles alinham à esquerda e quebram em viewport estreita. Trocar a métrica
 não mistura as seleções.
 
 - **Resultados:** cada preset tem distribuição própria
@@ -114,7 +130,7 @@ não mistura as seleções.
   Tooltip, o clique na barra e a célula focável do preset mostram total,
   contagem e percentual; a tabela conserva as quantidades exatas. Custom vazio
   pede para selecionar um preset. Amostra zero não ganha barra.
-- **Duração:** exige um único preset declarado e mostra mediana, faixa e tamanho
+- **Duração:** exige um único preset declarado (em Todos, o par `projectId:preset`) e mostra mediana, faixa e tamanho
   da amostra antes do scatter. Catálogo ausente ou ilegível pede vínculo de
   receitas, não “nenhum ponto”. Não mistura receitas nem relaxa verde canônico.
 
@@ -154,8 +170,10 @@ O cursor do log respeita linhas completas. Linhas maiores que o trecho de leitur
 
 ### Identidade temporal e progresso encerrado — ajuste de 15/09/2026
 
-Card atual e drawer compartilham a apresentação temporal. Durante execução,
-mostram indicador animado, preset, início e **Decorrido:** atualizado localmente.
+Card atual mostra identidade, etapas e no fim do `CardContent` o elapsed grande
+com olho. O drawer conserva `JobTimeline` (`início · Decorrido:`). Durante
+execução, o card atualiza o elapsed localmente. Sem `durationReference.meanMs`
+publicado, a média não aparece.
 No drawer terminal, mostram indicador final, término, tempo relativo ao término
 e **Duração:** apenas quando registrada. Nas tabelas, o tempo relativo fica
 somente no tooltip da data; espera da fila é intervalo, sem prefixo “há”.

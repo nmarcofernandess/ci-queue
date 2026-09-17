@@ -36,6 +36,17 @@ export const identityPresentation = {
     media: "size-4",
   },
 } as const
+export const elapsedPresentation = {
+  current: "text-xl leading-6 font-semibold tabular-nums",
+  drawer: "text-base leading-5 font-medium tabular-nums",
+  table: "text-sm leading-5 font-medium tabular-nums",
+} as const
+export const inspectPresentation = {
+  current: "icon-lg",
+  drawer: "icon",
+  table: "icon-sm",
+} as const
+export const INSPECT_LABEL = "Inspecionar"
 export const indicatorPresentation = {
   current: { area: "size-10", glyph: "size-10" },
   drawer: { area: "size-9", glyph: "size-9" },

@@ -9,11 +9,21 @@ export type ResultState = (typeof RESULT_STATES)[number]
 
 export type ResultCounts = {
   preset: string
+  projectId?: string
+  projectName?: string
   passed: number
   failed: number
   cancelled: number
   interrupted: number
   total: number
+}
+
+export function resultIdentity(row: ResultCounts): string {
+  return row.projectId ? `${row.projectId}:${row.preset}` : row.preset
+}
+
+export function resultLabel(row: ResultCounts): string {
+  return row.projectName ? `${row.projectName} · ${row.preset}` : row.preset
 }
 
 export type ResultRow = ResultCounts & {
@@ -61,7 +71,8 @@ export function rankResults(rows: ResultCounts[]): ResultCounts[] {
     .toSorted(
       (left, right) =>
         right.total - left.total ||
-        (left.preset < right.preset ? -1 : left.preset > right.preset ? 1 : 0)
+        resultLabel(left).localeCompare(resultLabel(right), "pt-BR") ||
+        resultIdentity(left).localeCompare(resultIdentity(right))
     )
 }
 
@@ -70,18 +81,18 @@ export function resolveSelection(
   selection: PresetSelection
 ): ResolvedSelection {
   const ranked = rankResults(rows)
-  const available = new Set(ranked.map((row) => row.preset))
+  const available = new Set(ranked.map((row) => resultIdentity(row)))
   if (selection.mode === "top10") {
     return {
       mode: "top10",
-      selected: ranked.slice(0, 10).map((row) => row.preset),
+      selected: ranked.slice(0, 10).map((row) => resultIdentity(row)),
       missing: [],
     }
   }
   if (selection.mode === "all") {
     return {
       mode: "all",
-      selected: ranked.map((row) => row.preset),
+      selected: ranked.map((row) => resultIdentity(row)),
       missing: [],
     }
   }
@@ -110,7 +121,9 @@ export function visibleResultRows(
   const resolved = resolveSelection(rows, selection)
   return {
     resolved,
-    visible: rankResults(rows).filter((row) => resolved.selected.includes(row.preset)),
+    visible: rankResults(rows).filter((row) =>
+      resolved.selected.includes(resultIdentity(row))
+    ),
   }
 }
 

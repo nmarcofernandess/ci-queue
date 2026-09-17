@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { describeJobState, describeProgressState } from '../../ui/src/features/shared/presentation'
+import { describeJobState, describeProgressState, elapsedPresentation, inspectPresentation, INSPECT_LABEL } from '../../ui/src/features/shared/presentation'
+import { projectChipVisible } from '../../ui/src/features/shared/project-chip-model'
 
 describe('presentation preserves published semantics', () => {
   it('shares state representation without hiding distinct terminal labels', () => {
@@ -19,5 +20,20 @@ describe('presentation preserves published semantics', () => {
     expect(describeProgressState('passed', 'cancelled')).toEqual(describeJobState('passed'))
     expect(describeProgressState('failed', 'cancelled')).toEqual(describeJobState('failed'))
     expect(describeProgressState('running', 'running').animated).toBe(true)
+  })
+  it('sizes inspect and elapsed by presentation and keeps the inspect label', () => {
+    expect(inspectPresentation.current).toBe('icon-lg')
+    expect(inspectPresentation.drawer).toBe('icon')
+    expect(inspectPresentation.table).toBe('icon-sm')
+    expect(elapsedPresentation.current).toContain('tabular-nums')
+    expect(elapsedPresentation.current).toContain('text-xl')
+    expect(INSPECT_LABEL).toBe('Inspecionar')
+  })
+  it('shows the project chip when the filter cannot identify the ticket', () => {
+    const job = { projectId: 'beta', projectName: 'Beta' }
+    expect(projectChipVisible(job, { always: true })).toBe(true)
+    expect(projectChipVisible(job, { filterProjectId: 'alpha' })).toBe(true)
+    expect(projectChipVisible(job, { filterProjectId: 'beta' })).toBe(false)
+    expect(projectChipVisible({ projectId: 'beta' }, { always: true })).toBe(false)
   })
 })

@@ -24,6 +24,21 @@ function isPeriod(value: string | null): value is AnalysisPeriod {
   return value !== null && PERIODS.includes(value as AnalysisPeriod)
 }
 
+export function parseNamespacedPreset(
+  value: string
+): { projectId: string; preset: string } | null {
+  const separator = value.indexOf(":")
+  if (separator <= 0) {
+    return null
+  }
+  const projectId = value.slice(0, separator)
+  const preset = value.slice(separator + 1)
+  if (!projectId || !preset) {
+    return null
+  }
+  return { projectId, preset }
+}
+
 export function defaultAnalysisState(): AnalysisViewState {
   return {
     metric: "results",

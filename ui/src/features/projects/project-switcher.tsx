@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group"
 import { SelectionPanel } from "@/features/shared/selection-panel"
 import { useProjectContext } from "@/features/projects/project-context"
-import { scopeKey } from "@/features/projects/scope"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
 import { mutateProjects } from "@/lib/api"
 import type { ProjectSummary } from "@/lib/types"
@@ -27,13 +26,7 @@ export function ProjectSwitcher({
 }: {
   onManage: () => void
 }) {
-  const { scope } = useProjectContext()
-  return (
-    <ProjectSwitcherMenu
-      key={scope ? scopeKey(scope) : "none"}
-      onManage={onManage}
-    />
-  )
+  return <ProjectSwitcherMenu onManage={onManage} />
 }
 
 function ProjectSwitcherMenu({
@@ -52,11 +45,13 @@ function ProjectSwitcherMenu({
       ? projects.find((item) => item.id === scope.projectId)
       : undefined
   const label =
-    scope?.kind === "unassigned"
-      ? "Histórico sem projeto"
-      : selected?.archivedAt
-        ? `${selected.displayName || selected.id} (arquivado)`
-        : selected?.displayName || selected?.id || "Selecionar projeto"
+    scope?.kind === "all"
+      ? "Todos os projetos"
+      : scope?.kind === "unassigned"
+        ? "Histórico sem projeto"
+        : selected?.archivedAt
+          ? `${selected.displayName || selected.id} (arquivado)`
+          : selected?.displayName || selected?.id || "Selecionar projeto"
   const visible = active.filter((item) => matchesQuery(item, query))
 
   return (
@@ -149,7 +144,18 @@ function ProjectSwitcherMenu({
           </Button>
         </div>
       }
-    >
+      >
+      <Button
+        type="button"
+        variant={scope?.kind === "all" ? "secondary" : "ghost"}
+        className="justify-start"
+        onClick={() => {
+          requestScopeChange({ kind: "all" })
+          setOpen(false)
+        }}
+      >
+        Todos os projetos
+      </Button>
       {visible.length === 0 ? (
         <p className="px-2 py-1 text-sm text-muted-foreground">
           Nenhum projeto ativo corresponde à busca.

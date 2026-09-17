@@ -1,5 +1,6 @@
 export type ReadScope =
   | { kind: "project"; projectId: string }
+  | { kind: "all" }
   | { kind: "unassigned" }
 
 export type ProjectScope = Extract<ReadScope, { kind: "project" }>
@@ -7,24 +8,27 @@ export type ProjectScope = Extract<ReadScope, { kind: "project" }>
 export function scopeKey(scope: ReadScope): string {
   return scope.kind === "project"
     ? `project:${encodeURIComponent(scope.projectId)}`
-    : "unassigned"
+    : scope.kind
 }
 
 export function scopeQuery(scope: ReadScope): Record<string, string> {
   return scope.kind === "project"
     ? { projectId: scope.projectId }
-    : { context: "unassigned" }
+    : { context: scope.kind }
 }
 
 export function parseScopeSearch(search: string): ReadScope | null {
   const params = new URLSearchParams(search)
   const projectId = params.get("projectId")
   const context = params.get("context")
-  if (projectId && context === "unassigned") {
-    throw new Error("projectId e context=unassigned são mutuamente exclusivos")
+  if (projectId && (context === "unassigned" || context === "all")) {
+    throw new Error("projectId e context são mutuamente exclusivos")
   }
   if (context === "unassigned") {
     return { kind: "unassigned" }
+  }
+  if (context === "all") {
+    return { kind: "all" }
   }
   if (projectId) {
     return { kind: "project", projectId }
@@ -49,19 +53,23 @@ function stripProjectScopedSearch(params: URLSearchParams) {
 export function writeScopeSearch(search: string, scope: ReadScope): string {
   const params = new URLSearchParams(search)
   const previousProject = params.get("projectId")
-  const previousUnassigned = params.get("context") === "unassigned"
+  const previousContext = params.get("context")
   params.delete("projectId")
   params.delete("context")
   if (scope.kind === "project") {
-    if (previousUnassigned || (previousProject !== null && previousProject !== scope.projectId)) {
+    if (
+      previousContext === "unassigned" ||
+      previousContext === "all" ||
+      (previousProject !== null && previousProject !== scope.projectId)
+    ) {
       stripProjectScopedSearch(params)
     }
     params.set("projectId", scope.projectId)
   } else {
-    if (previousProject !== null) {
+    if (previousProject !== null || (previousContext && previousContext !== scope.kind)) {
       stripProjectScopedSearch(params)
     }
-    params.set("context", "unassigned")
+    params.set("context", scope.kind)
   }
   return params.toString()
 }
@@ -75,10 +83,10 @@ export function matchesScope(payload: unknown, scope: ReadScope): boolean {
   if (!context) {
     return true
   }
-  if (scope.kind === "unassigned") {
-    return context.kind === "unassigned"
+  if (scope.kind === "project") {
+    return context.kind === "project" && context.projectId === scope.projectId
   }
-  return context.kind === "project" && context.projectId === scope.projectId
+  return context.kind === scope.kind
 }
 
 export const LAST_PROJECT_KEY = "ci-queue.lastProjectId"

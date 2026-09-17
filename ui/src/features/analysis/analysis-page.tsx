@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts"
 
-import { useProjectContext, useRequiredProject } from "@/features/projects/project-context"
+import { useProjectContext } from "@/features/projects/project-context"
 import { scopeKey } from "@/features/projects/scope"
 import {
   getDuration,
@@ -21,6 +21,7 @@ import {
 } from "@/lib/api"
 import {
   parseAnalysisState,
+  parseNamespacedPreset,
   writeAnalysisState,
   type AnalysisPeriod,
   type AnalysisViewState,
@@ -29,6 +30,8 @@ import { PresetMultiSelect } from "@/features/analysis/preset-multi-select"
 import {
   formatShare,
   mapResultRows,
+  resultIdentity,
+  resultLabel,
   visibleResultRows,
   RESULT_STATES,
   type ResultCounts,
@@ -154,7 +157,7 @@ function ResultsShareList({
 }) {
   return (
     <div className="grid min-w-40 items-start gap-1.5 text-xs">
-      <div className="font-medium">{row.preset}</div>
+      <div className="font-medium">{resultLabel(row)}</div>
       <div className="text-muted-foreground">
         {row.total.toLocaleString("pt-BR")} execuções no período
       </div>
@@ -171,24 +174,6 @@ function ResultsShareList({
           </div>
         ))}
       </div>
-    </div>
-  )
-}
-
-function ResultsTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean
-  payload?: Array<{ payload?: ResultCounts & { percentages: Record<string, number> | null } }>
-}) {
-  const row = payload?.[0]?.payload
-  if (!active || !row?.percentages) {
-    return null
-  }
-  return (
-    <div className="rounded-lg border border-border/50 bg-background px-2.5 py-1.5 shadow-xl">
-      <ResultsShareList row={row} />
     </div>
   )
 }
@@ -236,12 +221,13 @@ function ResultsChart({
   const rows = mappedRows ?? []
   const chartRows = rows.map((row) => ({
     ...row,
+    key: resultIdentity(row),
     passedPct: row.percentages?.passed ?? 0,
     failedPct: row.percentages?.failed ?? 0,
     cancelledPct: row.percentages?.cancelled ?? 0,
     interruptedPct: row.percentages?.interrupted ?? 0,
   }))
-  const inspectedRow = rows.find((row) => row.preset === inspected)
+  const inspectedRow = rows.find((row) => resultIdentity(row) === inspected)
 
   const chart = (
     <Card className="max-w-5xl">
@@ -272,12 +258,13 @@ function ResultsChart({
             >
               <CartesianGrid vertical={false} />
               <XAxis
-                dataKey="preset"
+                dataKey="key"
                 interval={0}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(value) => {
-                  const label = String(value)
+                  const row = chartRows.find((item) => item.key === value)
+                  const label = row ? resultLabel(row) : String(value)
                   return label.length > 18 ? `${label.slice(0, 16)}…` : label
                 }}
               />
@@ -288,7 +275,34 @@ function ResultsChart({
                 axisLine={false}
                 tickFormatter={(value) => `${value}%`}
               />
-              <ChartTooltip content={<ResultsTooltip />} />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    labelFormatter={(_, payload) => {
+                      const row = payload?.[0]?.payload as ResultCounts | undefined
+                      return row ? resultLabel(row) : ""
+                    }}
+                    formatter={(value, name, item) => {
+                      const state = String(name)
+                      if (!RESULT_STATES.includes(state as (typeof RESULT_STATES)[number])) {
+                        return String(value ?? "")
+                      }
+                      const row = item.payload as ResultRow
+                      return (
+                        <div className="flex min-w-40 flex-1 items-center justify-between gap-4">
+                          <span className="text-muted-foreground">
+                            {resultChartConfig[state as (typeof RESULT_STATES)[number]].label}
+                          </span>
+                          <span className="font-mono font-medium tabular-nums">
+                            {row[state as (typeof RESULT_STATES)[number]].toLocaleString("pt-BR")}{" "}
+                            · {formatShare(row.percentages?.[state as (typeof RESULT_STATES)[number]] ?? 0)}
+                          </span>
+                        </div>
+                      )
+                    }}
+                  />
+                }
+              />
               <ChartLegend content={<ChartLegendContent />} />
               <Bar dataKey="passedPct" stackId="results" fill="var(--color-passed)" name="passed" />
               <Bar dataKey="failedPct" stackId="results" fill="var(--color-failed)" name="failed" />
@@ -322,8 +336,11 @@ function ResultsChart({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((preset) => (
-              <TableRow key={preset.preset}>
+            {rows.map((preset) => {
+              const identity = resultIdentity(preset)
+              const label = resultLabel(preset)
+              return (
+              <TableRow key={identity}>
                 <TableCell className="min-w-0 max-w-0 font-medium">
                   <Popover>
                     <PopoverTrigger asChild>
@@ -332,7 +349,7 @@ function ResultsChart({
                         variant="link"
                         className="h-auto max-w-full min-w-0 justify-start p-0 text-left font-medium break-words whitespace-normal [overflow-wrap:anywhere]"
                       >
-                        {preset.preset}
+                        {label}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent align="start" className="w-64">
@@ -346,7 +363,8 @@ function ResultsChart({
                 <TableCell className="text-right tabular-nums">{preset.interrupted}</TableCell>
                 <TableCell className="text-right font-medium tabular-nums">{preset.total}</TableCell>
               </TableRow>
-            ))}
+              )
+            })}
           </TableBody>
         </DataTableFrame>
       </CardContent>
@@ -546,7 +564,7 @@ function DurationChart({
 function AnalysisControls({
   period,
   preset,
-  presets,
+  durationOptions,
   rows,
   selection,
   durationRequiresPreset,
@@ -557,7 +575,7 @@ function AnalysisControls({
 }: {
   period: AnalysisPeriod
   preset: string
-  presets: string[]
+  durationOptions: Array<{ value: string; label: string }>
   rows: ResultCounts[]
   selection: AnalysisViewState["resultSelection"]
   durationRequiresPreset: boolean
@@ -580,7 +598,7 @@ function AnalysisControls({
           value={preset}
           placeholder="Selecione um preset"
           onValueChange={onPreset}
-          options={presets.map((item) => ({ value: item, label: item }))}
+          options={durationOptions}
         />
       ) : (
         <PresetMultiSelect
@@ -599,7 +617,7 @@ function AnalysisStatistics({
   view,
   period,
   preset,
-  presets,
+  durationOptions,
   results,
   duration,
   visibleResults,
@@ -617,7 +635,7 @@ function AnalysisStatistics({
   view: AnalysisViewState["metric"]
   period: AnalysisPeriod
   preset: string
-  presets: string[]
+  durationOptions: Array<{ value: string; label: string }>
   results: ApiQuery<ResultsResponse>
   duration: ApiQuery<AnalysisResponse>
   visibleResults: ResultCounts[] | undefined
@@ -632,9 +650,14 @@ function AnalysisStatistics({
   catalogState: "linked" | "unlinked" | "invalid" | "missing" | undefined
   onManage: () => void
 }) {
-  const selectedPreset = duration.data?.presets.find(
-    (item) => item.preset === preset
-  )
+  const selectedPreset = duration.data?.presets.find((item) => {
+    if (item.preset === preset) {
+      return true
+    }
+    return duration.data?.projectId
+      ? `${duration.data.projectId}:${item.preset}` === preset
+      : false
+  })
 
   return (
     <div>
@@ -655,7 +678,7 @@ function AnalysisStatistics({
         <AnalysisControls
           period={period}
           preset={preset}
-          presets={presets}
+          durationOptions={durationOptions}
           rows={rows}
           selection={selection}
           durationRequiresPreset={view === "duration"}
@@ -693,17 +716,16 @@ function AnalysisStatistics({
 }
 
 export function AnalysisPage() {
-  const { projects, openManager } = useProjectContext()
-  const project = useRequiredProject()
-  const catalogState = project
-    ? projects.find((item) => item.id === project.projectId)?.bindingState
-    : undefined
+  const { scope, projects, openManager } = useProjectContext()
+  const allowed =
+    scope?.kind === "project" || scope?.kind === "all" ? scope : null
+  const persistKey = allowed?.kind === "all" ? "all" : allowed?.projectId
   const [state, setState] = React.useState<AnalysisViewState>(() => {
     const url = parseAnalysisState(window.location.search)
-    if (!project) {
+    if (!persistKey) {
       return url
     }
-    const stored = readStoredAnalysis(project.projectId)
+    const stored = readStoredAnalysis(persistKey)
     return window.location.search.includes("analysisMetric") || !stored
       ? url
       : stored
@@ -721,57 +743,73 @@ export function AnalysisPage() {
   const commit = React.useCallback(
     (next: AnalysisViewState) => {
       setState(next)
-      if (project) {
-        persistAnalysis(project.projectId, next)
+      if (persistKey) {
+        persistAnalysis(persistKey, next)
       }
     },
-    [project]
+    [persistKey]
   )
   const presetRequest = React.useCallback(
     () =>
-      project
-        ? getPresetHistory(project)
+      allowed?.kind === "project"
+        ? getPresetHistory(allowed)
         : Promise.reject(new Error("Análise exige um projeto")),
-    [project]
+    [allowed]
   )
   const presetHistory = useApiQuery(
-    `analysis-presets:${project ? scopeKey(project) : "none"}`,
+    `analysis-presets:${allowed ? scopeKey(allowed) : "none"}`,
     presetRequest,
-    { enabled: Boolean(project) }
+    { enabled: allowed?.kind === "project" }
   )
-  const presetNames = React.useMemo(
-    () =>
-      presetHistory.data?.presets
-        .filter((item) => item.declared)
-        .map((item) => item.preset) ?? [],
-    [presetHistory.data]
-  )
-  const durationPreset = validPreset(state.durationPreset, presetNames)
   const resultsRequest = React.useCallback(
     () =>
-      project
-        ? getResults(project, { from: periodStart })
+      allowed
+        ? getResults(allowed, { from: periodStart })
         : Promise.reject(new Error("Análise exige um projeto")),
-    [periodStart, project]
+    [allowed, periodStart]
   )
   const results = useApiQuery(
-    `analysis-results:${project ? scopeKey(project) : "none"}:${state.period}`,
+    `analysis-results:${allowed ? scopeKey(allowed) : "none"}:${state.period}`,
     resultsRequest,
-    { pollMs: 30_000, enabled: Boolean(project) }
+    { pollMs: 30_000, enabled: Boolean(allowed) }
   )
+  const durationOptions = React.useMemo(() => {
+    if (allowed?.kind === "all") {
+      return (results.data?.durationPresets ?? []).map((item) => ({
+        value: item.key,
+        label: item.label,
+      }))
+    }
+    return (
+      presetHistory.data?.presets
+        .filter((item) => item.declared)
+        .map((item) => ({ value: item.preset, label: item.preset })) ?? []
+    )
+  }, [allowed?.kind, presetHistory.data, results.data?.durationPresets])
+  const durationPreset = validPreset(
+    state.durationPreset,
+    durationOptions.map((item) => item.value)
+  )
+  const durationOwnerId =
+    allowed?.kind === "all"
+      ? parseNamespacedPreset(durationPreset)?.projectId
+      : allowed?.projectId
+  const catalogState = durationOwnerId
+    ? projects.find((item) => item.id === durationOwnerId)?.bindingState
+    : undefined
   const durationRequest = React.useCallback(
     () =>
-      project && durationPreset
-        ? getDuration(project, { from: periodStart, preset: durationPreset })
+      allowed && durationPreset
+        ? getDuration(allowed, { from: periodStart, preset: durationPreset })
         : Promise.reject(new Error("Selecione um preset declarado")),
-    [durationPreset, periodStart, project]
+    [allowed, durationPreset, periodStart]
   )
   const duration = useApiQuery(
-    `analysis-duration:${project ? scopeKey(project) : "none"}:${state.period}:${durationPreset}`,
+    `analysis-duration:${allowed ? scopeKey(allowed) : "none"}:${state.period}:${durationPreset}`,
     durationRequest,
     {
       enabled:
-        Boolean(project) && state.metric === "duration" && Boolean(durationPreset),
+        Boolean(allowed) && state.metric === "duration" && Boolean(durationPreset),
     }
   )
   const latestRows = results.data?.presets ?? []
@@ -787,7 +825,7 @@ export function AnalysisPage() {
     visibleResults = appliedRows
   }
 
-  if (!project) {
+  if (!allowed) {
     return (
       <main className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
         <ErrorState
@@ -805,7 +843,7 @@ export function AnalysisPage() {
         view={state.metric}
         period={state.period}
         preset={durationPreset}
-        presets={presetNames}
+        durationOptions={durationOptions}
         results={results}
         duration={duration}
         visibleResults={visibleResults}

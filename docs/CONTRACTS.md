@@ -74,14 +74,41 @@ retry deve configurá-lo em seu próprio test runner. O protocolo não decide me
 
 ## Leitura e ações
 
-A API lê fatos por contexto de requisição: `projectId` ou `context=unassigned`.
-Não existe `activeProject` mutável no servidor. Status, executions,
-preset-history, remote-slots, job, log, diagnostic, worktrees, analysis e
-dashboard-state recebem somente os fatos daquele contexto. Fila/running de
-outro projeto só produzem ocupação global, não links inacessíveis. Histórico
-sem `projectId` comprovado fica no arquivo separado. O cadastro local mora em
-`state/projects.json` e não controla a fila. Instalação descreve a atribuição
-por commit comprovado e seu rollback; nenhum reader adivinha origem pelo path.
+A API lê fatos por contexto de requisição: `projectId`, `context=all` ou
+`context=unassigned`. Os três são mutuamente exclusivos. `projectId=all` continua
+sendo um identificador de projeto válido; a vista Todos é só `context=all`.
+Pedido sem `projectId`/`context` cai no bootstrap; omitir a query **não** é Todos.
+Não existe `activeProject` mutável no servidor.
+
+Execução atual e fila são ocupação da **máquina**: `running` e `queued` em
+`/api/status` são globais em qualquer filtro, com `projectName` no ticket.
+Histórico, worktrees e análise seguem o filtro (`project` | `all` | `unassigned`).
+Meta, pendências, últimos verdes Git, preset-history, remote-slots e
+dashboard-state exigem um projeto concreto; em Todos ou sem projeto esses
+modos não misturam.
+
+Detalhe de um ticket (`/api/job`, log, export, diagnostic) lê por `jobId` e
+**não** recorta pelo filtro da request. O eco de `context` permanece o da
+request. Listas continuam filtradas. Órfãos sem `projectId` só entram na lista
+unassigned.
+
+Histórico sem `projectId` comprovado fica no arquivo separado. O cadastro local
+mora em `state/projects.json` e não controla a fila. Instalação descreve a
+atribuição por commit comprovado e seu rollback; nenhum reader adivinha origem
+pelo path.
+
+`GET /api/worktrees?context=all` agrega os projetos ativos do cadastro, marca
+cada linha com o dono e conserva erro factual por projeto. Reveal e
+worktree-view em Todos exigem o `projectId` do dono da linha.
+
+Análise de Resultados em um projeto agrega todos os terminais retidos daquele
+projeto no período, inclusive nomes históricos. Em Todos, agrupa
+`(projectId, preset)` com `projectName` e não mistura órfãos. Duração usa verdes
+da receita atual com início e duração válidos e um único preset declarado; em
+Todos o par é `projectId:preset` (UUID + `PRESET_NAME`) e preset solto é 400.
+Unassigned permanece `PROJECT_REQUIRED` na análise. Máquina publica somente disco
+livre atual. Não existe causalidade inferida de RAM/OOM, catálogo de Problemas ou
+histórico de recursos neste MVP.
 
 O verde local exige receita atual, argv idêntico, projeto, passed, exitCode 0 e
 nenhum custom/extraArgs. Git é somente um espelho de resumo publicado pelo

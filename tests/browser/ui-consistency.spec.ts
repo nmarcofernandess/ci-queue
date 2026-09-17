@@ -265,7 +265,7 @@ test('review regressions keep dense identities and table actions inside their ce
   expect((await flakyRow.boundingBox())!.height).toBe((await plainRow.boundingBox())!.height)
   await expect(longRow.getByText('Flaky detectado',{exact:true})).toBeVisible()
 
-  const historyAction=flakyRow.getByRole('button',{name:'Ver passed-run',exact:true})
+  const historyAction=flakyRow.getByRole('button',{name:'Inspecionar',exact:true})
   const actionGeometry=await historyAction.evaluate(button=>{
     const cell=button.closest('td')!
     const b=button.getBoundingClientRect(),c=cell.getBoundingClientRect(),style=getComputedStyle(cell)
@@ -295,7 +295,7 @@ test('review regressions keep dense identities and table actions inside their ce
   const originCell=commitRow.getByRole('cell').nth(4)
   expect(await countCell.evaluate(cell=>cell.scrollWidth<=cell.clientWidth+1)).toBe(true)
   expect(await originCell.evaluate(cell=>cell.scrollWidth<=cell.clientWidth+1)).toBe(true)
-  const commitAction=commitRow.getByRole('button',{name:/Ver commit/})
+  const commitAction=commitRow.getByRole('button',{name:'Inspecionar',exact:true})
   const commitActionGeometry=await commitAction.evaluate(button=>{
     const cell=button.closest('td')!
     const b=button.getBoundingClientRect(),c=cell.getBoundingClientRect(),style=getComputedStyle(cell)
@@ -312,7 +312,7 @@ test('review regressions keep dense identities and table actions inside their ce
   await page.keyboard.press('Enter')
   const commitDrawer=await inspectDrawer(page)
   const drawerTable=commitDrawer.getByRole('table',{name:'Execuções do commit',exact:true})
-  const drawerAction=drawerTable.getByRole('button',{name:'Ver smoketest',exact:true})
+  const drawerAction=drawerTable.getByRole('button',{name:'Inspecionar',exact:true})
   const drawerActionGeometry=await drawerAction.evaluate(button=>{
     const cell=button.closest('td')!
     const b=button.getBoundingClientRect(),c=cell.getBoundingClientRect(),style=getComputedStyle(cell)

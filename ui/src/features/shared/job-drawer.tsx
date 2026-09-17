@@ -24,6 +24,8 @@ import {
 } from "./detail-drawer"
 import { FactsTable } from "./facts-table"
 import { describeJobState } from "./presentation"
+import { ProjectChip } from "./project-chip"
+import { projectChipFacts } from "./project-chip-model"
 import {
   Popover,
   PopoverContent,
@@ -483,6 +485,14 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
           job.data
             ? { kind: "state", descriptor: describeJobState(job.data.status) }
             : undefined
+        }
+        badge={
+          job.data?.projectName ? (
+            <ProjectChip
+              name={job.data.projectName}
+              facts={projectChipFacts(job.data)}
+            />
+          ) : undefined
         }
         closeLabel="Fechar execução"
       />

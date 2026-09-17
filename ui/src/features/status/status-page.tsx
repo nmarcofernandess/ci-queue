@@ -2,7 +2,9 @@ import { EntityIdentity } from "@/features/shared/entity-identity"
 import { describeJobState } from "@/features/shared/presentation"
 import { ExecutionStages } from "@/features/shared/execution-stages"
 import { Badge } from "@/components/ui/badge"
-import { JobTimeline } from "@/features/shared/live-time"
+import { ElapsedItem } from "@/features/shared/live-time"
+import { ProjectChip } from "@/features/shared/project-chip"
+import { projectChipFacts } from "@/features/shared/project-chip-model"
 import * as React from "react"
 
 import { useProjectContext } from "@/features/projects/project-context"
@@ -49,11 +51,6 @@ import { FilterSelect } from "@/features/shared/filter-select"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { ErrorState } from "@/features/shared/async-state"
 import {
   formatBytes,
@@ -75,7 +72,6 @@ import {
   CheckCircle2Icon,
   CircleDotIcon,
   HardDriveIcon,
-  EyeIcon,
   SearchIcon,
 } from "lucide-react"
 
@@ -104,15 +100,6 @@ function CurrentExecution({
             </ItemMedia>
             <ItemContent>
               <ItemTitle>Nenhuma execução em andamento</ItemTitle>
-              {snapshot.otherProjectOccupancy ? (
-                <ItemDescription>
-                  Há trabalho de outro projeto na fila global.
-                </ItemDescription>
-              ) : snapshot.globalOccupancy ? (
-                <ItemDescription>
-                  O executor está ocupado.
-                </ItemDescription>
-              ) : null}
             </ItemContent>
           </Item>
         </CardContent>
@@ -123,6 +110,9 @@ function CurrentExecution({
   const stages = current.progressSummary?.available
     ? (current.progressSummary.roots ?? [])
     : []
+  const flaky = current.progressSummary?.nodes?.some(
+    (node) => (node.retryCount ?? 0) > 0
+  )
 
   return (
     <Card size="sm">
@@ -131,44 +121,36 @@ function CurrentExecution({
       </CardHeader>
       <CardContent>
         <div className="flex min-w-0 flex-col gap-5">
-          <div className="flex min-w-0 items-start gap-2">
-            <EntityIdentity
-              presentation="current"
-              title={current.preset || "Preset não informado"}
-              media={{
-                kind: "state",
-                descriptor: describeJobState(current.status),
-              }}
-              onOpen={() => onOpenJob(current.id)}
-              description={
+          <EntityIdentity
+            presentation="current"
+            title={current.preset || "Preset não informado"}
+            media={{
+              kind: "state",
+              descriptor: describeJobState(current.status),
+            }}
+            onOpen={() => onOpenJob(current.id)}
+            description={
+              <>
+                {current.branch || "Branch não informada"} ·{" "}
+                <span className="font-mono">{shortSha(current.headSha)}</span>
+              </>
+            }
+            badge={
+              current.projectName || flaky ? (
                 <>
-                  <JobTimeline job={current} /> ·{" "}
-                  {current.branch || "Branch não informada"} ·{" "}
-                  <span className="font-mono">{shortSha(current.headSha)}</span>
+                  {current.projectName ? (
+                    <ProjectChip
+                      name={current.projectName}
+                      facts={projectChipFacts(current)}
+                    />
+                  ) : null}
+                  {flaky ? (
+                    <Badge variant="outline">Flaky detectado</Badge>
+                  ) : null}
                 </>
-              }
-              badge={
-                current.progressSummary?.nodes?.some(
-                  (node) => (node.retryCount ?? 0) > 0
-                ) ? (
-                  <Badge variant="outline">Flaky detectado</Badge>
-                ) : undefined
-              }
-            />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Ver ${current.preset ?? "execução"}`}
-                  onClick={() => onOpenJob(current.id)}
-                >
-                  <EyeIcon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ver execução</TooltipContent>
-            </Tooltip>
-          </div>
+              ) : undefined
+            }
+          />
           {current.commitSubject ? (
             <ItemDescription>{current.commitSubject}</ItemDescription>
           ) : null}
@@ -179,6 +161,11 @@ function CurrentExecution({
               jobStatus={current.status}
             />
           ) : null}
+          <ElapsedItem
+            job={current}
+            presentation="current"
+            onInspect={() => onOpenJob(current.id)}
+          />
         </div>
       </CardContent>
     </Card>
@@ -1161,6 +1148,10 @@ function HistoryPanel({
           loadingMore={executions.loadingMore}
           loadMoreError={executions.loadMoreError}
           onLoadMore={executions.loadMore}
+          showProjectChip={scope.kind !== "project"}
+          filterProjectId={
+            scope.kind === "project" ? scope.projectId : undefined
+          }
         />
       ) : filters.grouping === "commit" ? (
         <Card className="gap-0 pb-0">
@@ -1280,27 +1271,24 @@ export function StatusPage() {
     )
   }
 
-  const unassigned = scope.kind === "unassigned"
+  const projectScoped = scope.kind === "project"
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 lg:p-6">
-      {unassigned ? null : (
-        <CurrentExecution snapshot={status.data} onOpenJob={setSelectedJobId} />
-      )}
+      <CurrentExecution snapshot={status.data} onOpenJob={setSelectedJobId} />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div className="flex min-w-0 flex-col gap-6">
-          {unassigned ? null : (
-            <RunTable
-              title="Fila"
-              kind="queue"
-              jobs={status.data.queued}
-              loading={false}
-              error={undefined}
-              emptyTitle="Fila livre"
-              emptyDescription="A próxima execução aguardando aparecerá aqui."
-              onOpenJob={setSelectedJobId}
-            />
-          )}
+          <RunTable
+            title="Fila"
+            kind="queue"
+            jobs={status.data.queued}
+            loading={false}
+            error={undefined}
+            emptyTitle="Fila livre"
+            emptyDescription="A próxima execução aguardando aparecerá aqui."
+            onOpenJob={setSelectedJobId}
+            showProjectChip
+          />
           <HistoryPanel
             scope={scope}
             onOpenJob={setSelectedJobId}
@@ -1309,13 +1297,13 @@ export function StatusPage() {
         </div>
         <aside className="flex flex-col gap-4">
           <MachineCard />
-          {unassigned ? null : (
+          {projectScoped ? (
             <StatusStateCards
               dashboard={dashboard}
               onOpen={openStatusState}
               onOpenJob={setSelectedJobId}
             />
-          )}
+          ) : null}
         </aside>
       </div>
       {selectedJobId ? (

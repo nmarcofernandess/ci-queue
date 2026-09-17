@@ -9,6 +9,8 @@ import {
   projectPercentages,
   rankResults,
   resolveSelection,
+  resultIdentity,
+  resultLabel,
   visibleResultRows,
   type ResultCounts,
 } from '../../ui/src/features/analysis/results-model'
@@ -79,6 +81,39 @@ describe('results-model', () => {
       'alpha',
       'beta',
     ])
+  })
+
+  it('keeps two projects with the same preset as distinct identities', () => {
+    const rows: ResultCounts[] = [
+      {
+        preset: 'check',
+        projectId: 'alpha',
+        projectName: 'Alpha',
+        passed: 2,
+        failed: 0,
+        cancelled: 0,
+        interrupted: 0,
+        total: 2,
+      },
+      {
+        preset: 'check',
+        projectId: 'beta',
+        projectName: 'Beta',
+        passed: 1,
+        failed: 0,
+        cancelled: 0,
+        interrupted: 0,
+        total: 1,
+      },
+    ]
+    const ranked = rankResults(rows)
+    expect(ranked.map((row) => resultIdentity(row))).toEqual(['alpha:check', 'beta:check'])
+    expect(ranked.map((row) => resultLabel(row))).toEqual(['Alpha · check', 'Beta · check'])
+    expect(resolveSelection(rows, { mode: 'all' }).selected).toEqual([
+      'alpha:check',
+      'beta:check',
+    ])
+    expect(visibleResultRows(rows, { mode: 'all' }).visible).toHaveLength(2)
   })
 
   it('keeps custom empty, all, and missing historical names distinct', () => {

@@ -63,11 +63,17 @@ export type JobRecord = {
   cleanupBlockedReason?: string | null
   commitSubject?: string
   progressSummary?: ProgressSummary
+  durationReference?: {
+    medianMs: number
+    meanMs: number
+    sampleCount: number
+    window: string
+  }
 }
 
 export type StatusSnapshot = {
   schemaVersion: number
-  project: { id: string; name: string }
+  project: { id: string; name: string } | null
   serverTime: string
   running: JobRecord | null
   queued: JobRecord[]
@@ -75,7 +81,7 @@ export type StatusSnapshot = {
   lastFailed: JobRecord | null
   globalOccupancy: boolean
   otherProjectOccupancy?: boolean
-  context?: { kind: "project" | "unassigned"; projectId?: string }
+  context?: { kind: "project" | "all" | "unassigned"; projectId?: string }
   contextRevision?: number
 }
 
@@ -209,11 +215,13 @@ export type AnalysisResponse = {
   total: number
   presets: AnalysisPreset[]
   coverage: { unattributedRecords: number }
-  context?: { kind: "project" | "unassigned"; projectId?: string }
+  context?: { kind: "project" | "all" | "unassigned"; projectId?: string }
 }
 
 export type ResultCounts = {
   preset: string
+  projectId?: string
+  projectName?: string
   passed: number
   failed: number
   cancelled: number
@@ -221,14 +229,22 @@ export type ResultCounts = {
   total: number
 }
 
+export type DurationPresetOption = {
+  key: string
+  label: string
+  projectId: string
+  preset: string
+}
+
 export type ResultsResponse = {
   schemaVersion: 2
   metric: "results"
-  context: { kind: "project"; projectId: string }
+  context: { kind: "project" | "all"; projectId?: string }
   from: string | null
   to: string | null
   presets: ResultCounts[]
   sampleCount: number
+  durationPresets?: DurationPresetOption[]
 }
 
 export type ProjectSummary = {
@@ -304,6 +320,8 @@ export type WorktreeRecord = {
   gitObservedAt?: string
   size: WorktreeSize
   error?: string | null
+  projectId?: string
+  projectName?: string
 }
 
 export type WorktreesResponse = {
@@ -313,6 +331,11 @@ export type WorktreesResponse = {
   baseSha: string | null
   worktrees: WorktreeRecord[]
   error: string | null
+  projectErrors?: Array<{
+    projectId: string
+    projectName?: string
+    error: string
+  }>
 }
 
 export type DashboardCheck = {

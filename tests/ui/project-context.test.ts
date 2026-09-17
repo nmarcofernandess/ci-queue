@@ -21,7 +21,11 @@ describe('project scope', () => {
       projectId: 'legacy',
     })
     expect(parseScopeSearch('context=unassigned')).toEqual({ kind: 'unassigned' })
+    expect(parseScopeSearch('context=all')).toEqual({ kind: 'all' })
     expect(() => parseScopeSearch('projectId=alpha&context=unassigned')).toThrow(
+      /mutuamente exclusivos/
+    )
+    expect(() => parseScopeSearch('projectId=alpha&context=all')).toThrow(
       /mutuamente exclusivos/
     )
   })
@@ -66,8 +70,12 @@ describe('project scope', () => {
     expect(matchesScope({ context: { kind: 'project', projectId: 'alpha' } }, alpha)).toBe(true)
     expect(matchesScope({ context: { kind: 'project', projectId: 'beta' } }, alpha)).toBe(false)
     expect(matchesScope({ context: { kind: 'unassigned' } }, { kind: 'unassigned' })).toBe(true)
+    expect(matchesScope({ context: { kind: 'all' } }, { kind: 'all' })).toBe(true)
+    expect(matchesScope({ context: { kind: 'all' } }, alpha)).toBe(false)
     expect(scopeKey(alpha)).toBe('project:alpha')
+    expect(scopeKey({ kind: 'all' })).toBe('all')
     expect(scopeQuery({ kind: 'unassigned' })).toEqual({ context: 'unassigned' })
+    expect(scopeQuery({ kind: 'all' })).toEqual({ context: 'all' })
     expect(writeScopeSearch('analysisMetric=results', alpha)).toBe(
       'analysisMetric=results&projectId=alpha'
     )
@@ -80,5 +88,14 @@ describe('project scope', () => {
     expect(writeScopeSearch('analysisMetric=duration&projectId=alpha', alpha)).toBe(
       'analysisMetric=duration&projectId=alpha'
     )
+    expect(
+      writeScopeSearch(
+        'analysisMetric=results&analysisPreset=check&projectId=alpha',
+        { kind: 'all' }
+      )
+    ).toBe('context=all')
+    expect(
+      writeScopeSearch('analysisMetric=results&context=all', alpha)
+    ).toBe('projectId=alpha')
   })
 })

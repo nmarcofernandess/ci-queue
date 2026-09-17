@@ -19,14 +19,19 @@ produto sobre Nova, não variantes oficiais inventadas.
 ## Composição de identidade
 
 `EntityIdentity` compõe ItemMedia e ItemContent; em drawer mantém DrawerTitle e
-DrawerDescription para acessibilidade. A feature fornece conteúdo e callbacks:
+DrawerDescription para acessibilidade. A feature fornece conteúdo e callbacks.
+Na execução atual o tempo decorrido **não** mora na description: `ElapsedItem`
+fecha o `CardContent`. Chip de projeto é `Badge outline` via `ProjectChip`.
+Olho da família é `InspectButton` (label **Inspecionar**, tamanho em
+`presentation.inspect`).
 
 ```tsx
 <EntityIdentity
   presentation="current"
   title={current.preset || "Preset não informado"}
   media={{ kind: "state", descriptor: describeJobState(current.status) }}
-  description={<JobTimeline job={current} />}
+  description={<>{branch} · {sha}</>}
+  badge={<ProjectChip name={current.projectName} facts={projectChipFacts(current)} />}
   onOpen={() => onOpenJob(current.id)}
 />
 ```
@@ -39,7 +44,8 @@ acessível e no atributo `title`. Ícone de ação pertence ao Button; ícone de
 identidade pertence a StatusIndicator. Em tabela o estado permanece em sua
 célula: não reunir todas as colunas num card.
 
-O header global carrega o seletor de projeto à direita. O rodapé da sidebar é
+O header global carrega o seletor de projeto à direita: um projeto, Todos os
+projetos ou Histórico sem projeto. O rodapé da sidebar é
 o ambiente local, não um usuário. Menus pesquisáveis usam `SelectionPanel`;
 filtros simples usam `FilterSelect`. Não aninhar Select em Popover para período.
 
