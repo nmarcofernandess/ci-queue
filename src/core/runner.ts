@@ -641,7 +641,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   if (ticket.executionDeadline?.state === "armed") {
     const deadline = ticket.executionDeadline
     deadlineTimer = setTimeout(() => {
-      if (childClosed) return
+      if (childClosed || staleAborted) return
       const current = readRunningJob(root)
       if (!current || current.id !== ticket.id) return
       timedOut = true

@@ -668,6 +668,53 @@ describe("runner spend-abort", () => {
     }
   }, 20_000)
 
+  it("keeps stale-base when a later deadline fires before the child closes", async () => {
+    const { worker } = buildBareAuthorWorker()
+    const state = mkdtempSync(join(tmpdir(), "ci-queue-state-"))
+    cleanup.push(state)
+    catalog(worker, {
+      abortOnStaleBase: true,
+      executionTimeoutMs: 180,
+      argv: [process.execPath, "-e", "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)"],
+    })
+    const ticket = enqueueTicket({ preset: "check", cwd: worker, stateRoot: state })
+    let staleBeforeExpiry = false
+    const parsed = await claimParsed(state, ticket)
+    const job = runJob(state, parsed, {
+      spendAbort: {
+        observe: async () => {
+          await waitFor(() => Boolean(readRunningJob(state)?.processGroupIdentity), 10_000)
+          staleBeforeExpiry = readRunningJob(state)?.executionDeadline?.state !== "expired"
+          return KNOWN_STALE
+        },
+        sleep: abortableSleep,
+        nowMs: () => Date.now(),
+      },
+    })
+    try {
+      await waitFor(() => staleBeforeExpiry)
+      await waitFor(() => {
+        const running = readRunningJob(state)
+        if (!running || running.id !== ticket.id) return false
+        const deadline = running.executionDeadline
+        if (!deadline || !("expiresAt" in deadline)) return false
+        return Date.parse(deadline.expiresAt) + 50 <= Date.now()
+      }, 10_000)
+      expect(readRunningJob(state)?.id).toBe(ticket.id)
+      const terminal = await job
+      expect(staleBeforeExpiry).toBe(true)
+      expect(terminal).toMatchObject({
+        id: ticket.id,
+        status: "failed",
+        exitCode: 1,
+        failureReason: STALE_BASE_FAILURE_REASON,
+      })
+    } finally {
+      killDetached(readRunningJob(state)?.childPid)
+      await job.catch(() => undefined)
+    }
+  }, 20_000)
+
   it("keeps cancelled when a stale callback arrives after cancel", async () => {
     const { worker } = buildBareAuthorWorker()
     const state = mkdtempSync(join(tmpdir(), "ci-queue-state-"))
