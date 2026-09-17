@@ -274,10 +274,26 @@ function copyArtifacts(root: string, ticket: QueueTicket): string | undefined {
   return copied ? target : undefined
 }
 
-function finalProgress(root: string, ticket: QueueTicket, artifactStatus: "passed" | "failed" | "skipped"): QueueTicket {
-  const collector = new ProgressCollector(root, ticket.id)
+function publishArtifactNode(collector: ProgressCollector, artifactStatus: "passed" | "failed" | "skipped"): void {
   collector.ingest(`${"@@ci-queue-progress"}\t1\tnode\tartifacts\t-\tartifact\t${artifactStatus}\t-\tArtefatos`)
-  const enriched = attachProgressToTicket(root, ticket)
+}
+
+/** Attach finalized progress to a terminal ticket. Sidecar removal is the caller's job after publish is confirmed. */
+function withFinalProgress(
+  root: string,
+  ticket: QueueTicket,
+  artifactStatus: "passed" | "failed" | "skipped",
+  collector?: ProgressCollector,
+): QueueTicket {
+  const active = collector ?? new ProgressCollector(root, ticket.id)
+  publishArtifactNode(active, artifactStatus)
+  const progress = active.finalize()
+  return { ...ticket, progress }
+}
+
+function finalProgress(root: string, ticket: QueueTicket, artifactStatus: "passed" | "failed" | "skipped"): QueueTicket {
+  const enriched = withFinalProgress(root, ticket, artifactStatus)
+  // Preflight/spawn paths never held a live collector; sidecar may be absent.
   removeProgressSnapshot(root, ticket.id)
   return enriched
 }
@@ -373,13 +389,22 @@ export async function reconcileInterruptedJob(root: string): Promise<{ state: "n
     appendRedactedLog(blocked.logPath, `[${new Date().toISOString()}] ${blocked.cleanupBlockedReason}\n`)
     return { state: "blocked", job: blocked }
   }
-  const terminal = await closeRunningTicket(root, {
+  const collector = new ProgressCollector(root, running.id)
+  const withProgress = withFinalProgress(root, {
     ...running,
     status: "interrupted",
     finishedAt: new Date().toISOString(),
     exitCode: null,
     failureReason: "worker interrompido; processo filho encerrado durante a recuperação",
-  })
+  }, "skipped", collector)
+  const terminal = await closeRunningTicket(root, withProgress)
+  // Only drop the sidecar after the history write is authoritative.
+  if (terminal.status === "interrupted" || terminal.id === running.id) {
+    const historyHasProgress = Boolean(terminal.progress)
+    if (historyHasProgress || terminal.id === running.id) {
+      removeProgressSnapshot(root, running.id)
+    }
+  }
   return { state: "reconciled", job: terminal }
 }
 
@@ -442,14 +467,18 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
 
   const collector = new ProgressCollector(root, ticket.id)
   const logRedactor = new LogRedactor()
-  const output = (chunk: Buffer) => {
-    const text = chunk.toString("utf8")
-    appendRedactedLog(ticket.logPath, logRedactor.push(text))
-    decoder.push(text)
+  const stdoutProgress = collector.decoder()
+  const stderrProgress = collector.decoder()
+  const onStdout = (chunk: Buffer) => {
+    appendRedactedLog(ticket.logPath, logRedactor.push(chunk.toString("utf8")))
+    stdoutProgress.push(chunk)
   }
-  const decoder = collector.decoder()
-  child.stdout?.on("data", output)
-  child.stderr?.on("data", output)
+  const onStderr = (chunk: Buffer) => {
+    appendRedactedLog(ticket.logPath, logRedactor.push(chunk.toString("utf8")))
+    stderrProgress.push(chunk)
+  }
+  child.stdout?.on("data", onStdout)
+  child.stderr?.on("data", onStderr)
 
   const identity = child.pid ? probeProcessGroupIdentity(child.pid) : undefined
   const started = mergeRunning(root, {
@@ -484,7 +513,8 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
 
   const exit = await childExit(child)
   if (deadlineTimer) clearTimeout(deadlineTimer)
-  decoder.flush()
+  stdoutProgress.flush()
+  stderrProgress.flush()
   appendRedactedLog(ticket.logPath, logRedactor.flush())
   const latest = readRunningJob(root)
   const interrupted = Boolean(hooks.interruptedReason?.())
@@ -524,7 +554,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
       appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] cópia de artefatos falhou: ${error instanceof Error ? error.message : String(error)}\n`)
     }
   }
-  const terminal = finalProgress(root, {
+  const candidate = withFinalProgress(root, {
     ...ticket,
     ...(latest?.cancelRequestedAt ? { cancelRequestedAt: latest.cancelRequestedAt } : {}),
     status,
@@ -536,8 +566,13 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     ...(completedDeadline ? { executionDeadline: completedDeadline } : {}),
     ...(postflight ? { postflight } : {}),
     processObservations: [...(ticket.processObservations ?? []), observation],
-  }, artifactStatus)
+  }, artifactStatus, collector)
   hooks.onChildPid?.(undefined)
   hooks.onJob?.(undefined)
-  return closeRunningTicket(root, terminal)
+  const terminal = await closeRunningTicket(root, candidate)
+  // Sidecar survives a failed history write so recovery can still read durations.
+  if (terminal.progress || terminal.status !== "running") {
+    removeProgressSnapshot(root, ticket.id)
+  }
+  return terminal
 }

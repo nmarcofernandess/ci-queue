@@ -4,6 +4,13 @@ export type JobStatus =
 export type ProgressNodeStatus =
   "pending" | "running" | "passed" | "failed" | "skipped"
 
+export type ProgressDurationSource = "emitter" | "collector"
+export type ProgressDurationUnavailableReason =
+  | "missing-start"
+  | "collector-restarted"
+  | "clock-invalid"
+  | "open-at-finalize"
+
 export type ProgressNode = {
   id: string
   parentId?: string
@@ -11,6 +18,8 @@ export type ProgressNode = {
   label: string
   status: ProgressNodeStatus
   durationMs?: number
+  durationSource?: ProgressDurationSource
+  durationUnavailableReason?: ProgressDurationUnavailableReason
   retryCount?: number
   detail?:
     | string

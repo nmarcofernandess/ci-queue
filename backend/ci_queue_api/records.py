@@ -205,8 +205,14 @@ def progress_summary(job, progress=None):
                 and detail["completed"] + detail["running"] + detail["pending"] == detail["total"]):
             result["detail"] = {key: detail[key] for key in ("kind", *count_keys)}
         value = node.get("durationMs")
-        if type(value) is int and value >= 0:
+        if type(value) is int and 0 <= value <= 9007199254740991:
             result["durationMs"] = value
+        source = node.get("durationSource")
+        if source in {"emitter", "collector"}:
+            result["durationSource"] = source
+        reason = node.get("durationUnavailableReason")
+        if reason in {"missing-start", "collector-restarted", "clock-invalid", "open-at-finalize"}:
+            result["durationUnavailableReason"] = reason
         retry_count = node.get("retryCount")
         if type(retry_count) is int and retry_count >= 0:
             result["retryCount"] = retry_count

@@ -1,3 +1,4 @@
+import { StringDecoder } from "node:string_decoder"
 import type {
   JobProgress,
   ProgressCountKind,
@@ -6,6 +7,12 @@ import type {
   ProgressNodeKind,
   ProgressStatus,
 } from "../contracts/schema.js"
+import {
+  ProgressTimingTracker,
+  systemProgressClock,
+  type ProgressClock,
+  type ProgressNodeUpdate,
+} from "./progress-timing.js"
 import { atomicWriteJson, progressPath, readJsonFile, removeFile } from "./state.js"
 
 /** Stable stdout protocol. Consumers can emit it without importing CI Queue. */
@@ -17,7 +24,7 @@ const STATUSES = new Set<ProgressStatus>(["pending", "running", "passed", "faile
 const NODE_KINDS = new Set<ProgressNodeKind>(["stage", "group", "gate", "suite", "case", "artifact"])
 const COUNT_KINDS = new Set<ProgressCountKind>(["gates", "suites", "cases", "artifacts", "items"])
 
-type NodeEvent = Omit<ProgressNode, "detail" | "retryCount"> & { type: "node" }
+type NodeEvent = ProgressNodeUpdate & { type: "node" }
 type CountsEvent = ProgressCounts & { type: "counts"; id: string }
 type ProgressEvent = NodeEvent | CountsEvent
 
@@ -59,19 +66,30 @@ export function parseProgressLine(line: unknown): ProgressEvent | undefined {
   return undefined
 }
 
-export function applyProgressLine(state: JobProgress, line: unknown, now = new Date().toISOString()): JobProgress {
+/** Structural reducer — duration metadata is applied by ProgressTimingTracker when present. */
+export function applyProgressLine(
+  state: JobProgress,
+  line: unknown,
+  now = new Date().toISOString(),
+  timing?: ProgressTimingTracker,
+): JobProgress {
   const event = parseProgressLine(line)
   if (!event) return state
   if (event.type === "node") {
     const index = state.nodes.findIndex((node) => node.id === event.id)
     const previous = state.nodes[index]
-    const node: ProgressNode = { ...previous, ...event }
+    const structural: ProgressNode = { ...previous, ...event }
     // Repeated running markers are observations, not additional attempts.
     if (previous?.status === "failed" && event.status === "running") {
-      node.retryCount = (previous.retryCount ?? 0) + 1
-      delete node.durationMs
+      structural.retryCount = (previous.retryCount ?? 0) + 1
+      delete structural.durationMs
+      delete structural.durationSource
+      delete structural.durationUnavailableReason
     }
-    delete (node as { type?: string }).type
+    delete (structural as { type?: string }).type
+    const node = timing
+      ? timing.apply(previous, event, structural)
+      : structural
     const nodes = [...state.nodes]
     if (index === -1) nodes.push(node)
     else nodes[index] = node
@@ -110,14 +128,21 @@ export function attachProgressToTicket<T extends { id: string }>(root: string, t
 
 export class ProgressLineDecoder {
   #buffer = ""
+  #decoder = new StringDecoder("utf8")
   constructor(private readonly onLine: (line: string) => void) {}
   push(chunk: unknown): void {
-    this.#buffer += String(chunk)
+    const text = Buffer.isBuffer(chunk)
+      ? this.#decoder.write(chunk)
+      : typeof chunk === "string"
+        ? chunk
+        : this.#decoder.write(Buffer.from(String(chunk)))
+    this.#buffer += text
     const lines = this.#buffer.split(/\r?\n/)
     this.#buffer = lines.pop() ?? ""
     for (const line of lines) this.onLine(line)
   }
   flush(): void {
+    this.#buffer += this.#decoder.end()
     if (this.#buffer) this.onLine(this.#buffer)
     this.#buffer = ""
   }
@@ -125,14 +150,50 @@ export class ProgressLineDecoder {
 
 export class ProgressCollector {
   private state: JobProgress
-  constructor(private readonly root: string, private readonly id: string) {
+  private readonly timing: ProgressTimingTracker
+  private finalized = false
+
+  constructor(
+    private readonly root: string,
+    private readonly id: string,
+    options?: { clock?: ProgressClock },
+  ) {
     this.state = readProgressSnapshot(root, id) ?? createProgressState()
+    this.timing = new ProgressTimingTracker(options?.clock ?? systemProgressClock(), this.state.nodes)
   }
+
   ingest(line: string): void {
-    const next = applyProgressLine(this.state, line)
+    if (this.finalized) return
+    const next = applyProgressLine(this.state, line, new Date().toISOString(), this.timing)
     if (next === this.state) return
     this.state = next
     try { writeProgressSnapshot(this.root, this.id, this.state) } catch { /* non-fatal */ }
   }
-  decoder(): ProgressLineDecoder { return new ProgressLineDecoder((line) => this.ingest(line)) }
+
+  decoder(): ProgressLineDecoder {
+    return new ProgressLineDecoder((line) => this.ingest(line))
+  }
+
+  snapshot(): JobProgress {
+    return {
+      schema: this.state.schema,
+      updatedAt: this.state.updatedAt,
+      nodes: this.state.nodes.map((node) => ({ ...node })),
+    }
+  }
+
+  /** Idempotent. Open intervals become honest absences; further ingest is ignored. */
+  finalize(): JobProgress {
+    if (!this.finalized) {
+      this.finalized = true
+      const nodes = this.timing.finalize(this.state.nodes)
+      this.state = {
+        ...this.state,
+        updatedAt: new Date().toISOString(),
+        nodes,
+      }
+      try { writeProgressSnapshot(this.root, this.id, this.state) } catch { /* non-fatal */ }
+    }
+    return this.snapshot()
+  }
 }

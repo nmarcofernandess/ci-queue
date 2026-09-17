@@ -171,3 +171,9 @@ Identidade completa, cinco drawers, fichas, tabelas e indicadores usam os donos
 compartilhados mapeados em `.context/patterns/ui-composition.yaml`. DESIGN.md
 explica a linguagem visual; presentation.ts contém a escala executável. Esta
 centralização não altera filtros, tempos, ações, dados ou semântica aprovada.
+
+## Duração nos nós de progresso
+
+Árvore e faixa usam o mesmo conteúdo (`ProgressDuration`): emissor sem prefixo,
+coletor com `≈`, ausência terminal como `—` com razão no Tooltip. Sem cronômetro
+ao vivo em nós `running`.

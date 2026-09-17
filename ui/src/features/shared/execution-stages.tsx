@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/item"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { formatDuration } from "./format"
+import { ProgressDuration } from "./progress-duration"
 import { describeProgressState } from "./presentation"
 import { StatusIndicator } from "./status-indicator"
 
@@ -99,11 +99,9 @@ export function ExecutionStages({
                 >
                   {stage.label}
                 </ItemTitle>
-                {typeof stage.durationMs === "number" ? (
-                  <ItemDescription className="text-xs tabular-nums">
-                    {formatDuration(stage.durationMs)}
-                  </ItemDescription>
-                ) : null}
+                <ItemDescription className="text-xs">
+                  <ProgressDuration node={stage} jobStatus={jobStatus} />
+                </ItemDescription>
               </ItemContent>
             </Item>
           )

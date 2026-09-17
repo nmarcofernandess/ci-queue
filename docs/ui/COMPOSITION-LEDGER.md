@@ -145,3 +145,5 @@ installed Nova primitives; they add no backend or data model.
 
 This candidate is subject to human review. Prior approvals do not approve this
 new family implementation. See the etapa-1 evidence index for actual proof.
+
+| ProgressDuration | shared | Árvore e faixa — duração/origem/ausência |

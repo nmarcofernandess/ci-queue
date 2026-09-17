@@ -1,0 +1,6 @@
+@@ci-queue-progress	1	node	e2e	-	stage	running	-	E2E
+@@ci-queue-progress	1	node	case:1	e2e	case	running	-	Retry case
+@@ci-queue-progress	1	node	case:1	e2e	case	failed	800	Retry case
+@@ci-queue-progress	1	node	case:1	e2e	case	running	-	Retry case
+@@ci-queue-progress	1	node	case:1	e2e	case	passed	300	Retry case
+@@ci-queue-progress	1	node	e2e	-	stage	passed	-	E2E

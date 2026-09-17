@@ -1,0 +1,4 @@
+@@ci-queue-progress	1	node	static	-	stage	running	-	Static
+@@ci-queue-progress	1	node	gate-1	static	gate	running	-	check:architecture
+@@ci-queue-progress	1	node	gate-1	static	gate	passed	-	check:architecture
+@@ci-queue-progress	1	node	static	-	stage	passed	120000	Static
