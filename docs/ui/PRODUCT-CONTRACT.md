@@ -62,7 +62,7 @@ A página tem uma faixa de execução atual acima de um grid com coluna principa
 
 ### Fila e histórico
 
-Últimos verdes, Meta e Pendências existem só com um projeto selecionado. Em Todos ou sem projeto esses cards/modos não misturam.
+Últimos verdes, Meta e Pendências existem só com um projeto selecionado. Em Todos ou sem projeto esses cards/modos não misturam: Últimos verdes fica desabilitado com tooltip **escolha um projeto**.
 
 A fila e o histórico compartilham a composição DataTable do Dashboard 01. Cada execução ocupa uma única linha: **Estado** por ícone, **Execução**, **Término/Entrada**, **Duração/Espera**, **Revisão** com SHA curto e branch e **Ações**. Preset e a ação ocular final abrem o drawer; a linha e os demais fatos são inertes.
 
@@ -70,7 +70,7 @@ A fila contém apenas tickets `queued` **da máquina**, na ordem da fila, e não
 
 O histórico contém apenas tickets terminais do filtro atual: um projeto, atribuídos em Todos, ou sem `projectId` em Histórico sem projeto. Em Todos o chip nomeia o dono. Acima e fora da borda da tabela ficam:
 
-1. ToggleGroup Execuções / Últimos verdes na primeira linha;
+1. ToggleGroup Execuções / Últimos verdes na primeira linha; fora de um projeto o verde fica `disabled` com tooltip **escolha um projeto**;
 2. InputGroup de busca na segunda linha, seguido dos Selects diretos de período e resultado;
 3. em Últimos verdes, origem e agrupamento substituem resultado;
 4. Limpar somente quando há filtro aplicado.

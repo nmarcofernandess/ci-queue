@@ -45,6 +45,21 @@ test("status shows foreign living without changing the project filter", async ({
   await expect(page).not.toHaveURL(/context=all/)
 })
 
+test("últimos verdes only exist for a single project", async ({ page }) => {
+  await installConsistencyFixtures(page)
+  await page.goto("/#status")
+  await expect(page.getByRole("button", { name: "Example" })).toBeVisible()
+  await page.getByRole("radio", { name: "Últimos verdes", exact: true }).click()
+  await expect(page).toHaveURL(/mode=greens/)
+  await expect(
+    page.getByRole("radio", { name: "Últimos verdes", exact: true })
+  ).toBeChecked()
+  await expect(page.getByLabel("Origem")).toBeVisible()
+  await expect(
+    page.getByPlaceholder("Buscar últimos verdes…")
+  ).toBeVisible()
+})
+
 test("status empty living has no occupancy copy", async ({ page }) => {
   await installConsistencyFixtures(page, { empty: true })
   await page.goto("/#status")
@@ -93,8 +108,15 @@ test("status keeps living when the filter is Todos or unassigned", async ({
   ).toBeVisible()
   await expect(page.getByText("DietFlow", { exact: true }).first()).toBeVisible()
   await expect(page.getByRole("button", { name: "check", exact: true })).toBeVisible()
+  const greensAll = page.getByRole("radio", { name: "Últimos verdes", exact: true })
+  await expect(greensAll).toBeDisabled()
+  await page.locator("[data-slot=toggle-group] [data-slot=tooltip-trigger]").hover()
+  await expect(page.getByRole("tooltip", { name: "escolha um projeto" })).toBeVisible()
   await page.goto("/?context=unassigned#status")
   await expect(page.getByRole("button", { name: "Histórico sem projeto" })).toBeVisible()
+  await expect(
+    page.getByRole("radio", { name: "Últimos verdes", exact: true })
+  ).toBeDisabled()
   await expect(
     page.locator("[data-slot=entity-identity][data-presentation=current]")
       .getByRole("button", { name: "full", exact: true })

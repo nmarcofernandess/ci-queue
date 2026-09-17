@@ -51,6 +51,11 @@ import { FilterSelect } from "@/features/shared/filter-select"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { ErrorState } from "@/features/shared/async-state"
 import {
   formatBytes,
@@ -395,6 +400,7 @@ function StatusStateCards({
 
 function HistoryToolbar({
   mode,
+  greensAvailable,
   search,
   period,
   result,
@@ -409,6 +415,7 @@ function HistoryToolbar({
   onClear,
 }: {
   mode: HistoryMode
+  greensAvailable: boolean
   search: string
   period: Period
   result: HistoryResult
@@ -432,6 +439,12 @@ function HistoryToolbar({
           grouping !== "preset"
         )
 
+  const greensToggle = (
+    <ToggleGroupItem value="greens" disabled={!greensAvailable}>
+      Últimos verdes
+    </ToggleGroupItem>
+  )
+
   return (
     <div className="flex flex-col gap-4">
       <ToggleGroup
@@ -445,7 +458,16 @@ function HistoryToolbar({
         aria-label="Modo do histórico"
       >
         <ToggleGroupItem value="executions">Execuções</ToggleGroupItem>
-        <ToggleGroupItem value="greens">Últimos verdes</ToggleGroupItem>
+        {greensAvailable ? (
+          greensToggle
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">{greensToggle}</span>
+            </TooltipTrigger>
+            <TooltipContent>escolha um projeto</TooltipContent>
+          </Tooltip>
+        )}
       </ToggleGroup>
       <div className="flex flex-wrap items-center gap-2">
         <InputGroup className="min-w-48 flex-1 basis-full sm:basis-48">
@@ -947,7 +969,8 @@ function HistoryPanel({
   const [selectedCommit, setSelectedCommit] = React.useState<GreenCommitGroup>()
   const executions = useExecutionHistory(scope, filters, historyRevision)
   const projectScope = scope.kind === "project" ? scope : null
-  const historyMode = projectScope ? filters.mode : "executions"
+  const greensAvailable = Boolean(projectScope)
+  const historyMode = greensAvailable ? filters.mode : "executions"
   const greensMode = historyMode === "greens"
   const needsMachine = filters.origin !== "git"
   const needsGit = filters.origin !== "machine"
@@ -983,8 +1006,14 @@ function HistoryPanel({
   )
 
   React.useEffect(() => {
-    writeHistoryFilters(filters)
-  }, [filters])
+    if (!greensAvailable && filters.mode !== "executions") {
+      setFilters((current) => ({ ...current, mode: "executions" }))
+    }
+  }, [filters.mode, greensAvailable])
+
+  React.useEffect(() => {
+    writeHistoryFilters({ ...filters, mode: historyMode })
+  }, [filters, historyMode])
 
   const machineGreens = React.useMemo(
     () =>
@@ -1097,15 +1126,13 @@ function HistoryPanel({
     <>
       <HistoryToolbar
         mode={historyMode}
+        greensAvailable={greensAvailable}
         search={filters.search}
         period={filters.period}
         result={filters.result}
         origin={filters.origin}
         grouping={filters.grouping}
         onMode={(mode) => {
-          if (!projectScope && mode === "greens") {
-            return
-          }
           setFilters((current) => ({ ...current, mode }))
         }}
         onSearch={(search) => setFilters((current) => ({ ...current, search }))}
