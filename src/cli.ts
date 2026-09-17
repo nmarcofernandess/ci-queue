@@ -1,4 +1,5 @@
 import { readQueueConfig } from "./contracts/config.js"
+import { InitError, initProject } from "./ship/init.js"
 import { existsSync, readFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import {
@@ -105,6 +106,7 @@ function usage(): string {
   return [
     "Uso: ci-queue <comando> [--state DIR] [--cwd DIR] [--config FILE] [--json]",
     "  version",
+    "  init [--name NAME] [--base-ref REMOTE/BRANCH] [--argv-json JSON] [--workflow] [--force]",
     "  enqueue <preset> [--wait] [--timeout-ms N] [-- <args da receita>]",
     "  enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH [--flags-json JSON]",
     "  worker",
@@ -139,6 +141,17 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           ticketSchemaVersion: 3,
           capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
+      }
+      case "init": {
+        const argvText = optionValue(args.rest, "--argv-json")
+        return success(await initProject(args.cwd ?? process.cwd(), {
+          stateRoot: root,
+          force: args.rest.includes("--force"),
+          workflow: args.rest.includes("--workflow"),
+          ...(optionValue(args.rest, "--name") ? { name: optionValue(args.rest, "--name") } : {}),
+          ...(optionValue(args.rest, "--base-ref") ? { baseRef: optionValue(args.rest, "--base-ref") } : {}),
+          ...(argvText !== undefined ? { argv: parseJsonArray(argvText, "--argv-json") } : {}),
+        }))
       }
       case "enqueue": {
         const recipe = optionValue(args.rest, "--recipe")
@@ -241,6 +254,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         return failure("USAGE", usage())
     }
   } catch (error) {
+    if (error instanceof InitError) return failure(error.code, error.message)
     return failure("COMMAND_FAILED", error instanceof Error ? error.message : String(error))
   }
 }
