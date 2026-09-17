@@ -1,3 +1,5 @@
+import type { RuntimeReceipt } from "./runtime.js"
+
 /**
  * Contratos persistidos do CI Queue. Os tickets v1, v2 e v3 continuam
  * legíveis porque o worker decide a forma executável no momento do claim.
@@ -219,6 +221,8 @@ export type QueueTicket = {
   processObservation?: ProcessObservation
   processObservations?: ProcessObservation[]
   requestContext?: RequestContext
+  /** User-space Node guard evidence; never implies an OS sandbox. */
+  runtime?: RuntimeReceipt
 }
 
 export type ProjectPreset = TicketFlags & {

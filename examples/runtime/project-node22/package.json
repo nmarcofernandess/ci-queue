@@ -1,0 +1,7 @@
+{
+  "name": "runtime-example-node22",
+  "private": true,
+  "engines": {
+    "node": "22.x"
+  }
+}

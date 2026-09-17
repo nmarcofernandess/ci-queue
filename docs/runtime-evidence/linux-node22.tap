@@ -1,0 +1,256 @@
+TAP version 13
+# Subtest: rejects a login shell before any recipe work
+ok 1 - rejects a login shell before any recipe work
+  ---
+  duration_ms: 9.631061
+  type: 'test'
+  ...
+# Subtest: records selected and effective Node for a shell-free command
+ok 2 - records selected and effective Node for a shell-free command
+  ---
+  duration_ms: 437.457117
+  type: 'test'
+  ...
+# Subtest: fails before work when the registered exact version diverges
+ok 3 - fails before work when the registered exact version diverges
+  ---
+  duration_ms: 44.885447
+  type: 'test'
+  ...
+# Subtest: rejects startup options before spawn: bash -l -c true
+ok 4 - rejects startup options before spawn: bash -l -c true
+  ---
+  duration_ms: 0.900234
+  type: 'test'
+  ...
+# Subtest: rejects startup options before spawn: bash -cl true
+ok 5 - rejects startup options before spawn: bash -cl true
+  ---
+  duration_ms: 0.363615
+  type: 'test'
+  ...
+# Subtest: rejects startup options before spawn: /bin/bash --login -c true
+ok 6 - rejects startup options before spawn: /bin/bash --login -c true
+  ---
+  duration_ms: 0.087419
+  type: 'test'
+  ...
+# Subtest: rejects startup options before spawn: zsh -lc true
+ok 7 - rejects startup options before spawn: zsh -lc true
+  ---
+  duration_ms: 0.188037
+  type: 'test'
+  ...
+# Subtest: rejects startup options before spawn: zsh -o login -c true
+ok 8 - rejects startup options before spawn: zsh -o login -c true
+  ---
+  duration_ms: 0.184762
+  type: 'test'
+  ...
+# Subtest: rejects startup options before spawn: sh -l -c true
+ok 9 - rejects startup options before spawn: sh -l -c true
+  ---
+  duration_ms: 0.358507
+  type: 'test'
+  ...
+# Subtest: rejects startup options before spawn: /usr/bin/env bash -lc true
+ok 10 - rejects startup options before spawn: /usr/bin/env bash -lc true
+  ---
+  duration_ms: 0.546093
+  type: 'test'
+  ...
+# Subtest: rejects startup options before spawn: bash -ic true
+ok 11 - rejects startup options before spawn: bash -ic true
+  ---
+  duration_ms: 0.184191
+  type: 'test'
+  ...
+# Subtest: does not mistake the shell command operand for shell flags
+ok 12 - does not mistake the shell command operand for shell flags
+  ---
+  duration_ms: 0.151523
+  type: 'test'
+  ...
+# Subtest: non-login shell ignores inherited BASH_ENV and competing global PATH
+ok 13 - non-login shell ignores inherited BASH_ENV and competing global PATH
+  ---
+  duration_ms: 373.164686
+  type: 'test'
+  ...
+# Subtest: env-node shebang executes with the selected binary
+ok 14 - env-node shebang executes with the selected binary
+  ---
+  duration_ms: 450.998142
+  type: 'test'
+  ...
+# Subtest: an intermediate process inheriting the environment stays in the runtime
+ok 15 - an intermediate process inheriting the environment stays in the runtime
+  ---
+  duration_ms: 364.803015
+  type: 'test'
+  ...
+# Subtest: a nested named login shell is rejected even when its exit is swallowed
+ok 16 - a nested named login shell is rejected even when its exit is swallowed
+  ---
+  duration_ms: 390.478588
+  type: 'test'
+  ...
+# Subtest: a competing Node reached through PATH exits before application code, even with || true
+ok 17 - a competing Node reached through PATH exits before application code, even with || true
+  ---
+  duration_ms: 461.382971
+  type: 'test'
+  ...
+# Subtest: even the correct absolute Node refuses a PATH that would choose a different Node next
+ok 18 - even the correct absolute Node refuses a PATH that would choose a different Node next
+  ---
+  duration_ms: 361.835748
+  type: 'test'
+  ...
+# Subtest: direct absolute foreign Node is refused before it is spawned
+ok 19 - direct absolute foreign Node is refused before it is spawned
+  ---
+  duration_ms: 42.773852
+  type: 'test'
+  ...
+# Subtest: missing project runtime fails before work
+ok 20 - missing project runtime fails before work
+  ---
+  duration_ms: 1.383914
+  type: 'test'
+  ...
+# Subtest: an uninstalled runtime has no global fallback
+ok 21 - an uninstalled runtime has no global fallback
+  ---
+  duration_ms: 1.741361
+  type: 'test'
+  ...
+# Subtest: a different required project major fails before work
+ok 22 - a different required project major fails before work
+  ---
+  duration_ms: 40.461212
+  type: 'test'
+  ...
+# Subtest: package engines and nvmrc are intersected, not silently prioritized
+ok 23 - package engines and nvmrc are intersected, not silently prioritized
+  ---
+  duration_ms: 45.183575
+  type: 'test'
+  ...
+# Subtest: unresolvable nvm aliases are rejected rather than consulting dotfiles
+ok 24 - unresolvable nvm aliases are rejected rather than consulting dotfiles
+  ---
+  duration_ms: 41.643695
+  type: 'test'
+  ...
+# Subtest: npm test keeps npm, script-shell and local shebang in the same runtime
+ok 25 - npm test keeps npm, script-shell and local shebang in the same runtime
+  ---
+  duration_ms: 445.809398
+  type: 'test'
+  ...
+# Subtest: npm exec --offline -- local-probe keeps npm, script-shell and local shebang in the same runtime
+ok 26 - npm exec --offline -- local-probe keeps npm, script-shell and local shebang in the same runtime
+  ---
+  duration_ms: 591.50491
+  type: 'test'
+  ...
+# Subtest: npx --offline --no-install local-probe keeps npm, script-shell and local shebang in the same runtime
+ok 27 - npx --offline --no-install local-probe keeps npm, script-shell and local shebang in the same runtime
+  ---
+  duration_ms: 557.099428
+  type: 'test'
+  ...
+# Subtest: a node_modules/.bin/node shadow fails before script application code
+ok 28 - a node_modules/.bin/node shadow fails before script application code
+  ---
+  duration_ms: 403.876116
+  type: 'test'
+  ...
+# Subtest: environment sanitizer removes ambient runtime switches without dropping project credentials
+ok 29 - environment sanitizer removes ambient runtime switches without dropping project credentials
+  ---
+  duration_ms: 0.747109
+  type: 'test'
+  ...
+# Subtest: native shell-free legacy jobs remain usable and explicitly unconfigured
+ok 30 - native shell-free legacy jobs remain usable and explicitly unconfigured
+  ---
+  duration_ms: 12.614507
+  type: 'test'
+  ...
+# Subtest: two registered projects resolve independently on the same queue
+ok 31 - two registered projects resolve independently on the same queue
+  ---
+  duration_ms: 651.629502
+  type: 'test'
+  ...
+# Subtest: a project-specific registry can specify different majors without a shared worker runtime assumption
+ok 32 - a project-specific registry can specify different majors without a shared worker runtime assumption
+  ---
+  duration_ms: 41.572529
+  type: 'test'
+  ...
+# Subtest: a corrupt evidence stream invalidates an otherwise successful job
+ok 33 - a corrupt evidence stream invalidates an otherwise successful job
+  ---
+  duration_ms: 169.083207
+  type: 'test'
+  ...
+# Subtest: documented boundary: env -i plus an absolute executable bypasses a user-space preload
+ok 34 - documented boundary: env -i plus an absolute executable bypasses a user-space preload
+  ---
+  duration_ms: 455.891757
+  type: 'test'
+  ...
+# Subtest: real different-major runtime matrix (requires CI_QUEUE_TEST_SECOND_NODE)
+ok 35 - real different-major runtime matrix (requires CI_QUEUE_TEST_SECOND_NODE) # SKIP
+  ---
+  duration_ms: 0.304299
+  type: 'test'
+  ...
+# Subtest: direct login-shell shebang cannot execute a recipe body
+ok 36 - direct login-shell shebang cannot execute a recipe body
+  ---
+  duration_ms: 44.112043
+  type: 'test'
+  ...
+# Subtest: compact zsh option spelling cannot request login startup
+ok 37 - compact zsh option spelling cannot request login startup
+  ---
+  duration_ms: 0.135781
+  type: 'test'
+  ...
+# Subtest: a native configured command has preflight evidence, not fictional Node observations
+ok 38 - a native configured command has preflight evidence, not fictional Node observations
+  ---
+  duration_ms: 328.690461
+  type: 'test'
+  ...
+# Subtest: legacy shell-free jobs with an explicit absolute Node remain pinned and usable
+ok 39 - legacy shell-free jobs with an explicit absolute Node remain pinned and usable
+  ---
+  duration_ms: 318.349292
+  type: 'test'
+  ...
+# Subtest: unknown runtime configuration cannot silently imply unsupported strict isolation
+ok 40 - unknown runtime configuration cannot silently imply unsupported strict isolation
+  ---
+  duration_ms: 1.839893
+  type: 'test'
+  ...
+# Subtest: deadline and process-group ownership survive the shell launcher
+ok 41 - deadline and process-group ownership survive the shell launcher
+  ---
+  duration_ms: 469.625369
+  type: 'test'
+  ...
+1..41
+# tests 41
+# suites 0
+# pass 40
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 8087.837266
