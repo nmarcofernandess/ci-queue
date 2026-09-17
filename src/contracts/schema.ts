@@ -28,6 +28,7 @@ export type TicketFlags = {
   fetchBase?: string
   requireGitStability?: boolean
   pinHeadSha?: boolean
+  abortOnStaleBase?: boolean
   /** Whether this recipe is allowed to emit structured progress markers. */
   progressEnabled?: boolean
 }
@@ -79,6 +80,9 @@ export function normalizeTicketFlags(value: unknown): TicketFlags {
       : {}),
     ...(optionalBoolean(raw, "pinHeadSha") !== undefined
       ? { pinHeadSha: optionalBoolean(raw, "pinHeadSha") }
+      : {}),
+    ...(optionalBoolean(raw, "abortOnStaleBase") !== undefined
+      ? { abortOnStaleBase: optionalBoolean(raw, "abortOnStaleBase") }
       : {}),
     ...(optionalBoolean(raw, "progressEnabled") !== undefined
       ? { progressEnabled: optionalBoolean(raw, "progressEnabled") }
@@ -228,12 +232,19 @@ export type ProjectPreset = TicketFlags & {
   progress?: boolean
 }
 
+export type ShipConfig = {
+  acceptedPresets: string[]
+  attestationContext: string
+  remoteVerdict?: { workflow: string; job: string }
+}
+
 export type QueueProjectConfig = {
   schemaVersion: 1
   project: { id: string; name: string }
   repository?: { path?: string; baseRef?: string }
   presets: Record<string, ProjectPreset>
   artifacts?: string[]
+  ship?: ShipConfig
 }
 
 export type CliSuccess<T> = { apiVersion: typeof API_VERSION; ok: true; result: T }

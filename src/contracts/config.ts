@@ -1,7 +1,13 @@
 import { existsSync, readFileSync } from "node:fs"
 import { dirname, isAbsolute, join, resolve } from "node:path"
 
-import { isValidPresetArgv, isValidProjectId, type ProjectPreset, type QueueProjectConfig } from "./schema.js"
+import {
+  isValidPresetArgv,
+  isValidProjectId,
+  type ProjectPreset,
+  type QueueProjectConfig,
+  type ShipConfig,
+} from "./schema.js"
 
 export const CONFIG_FILENAME = "ci-queue.json"
 
@@ -49,19 +55,84 @@ function readPresets(value: unknown): Record<string, ProjectPreset> {
     if (item.progress !== undefined && typeof item.progress !== "boolean") {
       throw new Error(`preset ${name} tem progress inválido`)
     }
+    if (item.abortOnStaleBase !== undefined && typeof item.abortOnStaleBase !== "boolean") {
+      throw new Error(`preset ${name} tem abortOnStaleBase inválido`)
+    }
+    const fetchBase = typeof item.fetchBase === "string" ? item.fetchBase : undefined
+    const abortOnStaleBase = typeof item.abortOnStaleBase === "boolean" ? item.abortOnStaleBase : undefined
+    if (abortOnStaleBase === true && !fetchBase) {
+      throw new Error(`preset ${name} exige fetchBase quando abortOnStaleBase é true`)
+    }
     presets[name] = {
       argv: [...item.argv],
       ...(typeof item.note === "string" ? { note: item.note } : {}),
       ...(typeof timeout === "number" ? { executionTimeoutMs: timeout } : {}),
       ...(typeof item.requireCleanTree === "boolean" ? { requireCleanTree: item.requireCleanTree } : {}),
-      ...(typeof item.fetchBase === "string" ? { fetchBase: item.fetchBase } : {}),
+      ...(fetchBase ? { fetchBase } : {}),
       ...(typeof item.requireGitStability === "boolean" ? { requireGitStability: item.requireGitStability } : {}),
       ...(typeof item.pinHeadSha === "boolean" ? { pinHeadSha: item.pinHeadSha } : {}),
+      ...(abortOnStaleBase !== undefined ? { abortOnStaleBase } : {}),
       ...(typeof item.progress === "boolean" ? { progress: item.progress } : {}),
     }
   }
   if (Object.keys(presets).length === 0) throw new Error('campo "presets" não pode estar vazio')
   return presets
+}
+
+function readShip(value: unknown, presets: Record<string, ProjectPreset>): ShipConfig | undefined {
+  if (value === undefined) return undefined
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("ship inválido")
+  const raw = value as Record<string, unknown>
+  const acceptedPresetsRaw = raw.acceptedPresets
+  if (!Array.isArray(acceptedPresetsRaw) || acceptedPresetsRaw.length === 0) {
+    throw new Error("ship.acceptedPresets não pode estar vazio")
+  }
+  const seen = new Set<string>()
+  const acceptedPresets: string[] = []
+  for (const item of acceptedPresetsRaw) {
+    if (typeof item !== "string" || !item.trim() || !isValidProjectId(item)) {
+      throw new Error("ship.acceptedPresets inválido")
+    }
+    if (seen.has(item)) throw new Error("ship.acceptedPresets deve ser único")
+    seen.add(item)
+    if (!presets[item]) throw new Error(`ship.acceptedPresets referencia preset desconhecido: ${item}`)
+    acceptedPresets.push(item)
+  }
+  const attestationContext = raw.attestationContext
+  if (
+    typeof attestationContext !== "string" ||
+    !attestationContext.trim() ||
+    attestationContext.length > 100 ||
+    attestationContext.includes("\n")
+  ) {
+    throw new Error("ship.attestationContext inválido")
+  }
+  let remoteVerdict: ShipConfig["remoteVerdict"]
+  if (raw.remoteVerdict !== undefined) {
+    if (!raw.remoteVerdict || typeof raw.remoteVerdict !== "object" || Array.isArray(raw.remoteVerdict)) {
+      throw new Error("ship.remoteVerdict inválido")
+    }
+    const verdict = raw.remoteVerdict as Record<string, unknown>
+    const workflow = verdict.workflow
+    const job = verdict.job
+    if (
+      typeof workflow !== "string" ||
+      !workflow.startsWith(".github/workflows/") ||
+      workflow.includes("..") ||
+      !(workflow.endsWith(".yml") || workflow.endsWith(".yaml"))
+    ) {
+      throw new Error("ship.remoteVerdict.workflow inválido")
+    }
+    if (typeof job !== "string" || !job.trim()) {
+      throw new Error("ship.remoteVerdict.job inválido")
+    }
+    remoteVerdict = { workflow, job: job.trim() }
+  }
+  return {
+    acceptedPresets,
+    attestationContext: attestationContext.trim(),
+    ...(remoteVerdict ? { remoteVerdict } : {}),
+  }
 }
 
 /**
@@ -87,12 +158,14 @@ export function parseQueueConfig(raw: Record<string, unknown>, projectRoot: stri
   const artifacts = Array.isArray(raw.artifacts) && raw.artifacts.every((item) => typeof item === "string")
     ? [...raw.artifacts] as string[]
     : undefined
+  const ship = readShip(raw.ship, presets)
   return {
     schemaVersion: 1,
     project: { id: projectId, name: projectName.trim() },
     ...(repositoryPath || baseRef ? { repository: { ...(repositoryPath ? { path: repositoryPath } : {}), ...(baseRef ? { baseRef } : {}) } } : {}),
     presets,
     ...(artifacts ? { artifacts } : {}),
+    ...(ship ? { ship } : {}),
   }
 }
 

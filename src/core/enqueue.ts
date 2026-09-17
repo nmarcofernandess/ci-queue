@@ -75,6 +75,7 @@ export function buildTicket(input: EnqueueInput, resolved?: ResolvedQueueConfig)
       ...(preset.fetchBase ? { fetchBase: preset.fetchBase } : {}),
       ...(preset.requireGitStability !== undefined ? { requireGitStability: preset.requireGitStability } : {}),
       ...(preset.pinHeadSha !== undefined ? { pinHeadSha: preset.pinHeadSha } : {}),
+      ...(preset.abortOnStaleBase !== undefined ? { abortOnStaleBase: preset.abortOnStaleBase } : {}),
       ...(preset.progress !== undefined ? { progressEnabled: preset.progress } : {}),
     },
     ...(preset.fetchBase || configuration.config.repository?.baseRef ? { baseRef: preset.fetchBase ?? configuration.config.repository?.baseRef } : {}),
