@@ -10,6 +10,7 @@ import {
   type CliSuccess,
   type QueueTicket,
 } from "./contracts/schema.js"
+import { SPEND_ABORT_CAPABILITY } from "./core/spend-abort.js"
 import { JOB_ENV_CAPABILITY, cancelQueuedOrRunningTicket } from "./core/runner.js"
 import { enqueueExplicitTicket, enqueueTicket } from "./core/enqueue.js"
 import { runWorker } from "./core/worker.js"
@@ -136,7 +137,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
       }
       case "enqueue": {

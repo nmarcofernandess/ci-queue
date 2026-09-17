@@ -399,6 +399,7 @@ describe("CLI JSON v1", () => {
           "enqueue",
           "execution-flags-v1",
           "job-env-v1",
+          "spend-abort-v1",
         ]),
       },
     })

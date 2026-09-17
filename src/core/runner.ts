@@ -6,6 +6,12 @@ import { initialExecutionDeadline, captureExecutionDeadline, validateQueuedDeadl
 import { ProgressCollector, attachProgressToTicket, removeProgressSnapshot } from "./progress.js"
 import { probeProcessGroupIdentity, readProcessObservation, terminateVerifiedProcessGroup } from "./process.js"
 import {
+  decideSpendAbort,
+  observeRemoteBase,
+  resolveRemoteBase,
+  STALE_BASE_FAILURE_REASON,
+} from "./spend-abort.js"
+import {
   appendLog,
   atomicWriteJson,
   claimPath,
@@ -43,6 +49,11 @@ export type RunJobHooks = {
   onJob?: (job: QueueTicket | undefined) => void
   onChildPid?: (pid: number | undefined, identity?: ProcessGroupIdentity) => void
   interruptedReason?: () => string | undefined
+  spendAbort?: {
+    observe?: typeof observeRemoteBase
+    sleep?: (ms: number, signal: AbortSignal) => Promise<void>
+    nowMs?: () => number
+  }
 }
 
 /** Versioned child-process environment contract. */
@@ -451,6 +462,124 @@ export function buildJobEnv(root: string, ticket: QueueTicket): NodeJS.ProcessEn
   }
 }
 
+const SPEND_ABORT_INTERVAL_MS = 15_000
+const SPEND_ABORT_BACKOFF_MS = [30_000, 60_000, 120_000] as const
+const SPEND_ABORT_OBSERVE_TIMEOUT_MS = 10_000
+
+export type SpendAbortObserver = { stop(): Promise<void> }
+
+export function startSpendAbortObserver(input: {
+  ticket: QueueTicket
+  observe: typeof observeRemoteBase
+  sleep: (ms: number, signal: AbortSignal) => Promise<void>
+  onStale: (remoteSha: string) => Promise<void>
+  nowMs: () => number
+}): SpendAbortObserver {
+  const controller = new AbortController()
+  const loop = runSpendAbortLoop(input, controller.signal)
+  return {
+    async stop() {
+      controller.abort()
+      await loop
+      deleteObservedRef(input.ticket.cwd, input.ticket.id)
+    },
+  }
+}
+
+async function runSpendAbortLoop(
+  input: {
+    ticket: QueueTicket
+    observe: typeof observeRemoteBase
+    sleep: (ms: number, signal: AbortSignal) => Promise<void>
+    onStale: (remoteSha: string) => Promise<void>
+    nowMs: () => number
+  },
+  signal: AbortSignal,
+): Promise<void> {
+  let consecutiveErrors = 0
+  let first = true
+  while (!signal.aborted) {
+    input.nowMs()
+    if (!first) {
+      const waitMs = consecutiveErrors === 0
+        ? SPEND_ABORT_INTERVAL_MS
+        : SPEND_ABORT_BACKOFF_MS[Math.min(consecutiveErrors, SPEND_ABORT_BACKOFF_MS.length) - 1]
+      await input.sleep(waitMs, signal)
+      if (signal.aborted) break
+    }
+    first = false
+    try {
+      const fetchBase = input.ticket.flags?.fetchBase
+      if (!fetchBase) {
+        consecutiveErrors += 1
+        continue
+      }
+      const base = resolveRemoteBase(fetchBase, listGitRemotes(input.ticket.cwd))
+      const observation = await input.observe({
+        cwd: input.ticket.cwd,
+        base,
+        headSha: input.ticket.headSha,
+        ticketId: input.ticket.id,
+        signal,
+        timeoutMs: SPEND_ABORT_OBSERVE_TIMEOUT_MS,
+      })
+      if (signal.aborted) break
+      const decision = decideSpendAbort({
+        abortOnStaleBase: input.ticket.flags?.abortOnStaleBase === true,
+        remoteBaseSha: observation.kind === "known" ? observation.sha : null,
+        isRemoteAncestorOfHead: observation.kind === "known" ? observation.isAncestor : null,
+      })
+      if (observation.kind === "known") consecutiveErrors = 0
+      else consecutiveErrors += 1
+      if (decision.action === "abort") {
+        await input.onStale(decision.remoteSha)
+        break
+      }
+    } catch {
+      consecutiveErrors += 1
+    }
+  }
+}
+
+function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve()
+      return
+    }
+    const timer = setTimeout(resolve, ms)
+    timer.unref?.()
+    const onAbort = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    signal.addEventListener("abort", onAbort, { once: true })
+  })
+}
+
+function listGitRemotes(cwd: string): string[] {
+  const result = spawnSync("git", ["remote"], {
+    cwd,
+    encoding: "utf8",
+    timeout: 10_000,
+    env: { ...process.env, LC_ALL: "C", LANG: "C" },
+  })
+  if (result.status !== 0) throw new Error("não foi possível listar remotes")
+  return String(result.stdout)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
+function deleteObservedRef(cwd: string, ticketId: string): void {
+  spawnSync("git", ["update-ref", "-d", `refs/ci-queue/observed/${ticketId}`], {
+    cwd,
+    encoding: "utf8",
+    timeout: 10_000,
+    env: { ...process.env, LC_ALL: "C", LANG: "C" },
+  })
+}
+
 export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHooks = {}): Promise<QueueTicket> {
   ensureQueueDirs(root)
   let ticket = parsed.ticket
@@ -506,10 +635,13 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   hooks.onJob?.(ticket); hooks.onChildPid?.(child.pid, identity)
 
   let timedOut = false
+  let childClosed = false
+  let staleAborted = false
   let deadlineTimer: NodeJS.Timeout | undefined
   if (ticket.executionDeadline?.state === "armed") {
     const deadline = ticket.executionDeadline
     deadlineTimer = setTimeout(() => {
+      if (childClosed) return
       const current = readRunningJob(root)
       if (!current || current.id !== ticket.id) return
       timedOut = true
@@ -525,8 +657,29 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     deadlineTimer.unref?.()
   }
 
+  const observer = parsed.flags.abortOnStaleBase === true && parsed.flags.fetchBase
+    ? startSpendAbortObserver({
+      ticket,
+      observe: hooks.spendAbort?.observe ?? observeRemoteBase,
+      sleep: hooks.spendAbort?.sleep ?? abortableSleep,
+      nowMs: hooks.spendAbort?.nowMs ?? Date.now,
+      onStale: async (_remoteSha) => {
+        if (childClosed) return
+        const current = readRunningJob(root)
+        if (!current || current.id !== ticket.id) return
+        if (current.cancelRequestedAt) return
+        if (current.executionDeadline?.state === "expired") return
+        if (!current.processGroupIdentity) return
+        staleAborted = true
+        await terminateVerifiedProcessGroup(current.processGroupIdentity)
+      },
+    })
+    : undefined
+
   const exit = await childExit(child)
+  childClosed = true
   if (deadlineTimer) clearTimeout(deadlineTimer)
+  if (observer) await observer.stop()
   stdoutProgress.flush()
   stderrProgress.flush()
   appendRedactedLog(ticket.logPath, logRedactor.flush())
@@ -542,6 +695,11 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
         ? "prazo de execução excedido"
         : `processo terminou com código ${exit.code}`
       : undefined
+  if (staleAborted && !cancelRequested && !interrupted && !timedOut) {
+    status = "failed"
+    exitCode = 1
+    failureReason = STALE_BASE_FAILURE_REASON
+  }
   let postflight: GitInfo | undefined
   if (status === "passed") {
     const stability = verifyGitStability(ticket, parsed.flags)
