@@ -29,11 +29,11 @@ import { PresetMultiSelect } from "@/features/analysis/preset-multi-select"
 import {
   formatShare,
   mapResultRows,
-  rankResults,
-  resolveSelection,
+  visibleResultRows,
   RESULT_STATES,
   type ResultCounts,
   type ResultRow,
+  type ResolvedSelection,
 } from "@/features/analysis/results-model"
 import { FilterSelect } from "@/features/shared/filter-select"
 import type { AnalysisPreset, AnalysisResponse, ResultsResponse } from "@/lib/types"
@@ -243,7 +243,7 @@ function ResultsChart({
   }))
   const inspectedRow = rows.find((row) => row.preset === inspected)
 
-  return (
+  const chart = (
     <Card className="max-w-5xl">
       <CardHeader>
         <CardTitle>Resultados por preset</CardTitle>
@@ -352,6 +352,18 @@ function ResultsChart({
       </CardContent>
     </Card>
   )
+  if (error) {
+    return (
+      <div className="flex flex-col gap-4">
+        <ErrorState
+          title="Não foi possível atualizar os resultados"
+          error={error}
+        />
+        {chart}
+      </div>
+    )
+  }
+  return chart
 }
 
 function DurationChart({
@@ -433,7 +445,7 @@ function DurationChart({
     durationDomain[1],
   ] as const
 
-  return (
+  const chart = (
     <Card className="max-w-5xl">
       <CardHeader>
         <CardTitle>Duração de {preset.preset}</CardTitle>
@@ -517,6 +529,18 @@ function DurationChart({
       </CardContent>
     </Card>
   )
+  if (error) {
+    return (
+      <div className="flex flex-col gap-4">
+        <ErrorState
+          title="Não foi possível atualizar a duração"
+          error={error}
+        />
+        {chart}
+      </div>
+    )
+  }
+  return chart
 }
 
 function AnalysisControls({
@@ -752,10 +776,16 @@ export function AnalysisPage() {
   )
   const latestRows = results.data?.presets ?? []
   const appliedRows = menuOpen ? heldRows : latestRows
-  const resolved = resolveSelection(appliedRows, state.resultSelection)
-  const visibleResults = rankResults(appliedRows).filter((row) =>
-    resolved.selected.includes(row.preset)
-  )
+  let resolved: ResolvedSelection
+  let visibleResults: ResultCounts[]
+  try {
+    const prepared = visibleResultRows(appliedRows, state.resultSelection)
+    resolved = prepared.resolved
+    visibleResults = prepared.visible
+  } catch {
+    resolved = { mode: state.resultSelection.mode, selected: [], missing: [] }
+    visibleResults = appliedRows
+  }
 
   if (!project) {
     return (

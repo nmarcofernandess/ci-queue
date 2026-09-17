@@ -18,6 +18,21 @@ describe("legacy ownership and recovery", () => {
     expect(readHistoryJob(root, "old")?.projectId).toBe("example")
     expect(readFileSync(path, "utf8")).toBe(raw)
   })
+  it("accepts operator-declared evidence without rewriting the ticket", () => {
+    const root = fixture(), path = join(root, "history", "old.json")
+    const raw = JSON.stringify({ id: "old", status: "passed", createdAt: "2026-01-01", headSha: "abcd" })
+    writeFileSync(path, raw)
+    writeFileSync(join(root, "state", "legacy-projects.json"), JSON.stringify({
+      schemaVersion: 1,
+      assignments: {
+        old: { projectId: "dietflow", headSha: "abcd", evidence: "operator-declared-legacy-dietflow-2026-09-16" },
+        other: { projectId: "foreign", evidence: "already bound" },
+      },
+    }))
+    expect(listHistoryJobs(root, "dietflow").map((job) => job.id)).toEqual(["old"])
+    expect(listHistoryJobs(root, "foreign")).toHaveLength(0)
+    expect(readFileSync(path, "utf8")).toBe(raw)
+  })
   it("preserves valid progress and live-producer temporaries while quarantining a dead writer", () => {
     const root = fixture(), prefix = join(root, "progress")
     const dead = "old.json.2147483647.abcdef123456.tmp", live = `live.json.${process.pid}.abcdef123456.tmp`

@@ -9,6 +9,7 @@ import {
   projectPercentages,
   rankResults,
   resolveSelection,
+  visibleResultRows,
   type ResultCounts,
 } from '../../ui/src/features/analysis/results-model'
 
@@ -95,5 +96,20 @@ describe('results-model', () => {
     expect(custom.missing).toEqual(['ghost'])
     expect(formatShare(0)).toBe('0%')
     expect(formatShare(0.05)).toBe('<0,1%')
+  })
+
+  it('rejects inconsistent counts before ranking hides them', () => {
+    const broken: ResultCounts = {
+      preset: 'broken',
+      passed: 1,
+      failed: 0,
+      cancelled: 0,
+      interrupted: 0,
+      total: 0,
+    }
+    expect(() =>
+      visibleResultRows([broken], { mode: 'top10' })
+    ).toThrow(/inválida|inconsistente/)
+    expect(rankResults([broken])).toEqual([])
   })
 })

@@ -21,7 +21,7 @@ from ci_queue_api.config import ConfigError, load_project_config
 from ci_queue_api.dashboard_state import RevisionConflict, read_dashboard_state, write_dashboard_state
 from ci_queue_api.diagnostics import MAX_EXPORT_BYTES, read_diagnostic, read_log_export, read_log_slice
 from ci_queue_api.history import build_preset_history, read_remote_slots
-from ci_queue_api.records import invalidate_history_cache, read_executions, status_snapshot, progress_summary
+from ci_queue_api.records import invalidate_history_cache, lookup_job, read_executions, status_snapshot, progress_summary
 from ci_queue_api.server import ApiContext, create_server
 from ci_queue_api.worktrees import list_worktrees, worktree_view
 
@@ -243,6 +243,34 @@ class HistoryAndAnalysisTests(Fixture):
         self.assertEqual(page["coverage"]["unattributedRecords"], 1)
         self.assertEqual([job["id"] for job in read_executions(self.state, "example", scope="legacy")["jobs"]], ["unassigned"])
         self.assertEqual((self.state / "history" / "assigned.json").read_bytes(), original)
+
+    def test_operator_declared_ledger_does_not_rewrite_or_override_other_project(self):
+        self.job("dietflow", projectId=None, headSha="abc123")
+        self.job("foreign", projectId=None, headSha="def456")
+        original = (self.state / "history" / "dietflow.json").read_bytes()
+        (self.state / "state").mkdir()
+        (self.state / "state" / "legacy-projects.json").write_text(json.dumps({
+            "schemaVersion": 1,
+            "assignments": {
+                "dietflow": {
+                    "projectId": "da61d8ae-19f9-4dce-bafb-02271a6f1601",
+                    "headSha": "abc123",
+                    "evidence": "operator-declared-legacy-dietflow-2026-09-16",
+                },
+                "foreign": {
+                    "projectId": "other-project",
+                    "headSha": "def456",
+                    "evidence": "git commit already bound",
+                },
+            },
+        }))
+        dietflow = read_executions(self.state, "da61d8ae-19f9-4dce-bafb-02271a6f1601")
+        self.assertEqual([job["id"] for job in dietflow["jobs"]], ["dietflow"])
+        self.assertEqual(dietflow["coverage"]["unattributedRecords"], 0)
+        self.assertEqual(lookup_job(self.state, "dietflow", project_id="da61d8ae-19f9-4dce-bafb-02271a6f1601")["id"], "dietflow")
+        self.assertIsNone(lookup_job(self.state, "dietflow", unassigned=True))
+        self.assertEqual([job["id"] for job in read_executions(self.state, "other-project")["jobs"]], ["foreign"])
+        self.assertEqual((self.state / "history" / "dietflow.json").read_bytes(), original)
 
     def test_cli_and_http_share_history_status_and_log_facts(self):
         job = self.job("shared", logPath=str(self.state / "logs" / "shared.log"))

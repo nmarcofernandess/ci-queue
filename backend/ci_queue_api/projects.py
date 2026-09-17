@@ -237,14 +237,30 @@ def list_worktree_paths(common_dir):
     return paths
 
 
+def _belongs_to_common(path, common):
+    if common is None:
+        return False
+    try:
+        inspected = inspect_git(path)
+    except (ValueError, TimeoutError, OSError):
+        return False
+    return inspected["gitCommonDir"] == Path(common).resolve()
+
+
+def living_worktrees(common_dir):
+    return [path for path in list_worktree_paths(common_dir) if path.exists() and _belongs_to_common(path, common_dir)]
+
+
 def preferred_checkout(common_dir, fallback=None):
-    living = [path for path in list_worktree_paths(common_dir) if path.exists()]
+    living = living_worktrees(common_dir)
     if living:
         return living[0]
     if fallback is None:
         return None
     path = Path(fallback)
-    return path.resolve() if path.exists() else None
+    if path.exists() and _belongs_to_common(path, common_dir):
+        return path.resolve()
+    return None
 
 
 def persist_repository_path(common_dir, inspected):
@@ -258,7 +274,7 @@ def resolve_repository(entry):
     registered = Path(entry["repositoryPath"]).resolve() if entry.get("repositoryPath") else None
     common = Path(entry["gitCommonDir"]).resolve() if entry.get("gitCommonDir") else None
     try:
-        living = [path for path in list_worktree_paths(common) if path.exists()]
+        living = living_worktrees(common)
     except (ValueError, TimeoutError, OSError):
         living = []
     living_set = {path.resolve() for path in living}

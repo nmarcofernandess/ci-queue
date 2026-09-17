@@ -497,6 +497,28 @@ class ProjectRegistryTests(unittest.TestCase):
         self.assertEqual(locators["effective"], first.resolve())
         self.assertNotEqual(locators["effective"], second.resolve())
 
+    def test_stale_inventory_path_is_rejected_when_common_dir_was_replaced(self):
+        first = _init_repo(self.root / "clone-a")
+        subprocess.run(["git", "-C", str(first), "branch", "-M", "dev"], check=True, capture_output=True)
+        old_lane = self.root / "old-lane"
+        subprocess.run(["git", "-C", str(first), "worktree", "add", str(old_lane)],
+                       check=True, capture_output=True)
+        _write_config(first)
+        bootstrap_registry(self.state, first / "ci-queue.json")
+        entry = dict(read_registry(self.state)["projects"]["alpha"])
+        entry["repositoryPath"] = str(old_lane.resolve())
+        git_file = old_lane / ".git"
+        if git_file.is_file():
+            git_file.unlink()
+        elif git_file.is_dir():
+            import shutil
+            shutil.rmtree(git_file)
+        _init_repo(old_lane)
+        locators = resolve_repository(entry)
+        self.assertTrue(locators["available"])
+        self.assertEqual(locators["effective"], first.resolve())
+        self.assertNotEqual(locators["effective"], old_lane.resolve())
+
     def test_existing_directory_without_common_dir_is_unavailable(self):
         folder = self.root / "plain"
         folder.mkdir()
