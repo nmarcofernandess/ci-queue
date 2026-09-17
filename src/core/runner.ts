@@ -2,6 +2,8 @@ import { spawn, spawnSync } from "node:child_process"
 import { cpSync, existsSync, mkdirSync, renameSync, rmSync, statSync, unlinkSync } from "node:fs"
 import { basename, isAbsolute, join, relative, resolve } from "node:path"
 
+import { prepareJobRuntime, RuntimeError, type RuntimeSession } from "./runtime.js"
+
 import { initialExecutionDeadline, captureExecutionDeadline, validateQueuedDeadline } from "./deadline.js"
 import { ProgressCollector, attachProgressToTicket, removeProgressSnapshot } from "./progress.js"
 import { probeProcessGroupIdentity, readProcessObservation, terminateVerifiedProcessGroup } from "./process.js"
@@ -586,9 +588,16 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   // One collector for the whole job, including early exits (E3 / R01).
   const collector = new ProgressCollector(root, ticket.id)
   let preflight: GitInfo | undefined
+  let runtime: RuntimeSession
   try {
+    runtime = prepareJobRuntime(root, ticket, parsed.argv, buildJobEnv(root, ticket))
+    ticket = { ...ticket, runtime: runtime.receipt }
     preflight = assertPreflight(ticket, parsed.flags)
   } catch (error) {
+    if (error instanceof RuntimeError) {
+      ticket = { ...ticket, runtime: { capability: "node-runtime-guard-v1", coverage: "guarded-node-processes", state: "rejected", observations: [], failureCode: error.code } }
+      appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] ${error.message}\n`)
+    }
     const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: error instanceof Error ? error.message : String(error) }, collector)
     return closeAndMaybeDropSidecar(root, failed)
   }
@@ -603,11 +612,13 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
 
   let child: ReturnType<typeof spawn>
   try {
-    child = spawn(parsed.argv[0], parsed.argv.slice(1), { cwd: ticket.cwd, env: buildJobEnv(root, ticket), detached: true, stdio: ["ignore", "pipe", "pipe"] })
+    child = spawn(runtime.argv[0], runtime.argv.slice(1), { cwd: ticket.cwd, env: runtime.env, detached: true, stdio: ["ignore", "pipe", "pipe"] })
   } catch (error) {
     const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: `spawn falhou: ${error instanceof Error ? error.message : String(error)}` }, collector)
     return closeAndMaybeDropSidecar(root, failed)
   }
+
+  if (runtime.receipt.node) appendRedactedLog(ticket.logPath, `[runtime] ${runtime.receipt.node.executable} v${runtime.receipt.node.version}; coverage=${runtime.receipt.coverage}\n`)
 
   const logRedactor = new LogRedactor()
   const stdoutProgress = collector.decoder()
@@ -699,6 +710,17 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     status = "failed"
     exitCode = 1
     failureReason = STALE_BASE_FAILURE_REASON
+  }
+  const runtimeReceipt = runtime.finish()
+  ticket = { ...ticket, runtime: runtimeReceipt }
+  if (runtimeReceipt.state === "rejected") {
+    const runtimeFailure = runtimeReceipt.failureCode ?? "RUNTIME_REJECTED"
+    appendRedactedLog(ticket.logPath, `[runtime] ${runtimeFailure}\n`)
+    if (status !== "cancelled" && status !== "interrupted") {
+      status = "failed"
+      exitCode = 78
+      if (!staleAborted) failureReason = runtimeFailure
+    }
   }
   let postflight: GitInfo | undefined
   if (status === "passed") {
