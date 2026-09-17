@@ -17,5 +17,4 @@ Candidata: branch `codex/phase2-progress-durations`.
 - Reconstrução de duração em tickets históricos.
 - Alteração de receitas DietFlow.
 
-O SHA de código capturado deve ser o HEAD do commit desta entrega (não o
-commit que apenas adiciona este README).
+SHA capturado: `c9ab8603d9e7477d8807ffe554876567a8775572`.
