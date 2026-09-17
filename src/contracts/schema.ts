@@ -143,6 +143,13 @@ export type ProgressCounts = {
   skipped: number
 }
 
+export type ProgressDurationSource = "emitter" | "collector"
+export type ProgressDurationUnavailableReason =
+  | "missing-start"
+  | "collector-restarted"
+  | "clock-invalid"
+  | "missing-end"
+
 export type ProgressNode = {
   id: string
   parentId: string | null
@@ -150,6 +157,10 @@ export type ProgressNode = {
   label: string
   status: ProgressStatus
   durationMs?: number
+  /** Who produced durationMs: emitter TSV value, or collector monotonic observation. */
+  durationSource?: ProgressDurationSource
+  /** Honest absence — never invent 0 ms when timing could not be established. */
+  durationUnavailableReason?: ProgressDurationUnavailableReason
   detail?: ProgressCounts
   retryCount?: number
 }

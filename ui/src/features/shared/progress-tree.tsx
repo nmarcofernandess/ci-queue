@@ -16,7 +16,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item"
 import type { JobStatus, ProgressNode } from "@/lib/types"
-import { formatDuration } from "./format"
+import { ProgressDuration } from "./progress-duration"
 import { describeProgressState } from "./presentation"
 import { StatusIndicator } from "./status-indicator"
 
@@ -80,11 +80,9 @@ function ProgressNodeRow({
           <Badge variant="outline">Flaky detectado</Badge>
         ) : null}
       </ItemContent>
-      {typeof node.durationMs === "number" ? (
-        <ItemActions className="shrink-0 text-sm text-muted-foreground tabular-nums">
-          {formatDuration(node.durationMs)}
-        </ItemActions>
-      ) : null}
+      <ItemActions className="shrink-0 text-sm text-muted-foreground">
+        <ProgressDuration node={node} jobStatus={jobStatus} />
+      </ItemActions>
     </Item>
   )
   if (!children.length) return row

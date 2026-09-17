@@ -274,15 +274,41 @@ function copyArtifacts(root: string, ticket: QueueTicket): string | undefined {
   return copied ? target : undefined
 }
 
-function finalProgress(root: string, ticket: QueueTicket, artifactStatus: "passed" | "failed" | "skipped"): QueueTicket {
-  const collector = new ProgressCollector(root, ticket.id)
+function publishArtifactNode(collector: ProgressCollector, artifactStatus: "running" | "passed" | "failed" | "skipped"): void {
   collector.ingest(`${"@@ci-queue-progress"}\t1\tnode\tartifacts\t-\tartifact\t${artifactStatus}\t-\tArtefatos`)
-  const enriched = attachProgressToTicket(root, ticket)
-  removeProgressSnapshot(root, ticket.id)
-  return enriched
 }
 
-export async function closeRunningTicket(root: string, candidate: QueueTicket): Promise<QueueTicket> {
+/** Attach finalized progress. Never deletes the sidecar — that happens only after authoritative history. */
+function withFinalProgress(
+  root: string,
+  ticket: QueueTicket,
+  collector?: ProgressCollector,
+  options: { publishSkippedArtifacts?: boolean } = {},
+): QueueTicket {
+  const active = collector ?? new ProgressCollector(root, ticket.id)
+  if (options.publishSkippedArtifacts) {
+    // Skipped without a copy attempt: terminal without running → honest missing-start, never 0 ms.
+    publishArtifactNode(active, "skipped")
+  }
+  const progress = active.finalize()
+  return { ...ticket, progress }
+}
+
+function finalProgress(
+  root: string,
+  ticket: QueueTicket,
+  collector?: ProgressCollector,
+): QueueTicket {
+  return withFinalProgress(root, ticket, collector, { publishSkippedArtifacts: true })
+}
+
+export type CloseTicketResult = { ticket: QueueTicket; authoritative: boolean }
+
+/**
+ * Persist a terminal ticket under the job lock.
+ * `authoritative` is true only when history exists on disk afterwards — never inferred from candidate/status/id.
+ */
+export async function closeRunningTicket(root: string, candidate: QueueTicket): Promise<CloseTicketResult> {
   const terminal = await withTicketLock(root, candidate.id, () => {
     const existing = readHistoryJob(root, candidate.id)
     if (existing) return existing
@@ -297,7 +323,17 @@ export async function closeRunningTicket(root: string, candidate: QueueTicket): 
     removeFile(claimPath(root, candidate.id))
     return merged
   })
-  return terminal ?? candidate
+  if (terminal === undefined) {
+    return { ticket: candidate, authoritative: false }
+  }
+  const persisted = readHistoryJob(root, candidate.id)
+  return { ticket: terminal, authoritative: Boolean(persisted) }
+}
+
+async function closeAndMaybeDropSidecar(root: string, candidate: QueueTicket): Promise<QueueTicket> {
+  const { ticket, authoritative } = await closeRunningTicket(root, candidate)
+  if (authoritative) removeProgressSnapshot(root, candidate.id)
+  return ticket
 }
 
 export async function claimQueuedTicket(root: string, id: string, workerPid = process.pid): Promise<ClaimResult> {
@@ -373,13 +409,15 @@ export async function reconcileInterruptedJob(root: string): Promise<{ state: "n
     appendRedactedLog(blocked.logPath, `[${new Date().toISOString()}] ${blocked.cleanupBlockedReason}\n`)
     return { state: "blocked", job: blocked }
   }
-  const terminal = await closeRunningTicket(root, {
+  const collector = new ProgressCollector(root, running.id)
+  const withProgress = withFinalProgress(root, {
     ...running,
     status: "interrupted",
     finishedAt: new Date().toISOString(),
     exitCode: null,
     failureReason: "worker interrompido; processo filho encerrado durante a recuperação",
-  })
+  }, collector, { publishSkippedArtifacts: true })
+  const terminal = await closeAndMaybeDropSidecar(root, withProgress)
   return { state: "reconciled", job: terminal }
 }
 
@@ -416,12 +454,14 @@ export function buildJobEnv(root: string, ticket: QueueTicket): NodeJS.ProcessEn
 export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHooks = {}): Promise<QueueTicket> {
   ensureQueueDirs(root)
   let ticket = parsed.ticket
+  // One collector for the whole job, including early exits (E3 / R01).
+  const collector = new ProgressCollector(root, ticket.id)
   let preflight: GitInfo | undefined
   try {
     preflight = assertPreflight(ticket, parsed.flags)
   } catch (error) {
-    const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: error instanceof Error ? error.message : String(error) }, "skipped")
-    return closeRunningTicket(root, failed)
+    const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: error instanceof Error ? error.message : String(error) }, collector)
+    return closeAndMaybeDropSidecar(root, failed)
   }
 
   try {
@@ -436,20 +476,23 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   try {
     child = spawn(parsed.argv[0], parsed.argv.slice(1), { cwd: ticket.cwd, env: buildJobEnv(root, ticket), detached: true, stdio: ["ignore", "pipe", "pipe"] })
   } catch (error) {
-    const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: `spawn falhou: ${error instanceof Error ? error.message : String(error)}` }, "skipped")
-    return closeRunningTicket(root, failed)
+    const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: `spawn falhou: ${error instanceof Error ? error.message : String(error)}` }, collector)
+    return closeAndMaybeDropSidecar(root, failed)
   }
 
-  const collector = new ProgressCollector(root, ticket.id)
   const logRedactor = new LogRedactor()
-  const output = (chunk: Buffer) => {
-    const text = chunk.toString("utf8")
-    appendRedactedLog(ticket.logPath, logRedactor.push(text))
-    decoder.push(text)
+  const stdoutProgress = collector.decoder()
+  const stderrProgress = collector.decoder()
+  const onStdout = (chunk: Buffer) => {
+    appendRedactedLog(ticket.logPath, logRedactor.push(chunk.toString("utf8")))
+    stdoutProgress.push(chunk)
   }
-  const decoder = collector.decoder()
-  child.stdout?.on("data", output)
-  child.stderr?.on("data", output)
+  const onStderr = (chunk: Buffer) => {
+    appendRedactedLog(ticket.logPath, logRedactor.push(chunk.toString("utf8")))
+    stderrProgress.push(chunk)
+  }
+  child.stdout?.on("data", onStdout)
+  child.stderr?.on("data", onStderr)
 
   const identity = child.pid ? probeProcessGroupIdentity(child.pid) : undefined
   const started = mergeRunning(root, {
@@ -484,7 +527,8 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
 
   const exit = await childExit(child)
   if (deadlineTimer) clearTimeout(deadlineTimer)
-  decoder.flush()
+  stdoutProgress.flush()
+  stderrProgress.flush()
   appendRedactedLog(ticket.logPath, logRedactor.flush())
   const latest = readRunningJob(root)
   const interrupted = Boolean(hooks.interruptedReason?.())
@@ -514,17 +558,21 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     : deadline
   const observation = readProcessObservation(identity, { capture: "end", cwd: ticket.cwd, jobId: ticket.id, exitedBeforeObservation: true })
   let artifactsPath: string | undefined
-  let artifactStatus: "passed" | "failed" | "skipped" = "skipped"
+  let publishSkippedArtifacts = false
   if (ticket.artifacts?.length) {
+    // R04: measure only the existing copy on the same collector (running → terminal).
+    publishArtifactNode(collector, "running")
     try {
       artifactsPath = copyArtifacts(root, ticket)
-      artifactStatus = artifactsPath ? "passed" : "skipped"
+      publishArtifactNode(collector, artifactsPath ? "passed" : "skipped")
     } catch (error) {
-      artifactStatus = "failed"
+      publishArtifactNode(collector, "failed")
       appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] cópia de artefatos falhou: ${error instanceof Error ? error.message : String(error)}\n`)
     }
+  } else {
+    publishSkippedArtifacts = true
   }
-  const terminal = finalProgress(root, {
+  const candidate = withFinalProgress(root, {
     ...ticket,
     ...(latest?.cancelRequestedAt ? { cancelRequestedAt: latest.cancelRequestedAt } : {}),
     status,
@@ -536,8 +584,8 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     ...(completedDeadline ? { executionDeadline: completedDeadline } : {}),
     ...(postflight ? { postflight } : {}),
     processObservations: [...(ticket.processObservations ?? []), observation],
-  }, artifactStatus)
+  }, collector, { publishSkippedArtifacts })
   hooks.onChildPid?.(undefined)
   hooks.onJob?.(undefined)
-  return closeRunningTicket(root, terminal)
+  return closeAndMaybeDropSidecar(root, candidate)
 }

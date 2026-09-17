@@ -124,3 +124,5 @@ e `npm run test:browser` durante a integração, e `npm run check` na candidata
 final. Tipos/ESLint testam limites mecânicos; inspeção renderizada confere a
 família. [Índice visual](docs/ui/evidence/etapa-1/README.md) identifica revisão,
 cenários e resultados. Revisão interna não equivale a aprovação de Marco.
+
+Duração de nós de progresso: conteúdo único (`ProgressDuration`); emissor literal, coletor com `≈`, ausência `—`.
