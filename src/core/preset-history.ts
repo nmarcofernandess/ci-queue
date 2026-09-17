@@ -1,7 +1,11 @@
 import type { QueueProjectConfig, QueueTicket } from "../contracts/schema.js"
 
-function isCustom(ticket: QueueTicket): boolean {
+export function isCustomTicket(ticket: QueueTicket): boolean {
   return (ticket as QueueTicket & { custom?: boolean }).custom === true || Boolean(ticket.extraArgs?.length)
+}
+
+export function argvEquals(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
 }
 
 function runRef(ticket: QueueTicket) {
@@ -11,7 +15,7 @@ function runRef(ticket: QueueTicket) {
     status: ticket.status,
     headSha: ticket.headSha,
     branch: ticket.branch,
-    custom: isCustom(ticket),
+    custom: isCustomTicket(ticket),
     durationMs: ticket.durationMs ?? null,
   }
 }
@@ -24,8 +28,8 @@ export function buildPresetHistory(tickets: QueueTicket[], config: QueueProjectC
     const canonical = runs.filter((ticket) => (
       ticket.status === "passed"
       && ticket.exitCode === 0
-      && !isCustom(ticket)
-      && JSON.stringify(ticket.argv) === JSON.stringify(recipe.argv)
+      && !isCustomTicket(ticket)
+      && argvEquals(ticket.argv, recipe.argv)
     ))
     return {
       projectId: config.project.id,
