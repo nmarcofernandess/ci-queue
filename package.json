@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",
-    "check": "npm run build && npm run test && npm run check:ui && npm run test:browser",
+    "check": "bash scripts/ci/check-with-progress.sh",
     "ci-queue": "tsx src/cli.ts",
     "test:core": "vitest run tests/core",
     "test:ui": "vitest run tests/ui",

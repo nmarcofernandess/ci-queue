@@ -25,6 +25,8 @@ function sourceFixture() {
     "examples/local-project/ci-queue.json",
     "docs/INSTALL.md",
     "scripts/ci/verify-local-attestation.sh",
+    "scripts/ci/check-with-progress.sh",
+    "scripts/progress-emit.sh",
     "templates/github/ci-queue-verdict.yml",
   ]) {
     const target = join(root, path)

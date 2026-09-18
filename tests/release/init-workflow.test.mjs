@@ -58,6 +58,8 @@ function productishSource(root) {
     "dist",
     "templates",
     "scripts/ci/verify-local-attestation.sh",
+    "scripts/ci/check-with-progress.sh",
+    "scripts/progress-emit.sh",
     "scripts/install.mjs",
     "scripts/release.mjs",
     "scripts/legacy-projects.mjs",

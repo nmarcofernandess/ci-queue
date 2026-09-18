@@ -35,6 +35,8 @@ const releasePaths = [
   "scripts/legacy-projects.mjs",
   "scripts/release.mjs",
   "scripts/ci/verify-local-attestation.sh",
+  "scripts/ci/check-with-progress.sh",
+  "scripts/progress-emit.sh",
   "templates",
   "docs",
   "package.json",

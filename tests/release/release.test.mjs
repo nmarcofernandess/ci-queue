@@ -23,6 +23,8 @@ function fixture() {
     "scripts/release.mjs",
     "scripts/legacy-projects.mjs",
     "scripts/ci/verify-local-attestation.sh",
+    "scripts/ci/check-with-progress.sh",
+    "scripts/progress-emit.sh",
     "templates/github/ci-queue-verdict.yml",
     "docs/INSTALL.md",
   ]) {
@@ -49,6 +51,8 @@ test("builds a self-contained manifest and detects tampering", () => {
     assert.equal(manifest.files.some((entry) => entry.path === "scripts/legacy-projects.mjs"), true)
     assert.equal(manifest.files.some((entry) => entry.path === "templates/github/ci-queue-verdict.yml"), true)
     assert.equal(manifest.files.some((entry) => entry.path === "scripts/ci/verify-local-attestation.sh"), true)
+    assert.equal(manifest.files.some((entry) => entry.path === "scripts/ci/check-with-progress.sh"), true)
+    assert.equal(manifest.files.some((entry) => entry.path === "scripts/progress-emit.sh"), true)
     assert.equal(verifyRelease(destination).revision, "a".repeat(40))
     writeFileSync(join(destination, "dist/cli.js"), "alterado")
     assert.throws(() => verifyRelease(destination), /integridade inválida/)
