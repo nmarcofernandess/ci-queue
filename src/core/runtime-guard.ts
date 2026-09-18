@@ -50,7 +50,8 @@ export function runtimeGuard(config: GuardConfig): void {
         if (fs.statSync(candidate).isFile()) { resolved = real(candidate); break }
       } catch { /* Continue the same search as env(1). */ }
     }
-    if (resolved !== config.executable && resolved !== path.join(config.shimDir, "node")) {
+    const allowedShim = real(path.join(config.shimDir, "node"))
+    if (resolved !== config.executable && resolved !== allowedShim) {
       fail("RUNTIME_PATH_MISMATCH")
     }
     for (const key of ["NODE", "npm_node_execpath"] as const) {

@@ -1,10 +1,11 @@
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { accessSync, closeSync, constants, openSync, readSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs"
+import { accessSync, closeSync, constants, openSync, readSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { basename, dirname, isAbsolute, join, resolve } from "node:path"
 
 import { RUNTIME_CAPABILITY, type RuntimeRequirement as Requirement, type RuntimeReceipt, type RuntimeObservation } from "../contracts/runtime.js"
-import type { QueueTicket } from "../contracts/schema.js"
+import { isValidProjectId, type QueueTicket } from "../contracts/schema.js"
+import { atomicWriteJson } from "./state.js"
 import { runtimeGuard, shellPolicyError, type GuardConfig } from "./runtime-guard.js"
 
 const SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
@@ -12,7 +13,10 @@ const EXACT_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
 const RESERVED = /^(PATH|NODE|NODE_OPTIONS|NODE_PATH|NODE_REPL_EXTERNAL_MODULE|BASH_ENV|ENV|ZDOTDIR|SHELLOPTS|BASHOPTS|CDPATH|GLOBIGNORE|IFS|npm_node_execpath|npm_execpath|npm_config_(script_shell|node_options|prefix|userconfig|globalconfig)|BASH_FUNC_.*|NVM_.*|VOLTA_.*|ASDF_.*|DYLD_.*|LD_.*)$/i
 
 export type RuntimeSession = {
-  argv: string[]; env: NodeJS.ProcessEnv; receipt: RuntimeReceipt
+  argv: string[]
+  env: NodeJS.ProcessEnv
+  receipt: RuntimeReceipt
+  directory?: string
   finish(): RuntimeReceipt
 }
 export class RuntimeError extends Error {
@@ -21,6 +25,21 @@ export class RuntimeError extends Error {
 const fail = (code: string, detail: string): never => { throw new RuntimeError(code, detail) }
 const digest = (value: Buffer | string): string => createHash("sha256").update(value).digest("hex")
 const object = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === "object" && !Array.isArray(value))
+
+export function runtimeRegistryPath(root: string): string {
+  return join(root, "runtimes.json")
+}
+
+function digestFile(path: string): string {
+  const hash = createHash("sha256")
+  const fd = openSync(path, "r")
+  try {
+    const buf = Buffer.alloc(64 * 1024)
+    let n = 0
+    while ((n = readSync(fd, buf, 0, buf.length, null)) > 0) hash.update(buf.subarray(0, n))
+  } finally { closeSync(fd) }
+  return hash.digest("hex")
+}
 
 export function sanitizeRuntimeEnv(inherited: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(inherited).filter(([key]) => !RESERVED.test(key)))
@@ -120,57 +139,102 @@ function resolveCommand(command: string, cwd: string, env: NodeJS.ProcessEnv): s
   return fail("RUNTIME_COMMAND_NOT_FOUND", command)
 }
 
+function unconfigured(argv: string[], inherited: NodeJS.ProcessEnv): RuntimeSession {
+  const receipt: RuntimeReceipt = { capability: RUNTIME_CAPABILITY, coverage: "unconfigured", state: "unconfigured", observations: [] }
+  return { argv, env: inherited, receipt, finish: () => receipt }
+}
+
+export type RuntimeRegistry = { schemaVersion: 1; projects: Record<string, unknown> }
+
+export function readRuntimeRegistry(root: string): RuntimeRegistry | undefined {
+  const path = runtimeRegistryPath(root)
+  if (!existsSync(path)) return undefined
+  const registry = readObject(path, readFileSync(path, "utf8"))
+  if (Object.keys(registry).some(key => !["schemaVersion", "projects"].includes(key))) fail("RUNTIME_CONFIG_INVALID", "unknown registry field")
+  if (registry.schemaVersion !== 1) fail("RUNTIME_CONFIG_INVALID", path)
+  const projects = object(registry.projects) ? registry.projects : fail("RUNTIME_CONFIG_INVALID", path)
+  return { schemaVersion: 1, projects }
+}
+
+function parseToolPaths(value: unknown): string[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || !value.every((item): item is string => typeof item === "string" && isAbsolute(item) && !/[:\0\r\n]/.test(item))) {
+    return fail("RUNTIME_CONFIG_INVALID", "toolPaths must contain absolute directories")
+  }
+  return value
+}
+
+function discoverNpmCli(nodeExecutable: string, name: "npm" | "npx"): string {
+  return absoluteFile(join(dirname(nodeExecutable), name), name)
+}
+
+export function registerProjectRuntime(root: string, input: {
+  projectId: string
+  node: string
+  version?: string
+  npmCli?: string
+  npxCli?: string
+  toolPaths?: string[]
+}): { registryPath: string; projectId: string; node: { executable: string; version: string }; npmCli: string; npxCli: string } {
+  if (!isValidProjectId(input.projectId)) fail("RUNTIME_CONFIG_INVALID", "projectId inválido")
+  const executable = absoluteFile(input.node, "node", true)
+  const npmCli = input.npmCli ? absoluteFile(input.npmCli, "npmCli") : discoverNpmCli(executable, "npm")
+  const npxCli = input.npxCli ? absoluteFile(input.npxCli, "npxCli") : discoverNpmCli(executable, "npx")
+  const probe = spawnSync(executable, ["-p", "process.versions.node"], { encoding: "utf8", timeout: 10_000, env: { PATH: SYSTEM_PATH } })
+  if (probe.status !== 0 || probe.error) fail("RUNTIME_PROBE_FAILED", "cannot read Node version")
+  const version = probe.stdout.trim()
+  if (!EXACT_VERSION.test(version)) fail("RUNTIME_PROBE_FAILED", "invalid Node version")
+  if (input.version && input.version !== version) fail("RUNTIME_VERSION_MISMATCH", `required ${input.version}; effective ${version}`)
+  if (input.toolPaths && (!Array.isArray(input.toolPaths) || !input.toolPaths.every(value => typeof value === "string" && isAbsolute(value) && !/[:\0\r\n]/.test(value)))) {
+    fail("RUNTIME_CONFIG_INVALID", "toolPaths must contain absolute directories")
+  }
+  mkdirSync(root, { recursive: true, mode: 0o700 })
+  const existing = existsSync(runtimeRegistryPath(root)) ? readRuntimeRegistry(root) : undefined
+  const projects = { ...(existing?.projects ?? {}) }
+  projects[input.projectId] = {
+    node: { executable, version },
+    npmCli,
+    npxCli,
+    ...(input.toolPaths?.length ? { toolPaths: input.toolPaths } : {}),
+  }
+  const registryPath = runtimeRegistryPath(root)
+  atomicWriteJson(registryPath, { schemaVersion: 1, projects })
+  return { registryPath, projectId: input.projectId, node: { executable, version }, npmCli, npxCli }
+}
+
 /**
  * Local, operator-owned registry: no global PATH/nvm lookup, no recipe re-entry.
- * Binding + repo constraints are resolved at claim and recorded in the receipt.
+ * Binding is opt-in: without a project entry the job keeps the inherited environment.
  */
 export function prepareJobRuntime(root: string, ticket: QueueTicket, argv: string[], inherited: NodeJS.ProcessEnv): RuntimeSession {
-  validateRuntimeArgv(argv)
-  const required = requirements(ticket.cwd)
-  const registryPath = join(root, "runtimes.json")
+  if (!argv.length || argv.some(arg => typeof arg !== "string" || /[\0\r\n]/.test(arg))) fail("RUNTIME_ARGV_INVALID", "invalid argv")
+  const registryPath = runtimeRegistryPath(root)
   let binding: Record<string, unknown> | undefined
   let registrySha256: string | undefined
-  let bindingSource: "project-registry" | "explicit-node-command" = "project-registry"
   if (existsSync(registryPath)) {
     const bytes = readFileSync(registryPath)
-    const registry = readObject(registryPath, bytes.toString("utf8"))
-    if (Object.keys(registry).some(key => !["schemaVersion", "projects"].includes(key))) fail("RUNTIME_CONFIG_INVALID", "unknown registry field")
-    if (registry.schemaVersion !== 1 || !object(registry.projects)) fail("RUNTIME_CONFIG_INVALID", registryPath)
-    const raw = (registry.projects as Record<string, unknown>)[ticket.projectId ?? ""]
+    const registry = readRuntimeRegistry(root)
+    const raw = registry?.projects[ticket.projectId ?? ""]
     if (raw !== undefined && !object(raw)) fail("RUNTIME_CONFIG_INVALID", "project binding")
     binding = raw as Record<string, unknown> | undefined
     registrySha256 = digest(bytes)
   }
-  if (!binding && !required.length && isAbsolute(argv[0]) && basename(argv[0]) === "node") {
-    // Preserve the existing explicit-executable contract. This is not a PATH
-    // fallback, and may not override a repository's declared requirements.
-    const explicitNode = absoluteFile(argv[0], "explicit node", true)
-    binding = { node: { executable: explicitNode }, npmCli: join(dirname(explicitNode), "npm"), npxCli: join(dirname(explicitNode), "npx") }
-    bindingSource = "explicit-node-command"
-  }
-  if (!binding) {
-    if (required.length || ["node", "npm", "npx"].includes(basename(argv[0]))) {
-      fail("RUNTIME_NOT_CONFIGURED", `register project ${ticket.projectId ?? "[missing id]"} in runtimes.json`)
-    }
-    // Native legacy jobs remain compatible, explicitly without a Node guarantee.
-    const receipt: RuntimeReceipt = { capability: RUNTIME_CAPABILITY, coverage: "unconfigured", state: "unconfigured", observations: [] }
-    return { argv, env: inherited, receipt, finish: () => receipt }
-  }
+  if (!binding) return unconfigured(argv, inherited)
+
+  validateRuntimeArgv(argv)
+  const required = requirements(ticket.cwd)
   if (Object.keys(binding).some(key => !["node", "npmCli", "npxCli", "toolPaths"].includes(key))) fail("RUNTIME_CONFIG_INVALID", "unknown project runtime field")
   if (!object(binding.node)) fail("RUNTIME_CONFIG_INVALID", "node binding is required")
   const nodeBinding = binding.node as Record<string, unknown>
   if (Object.keys(nodeBinding).some(key => !["executable", "version"].includes(key))) fail("RUNTIME_CONFIG_INVALID", "unknown node binding field")
   const executable = absoluteFile(nodeBinding.executable, "node.executable", true)
-  let version = nodeBinding.version
-  if (bindingSource === "project-registry" && (typeof version !== "string" || !EXACT_VERSION.test(version))) fail("RUNTIME_CONFIG_INVALID", "node.version must be exact x.y.z")
+  const version = typeof nodeBinding.version === "string" && EXACT_VERSION.test(nodeBinding.version)
+    ? nodeBinding.version
+    : fail("RUNTIME_CONFIG_INVALID", "node.version must be exact x.y.z")
   const npmCli = absoluteFile(binding.npmCli, "npmCli")
   const npxCli = absoluteFile(binding.npxCli, "npxCli")
-  const toolPaths = binding.toolPaths ?? []
-  if (!Array.isArray(toolPaths) || !toolPaths.every(value => typeof value === "string" && isAbsolute(value) && !/[:\0\r\n]/.test(value))) {
-    fail("RUNTIME_CONFIG_INVALID", "toolPaths must contain absolute directories")
-  }
+  const toolPaths = parseToolPaths(binding.toolPaths)
   const clean = sanitizeRuntimeEnv(inherited)
-  // No startup hooks, user npmrc, or NODE_OPTIONS may run during this probe.
   const probe = spawnSync(executable, ["-e", `
     const {createRequire} = require('node:module');
     const fs = require('node:fs');
@@ -182,8 +246,6 @@ export function prepareJobRuntime(root: string, ticket: QueueTicket, argv: strin
   if (probe.status !== 0 || probe.error) fail("RUNTIME_PROBE_FAILED", "cannot verify selected Node with the configured npm semver library")
   let actual: { execPath: string; version: string; constraints: { valid: boolean; satisfies: boolean }[] }
   try { actual = JSON.parse(probe.stdout) } catch { return fail("RUNTIME_PROBE_FAILED", "invalid probe response") }
-  if (bindingSource === "explicit-node-command") version = actual.version
-  if (typeof version !== "string" || !EXACT_VERSION.test(version)) fail("RUNTIME_PROBE_FAILED", "invalid Node version")
   if (actual.execPath !== executable || actual.version !== version) fail("RUNTIME_VERSION_MISMATCH", `required ${version}; effective ${actual.version}`)
   if (!Array.isArray(actual.constraints) || actual.constraints.length !== required.length) fail("RUNTIME_PROBE_FAILED", "constraint probe incomplete")
   actual.constraints.forEach((item, i) => {
@@ -193,20 +255,19 @@ export function prepareJobRuntime(root: string, ticket: QueueTicket, argv: strin
   const runtimeRoot = join(root, "runtime")
   mkdirSync(runtimeRoot, { recursive: true, mode: 0o700 })
   const directory = mkdtempSync(join(runtimeRoot, "job-"))
-  const shimDir = join(directory, "bin")
-  mkdirSync(shimDir, { mode: 0o700 })
-  const guardPath = join(directory, "guard.cjs")
-  const evidencePath = join(directory, "processes.jsonl")
-  writeFileSync(evidencePath, "", { mode: 0o600 })
-  const config: GuardConfig = { executable, version: version as string, npmCli, npxCli, shimDir, evidencePath, guardPath }
-  writeFileSync(guardPath, `(${runtimeGuard.toString()})(${JSON.stringify(config)});\n`, { mode: 0o600 })
-  writeShim(join(shimDir, "node"), executable, ["--require", guardPath])
-  writeShim(join(shimDir, "npm"), executable, ["--require", guardPath, npmCli])
-  writeShim(join(shimDir, "npx"), executable, ["--require", guardPath, npxCli])
-  // Nested named shells pass through the same admission parser. Absolute nested
-  // shells remain outside this interception; the Node preload still checks them.
-  const shellLauncher = join(directory, "shell.cjs")
-  writeFileSync(shellLauncher, `
+  try {
+    mkdirSync(join(directory, "bin"), { mode: 0o700 })
+    const shimDir = realpathSync(join(directory, "bin"))
+    const guardPath = join(directory, "guard.cjs")
+    const evidencePath = join(directory, "processes.jsonl")
+    writeFileSync(evidencePath, "", { mode: 0o600 })
+    const config: GuardConfig = { executable, version, npmCli, npxCli, shimDir, evidencePath, guardPath }
+    writeFileSync(guardPath, `(${runtimeGuard.toString()})(${JSON.stringify(config)});\n`, { mode: 0o600 })
+    writeShim(join(shimDir, "node"), executable, ["--require", guardPath])
+    writeShim(join(shimDir, "npm"), executable, ["--require", guardPath, npmCli])
+    writeShim(join(shimDir, "npx"), executable, ["--require", guardPath, npxCli])
+    const shellLauncher = join(directory, "shell.cjs")
+    writeFileSync(shellLauncher, `
     const fs = require('node:fs'); const {spawn} = require('node:child_process');
     const error = (${shellPolicyError.toString()})(process.argv.slice(3));
     if (error) {
@@ -219,43 +280,50 @@ export function prepareJobRuntime(root: string, ticket: QueueTicket, argv: strin
     child.on('error',()=>process.exit(78));
     child.on('exit',(code,signal)=>{if(signal)process.kill(process.pid,signal);else process.exit(code??78)});
   `, { mode: 0o600 })
-  for (const shell of ["bash", "sh", "zsh"]) writeShim(join(shimDir, shell), executable, ["--require", guardPath, shellLauncher, shell])
-  const userconfig = join(directory, "user.npmrc")
-  const globalconfig = join(directory, "global.npmrc")
-  writeFileSync(userconfig, "", { mode: 0o600 }); writeFileSync(globalconfig, "", { mode: 0o600 })
-  const env: NodeJS.ProcessEnv = { ...clean,
-    PATH: [shimDir, dirname(executable), SYSTEM_PATH, ...(toolPaths as string[])].join(":"),
-    NODE: executable, npm_node_execpath: executable, npm_execpath: npmCli,
-    NODE_OPTIONS: `--require ${JSON.stringify(guardPath)}`,
-    npm_config_script_shell: join(shimDir, "sh"), npm_config_userconfig: userconfig, npm_config_globalconfig: globalconfig,
-    ZDOTDIR: directory,
+    for (const shell of ["bash", "sh", "zsh"]) writeShim(join(shimDir, shell), executable, ["--require", guardPath, shellLauncher, shell])
+    const userconfig = join(directory, "user.npmrc")
+    const globalconfig = join(directory, "global.npmrc")
+    writeFileSync(userconfig, "", { mode: 0o600 }); writeFileSync(globalconfig, "", { mode: 0o600 })
+    const env: NodeJS.ProcessEnv = { ...clean,
+      PATH: [shimDir, dirname(executable), SYSTEM_PATH, ...toolPaths].join(":"),
+      NODE: executable, npm_node_execpath: executable, npm_execpath: npmCli,
+      NODE_OPTIONS: `--require ${JSON.stringify(guardPath)}`,
+      npm_config_script_shell: join(shimDir, "sh"), npm_config_userconfig: userconfig, npm_config_globalconfig: globalconfig,
+      ZDOTDIR: directory,
+    }
+    let command = [...argv]
+    if (shellName(command[0])) command[0] = join(shimDir, shellName(command[0])!)
+    else if (["node", "npm", "npx"].includes(command[0])) command[0] = join(shimDir, command[0])
+    command[0] = resolveCommand(command[0], ticket.cwd, env)
+    validateShebang(command[0])
+    if (["node", "npm", "npx"].includes(basename(command[0]))) {
+      const allowed = [executable, npmCli, npxCli, ...["node", "npm", "npx"].map(name => realpathSync(join(shimDir, name)))]
+      if (!allowed.includes(realpathSync(command[0]))) fail("RUNTIME_EXECUTABLE_MISMATCH", command[0])
+    }
+    const receipt: RuntimeReceipt = {
+      capability: RUNTIME_CAPABILITY, coverage: "guarded-node-processes", state: "prepared",
+      node: { executable, version, sha256: digestFile(executable) },
+      npmCli, npxCli, bindingSource: "project-registry", environmentPolicy: "reconstructed", requirements: required, registrySha256, evidencePath, observations: [],
+    }
+    const finish = (): RuntimeReceipt => {
+      try {
+        if (statSync(evidencePath).size > 16 * 1024 * 1024) throw new Error("evidence exceeds bound")
+        const observations: RuntimeObservation[] = readFileSync(evidencePath, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line))
+        if (!observations.every(item => Number.isSafeInteger(item.pid) && typeof item.execPath === "string" && typeof item.version === "string" && ["verified", "rejected"].includes(item.status))) throw new Error("malformed evidence")
+        const rejected = observations.find(item => item.status === "rejected" || item.execPath !== executable || item.version !== version)
+        const changed = digestFile(executable) !== receipt.node!.sha256
+        return { ...receipt, observations, state: rejected || changed ? "rejected" : observations.length ? "verified" : "preflight-only",
+          ...(rejected || changed ? { failureCode: rejected?.reason ?? "RUNTIME_BINARY_CHANGED" } : {}) }
+      } catch { return { ...receipt, state: "rejected", failureCode: "RUNTIME_EVIDENCE_INVALID" } }
+    }
+    return { argv: command, env, receipt, directory, finish }
+  } catch (error) {
+    rmSync(directory, { recursive: true, force: true })
+    throw error
   }
-  let command = [...argv]
-  if (shellName(command[0])) command[0] = join(shimDir, shellName(command[0])!)
-  else if (["node", "npm", "npx"].includes(command[0])) command[0] = join(shimDir, command[0])
-  command[0] = resolveCommand(command[0], ticket.cwd, env)
-  validateShebang(command[0])
-  // Catch an absolute foreign node/npm and a direct login-shell shebang before
-  // launching the work. Do not read an entire executable to inspect two bytes.
-  if (["node", "npm", "npx"].includes(basename(command[0]))) {
-    const allowed = [executable, npmCli, npxCli, ...["node", "npm", "npx"].map(name => join(shimDir, name))]
-    if (!allowed.includes(realpathSync(command[0]))) fail("RUNTIME_EXECUTABLE_MISMATCH", command[0])
-  }
-  const receipt: RuntimeReceipt = {
-    capability: RUNTIME_CAPABILITY, coverage: "guarded-node-processes", state: "prepared",
-    node: { executable, version: version as string, sha256: digest(readFileSync(executable)) },
-    npmCli, npxCli, bindingSource, environmentPolicy: "reconstructed", requirements: required, registrySha256, evidencePath, observations: [],
-  }
-  const finish = (): RuntimeReceipt => {
-    try {
-      if (statSync(evidencePath).size > 16 * 1024 * 1024) throw new Error("evidence exceeds bound")
-      const observations: RuntimeObservation[] = readFileSync(evidencePath, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line))
-      if (!observations.every(item => Number.isSafeInteger(item.pid) && typeof item.execPath === "string" && typeof item.version === "string" && ["verified", "rejected"].includes(item.status))) throw new Error("malformed evidence")
-      const rejected = observations.find(item => item.status === "rejected" || item.execPath !== executable || item.version !== version)
-      const changed = digest(readFileSync(executable)) !== receipt.node!.sha256
-      return { ...receipt, observations, state: rejected || changed ? "rejected" : observations.length ? "verified" : "preflight-only",
-        ...(rejected || changed ? { failureCode: rejected?.reason ?? "RUNTIME_BINARY_CHANGED" } : {}) }
-    } catch { return { ...receipt, state: "rejected", failureCode: "RUNTIME_EVIDENCE_INVALID" } }
-  }
-  return { argv: command, env, receipt, finish }
+}
+
+export function discardRuntimeDirectory(directory: string | undefined): void {
+  if (!directory) return
+  rmSync(directory, { recursive: true, force: true })
 }

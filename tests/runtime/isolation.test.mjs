@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { after, test } from 'node:test'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, realpathSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, realpathSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { runJob } from '../../dist/core/runner.js'
@@ -45,6 +45,8 @@ test('records selected and effective Node for a shell-free command', async () =>
   assert.equal(result.runtime?.node.executable, node)
   assert.equal(result.runtime?.node.version, process.versions.node)
   assert.ok(result.runtime?.observations.some(item => item.execPath === node && item.version === process.versions.node))
+  const runtimeRoot = join(f.state, 'runtime')
+  assert.equal(existsSync(runtimeRoot) ? readdirSync(runtimeRoot).length : 0, 0)
 })
 
 test('fails before work when the registered exact version diverges', async () => {
@@ -57,12 +59,12 @@ test('fails before work when the registered exact version diverges', async () =>
 
 const { copyFileSync, chmodSync, symlinkSync, unlinkSync } = await import('node:fs')
 const { spawnSync } = await import('node:child_process')
-const { prepareJobRuntime, validateRuntimeArgv, sanitizeRuntimeEnv } = await import('../../dist/core/runtime.js')
+const { prepareJobRuntime, validateRuntimeArgv, sanitizeRuntimeEnv, registerProjectRuntime } = await import('../../dist/core/runtime.js')
 const competitors = mkdtempSync(join(tmpdir(), 'ci-queue-other-node-'))
 roots.push(competitors)
-const otherNode = join(competitors, 'node')
-copyFileSync(node, otherNode)
-chmodSync(otherNode, 0o755)
+copyFileSync(node, join(competitors, 'node'))
+chmodSync(join(competitors, 'node'), 0o755)
+const otherNode = realpathSync(join(competitors, 'node'))
 const writeBinding = (f, patch = {}) => writeFileSync(join(f.state, 'runtimes.json'), JSON.stringify({
   schemaVersion: 1, projects: { example: { node: { executable: node, version: process.versions.node }, npmCli, npxCli, ...patch } },
 }))
@@ -151,11 +153,12 @@ test('direct absolute foreign Node is refused before it is spawned', async () =>
   assert.equal(result.childPid, undefined)
 })
 
-test('missing project runtime fails before work', async () => {
+test('without a registry entry a Node recipe stays unconfigured and still runs', async () => {
   const f = fixture(['node', '-e', markerCode], { registry: false })
   const result = await f.run()
-  assert.match(result.failureReason, /RUNTIME_NOT_CONFIGURED/)
-  assert.equal(existsSync(join(f.cwd, 'forbidden')), false)
+  assert.equal(result.status, 'passed', log(f))
+  assert.equal(result.runtime.coverage, 'unconfigured')
+  assert.equal(existsSync(join(f.cwd, 'forbidden')), true)
 })
 
 test('an uninstalled runtime has no global fallback', async () => {
@@ -254,9 +257,8 @@ test('two registered projects resolve independently on the same queue', async ()
 
 test('a project-specific registry can specify different majors without a shared worker runtime assumption', () => {
   const f = fixture(['node', '-p', 'process.version'])
-  writeBinding(f, { node: { executable: node, version: '24.20.0' } })
+  writeBinding(f, { node: { executable: node, version: '99.0.0' } })
   assert.throws(() => prepareJobRuntime(f.state, f.ticket, f.ticket.argv, process.env), /RUNTIME_VERSION_MISMATCH/)
-  // This is deliberately a mismatch test, NOT proof that Node 24 was executed.
 })
 
 test('a corrupt evidence stream invalidates an otherwise successful job', async () => {
@@ -269,9 +271,11 @@ test('a corrupt evidence stream invalidates an otherwise successful job', async 
 test('documented boundary: env -i plus an absolute executable bypasses a user-space preload', async () => {
   const f = fixture(['bash', '-c', `/usr/bin/env -i ${quote(otherNode)} -e ${quote(markerCode)}`])
   const result = await f.run()
-  assert.equal(existsSync(join(f.cwd, 'forbidden')), true,
-    'This regression documents why the draft must not claim OS-level isolation')
+  assert.equal(result.status, 'passed', log(f))
+  assert.equal(result.runtime.state, 'verified')
   assert.equal(result.runtime.coverage, 'guarded-node-processes')
+  assert.equal(existsSync(join(f.cwd, 'forbidden')), true,
+    'verified means observed processes agreed, not that every descendant was mediated')
 })
 
 const secondBinary = process.env.CI_QUEUE_TEST_SECOND_NODE
@@ -318,13 +322,12 @@ test('a native configured command has preflight evidence, not fictional Node obs
   assert.deepEqual(result.runtime.observations, [])
 })
 
-test('legacy shell-free jobs with an explicit absolute Node remain pinned and usable', async () => {
+test('legacy shell-free jobs with an explicit absolute Node remain usable without a registry', async () => {
   const f = fixture([node, '-p', 'process.execPath'], { registry: false })
   unlinkSync(join(f.cwd, '.nvmrc'))
   const result = await f.run()
   assert.equal(result.status, 'passed')
-  assert.equal(result.runtime.bindingSource, 'explicit-node-command')
-  assert.equal(result.runtime.node.executable, node)
+  assert.equal(result.runtime.coverage, 'unconfigured')
 })
 
 test('unknown runtime configuration cannot silently imply unsupported strict isolation', async () => {
@@ -334,6 +337,26 @@ test('unknown runtime configuration cannot silently imply unsupported strict iso
   assert.equal(result.status, 'failed')
   assert.match(result.failureReason, /RUNTIME_CONFIG_INVALID/)
   assert.equal(existsSync(join(f.cwd, 'forbidden')), false)
+})
+
+test('runtime register pins a project by absolute Node without failing closed by default', async () => {
+  const f = fixture(['node', '-p', 'process.version'], { registry: false })
+  const registered = registerProjectRuntime(f.state, { projectId: 'example', node })
+  assert.equal(registered.node.version, process.versions.node)
+  assert.equal(registered.node.executable, node)
+  const result = await f.run()
+  assert.equal(result.status, 'passed', log(f))
+  assert.equal(result.runtime.state, 'verified')
+  assert.equal(result.runtime.node.executable, node)
+})
+
+test('login shell is not rejected until a project runtime is registered', async () => {
+  const f = fixture(['bash', '-lc', 'echo executed > allowed'], { registry: false })
+  unlinkSync(join(f.cwd, '.nvmrc'))
+  const result = await f.run()
+  assert.equal(result.status, 'passed', log(f))
+  assert.equal(result.runtime.coverage, 'unconfigured')
+  assert.equal(existsSync(join(f.cwd, 'allowed')), true)
 })
 
 test('deadline and process-group ownership survive the shell launcher', async () => {

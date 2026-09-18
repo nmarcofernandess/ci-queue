@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -400,7 +400,40 @@ describe("CLI JSON v1", () => {
           "execution-flags-v1",
           "job-env-v1",
           "spend-abort-v1",
+          "node-runtime-guard-v1",
         ]),
+      },
+    })
+  })
+
+  it("registers an absolute Node into the operator runtime registry", async () => {
+    const state = mkdtempSync(join(tmpdir(), "ci-queue-runtime-registry-"))
+    cleanup.push(state)
+    const node = realpathSync(process.execPath)
+    const registered = await runCli([
+      "runtime", "register",
+      "--project", "example",
+      "--node", node,
+      "--state", state,
+      "--json",
+    ])
+    expect(registered).toMatchObject({
+      apiVersion: 1,
+      ok: true,
+      result: {
+        projectId: "example",
+        node: { executable: node, version: process.versions.node },
+      },
+    })
+    const shown = await runCli(["runtime", "show", "--state", state, "--json"])
+    expect(shown).toMatchObject({
+      apiVersion: 1,
+      ok: true,
+      result: {
+        registry: {
+          schemaVersion: 1,
+          projects: { example: { node: { executable: node, version: process.versions.node } } },
+        },
       },
     })
   })

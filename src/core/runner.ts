@@ -2,7 +2,8 @@ import { spawn, spawnSync } from "node:child_process"
 import { cpSync, existsSync, mkdirSync, renameSync, rmSync, statSync, unlinkSync } from "node:fs"
 import { basename, isAbsolute, join, relative, resolve } from "node:path"
 
-import { prepareJobRuntime, RuntimeError, type RuntimeSession } from "./runtime.js"
+import { prepareJobRuntime, RuntimeError, discardRuntimeDirectory, type RuntimeSession } from "./runtime.js"
+import { RUNTIME_CAPABILITY } from "../contracts/runtime.js"
 
 import { initialExecutionDeadline, captureExecutionDeadline, validateQueuedDeadline } from "./deadline.js"
 import { ProgressCollector, attachProgressToTicket, removeProgressSnapshot } from "./progress.js"
@@ -343,9 +344,12 @@ export async function closeRunningTicket(root: string, candidate: QueueTicket): 
   return { ticket: terminal, authoritative: Boolean(persisted) }
 }
 
-async function closeAndMaybeDropSidecar(root: string, candidate: QueueTicket): Promise<QueueTicket> {
+async function closeAndMaybeDropSidecar(root: string, candidate: QueueTicket, runtimeDirectory?: string): Promise<QueueTicket> {
   const { ticket, authoritative } = await closeRunningTicket(root, candidate)
-  if (authoritative) removeProgressSnapshot(root, candidate.id)
+  if (authoritative) {
+    removeProgressSnapshot(root, ticket.id)
+    discardRuntimeDirectory(runtimeDirectory)
+  }
   return ticket
 }
 
@@ -590,12 +594,18 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   let preflight: GitInfo | undefined
   let runtime: RuntimeSession
   try {
-    runtime = prepareJobRuntime(root, ticket, parsed.argv, buildJobEnv(root, ticket))
-    ticket = { ...ticket, runtime: runtime.receipt }
     preflight = assertPreflight(ticket, parsed.flags)
   } catch (error) {
+    const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: error instanceof Error ? error.message : String(error) }, collector)
+    return closeAndMaybeDropSidecar(root, failed)
+  }
+
+  try {
+    runtime = prepareJobRuntime(root, ticket, parsed.argv, buildJobEnv(root, ticket))
+    ticket = { ...ticket, runtime: runtime.receipt }
+  } catch (error) {
     if (error instanceof RuntimeError) {
-      ticket = { ...ticket, runtime: { capability: "node-runtime-guard-v1", coverage: "guarded-node-processes", state: "rejected", observations: [], failureCode: error.code } }
+      ticket = { ...ticket, runtime: { capability: RUNTIME_CAPABILITY, coverage: "unconfigured", state: "rejected", observations: [], failureCode: error.code } }
       appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] ${error.message}\n`)
     }
     const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: error instanceof Error ? error.message : String(error) }, collector)
@@ -605,6 +615,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   try {
     ticket = mergeRunning(root, { ...ticket, preflight })
   } catch (error) {
+    discardRuntimeDirectory(runtime.directory)
     throw new Error(`não foi possível reservar running.json: ${error instanceof Error ? error.message : String(error)}`)
   }
   hooks.onJob?.(ticket)
@@ -614,8 +625,9 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   try {
     child = spawn(runtime.argv[0], runtime.argv.slice(1), { cwd: ticket.cwd, env: runtime.env, detached: true, stdio: ["ignore", "pipe", "pipe"] })
   } catch (error) {
+    ticket = { ...ticket, runtime: runtime.finish() }
     const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: `spawn falhou: ${error instanceof Error ? error.message : String(error)}` }, collector)
-    return closeAndMaybeDropSidecar(root, failed)
+    return closeAndMaybeDropSidecar(root, failed, runtime.directory)
   }
 
   if (runtime.receipt.node) appendRedactedLog(ticket.logPath, `[runtime] ${runtime.receipt.node.executable} v${runtime.receipt.node.version}; coverage=${runtime.receipt.coverage}\n`)
@@ -767,5 +779,5 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   }, collector, { publishSkippedArtifacts })
   hooks.onChildPid?.(undefined)
   hooks.onJob?.(undefined)
-  return closeAndMaybeDropSidecar(root, candidate)
+  return closeAndMaybeDropSidecar(root, candidate, runtime.directory)
 }

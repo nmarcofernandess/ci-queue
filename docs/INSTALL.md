@@ -42,11 +42,22 @@ node /caminho/para/ci-queue-<versão>-<revisão>/scripts/install.mjs update \
   --prefix "$HOME/.local/share/ci-queue" \
   --state "$HOME/.local/state/ci-queue" \
   --config /caminho/do/projeto/ci-queue.json \
-  --node "$(command -v node)" \
+  --node /caminho/absoluto/para/bin/node \
   --python "$(command -v python3)" \
   --command "$HOME/.local/bin/ci-queue" \
   --activate
 ```
+
+`--node` é o interpretador do **worker**. Passe o binário absoluto da
+distribuição desejada. Não use `$(command -v node)` se o PATH do login puder
+resolver outra major. O pin dos **jobs** é outro arquivo, no state root:
+
+```bash
+ci-queue runtime register --project PROJECT_ID --node /caminho/absoluto/para/bin/node
+```
+
+Sem esse registro o job herda o ambiente legado. Com ele, o runner seleciona
+Node/npm/npx da distribuição registrada. Ver [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md).
 
 O worker recebido pelo envelope observa somente o state root e executa tickets
 já completos; o dashboard recebe a configuração do projeto explicitamente.
