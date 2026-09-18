@@ -1,0 +1,52 @@
+{
+  "schema_version": "superflow.status.v1",
+  "id": "001-prova-local-progress-ship",
+  "title": "Prova local com progress visivel e ship sem Actions",
+  "route": "analyst_prd",
+  "phase_budget": "deep",
+  "execution_strategy": "single",
+  "source": {
+    "type": "inline",
+    "github_issue": null,
+    "file": null
+  },
+  "confidence": "medium",
+  "current_phase": "analyst",
+  "decision": {
+    "verdict": "needs_product_decision",
+    "prd_status": "gathering",
+    "reason": "Operator closed progress (warning, not merge block) and ship-pack (consumer recipe names; full OK if same pack). PRD stays gathering until Build is authorized.",
+    "prd_path": "PRD.md",
+    "discard_path": null
+  },
+  "scores": {
+    "maturity": 4,
+    "risk": 3
+  },
+  "phases": {
+    "inbox": "skipped",
+    "analyst": "complete",
+    "taskgen": "complete",
+    "build": "pending",
+    "review": "pending",
+    "plan": "pending",
+    "execute": "pending",
+    "qa": "pending"
+  },
+  "artifacts": {
+    "prd": "PRD.md",
+    "analysis": "analysis.md",
+    "blueprint": null,
+    "progress": "progress.md",
+    "warlog": null,
+    "plan": null,
+    "implementation_log": null,
+    "qa": null
+  },
+  "task_source": {
+    "type": "none",
+    "path": null,
+    "progress": null
+  },
+  "updated_at": "2026-09-18T20:15:00+00:00"
+}
