@@ -12,8 +12,11 @@ Instalação e recuperação ficam em [INSTALL](INSTALL.md); superfícies no
 `presets: { nome: { argv: [...] } }`. `repository.path` é resolvido relativo ao
 arquivo; `repository.baseRef` define a comparação Git. Flags de receita opcionais:
 `requireCleanTree`, `fetchBase`, `requireGitStability`, `pinHeadSha`,
-`executionTimeoutMs` e `progress`. A fonte tipada é `src/contracts/schema.ts`;
-o leitor valida `src/contracts/config.ts`.
+`executionTimeoutMs`, `progress` e `abortOnStaleBase`. O bloco opcional `ship`
+declara `acceptedPresets`, `attestationContext` e, se houver wait remoto,
+`remoteVerdict.{workflow,job}`. A fonte tipada é `src/contracts/schema.ts`;
+o leitor valida `src/contracts/config.ts`. Início zero-to-ship:
+[CONSUMER-QUICKSTART](CONSUMER-QUICKSTART.md).
 
 `ci-queue enqueue <preset> --config /projeto/ci-queue.json --state /estado`
 cria o ticket. `--wait` espera um terminal; terminar o cliente não cancela o job.
@@ -113,7 +116,13 @@ histórico de recursos neste MVP.
 O verde local exige receita atual, argv idêntico, projeto, passed, exitCode 0 e
 nenhum custom/extraArgs. Git é somente um espelho de resumo publicado pelo
 consumidor, sem logs ou histórico completo; a leitura não dispara rede. CLI e
-HTTP têm implementações próprias, com testes de paridade de fatos.
+HTTP têm implementações próprias, com testes de paridade de fatos. `ci-queue ship`
+reutiliza o ticket terminal que o worker gravou; last-green e o nome da receita
+não são prova. Worker e runner não importam `src/ship` e não chamam merge no
+GitHub. O merge, quando o operador pede `ship`, é PUT REST com `sha` = HEAD
+congelado e `merge_method=merge`; a base é observada antes e inspecionada
+depois (`guarantee: head-pinned-base-observed`). Não há transação atômica H+B.
+`MERGED_BASE_CHANGED` significa que o merge ocorreu sobre outro primeiro pai.
 
 Meta é um único objetivo editável por projeto, sem SHA informado. Pendências
 são recomendações readonly geradas por `advisory upsert`, idempotentes por

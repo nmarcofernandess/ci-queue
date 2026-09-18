@@ -970,6 +970,11 @@ function HistoryPanel({
   const executions = useExecutionHistory(scope, filters, historyRevision)
   const projectScope = scope.kind === "project" ? scope : null
   const greensAvailable = Boolean(projectScope)
+  if (!greensAvailable && filters.mode !== "executions") {
+    setFilters((current) =>
+      current.mode === "executions" ? current : { ...current, mode: "executions" },
+    )
+  }
   const historyMode = greensAvailable ? filters.mode : "executions"
   const greensMode = historyMode === "greens"
   const needsMachine = filters.origin !== "git"
@@ -1004,12 +1009,6 @@ function HistoryPanel({
       pollMs: 10_000,
     }
   )
-
-  React.useEffect(() => {
-    if (!greensAvailable && filters.mode !== "executions") {
-      setFilters((current) => ({ ...current, mode: "executions" }))
-    }
-  }, [filters.mode, greensAvailable])
 
   React.useEffect(() => {
     writeHistoryFilters({ ...filters, mode: historyMode })

@@ -1,5 +1,8 @@
 import { readQueueConfig } from "./contracts/config.js"
 import { InitError, initProject } from "./ship/init.js"
+import { ShipError } from "./ship/ops.js"
+import { runShip } from "./ship/ship.js"
+import { createSystemOps } from "./ship/system-ops.js"
 import { existsSync, readFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import {
@@ -107,6 +110,7 @@ function usage(): string {
     "Uso: ci-queue <comando> [--state DIR] [--cwd DIR] [--config FILE] [--json]",
     "  version",
     "  init [--name NAME] [--base-ref REMOTE/BRANCH] [--argv-json JSON] [--workflow] [--force]",
+    "  ship [--pr N] [--repo [HOST/]OWNER/REPO] [--dry-run] [--no-remote] [--timeout-ms N]",
     "  enqueue <preset> [--wait] [--timeout-ms N] [-- <args da receita>]",
     "  enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH [--flags-json JSON]",
     "  worker",
@@ -139,7 +143,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, "ship", "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
       }
       case "init": {
@@ -152,6 +156,30 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           ...(optionValue(args.rest, "--base-ref") ? { baseRef: optionValue(args.rest, "--base-ref") } : {}),
           ...(argvText !== undefined ? { argv: parseJsonArray(argvText, "--argv-json") } : {}),
         }))
+      }
+      case "ship": {
+        const timeoutRaw = optionValue(args.rest, "--timeout-ms")
+        const timeoutMs = timeoutRaw ? Number(timeoutRaw) : 60 * 60_000
+        if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return failure("USAGE", "--timeout-ms precisa ser número positivo")
+        const prRaw = optionValue(args.rest, "--pr")
+        const pr = prRaw === undefined ? undefined : Number(prRaw)
+        if (prRaw !== undefined && (!Number.isSafeInteger(pr) || (pr as number) <= 0)) {
+          return failure("USAGE", "--pr precisa ser um inteiro positivo")
+        }
+        const repo = optionValue(args.rest, "--repo")
+        const report = await runShip(createSystemOps({
+          cwd: args.cwd ?? process.cwd(),
+          stateRoot: root,
+          configPath: args.configPath,
+          log: (message) => process.stderr.write(`${message}\n`),
+        }), {
+          dryRun: args.rest.includes("--dry-run"),
+          noRemote: args.rest.includes("--no-remote"),
+          timeoutMs,
+          ...(pr !== undefined ? { pr } : {}),
+          ...(repo ? { repo } : {}),
+        })
+        return success(report)
       }
       case "enqueue": {
         const recipe = optionValue(args.rest, "--recipe")
@@ -255,6 +283,12 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
     }
   } catch (error) {
     if (error instanceof InitError) return failure(error.code, error.message)
+    if (error instanceof ShipError) {
+      return failure(error.code, error.message, {
+        effects: error.effects,
+        ...(error.mergeSha ? { mergeSha: error.mergeSha } : {}),
+      })
+    }
     return failure("COMMAND_FAILED", error instanceof Error ? error.message : String(error))
   }
 }

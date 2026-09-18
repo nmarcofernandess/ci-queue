@@ -10,6 +10,7 @@ tests. A consuming project owns its recipes, preparation and test harness.
   import, script or release asset must not require DietFlow internals.
 - Preserve proven process ownership, cancellation, locking and record formats
   unless the change has a migration and recovery path.
+- The worker and runner never import `src/ship` and never request GitHub merge.
 - The project UI lives in `ui/` and uses Vite, TypeScript, Tailwind 4,
   `radix-nova`, Radix and Lucide. Read `ui/components.json` and run
   `cd ui && npx shadcn@latest info --json` before changing UI.

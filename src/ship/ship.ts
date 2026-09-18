@@ -283,7 +283,7 @@ async function orchestrate(ops: ShipOps, request: ShipRequest, signal: AbortSign
     if (policy === "wait" && config.remoteVerdict) {
       phase = "verdict"
       try {
-        const run = await waitForCausalVerdict(ops, frozen, config.remoteVerdict, signal, guard)
+        const run = await waitForCausalVerdict(ops, frozen, config.remoteVerdict, signal, guard, effects)
         effects.run = { id: run.id, attempt: run.attempt }
       } catch (error) {
         rethrow(error, effects)
@@ -333,6 +333,7 @@ async function waitForCausalVerdict(
   remote: { workflow: string; job: string },
   signal: AbortSignal,
   guard: <T>(work: Promise<T>) => Promise<T>,
+  effects: ShipEffects,
 ): Promise<VerdictRun> {
   const input: VerdictRequest = { target, workflow: remote.workflow, job: remote.job }
   let dispatched = false
@@ -340,7 +341,7 @@ async function waitForCausalVerdict(
     const run = await guard(ops.observeVerdict(input, signal))
     if (run && isCausalSuccess(run, target, remote)) return run
     if (run && isUnusableVerdict(run, target, remote)) {
-      throw new ShipError("REMOTE_RED", "veredito remoto não atende o alvo congelado", emptyShipEffects())
+      throw new ShipError("REMOTE_RED", "veredito remoto não atende o alvo congelado", snapshot(effects))
     }
     if (run && isCausalTuple(run, target, remote) && isInProgress(run)) {
       await guard(ops.sleep(VERDICT_POLL_MS, signal))

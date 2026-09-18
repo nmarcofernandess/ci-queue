@@ -17,7 +17,12 @@
       "requireCleanTree": true,
       "fetchBase": "origin/dev",
       "requireGitStability": true,
+      "pinHeadSha": true,
       "abortOnStaleBase": true
     }
+  },
+  "ship": {
+    "acceptedPresets": ["check"],
+    "attestationContext": "local/check"
   }
 }
