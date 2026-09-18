@@ -275,6 +275,12 @@ function collectKnownIds(
   return [...ids]
 }
 
+const OTHER_MANIFESTS = ["go.mod", "pyproject.toml", "Cargo.toml", "mix.exs", "Gemfile"] as const
+
+function hasOtherPackageManager(worktree: string): boolean {
+  return OTHER_MANIFESTS.some((name) => existsSync(join(worktree, name)))
+}
+
 function npmCheckArgv(worktree: string): string[] | undefined {
   const path = join(worktree, "package.json")
   if (!existsSync(path)) return undefined
@@ -289,6 +295,7 @@ function npmCheckArgv(worktree: string): string[] | undefined {
   if (!scripts || typeof scripts !== "object" || Array.isArray(scripts)) return undefined
   const check = (scripts as Record<string, unknown>).check
   if (typeof check !== "string" || !check.trim()) return undefined
+  if (hasOtherPackageManager(worktree)) return undefined
   return ["npm", "run", "check"]
 }
 
@@ -349,6 +356,15 @@ function requestedChange(config: QueueProjectConfig, options: InitOptions, root:
   return false
 }
 
+function isShipBoundPreset(value: unknown): boolean {
+  const preset = asObject(value)
+  return preset.requireCleanTree === true
+    && preset.requireGitStability === true
+    && preset.pinHeadSha === true
+    && typeof preset.fetchBase === "string"
+    && Boolean(preset.fetchBase)
+}
+
 function mergeAcceptedPresets(existing: unknown, presetNames: readonly string[]): string[] {
   const current = Array.isArray(existing) ? existing.filter((item): item is string => typeof item === "string") : []
   const names = new Set(presetNames)
@@ -384,14 +400,15 @@ function buildCatalog(
     pinHeadSha: typeof existingCheck.pinHeadSha === "boolean" ? existingCheck.pinHeadSha : true,
     abortOnStaleBase: typeof existingCheck.abortOnStaleBase === "boolean" ? existingCheck.abortOnStaleBase : false,
   }
-  const presets = { ...existingPresets, check }
+  const presets: Record<string, unknown> = { ...existingPresets, check }
   const acceptedPresets = mergeAcceptedPresets(existingShip.acceptedPresets, Object.keys(presets))
+    .filter((name) => isShipBoundPreset(presets[name]))
   const attestationContext = typeof existingShip.attestationContext === "string" && existingShip.attestationContext.trim()
     ? existingShip.attestationContext.trim()
     : "local/check"
   const ship = {
     ...existingShip,
-    acceptedPresets,
+    acceptedPresets: acceptedPresets.length > 0 ? acceptedPresets : ["check"],
     attestationContext,
   }
   return {

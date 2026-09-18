@@ -476,16 +476,102 @@ describe("runShip", () => {
     expect(fake.calls.mergePinned).toEqual([])
   })
 
-  it("does not accept a verdict success for another PR, base, attempt, or skipped/neutral", async () => {
+  it("does not dispatch after marking ready when the first polls are empty", async () => {
+    let polls = 0
+    const fake = createFake({
+      history: [valid],
+      target: { ...target, isDraft: true },
+      sleep: async (ms, signal) => {
+        if (ms === 5_000) {
+          if (signal.aborted) throw abortError()
+          return
+        }
+        return sleepUntilAbort(signal)
+      },
+      async observeVerdict() {
+        polls += 1
+        return polls === 1 ? undefined : causalRun
+      },
+    })
+    const report = await runShip(fake, request({ timeoutMs: 60_000 }))
+    expect(fake.calls.markReady).toBe(1)
+    expect(fake.calls.dispatchVerdict).toBe(0)
+    expect(report.effects.merged).toBe(true)
+  })
+
+  it("dispatches once for an already-ready PR when no causal run exists yet", async () => {
+    let polls = 0
+    const fake = createFake({
+      history: [valid],
+      async observeVerdict() {
+        polls += 1
+        return polls === 1 ? undefined : causalRun
+      },
+    })
+    const report = await runShip(fake, request())
+    expect(fake.calls.markReady).toBe(0)
+    expect(fake.calls.dispatchVerdict).toBe(1)
+    expect(report.effects.merged).toBe(true)
+  })
+
+  it("inspects the PR when merge HTTP is non-success instead of reporting merged false", async () => {
+    const fake = createFake({
+      history: [valid],
+      policy: "skipped",
+      async mergePinned() {
+        return { merged: false }
+      },
+    })
+    const report = await runShip(fake, request())
+    expect(fake.calls.inspectMerge).toBeGreaterThanOrEqual(1)
+    expect(report.effects.merged).toBe(true)
+    expect(report.effects.mergeVerified).toBe(true)
+  })
+
+  it("inspects an already-merged PR without new proof", async () => {
+    const fake = createFake({
+      history: [],
+      target: { ...target, alreadyMerged: true },
+    })
+    const report = await runShip(fake, request())
+    expect(fake.calls.enqueue).toEqual([])
+    expect(fake.calls.attest).toEqual([])
+    expect(fake.calls.dispatchVerdict).toBe(0)
+    expect(report.effects.merged).toBe(true)
+    expect(report.effects.mergeVerified).toBe(true)
+  })
+
+  it("rejects timeoutMs of 0", async () => {
+    const fake = createFake({ history: [valid] })
+    await expectShipError(() => runShip(fake, request({ timeoutMs: 0 })), "USAGE")
+    expectNoMutation(fake)
+  })
+
+  it("does not treat another PR, base, or HEAD success as the causal run", async () => {
     const bads: VerdictRun[] = [
       { ...causalRun, pr: 99 },
       { ...causalRun, baseSha: "c".repeat(40) },
       { ...causalRun, attempt: 1, headSha: "d".repeat(40) },
-      { ...causalRun, conclusion: "skipped" },
-      { ...causalRun, conclusion: "neutral" },
     ]
     for (const verdict of bads) {
-      const fake = createFake({ history: [valid], policy: "wait", verdict })
+      const fake = createFake({
+        history: [valid],
+        policy: "wait",
+        verdict,
+      })
+      const error = await expectShipError(() => runShip(fake, request({ timeoutMs: 40 })), "REMOTE_RUN_MISSING")
+      expect(fake.calls.mergePinned).toEqual([])
+      expect(error.effects.merged).toBe(false)
+    }
+  })
+
+  it("reports REMOTE_RED for a causal skipped or neutral conclusion", async () => {
+    for (const conclusion of ["skipped", "neutral"] as const) {
+      const fake = createFake({
+        history: [valid],
+        policy: "wait",
+        verdict: { ...causalRun, conclusion },
+      })
       await expectShipError(() => runShip(fake, request()), "REMOTE_RED")
       expect(fake.calls.mergePinned).toEqual([])
     }

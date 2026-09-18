@@ -14,6 +14,7 @@ export type ShipTarget = {
   configPath: string
   configDigest: string
   isDraft: boolean
+  alreadyMerged?: boolean
 }
 
 export type MergeState = false | true | "unknown"
@@ -71,7 +72,7 @@ export type ShipOps = {
   log(message: string): void
   resolveTarget(request: ShipRequest, signal: AbortSignal): Promise<ShipTarget>
   readShipConfig(target: ShipTarget): Promise<ShipConfig>
-  readProofQuery(target: ShipTarget): Promise<ShipProofQuery>
+  readProofQuery(target: ShipTarget, signal?: AbortSignal): Promise<ShipProofQuery>
   readHistory(query: ShipProofQuery): Promise<unknown[]>
   findPending(query: ShipProofQuery): Promise<{ id: string } | undefined>
   enqueue(recipe: AcceptedRecipe, target: ShipTarget, signal: AbortSignal): Promise<{ id: string }>

@@ -53,6 +53,7 @@ function freezeTarget(target: ShipTarget): ShipTarget {
     configPath: target.configPath,
     configDigest: target.configDigest,
     isDraft: target.isDraft,
+    ...(target.alreadyMerged ? { alreadyMerged: true } : {}),
   })
 }
 
@@ -130,9 +131,7 @@ function isUnusableVerdict(
     || run.conclusion === "cancelled"
     || run.conclusion === "failure"
     || run.conclusion === "timed_out"
-  if (isCausalTuple(run, target, remote) && badConclusion) return true
-  if ((run.status === "completed" || run.status === "success") && !isCausalSuccess(run, target, remote)) return true
-  return false
+  return isCausalTuple(run, target, remote) && badConclusion
 }
 
 async function raceAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -141,6 +140,9 @@ async function raceAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
 }
 
 export async function runShip(ops: ShipOps, request: ShipRequest): Promise<ShipReport> {
+  if (!Number.isFinite(request.timeoutMs) || request.timeoutMs <= 0) {
+    throw new ShipError("USAGE", "--timeout-ms precisa ser número positivo", emptyShipEffects())
+  }
   const controller = new AbortController()
   const signal = controller.signal
   let done = false
@@ -203,7 +205,7 @@ async function orchestrate(ops: ShipOps, request: ShipRequest, signal: AbortSign
       fail("SHIP_CONFIG", "wait exige remoteVerdict.workflow", effects)
     }
 
-    const query = await ops.readProofQuery(frozen)
+    const query = await guard(ops.readProofQuery(frozen, signal))
     if (query.acceptedRecipes.length === 0) {
       fail("SHIP_CONFIG", "ship.acceptedPresets vazio", effects)
     }
@@ -218,6 +220,25 @@ async function orchestrate(ops: ShipOps, request: ShipRequest, signal: AbortSign
       ...(mergeSha ? { mergeSha } : {}),
       ...extra,
     })
+
+    if (frozen.alreadyMerged) {
+      if (request.dryRun) {
+        const inspect = await guard(ops.inspectMerge(frozen, signal))
+        effects.merged = inspect.merged
+        effects.mergeVerified = inspect.merged === true
+          && inspect.parents?.[0] === frozen.baseSha
+          && inspect.parents?.[1] === frozen.headSha
+          && inspect.treeMatchesHead === true
+        return report(inspect.sha ? { mergeSha: inspect.sha } : {})
+      }
+      phase = "merge"
+      const merged = await mergePinnedHonestly(ops, frozen, signal, effects)
+      mergeSha = merged.sha
+      effects.merged = merged.merged
+      effects.mergeVerified = merged.mergeVerified
+      if (merged.mergeSha) mergeSha = merged.mergeSha
+      return report({ mergeSha })
+    }
 
     const history = await ops.readHistory(query)
     let ticket = findEligibleTicket(history, query)
@@ -283,7 +304,15 @@ async function orchestrate(ops: ShipOps, request: ShipRequest, signal: AbortSign
     if (policy === "wait" && config.remoteVerdict) {
       phase = "verdict"
       try {
-        const run = await waitForCausalVerdict(ops, frozen, config.remoteVerdict, signal, guard, effects)
+        const run = await waitForCausalVerdict(
+          ops,
+          frozen,
+          config.remoteVerdict,
+          signal,
+          guard,
+          effects,
+          !frozen.isDraft && !effects.markedReady,
+        )
         effects.run = { id: run.id, attempt: run.attempt }
       } catch (error) {
         rethrow(error, effects)
@@ -334,6 +363,7 @@ async function waitForCausalVerdict(
   signal: AbortSignal,
   guard: <T>(work: Promise<T>) => Promise<T>,
   effects: ShipEffects,
+  allowDispatch: boolean,
 ): Promise<VerdictRun> {
   const input: VerdictRequest = { target, workflow: remote.workflow, job: remote.job }
   let dispatched = false
@@ -347,8 +377,12 @@ async function waitForCausalVerdict(
       await guard(ops.sleep(VERDICT_POLL_MS, signal))
       continue
     }
-    if (!dispatched) {
-      await guard(ops.dispatchVerdict({ ...input, requestId: crypto.randomUUID() }, signal))
+    if (allowDispatch && !dispatched) {
+      try {
+        await guard(ops.dispatchVerdict({ ...input, requestId: crypto.randomUUID() }, signal))
+      } catch (error) {
+        if (!(error instanceof ShipError) || error.code !== "REMOTE_RUN_MISSING") throw error
+      }
       dispatched = true
       continue
     }
@@ -395,8 +429,15 @@ async function mergePinnedHonestly(
     }
   }
 
-  if (!posted?.merged && inspect === undefined) {
-    fail("MERGE_REFUSED", "o servidor recusou o merge", { ...snapshot(effects), merged: false })
+  if (!posted?.merged) {
+    inspect = inspect ?? await ops.inspectMerge(target, inspectSignal())
+    if (inspect.merged === true) {
+      posted = { merged: true, sha: inspect.sha }
+    } else if (inspect.merged === "unknown") {
+      fail("MERGE_OUTCOME_UNKNOWN", "resultado do merge ambíguo", { ...snapshot(effects), merged: "unknown" }, inspect.sha)
+    } else {
+      fail("MERGE_REFUSED", "o servidor recusou o merge", { ...snapshot(effects), merged: false }, inspect.sha)
+    }
   }
 
   if (!inspect) inspect = await ops.inspectMerge(target, signal)

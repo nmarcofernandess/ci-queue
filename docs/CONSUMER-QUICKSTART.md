@@ -57,7 +57,10 @@ passado à mão.
 
 ```bash
 # política wait (arquivo ausente = wait): prova local → atestação → ready se
-# draft → veredito causal da workflow configurada → merge REST
+# draft (espera o run `pull_request`; não dispara workflow_dispatch) →
+# PR já ready sem run causal: um dispatch no ref da base, correlacionado
+# por run-name / inputs (PR, H, B0), não por `head_sha` do workflow_run →
+# merge REST
 ci-queue ship --pr 12 --json
 
 # pula o veredito remoto; não pula prova local nem checagens Git/PR

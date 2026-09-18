@@ -68,6 +68,7 @@ function parseGhInvocation(argv, stdin) {
   let method = "GET"
   let path = ""
   const fields = {}
+  const query = {}
   let inputText
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
@@ -87,10 +88,21 @@ function parseGhInvocation(argv, stdin) {
       inputText = file === "-" ? stdin : ""
       continue
     }
-    if (!arg.startsWith("-") && !path) path = arg.replace(/^\//, "").split("?")[0]
+    if (!arg.startsWith("-") && !path) {
+      const raw = arg.replace(/^\//, "")
+      const qIndex = raw.indexOf("?")
+      path = qIndex === -1 ? raw : raw.slice(0, qIndex)
+      const search = qIndex === -1 ? "" : raw.slice(qIndex + 1)
+      for (const part of search.split("&").filter(Boolean)) {
+        const eq = part.indexOf("=")
+        const key = decodeURIComponent(eq === -1 ? part : part.slice(0, eq))
+        const value = decodeURIComponent(eq === -1 ? "" : part.slice(eq + 1))
+        query[key] = value
+      }
+    }
   }
   const body = inputText ? JSON.parse(inputText) : fields
-  return { method, path, body, argv }
+  return { method, path, body, argv, query }
 }
 
 function writeFakeGh(bin) {
@@ -196,6 +208,23 @@ if (method === "POST" && path === "repos/" + state.repo + "/statuses/" + state.h
 
 if (method === "PATCH" && path === "repos/" + state.repo + "/pulls/" + state.pr) {
   if (String(body.draft) === "false") state.draft = false
+  state.runs = [...(state.runs ?? []), {
+    id: 77,
+    run_attempt: 1,
+    event: "pull_request",
+    head_sha: state.headSha,
+    name: "CI Queue verdict",
+    display_title: "ci-verdict PR " + state.pr + " H " + state.headSha + " B0 " + state.originalBaseSha,
+    path: ".github/workflows/ci-queue-verdict.yml",
+    status: "completed",
+    conclusion: "success",
+    pull_requests: [{
+      number: state.pr,
+      head: { sha: state.headSha },
+      base: { sha: state.originalBaseSha },
+    }],
+  }]
+  state.jobs = [{ name: "ci-verdict", status: "completed", conclusion: "success" }]
   writeFileSync(statePath, JSON.stringify(state) + "\\n")
   send(prPayload())
 }
@@ -205,15 +234,21 @@ if (method === "GET" && /\\/actions\\/runs\\/\\d+\\/jobs$/.test(path)) {
 }
 
 if (method === "GET" && path.startsWith("repos/" + state.repo + "/actions/runs")) {
-  send({ workflow_runs: state.runs ?? [] })
+  const query = invocation.query ?? {}
+  let runs = state.runs ?? []
+  if (query.head_sha) runs = runs.filter((item) => item.head_sha === query.head_sha)
+  if (query.event) runs = runs.filter((item) => item.event === query.event)
+  send({ workflow_runs: runs })
 }
 
 if (method === "POST" && /\\/actions\\/workflows\\/.+\\/dispatches$/.test(path)) {
-  state.runs = [{
+  state.runs = [...(state.runs ?? []), {
     id: 88,
     run_attempt: 1,
     event: "workflow_dispatch",
-    head_sha: state.headSha,
+    head_sha: state.originalBaseSha,
+    name: "CI Queue verdict",
+    display_title: "ci-verdict PR " + state.pr + " H " + state.headSha + " B0 " + state.originalBaseSha + " req dispatch",
     path: ".github/workflows/ci-queue-verdict.yml",
     status: "completed",
     conclusion: "success",
@@ -363,7 +398,7 @@ function createFixture(options = {}) {
       cloneUrl: "https://github.com/acme/app.git",
       repositoryId: 42,
       pr: PR,
-      draft: true,
+      draft: options.draft === false ? false : true,
       merged: false,
       headBranch: "feature/ship",
       headSha,
@@ -439,7 +474,7 @@ test("init-to-dry-run reuses the ticket the compiled worker actually wrote", { t
   }
 })
 
-test("ship wait path attests, marks ready, dispatches a causal run, and PUT-merges with sha=H", { timeout: 60_000 }, () => {
+test("ship wait after draft uses the pull_request run and does not dispatch", { timeout: 60_000 }, () => {
   const fixture = createFixture()
   try {
     const ship = fixture.invokeShip([])
@@ -455,12 +490,37 @@ test("ship wait path attests, marks ready, dispatches a causal run, and PUT-merg
     const records = fixture.records()
     assert.equal(records.some((item) => item.argv[0] === "pr" || item.argv.includes("pr") && item.argv.includes("merge")), false)
     assert.equal(records.some((item) => item.argv.includes("--admin")), false)
+    assert.equal(records.some((item) => item.method === "POST" && String(item.path).includes("/dispatches")), false)
     const merge = records.find((item) => item.method === "PUT" && item.path === `repos/${REPO}/pulls/${PR}/merge`)
     assert.ok(merge, JSON.stringify(records, null, 2))
     assert.equal(merge.body.sha, fixture.headSha)
     assert.equal(merge.body.merge_method, "merge")
     const inspect = records.find((item) => item.method === "GET" && item.path === `repos/${REPO}/git/commits/${"f".repeat(40)}`)
     assert.ok(inspect, "inspectMerge must read the merge commit")
+  } finally {
+    rmSync(fixture.staging, { recursive: true, force: true })
+  }
+})
+
+test("already-ready wait dispatches on the base ref and correlates by run-name", { timeout: 60_000 }, () => {
+  const fixture = createFixture({ draft: false })
+  try {
+    const ship = fixture.invokeShip([])
+    assert.equal(ship.payload.ok, true, JSON.stringify(ship.payload))
+    assert.equal(ship.payload.result.effects.markedReady, false)
+    assert.equal(ship.payload.result.effects.merged, true)
+    const records = fixture.records()
+    const dispatch = records.find((item) => item.method === "POST" && String(item.path).includes("/dispatches"))
+    assert.ok(dispatch, JSON.stringify(records, null, 2))
+    assert.equal(dispatch.body.ref, "dev")
+    assert.equal(dispatch.body.inputs.head, fixture.headSha)
+    assert.equal(dispatch.body.inputs.base, fixture.baseSha)
+    assert.equal(records.some((item) => item.query?.event === "workflow_dispatch"), true)
+    const listedDispatch = records.filter((item) => item.method === "GET" && String(item.path).includes("/actions/runs"))
+    assert.ok(listedDispatch.length > 0)
+    const merge = records.find((item) => item.method === "PUT" && item.path.endsWith("/merge"))
+    assert.ok(merge)
+    assert.equal(merge.body.sha, fixture.headSha)
   } finally {
     rmSync(fixture.staging, { recursive: true, force: true })
   }

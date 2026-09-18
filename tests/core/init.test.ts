@@ -183,6 +183,21 @@ describe("ci-queue init", () => {
     expect(readQueueConfig(repo).config.presets.check.argv).toEqual(["npm", "run", "check"])
   })
 
+  it("refuses npm check inference when another package manager is present", async () => {
+    const repo = initGitRepo()
+    const state = tempDir("ci-queue-init-state-")
+    writeFileSync(
+      join(repo, "package.json"),
+      JSON.stringify({ name: "fixture", scripts: { check: "node ./check.mjs" } }),
+    )
+    writeFileSync(join(repo, "go.mod"), "module example.com/fixture\n")
+
+    await expect(initProject(repo, { stateRoot: state, baseRef: "dest/dev" })).rejects.toMatchObject({
+      name: "InitError",
+      code: "ARGV_REQUIRED",
+    })
+  })
+
   it("returns already-initialized for an unchanged valid catalog and errors on requested change", async () => {
     const repo = initGitRepo()
     const state = tempDir("ci-queue-init-state-")
@@ -225,7 +240,7 @@ describe("ci-queue init", () => {
     }
     extra.ship = {
       ...(extra.ship as object),
-      acceptedPresets: ["check", "other"],
+      acceptedPresets: ["check"],
     }
     extra.presets = {
       ...(extra.presets as Record<string, unknown>),
@@ -256,7 +271,7 @@ describe("ci-queue init", () => {
     expect(presets.check.argv).toEqual(["go", "test", "./..."])
     expect(presets.check.abortOnStaleBase).toBe(true)
     expect(presets.check.note).toBe("operator flag")
-    expect((raw.ship as { acceptedPresets: string[] }).acceptedPresets).toEqual(["check", "other"])
+    expect((raw.ship as { acceptedPresets: string[] }).acceptedPresets).toEqual(["check"])
   })
 
   it("reuses one identity across worktrees and refuses two", async () => {

@@ -380,7 +380,7 @@ function pullIdentity(pull: GitHubPull): {
     fail("TARGET_INVALID", "PR sem HEAD/base utilizáveis")
   }
   if (pull.head?.repo?.id !== pull.base?.repo?.id) fail("FORK_UNSUPPORTED", "forks não são suportados")
-  if (pull.mergeable_state === "queued" || pull.auto_merge) {
+  if (pull.merged !== true && (pull.mergeable_state === "queued" || pull.auto_merge)) {
     fail("MERGE_QUEUE_UNSUPPORTED", "merge queue não é suportado")
   }
   return { headBranch, headSha, baseBranch, baseSha, isDraft: pull.draft === true }
@@ -409,6 +409,40 @@ async function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
 function workflowMatches(runPath: string | undefined, workflow: string): boolean {
   if (!runPath) return false
   return runPath === workflow || runPath === basename(workflow) || basename(runPath) === basename(workflow)
+}
+
+function parseVerdictTitle(title: string | undefined): { pr: number; headSha: string; baseSha: string } | undefined {
+  if (!title) return undefined
+  const match = title.match(/\bPR (\d+) H ([0-9a-f]{40}) B0 ([0-9a-f]{40})\b/i)
+  if (!match) return undefined
+  return {
+    pr: Number(match[1]),
+    headSha: match[2]!.toLowerCase(),
+    baseSha: match[3]!.toLowerCase(),
+  }
+}
+
+function sameSha(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase()
+}
+
+function bindVerdictIdentity(
+  run: {
+    display_title?: string
+    name?: string
+    pull_requests?: Array<{ number?: number; head?: { sha?: string }; base?: { sha?: string } }>
+  },
+  target: ShipTarget,
+): { pr: number; headSha: string; baseSha: string } | undefined {
+  const named = parseVerdictTitle(run.display_title) ?? parseVerdictTitle(run.name)
+  if (named) return named
+  const pulls = run.pull_requests ?? []
+  const pull = pulls.find((item) => item.number === target.pr) ?? pulls[0]
+  const pr = Number.isSafeInteger(pull?.number) ? pull!.number as number : undefined
+  const headSha = typeof pull?.head?.sha === "string" && SHA.test(pull.head.sha) ? pull.head.sha : undefined
+  const baseSha = typeof pull?.base?.sha === "string" && SHA.test(pull.base.sha) ? pull.base.sha : undefined
+  if (pr === undefined || !headSha || !baseSha) return undefined
+  return { pr, headSha: headSha.toLowerCase(), baseSha: baseSha.toLowerCase() }
 }
 
 export function createSystemOps(input: SystemOpsInput): ShipOps {
@@ -529,6 +563,7 @@ export function createSystemOps(input: SystemOpsInput): ShipOps {
         configPath: loaded.configPath,
         configDigest: catalog.digest,
         isDraft: identity.isDraft,
+        ...(pull.merged === true ? { alreadyMerged: true } : {}),
       }
     },
     async readShipConfig(target: ShipTarget): Promise<ShipConfig> {
@@ -539,9 +574,8 @@ export function createSystemOps(input: SystemOpsInput): ShipOps {
       if (!loaded.ship) fail("SHIP_CONFIG", "bloco ship ausente ou incompleto")
       return loaded.ship
     },
-    async readProofQuery(target: ShipTarget): Promise<ShipProofQuery> {
-      const signal = new AbortController().signal
-      return (await readQueryFromTarget(target, signal)).query
+    async readProofQuery(target: ShipTarget, signal?: AbortSignal): Promise<ShipProofQuery> {
+      return (await readQueryFromTarget(target, signal ?? new AbortController().signal)).query
     },
     async readHistory(query: ShipProofQuery): Promise<unknown[]> {
       return listHistoryJobs(input.stateRoot, query.projectId)
@@ -622,50 +656,58 @@ export function createSystemOps(input: SystemOpsInput): ShipOps {
       if (result.status !== 0) fail("TARGET_INVALID", result.stderr.trim() || "não foi possível marcar a PR ready")
     },
     async observeVerdict(inputVerdict: VerdictRequest, signal: AbortSignal): Promise<VerdictRun | undefined> {
-      const runsRaw = await ghJson(
-        [`/repos/${inputVerdict.target.repo}/actions/runs?head_sha=${inputVerdict.target.headSha}`],
-        signal,
-      )
-      const runs = runsRaw && typeof runsRaw === "object" && !Array.isArray(runsRaw)
-        ? (runsRaw as { workflow_runs?: unknown[] }).workflow_runs ?? []
-        : []
+      const repo = inputVerdict.target.repo
+      const queries = [
+        `head_sha=${inputVerdict.target.headSha}&per_page=30`,
+        "event=workflow_dispatch&per_page=30",
+      ]
+      const seen = new Set<number>()
+      const runs: unknown[] = []
+      for (const query of queries) {
+        const runsRaw = await ghJson([`/repos/${repo}/actions/runs?${query}`], signal)
+        const page = runsRaw && typeof runsRaw === "object" && !Array.isArray(runsRaw)
+          ? (runsRaw as { workflow_runs?: unknown[] }).workflow_runs ?? []
+          : []
+        for (const raw of page) {
+          if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue
+          const id = (raw as { id?: number }).id
+          if (typeof id !== "number" || !Number.isSafeInteger(id) || seen.has(id)) continue
+          seen.add(id)
+          runs.push(raw)
+        }
+      }
       for (const raw of runs) {
-        if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue
         const run = raw as {
           id?: number
           run_attempt?: number
           head_sha?: string
           path?: string
+          name?: string
+          display_title?: string
           status?: string
           conclusion?: string | null
           pull_requests?: Array<{ number?: number; head?: { sha?: string }; base?: { sha?: string } }>
         }
         if (!workflowMatches(run.path, inputVerdict.workflow)) continue
+        const identity = bindVerdictIdentity(run, inputVerdict.target)
+        if (!identity) continue
+        if (identity.pr !== inputVerdict.target.pr) continue
+        if (!sameSha(identity.headSha, inputVerdict.target.headSha)) continue
+        if (!sameSha(identity.baseSha, inputVerdict.target.baseSha)) continue
         const runId = run.id
         if (typeof runId !== "number" || !Number.isSafeInteger(runId)) continue
-        const jobsRaw = await ghJson(
-          [`/repos/${inputVerdict.target.repo}/actions/runs/${runId}/jobs`],
-          signal,
-        )
+        const jobsRaw = await ghJson([`/repos/${repo}/actions/runs/${runId}/jobs`], signal)
         const jobs = jobsRaw && typeof jobsRaw === "object" && !Array.isArray(jobsRaw)
           ? (jobsRaw as { jobs?: Array<{ name?: string; status?: string; conclusion?: string | null }> }).jobs ?? []
           : []
         const job = jobs.find((item) => item.name === inputVerdict.job)
         if (!job) continue
-        const pulls = run.pull_requests ?? []
-        const pull = pulls.find((item) => item.number === inputVerdict.target.pr) ?? pulls[0]
-        const headSha = typeof run.head_sha === "string" && SHA.test(run.head_sha)
-          ? run.head_sha
-          : inputVerdict.target.headSha
-        const reportedBase = typeof pull?.base?.sha === "string" && SHA.test(pull.base.sha)
-          ? pull.base.sha
-          : undefined
         return {
           id: runId,
           attempt: Number.isSafeInteger(run.run_attempt) ? run.run_attempt as number : 1,
-          pr: Number.isSafeInteger(pull?.number) ? pull!.number as number : inputVerdict.target.pr,
-          headSha,
-          baseSha: reportedBase ?? (headSha === inputVerdict.target.headSha ? inputVerdict.target.baseSha : ""),
+          pr: identity.pr,
+          headSha: identity.headSha,
+          baseSha: identity.baseSha,
           workflow: inputVerdict.workflow,
           job: inputVerdict.job,
           status: job.status ?? run.status ?? "",

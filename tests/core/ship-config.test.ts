@@ -17,6 +17,9 @@ function writeCatalog(project: string, body: Record<string, unknown>) {
       check: {
         argv: [process.execPath, "-e", "process.exit(0)"],
         fetchBase: "dest/dev",
+        requireCleanTree: true,
+        requireGitStability: true,
+        pinHeadSha: true,
       },
     },
     ...body,
@@ -128,6 +131,23 @@ describe("ship catalog block", () => {
       },
     })
     expect(() => readQueueConfig(project)).toThrow()
+  })
+
+  it("rejects acceptedPresets whose recipe is not ship-bound", () => {
+    const project = mkdtempSync(join(tmpdir(), "ci-queue-project-"))
+    cleanup.push(project)
+    writeFileSync(join(project, "ci-queue.json"), JSON.stringify({
+      schemaVersion: 1,
+      project: { id: "fixture-project", name: "Fixture" },
+      presets: {
+        check: {
+          argv: [process.execPath, "-e", "process.exit(0)"],
+          fetchBase: "dest/dev",
+        },
+      },
+      ship: { acceptedPresets: ["check"], attestationContext: "local/check" },
+    }))
+    expect(() => readQueueConfig(project)).toThrow(/pinHeadSha|requireCleanTree|requireGitStability/)
   })
 
   it("rejects empty attestationContext", () => {

@@ -95,7 +95,16 @@ function readShip(value: unknown, presets: Record<string, ProjectPreset>): ShipC
     }
     if (seen.has(item)) throw new Error("ship.acceptedPresets deve ser único")
     seen.add(item)
-    if (!presets[item]) throw new Error(`ship.acceptedPresets referencia preset desconhecido: ${item}`)
+    const preset = presets[item]
+    if (!preset) throw new Error(`ship.acceptedPresets referencia preset desconhecido: ${item}`)
+    if (
+      preset.requireCleanTree !== true
+      || preset.requireGitStability !== true
+      || preset.pinHeadSha !== true
+      || !preset.fetchBase
+    ) {
+      throw new Error(`ship.acceptedPresets ${item} precisa requireCleanTree, requireGitStability, pinHeadSha e fetchBase`)
+    }
     acceptedPresets.push(item)
   }
   const attestationContext = raw.attestationContext
