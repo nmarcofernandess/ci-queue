@@ -652,13 +652,20 @@ export function createSystemOps(input: SystemOpsInput): ShipOps {
           : []
         const job = jobs.find((item) => item.name === inputVerdict.job)
         if (!job) continue
-        const pull = run.pull_requests?.[0]
+        const pulls = run.pull_requests ?? []
+        const pull = pulls.find((item) => item.number === inputVerdict.target.pr) ?? pulls[0]
+        const headSha = typeof run.head_sha === "string" && SHA.test(run.head_sha)
+          ? run.head_sha
+          : inputVerdict.target.headSha
+        const reportedBase = typeof pull?.base?.sha === "string" && SHA.test(pull.base.sha)
+          ? pull.base.sha
+          : undefined
         return {
           id: runId,
           attempt: Number.isSafeInteger(run.run_attempt) ? run.run_attempt as number : 1,
           pr: Number.isSafeInteger(pull?.number) ? pull!.number as number : inputVerdict.target.pr,
-          headSha: run.head_sha ?? inputVerdict.target.headSha,
-          baseSha: pull?.base?.sha ?? "",
+          headSha,
+          baseSha: reportedBase ?? (headSha === inputVerdict.target.headSha ? inputVerdict.target.baseSha : ""),
           workflow: inputVerdict.workflow,
           job: inputVerdict.job,
           status: job.status ?? run.status ?? "",

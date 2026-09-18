@@ -212,15 +212,12 @@ if (method === "POST" && /\\/actions\\/workflows\\/.+\\/dispatches$/.test(path))
   state.runs = [{
     id: 88,
     run_attempt: 1,
+    event: "workflow_dispatch",
     head_sha: state.headSha,
     path: ".github/workflows/ci-queue-verdict.yml",
     status: "completed",
     conclusion: "success",
-    pull_requests: [{
-      number: state.pr,
-      head: { sha: state.headSha },
-      base: { sha: state.originalBaseSha },
-    }],
+    pull_requests: [],
   }]
   state.jobs = [{ name: "ci-verdict", status: "completed", conclusion: "success" }]
   writeFileSync(statePath, JSON.stringify(state) + "\\n")
