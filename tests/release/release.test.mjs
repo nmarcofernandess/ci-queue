@@ -13,7 +13,19 @@ function fixture() {
   writeFileSync(join(root, "package-lock.json"), "{}\n")
   writeFileSync(join(root, "LICENSE"), "MIT\n")
   writeFileSync(join(root, "README.md"), "# CI Queue\n")
-  for (const path of ["bin/ci-queue.mjs", "dist/cli.js", "backend/ci_queue_api/__main__.py", "ui/dist/index.html", "examples/local-project/ci-queue.json", "scripts/install.mjs", "scripts/release.mjs", "scripts/legacy-projects.mjs", "docs/INSTALL.md"]) {
+  for (const path of [
+    "bin/ci-queue.mjs",
+    "dist/cli.js",
+    "backend/ci_queue_api/__main__.py",
+    "ui/dist/index.html",
+    "examples/local-project/ci-queue.json",
+    "scripts/install.mjs",
+    "scripts/release.mjs",
+    "scripts/legacy-projects.mjs",
+    "scripts/ci/verify-local-attestation.sh",
+    "templates/github/ci-queue-verdict.yml",
+    "docs/INSTALL.md",
+  ]) {
     const target = join(root, path)
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, path)
@@ -35,6 +47,8 @@ test("builds a self-contained manifest and detects tampering", () => {
     assert.equal(manifest.files.some((entry) => entry.path === "examples/local-project/ci-queue.json"), true)
     assert.equal(manifest.files.some((entry) => entry.path === "scripts/install.mjs"), true)
     assert.equal(manifest.files.some((entry) => entry.path === "scripts/legacy-projects.mjs"), true)
+    assert.equal(manifest.files.some((entry) => entry.path === "templates/github/ci-queue-verdict.yml"), true)
+    assert.equal(manifest.files.some((entry) => entry.path === "scripts/ci/verify-local-attestation.sh"), true)
     assert.equal(verifyRelease(destination).revision, "a".repeat(40))
     writeFileSync(join(destination, "dist/cli.js"), "alterado")
     assert.throws(() => verifyRelease(destination), /integridade inválida/)

@@ -34,6 +34,8 @@ const releasePaths = [
   "scripts/install.mjs",
   "scripts/legacy-projects.mjs",
   "scripts/release.mjs",
+  "scripts/ci/verify-local-attestation.sh",
+  "templates",
   "docs",
   "package.json",
   "package-lock.json",

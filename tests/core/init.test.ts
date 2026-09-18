@@ -342,11 +342,17 @@ describe("ci-queue init", () => {
     expect(readFileSync(join(state, "state", "projects.json"), "utf8")).toBe(registryBefore)
   })
 
-  it("names WORKFLOW_TEMPLATE_MISSING and never copies ci.yml", async () => {
+  it("treats --workflow as a requested change on an existing catalog", async () => {
     const repo = initGitRepo()
     const state = tempDir("ci-queue-init-state-")
     mkdirSync(join(repo, ".github", "workflows"), { recursive: true })
     writeFileSync(join(repo, ".github", "workflows", "ci.yml"), "name: consumer\n")
+    await initProject(repo, {
+      stateRoot: state,
+      argv: ARGV,
+      baseRef: "dest/dev",
+    })
+    const before = readFileSync(join(repo, "ci-queue.json"), "utf8")
 
     await expect(
       initProject(repo, {
@@ -355,8 +361,8 @@ describe("ci-queue init", () => {
         argv: ARGV,
         baseRef: "dest/dev",
       }),
-    ).rejects.toMatchObject({ name: "InitError", code: "WORKFLOW_TEMPLATE_MISSING" })
-    expect(existsSync(join(repo, "ci-queue.json"))).toBe(false)
+    ).rejects.toMatchObject({ name: "InitError", code: "CONFIG_EXISTS" })
+    expect(readFileSync(join(repo, "ci-queue.json"), "utf8")).toBe(before)
     expect(existsSync(join(repo, ".github", "workflows", "ci-queue-verdict.yml"))).toBe(false)
     expect(readFileSync(join(repo, ".github", "workflows", "ci.yml"), "utf8")).toBe("name: consumer\n")
   })

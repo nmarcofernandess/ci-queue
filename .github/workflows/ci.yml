@@ -7,6 +7,9 @@ name: CI Queue checks
 # 3) Draft: job skipped (0 min). Sem crédito no ready: falha de plataforma; merge
 #    com prova local sem esperar Actions (equivalente a --no-remote).
 
+run-name: >-
+  ci-verdict PR ${{ github.event.pull_request.number || '-' }} H ${{ github.event.pull_request.head.sha || github.sha }} B0 ${{ github.event.pull_request.base.sha || '-' }} attempt ${{ github.run_attempt }}
+
 on:
   push:
     branches: [main]
@@ -47,6 +50,11 @@ jobs:
           EVENT_BEFORE: ${{ github.event.before }}
           PR_BASE_REF: ${{ github.base_ref }}
           EVENT_NAME: ${{ github.event_name }}
+          repo: ${{ github.repository }}
+          H: ${{ github.event.pull_request.head.sha || github.sha }}
+          B0: ${{ github.event.pull_request.base.sha }}
+          context: local/check
+          pr: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" = "pull_request" ]; then
@@ -64,12 +72,14 @@ jobs:
           docs_only="$(printf '%s\n' "$changed" | bash scripts/ci/classify-docs-only.sh)"
           printf 'docs_only=%s\n' "$docs_only" >> "$GITHUB_OUTPUT"
 
-          if [ "$EVENT_NAME" != "pull_request" ] || [ -z "${BASE_SHA}" ]; then
+          if [ "$EVENT_NAME" != "pull_request" ] || [ -z "${B0:-}" ] || [ -z "${pr:-}" ]; then
             echo "local_proof_valid=false" >> "$GITHUB_OUTPUT"
           else
-            proof_hits=$(gh api "repos/${{ github.repository }}/commits/$HEAD_SHA/status" \
-              --jq '[.statuses[] | select(.context == "local/check" and .state == "success" and .description == "base:'"$BASE_SHA"'")] | length')
-            if [ "$proof_hits" -gt 0 ]; then
+            set +e
+            bash scripts/ci/verify-local-attestation.sh
+            proof_ok=$?
+            set -e
+            if [ "$proof_ok" -eq 0 ]; then
               echo "local_proof_valid=true" >> "$GITHUB_OUTPUT"
             else
               echo "local_proof_valid=false" >> "$GITHUB_OUTPUT"

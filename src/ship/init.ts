@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process"
 import { randomBytes, randomUUID } from "node:crypto"
-import { existsSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs"
 import { basename, dirname, isAbsolute, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -34,6 +34,11 @@ export class InitError extends Error {
     this.code = code
   }
 }
+
+export const CI_QUEUE_VERDICT_WORKFLOW = ".github/workflows/ci-queue-verdict.yml"
+export const CI_QUEUE_VERDICT_SCRIPT = ".github/scripts/verify-local-attestation.sh"
+const CONTEXT_TOKEN = "__CI_QUEUE_ATTESTATION_CONTEXT__"
+const BRANCH_TOKEN = "__CI_QUEUE_DEFAULT_BRANCH__"
 
 const STRIP_GIT = [
   "GIT_DIR",
@@ -92,10 +97,71 @@ function workflowTemplatePath(): string {
   return join(dirname(fileURLToPath(import.meta.url)), "..", "..", "templates", "github", "ci-queue-verdict.yml")
 }
 
-function atomicWriteFile(path: string, text: string): void {
+function verifierScriptPath(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "..", "..", "scripts", "ci", "verify-local-attestation.sh")
+}
+
+function yamlSingleQuote(value: string): string {
+  return value.replaceAll("'", "''")
+}
+
+function validateRenderedContext(context: string): void {
+  if (!context.trim() || context.length > 100 || context.includes("\n")) {
+    throw new InitError("CONFIG_INVALID", "ship.attestationContext inválido")
+  }
+}
+
+function validateDefaultBranch(branch: string): void {
+  if (
+    !branch.trim()
+    || branch.includes("\n")
+    || branch.includes("..")
+    || branch.startsWith("/")
+    || branch.includes("\\")
+    || !/^[A-Za-z0-9._/-]+$/.test(branch)
+  ) {
+    throw new InitError("BASE_REF_INVALID", "base-ref inválido")
+  }
+}
+
+export function renderCiQueueVerdictWorkflow(input: {
+  attestationContext: string
+  defaultBranch: string
+}): string {
+  const path = workflowTemplatePath()
+  if (!existsSync(path)) {
+    throw new InitError("WORKFLOW_TEMPLATE_MISSING", "template de workflow ausente nesta distribuição")
+  }
+  const template = readFileSync(path, "utf8")
+  if (!template.includes(CONTEXT_TOKEN) || !template.includes(BRANCH_TOKEN)) {
+    throw new InitError("WORKFLOW_TEMPLATE_MISSING", "template de workflow ausente nesta distribuição")
+  }
+  validateRenderedContext(input.attestationContext)
+  validateDefaultBranch(input.defaultBranch)
+  return template
+    .replaceAll(CONTEXT_TOKEN, yamlSingleQuote(input.attestationContext.trim()))
+    .replaceAll(BRANCH_TOKEN, yamlSingleQuote(input.defaultBranch))
+}
+
+function atomicWriteFile(path: string, text: string, mode = 0o644): void {
   const temporary = `${path}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`
-  writeFileSync(temporary, text, { encoding: "utf8", mode: 0o644 })
+  writeFileSync(temporary, text, { encoding: "utf8", mode })
   renameSync(temporary, path)
+}
+
+function writeNewFile(path: string, text: string, mode = 0o644): boolean {
+  if (existsSync(path)) return false
+  mkdirSync(dirname(path), { recursive: true })
+  atomicWriteFile(path, text, mode)
+  return true
+}
+
+function distributionHasWorkflowAssets(): boolean {
+  return existsSync(workflowTemplatePath()) && existsSync(verifierScriptPath())
+}
+
+function workflowDestinationsExist(root: string): boolean {
+  return existsSync(join(root, CI_QUEUE_VERDICT_WORKFLOW)) && existsSync(join(root, CI_QUEUE_VERDICT_SCRIPT))
 }
 
 function resolveWorktree(cwd: string): { root: string; commonDir: string } {
@@ -266,7 +332,7 @@ function resolveName(worktree: string, options: InitOptions, existing?: QueuePro
   return name.trim()
 }
 
-function requestedChange(config: QueueProjectConfig, options: InitOptions): boolean {
+function requestedChange(config: QueueProjectConfig, options: InitOptions, root: string): boolean {
   if (options.name !== undefined && options.name.trim() !== config.project.name) return true
   if (options.argv !== undefined && JSON.stringify([...options.argv]) !== JSON.stringify(config.presets.check?.argv ?? [])) {
     return true
@@ -274,6 +340,11 @@ function requestedChange(config: QueueProjectConfig, options: InitOptions): bool
   if (options.baseRef !== undefined) {
     const current = config.presets.check?.fetchBase ?? config.repository?.baseRef
     if (options.baseRef !== current) return true
+  }
+  if (options.workflow) {
+    const remote = config.ship?.remoteVerdict
+    const pointed = remote?.workflow === CI_QUEUE_VERDICT_WORKFLOW && remote?.job === "ci-verdict"
+    if (!pointed || !workflowDestinationsExist(root)) return true
   }
   return false
 }
@@ -350,7 +421,7 @@ function finished(
 }
 
 export async function initProject(cwd: string, options: InitOptions): Promise<InitResult> {
-  if (options.workflow && !existsSync(workflowTemplatePath())) {
+  if (options.workflow && !distributionHasWorkflowAssets()) {
     throw new InitError("WORKFLOW_TEMPLATE_MISSING", "template de workflow ausente nesta distribuição")
   }
 
@@ -363,7 +434,7 @@ export async function initProject(cwd: string, options: InitOptions): Promise<In
 
   const registry = readRegistry(options.stateRoot)
   if (catalog.kind === "valid" && !options.force) {
-    if (requestedChange(catalog.config, options)) {
+    if (requestedChange(catalog.config, options, root)) {
       throw new InitError("CONFIG_EXISTS", "ci-queue.json já existe; use --force para alterar")
     }
     return finished(root, catalog.config.project.id, [], "already-initialized", registry)
@@ -391,11 +462,44 @@ export async function initProject(cwd: string, options: InitOptions): Promise<In
     argv,
     baseRef,
   })
+  if (options.workflow) {
+    const ship = asObject(document.ship)
+    document.ship = {
+      ...ship,
+      remoteVerdict: {
+        workflow: CI_QUEUE_VERDICT_WORKFLOW,
+        job: "ci-verdict",
+      },
+    }
+  }
   parseQueueConfig(document, root)
+
+  let workflowText: string | undefined
+  let verifierText: string | undefined
+  if (options.workflow) {
+    const ship = asObject(document.ship)
+    const attestationContext = typeof ship.attestationContext === "string" ? ship.attestationContext : ""
+    const defaultBranch = resolveRemoteBase(baseRef, listRemotes(root)).branch
+    workflowText = renderCiQueueVerdictWorkflow({ attestationContext, defaultBranch })
+    verifierText = readFileSync(verifierScriptPath(), "utf8")
+  }
+
   const text = `${JSON.stringify(document, null, 2)}\n`
-  if (catalog.kind === "valid" && readFileSync(configPath, "utf8") === text) {
+  const written: string[] = []
+  if (!(catalog.kind === "valid" && readFileSync(configPath, "utf8") === text)) {
+    atomicWriteFile(configPath, text)
+    written.push(CONFIG_FILENAME)
+  }
+  if (workflowText !== undefined && verifierText !== undefined) {
+    if (writeNewFile(join(root, CI_QUEUE_VERDICT_WORKFLOW), workflowText)) {
+      written.push(CI_QUEUE_VERDICT_WORKFLOW)
+    }
+    if (writeNewFile(join(root, CI_QUEUE_VERDICT_SCRIPT), verifierText, 0o755)) {
+      written.push(CI_QUEUE_VERDICT_SCRIPT)
+    }
+  }
+  if (written.length === 0) {
     return finished(root, projectId, [], "already-initialized", registry)
   }
-  atomicWriteFile(configPath, text)
-  return finished(root, projectId, [CONFIG_FILENAME], existing ? "updated" : "created", registry)
+  return finished(root, projectId, written, existing ? "updated" : "created", registry)
 }
