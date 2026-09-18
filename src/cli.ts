@@ -16,6 +16,8 @@ import {
 } from "./contracts/schema.js"
 import { SPEND_ABORT_CAPABILITY } from "./core/spend-abort.js"
 import { JOB_ENV_CAPABILITY, cancelQueuedOrRunningTicket } from "./core/runner.js"
+import { RUNTIME_CAPABILITY } from "./contracts/runtime.js"
+import { registerProjectRuntime, readRuntimeRegistry, runtimeRegistryPath, RuntimeError } from "./core/runtime.js"
 import { enqueueExplicitTicket, enqueueTicket } from "./core/enqueue.js"
 import { runWorker } from "./core/worker.js"
 import { findJobById, listHistoryJobs, listQueuedJobs, readRunningJob, resolveStateRoot } from "./core/state.js"
@@ -119,6 +121,8 @@ function usage(): string {
     "  preset-history [--preset NAME]",
     "  advisory upsert --preset NAME --head-sha SHA --reason TEXT [--pr N]",
     "  advisory list",
+    "  runtime show",
+    "  runtime register --project ID --node PATH [--version x.y.z] [--npm-cli PATH] [--npx-cli PATH]",
     "  logs [latest|<ticketId>]",
     "  cancel <ticketId>",
     "  config",
@@ -143,7 +147,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, "ship", "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, "ship", "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
       }
       case "init": {
@@ -250,6 +254,34 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           reason,
           ...(pr !== undefined ? { pr } : {}),
         }))
+      }
+      case "runtime": {
+        const action = args.rest.find((item) => !item.startsWith("--"))
+        if (action === "show") {
+          try {
+            const registry = readRuntimeRegistry(root) ?? { schemaVersion: 1 as const, projects: {} }
+            return success({ registryPath: runtimeRegistryPath(root), registry })
+          } catch (error) {
+            if (error instanceof RuntimeError) return failure(error.code, error.message)
+            throw error
+          }
+        }
+        if (action !== "register") return failure("USAGE", "runtime requer show ou register")
+        const projectId = optionValue(args.rest, "--project")
+        const node = optionValue(args.rest, "--node")
+        if (!projectId || !node) return failure("USAGE", "runtime register requer --project e --node")
+        try {
+          return success(registerProjectRuntime(root, {
+            projectId,
+            node,
+            ...(optionValue(args.rest, "--version") ? { version: optionValue(args.rest, "--version") } : {}),
+            ...(optionValue(args.rest, "--npm-cli") ? { npmCli: optionValue(args.rest, "--npm-cli") } : {}),
+            ...(optionValue(args.rest, "--npx-cli") ? { npxCli: optionValue(args.rest, "--npx-cli") } : {}),
+          }))
+        } catch (error) {
+          if (error instanceof RuntimeError) return failure(error.code, error.message)
+          throw error
+        }
       }
       case "logs": {
         const requested = args.rest.find((item) => !item.startsWith("--")) ?? "latest"

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "projects": {
+    "project-node24": {
+      "node": {
+        "executable": "/Users/ci/.local/share/runtimes/node/v24.20.0-darwin-arm64/bin/node",
+        "version": "24.20.0"
+      },
+      "npmCli": "/Users/ci/.local/share/runtimes/node/v24.20.0-darwin-arm64/lib/node_modules/npm/bin/npm-cli.js",
+      "npxCli": "/Users/ci/.local/share/runtimes/node/v24.20.0-darwin-arm64/lib/node_modules/npm/bin/npx-cli.js",
+      "toolPaths": []
+    },
+    "project-node22": {
+      "node": {
+        "executable": "/Users/ci/.local/share/runtimes/node/v22.16.0-darwin-arm64/bin/node",
+        "version": "22.16.0"
+      },
+      "npmCli": "/Users/ci/.local/share/runtimes/node/v22.16.0-darwin-arm64/lib/node_modules/npm/bin/npm-cli.js",
+      "npxCli": "/Users/ci/.local/share/runtimes/node/v22.16.0-darwin-arm64/lib/node_modules/npm/bin/npx-cli.js",
+      "toolPaths": []
+    }
+  }
+}

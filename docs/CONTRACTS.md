@@ -27,6 +27,13 @@ o browser usa trechos limitados e redigidos. Ausência de log é erro, não suce
 vazio. `version --json` identifica capabilities; na distribuição, a CLI
 informa a revisão e o digest do manifest adjacente ao runtime. No checkout sem
 manifest esses campos são null; nunca são inferidos do Git ou do cwd.
+A capability `node-runtime-guard-v1` anuncia o pin opt-in de Node por
+`projectId` em `<state-root>/runtimes.json`. Sem entrada, o job permanece
+`unconfigured`. Com entrada, o receipt em `history/<id>.json` registra o
+executável, a versão e as observações. `verified` cobre processos observados,
+não a árvore inteira. Detalhe: [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md).
+`ci-queue runtime show|register` grava o registry; não coloque o pin em
+`ci-queue.json`.
 
 Tickets v1/v2/v3 permanecem legíveis. `jobs/` contém a espera, `running.json`
 a reserva ativa e `history/` os terminais. O único worker reivindica a fila sob
