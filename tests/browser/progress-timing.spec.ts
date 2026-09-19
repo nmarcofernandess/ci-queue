@@ -70,6 +70,7 @@ test("tree and stages share duration source presentation", async ({ page }) => {
     finishedAt: new Date().toISOString(),
     durationMs: 130000,
     cwd: "/example",
+    progressEnabled: true,
     progressSummary: {
       available: true,
       schemaVersion: 1,

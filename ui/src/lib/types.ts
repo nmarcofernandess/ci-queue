@@ -62,6 +62,7 @@ export type JobRecord = {
   failureReason?: string | null
   cleanupBlockedReason?: string | null
   commitSubject?: string
+  progressEnabled: boolean
   progressSummary?: ProgressSummary
   durationReference?: {
     medianMs: number

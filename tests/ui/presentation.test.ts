@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { describeJobState, describeProgressState, elapsedPresentation, inspectPresentation, INSPECT_LABEL } from '../../ui/src/features/shared/presentation'
+import {
+  describeJobState,
+  describeProgressState,
+  elapsedPresentation,
+  inspectPresentation,
+  INSPECT_LABEL,
+  progressSurface,
+  unconfiguredProgressCopy,
+} from '../../ui/src/features/shared/presentation'
 import { projectChipVisible } from '../../ui/src/features/shared/project-chip-model'
 
 describe('presentation preserves published semantics', () => {
@@ -35,5 +43,34 @@ describe('presentation preserves published semantics', () => {
     expect(projectChipVisible(job, { filterProjectId: 'alpha' })).toBe(true)
     expect(projectChipVisible(job, { filterProjectId: 'beta' })).toBe(false)
     expect(projectChipVisible({ projectId: 'beta' }, { always: true })).toBe(false)
+  })
+  it('unconfigured progress uses default alert copy and does not mark the job failed', () => {
+    const job = {
+      status: 'passed' as const,
+      progressEnabled: false,
+      progressSummary: {
+        schemaVersion: 1,
+        available: true,
+        nodes: [{ id: 'artifacts', label: 'Artefatos', kind: 'artifact' as const, status: 'passed' as const }],
+      },
+    }
+    expect(progressSurface(job)).toBe('unconfigured')
+    expect(unconfiguredProgressCopy).toEqual({
+      variant: 'default',
+      title: 'Progresso contínuo não configurado',
+      description: 'Esta receita não declara progresso contínuo. Os estágios da execução não aparecem.',
+    })
+    expect(job.status).toBe('passed')
+  })
+  it('declared-but-silent still uses non-failure empty copy', () => {
+    expect(progressSurface({ progressEnabled: true })).toBe('declared-silent')
+  })
+  it('failureReason Alert remains destructive and separate', () => {
+    expect(progressSurface({
+      progressEnabled: false,
+      failureReason: 'A recorded fixture assertion failed',
+      status: 'failed',
+    })).toBe('unconfigured')
+    expect(unconfiguredProgressCopy.variant).not.toBe('destructive')
   })
 })

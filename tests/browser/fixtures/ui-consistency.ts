@@ -16,6 +16,7 @@ export const fixtureJob: JobRecord = {
   branch: 'feature/long-consumer-branch-for-interface-consistency', headSha: 'a'.repeat(40),
   createdAt: '2026-09-15T11:58:00Z', startedAt: '2026-09-15T11:59:00Z',
   cwd: '/example/projects/a-long-project-name/checkout-with-a-long-directory-name', commitSubject:'Preserve readable progress and shared detail composition',
+  progressEnabled: true,
   progressSummary: { available: true, schemaVersion: 1, nodes: fixtureNodes, roots: fixtureNodes.filter(n => !n.parentId), active: fixtureNodes.filter(n => n.status === 'running') },
 }
 const nodesWithoutRetries = fixtureNodes.map(node => ({

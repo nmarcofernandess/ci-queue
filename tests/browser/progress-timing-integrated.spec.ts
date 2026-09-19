@@ -52,6 +52,7 @@ async function startCandidateApi() {
       headSha: "c".repeat(40),
       command: "node",
       logPath: "/tmp/demo.log",
+      flags: { progressEnabled: true },
       progress: {
         schema: 1,
         updatedAt: "2026-09-17T12:02:10Z",

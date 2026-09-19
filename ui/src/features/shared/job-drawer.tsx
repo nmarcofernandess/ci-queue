@@ -23,7 +23,7 @@ import {
   DetailDrawerFooter,
 } from "./detail-drawer"
 import { FactsTable } from "./facts-table"
-import { describeJobState } from "./presentation"
+import { describeJobState, progressSurface, unconfiguredProgressCopy } from "./presentation"
 import { ProjectChip } from "./project-chip"
 import { projectChipFacts } from "./project-chip-model"
 import {
@@ -39,7 +39,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
 import { formatDuration, statusLabel } from "@/features/shared/format"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
-import { ClipboardIcon, DownloadIcon, FileWarningIcon } from "lucide-react"
+import { ClipboardIcon, CircleAlertIcon, DownloadIcon, FileWarningIcon } from "lucide-react"
 import { toast } from "sonner"
 
 const DEFAULT_CLIPBOARD_LIMIT_BYTES = 512_000
@@ -143,6 +143,7 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
     )
   const nodes =
     job.data.progressSummary?.nodes ?? job.data.progressSummary?.roots ?? []
+  const surface = progressSurface(job.data)
   return (
     <div className="flex flex-col gap-5">
       <JobDetailsTable job={job.data} />
@@ -153,8 +154,16 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
           <AlertDescription>{job.data.failureReason}</AlertDescription>
         </Alert>
       ) : null}
-      {nodes.length ? (
+      {surface === "tree" ? (
         <ProgressTree nodes={nodes} jobStatus={job.data.status} />
+      ) : surface === "unconfigured" ? (
+        <Alert variant={unconfiguredProgressCopy.variant}>
+          <CircleAlertIcon />
+          <AlertTitle>{unconfiguredProgressCopy.title}</AlertTitle>
+          <AlertDescription>
+            {unconfiguredProgressCopy.description}
+          </AlertDescription>
+        </Alert>
       ) : (
         <EmptyState
           title="Progresso não registrado"

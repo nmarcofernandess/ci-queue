@@ -6,7 +6,7 @@ import {
   XCircleIcon,
   type LucideIcon,
 } from "lucide-react"
-import type { JobStatus, ProgressNode } from "../../lib/types"
+import type { JobStatus, JobRecord, ProgressNode } from "../../lib/types"
 import { statusColor } from "./status-color"
 import { statusLabel } from "./format"
 
@@ -100,4 +100,21 @@ export function describeProgressState(
       animated: false,
     }
   return describeJobState(nodeStatus)
+}
+
+export type ProgressSurface = "tree" | "unconfigured" | "declared-silent"
+
+export const unconfiguredProgressCopy = {
+  variant: "default" as const,
+  title: "Progresso contínuo não configurado",
+  description:
+    "Esta receita não declara progresso contínuo. Os estágios da execução não aparecem.",
+}
+
+export function progressSurface(
+  job: Pick<JobRecord, "progressEnabled" | "progressSummary">
+): ProgressSurface {
+  if (job.progressEnabled !== true) return "unconfigured"
+  const nodes = job.progressSummary?.nodes ?? job.progressSummary?.roots ?? []
+  return nodes.length ? "tree" : "declared-silent"
 }

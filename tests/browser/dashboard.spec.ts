@@ -26,7 +26,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 // Isolated API fixtures exercise the real Vite UI without launching any job.
-const baseJob = { id: 'observed', preset: 'smoke', projectId: 'example', branch: 'example-branch', headSha: 'abcdef12', startedAt: new Date(Date.now()-61000).toISOString(), createdAt: new Date().toISOString(), cwd: '/example' }
+const baseJob = { id: 'observed', preset: 'smoke', projectId: 'example', branch: 'example-branch', headSha: 'abcdef12', startedAt: new Date(Date.now()-61000).toISOString(), createdAt: new Date().toISOString(), cwd: '/example', progressEnabled: true }
 const nodes = [
   { id: 'e2e', label: 'E2E', kind: 'stage', status: 'running' },
   { id: 'pw', parentId: 'e2e', label: 'Playwright', kind: 'suite', status: 'running', detail: { kind: 'cases', completed: 0, total: 1, passed: 0, failed: 0, running: 1, pending: 0, skipped: 0 } },

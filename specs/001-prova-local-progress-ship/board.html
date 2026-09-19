@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Board</title>
+<!--
+  TASK BOARD — template congelado do Superflow.
+  NUNCA edite este arquivo dentro de uma sprint. Os dados vivem em
+  board-data.js (mesmo diretório); é o ÚNICO arquivo que a execução reescreve.
+  Uso: copie board.html + board-data.example.js (renomeado board-data.js)
+  para a pasta da sprint. Abra via file:// e dê refresh após cada update.
+  Melhorias de layout acontecem AQUI no template do plugin, valendo para
+  sprints futuras — nunca na cópia de uma sprint.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --paper: #FAF9F5; --paper-2: #F2F0E9; --ink: #161815; --ink-soft: #2E332F;
+  --muted: #6E7A72; --hair: #E3E2DA; --accent: #0E9F6E; --accent-soft: rgba(14,159,110,.07);
+  --alert: #C2493F; --voce: #D6336C; --pit: #B7791F;
+  --serif: "Instrument Serif", Georgia, serif;
+  --sans: "Instrument Sans", "Helvetica Neue", sans-serif;
+  --mono: "SF Mono", ui-monospace, Menlo, monospace;
+}
+body { background: var(--paper); color: var(--ink); font-family: var(--sans);
+  font-size: 17px; line-height: 1.55; -webkit-font-smoothing: antialiased;
+  background-image: repeating-linear-gradient(0deg, transparent 0 2px, rgba(22,24,21,.012) 2px 4px); }
+.page { max-width: 860px; margin: 0 auto; padding: 0 5vw 72px; }
+.doc-plate { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .12em; color: var(--ink-soft);
+  text-transform: uppercase; border: 1px solid var(--ink); padding: 8px 14px; margin: 28px 0 0; }
+.doc-plate b { color: var(--accent); }
+.cover { padding: 40px 0 30px; border-bottom: 1px solid var(--hair); }
+.kicker { font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--accent); }
+.cover h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(34px, 5vw, 54px);
+  line-height: 1.08; max-width: 22ch; margin-top: 12px; }
+.next { border-left: 2px solid var(--accent); background: var(--accent-soft);
+  padding: 12px 18px; margin-top: 20px; font-size: 15.5px; color: var(--ink-soft); }
+.next .lab { font-family: var(--mono); font-size: 10px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--accent); display: block; margin-bottom: 3px; }
+
+.fig { position: relative; border: 1px solid var(--ink);
+  background: linear-gradient(rgba(22,24,21,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(22,24,21,.04) 1px, transparent 1px);
+  background-size: 22px 22px; background-color: #FFFFFC;
+  padding: 30px 28px 34px; margin-top: 30px; }
+.fig::after { content: attr(data-fig); position: absolute; bottom: -1px; right: -1px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  background: var(--ink); color: var(--paper); padding: 4px 12px; }
+
+.metro { display: flex; flex-direction: column; }
+.est { display: flex; align-items: flex-start; gap: 16px; }
+.est .rail { display: flex; flex-direction: column; align-items: center; width: 26px; flex: none; }
+.est .dot { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--ink);
+  background: #fff; flex: none; }
+.est .line { width: 2.5px; flex: 1; min-height: 26px; background: var(--ink); }
+.est:last-child .line { display: none; }
+.est .info { padding-bottom: 22px; min-width: 0; }
+.est .nome { font-weight: 700; font-size: 16px; }
+.est .tag { font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; border: 1px solid currentColor;
+  padding: 2px 8px; margin-left: 10px; white-space: nowrap; }
+.est .delivers { font-size: 14px; color: var(--muted); max-width: 58ch; margin-top: 2px; }
+.est .note { font-size: 13px; color: var(--ink-soft); max-width: 58ch; margin-top: 4px;
+  font-style: italic; border-left: 2px solid var(--hair); padding-left: 10px; }
+
+.est.done .dot { background: var(--accent); border-color: var(--accent); }
+.est.done .line { background: var(--accent); }
+.est.done .tag { color: var(--accent); }
+
+.est.active .dot { background: var(--voce); border-color: var(--voce);
+  box-shadow: 0 0 0 5px rgba(214,51,108,.18); animation: pulsa 1.6s ease-in-out infinite; }
+@keyframes pulsa { 50% { box-shadow: 0 0 0 9px rgba(214,51,108,.07); } }
+.est.active .tag { color: var(--voce); }
+
+.est.queued .dot { border-style: dashed; border-width: 2px; }
+.est.queued .line { background: repeating-linear-gradient(180deg, var(--ink) 0 5px, transparent 5px 10px); }
+.est.queued .tag { color: var(--muted); }
+.est.queued .nome { color: var(--ink-soft); }
+
+.est.blocked .dot { background: var(--alert); border-color: var(--alert); }
+.est.blocked .tag { color: var(--alert); }
+.est.blocked .nome { color: var(--alert); }
+
+.est.added .dot { background: #fff; border-color: var(--pit); border-style: double; border-width: 4px; }
+.est.added .tag { color: var(--pit); }
+
+.err { border: 1.5px solid var(--alert); background: #fff; color: var(--alert);
+  font-family: var(--mono); font-size: 13px; padding: 18px 20px; margin-top: 30px;
+  line-height: 1.7; }
+
+footer { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--hair);
+  padding-top: 16px; margin-top: 44px; display: flex; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px; }
+@media print { body { background: #fff; } .est.active .dot { animation: none; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="doc-plate">
+    <span id="plate-left">Task board</span>
+    <span id="plate-right"></span>
+  </div>
+  <header class="cover">
+    <div class="kicker">Task board · sprint ativa</div>
+    <h1 id="sprint-title">—</h1>
+    <div class="next" id="next-wrap" hidden>
+      <span class="lab">Próxima ação</span>
+      <span id="next-action"></span>
+    </div>
+  </header>
+  <div id="mount"></div>
+  <footer>
+    <span>superflow · task board</span>
+    <span>fonte: board-data.js · projeção de PLAN/status — nunca fonte de verdade</span>
+  </footer>
+</div>
+<script src="./board-data.js"></script>
+<script>
+(function () {
+  var STATES = {
+    done:    { tag: "feito" },
+    active:  { tag: "você está aqui" },
+    queued:  { tag: "na fila" },
+    blocked: { tag: "bloqueado" },
+    added:   { tag: "pitstop" }
+  };
+  var mount = document.getElementById("mount");
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text) node.textContent = text;
+    return node;
+  }
+
+  function showError(lines) {
+    var box = el("div", "err");
+    lines.forEach(function (line) {
+      box.appendChild(el("div", null, line));
+    });
+    mount.appendChild(box);
+  }
+
+  if (typeof BOARD === "undefined") {
+    showError([
+      "board-data.js não encontrado ou inválido.",
+      "Crie board-data.js NESTE diretório a partir de board-data.example.js",
+      "(const BOARD = { spec, sprint, updated, next, tasks: [...] };)."
+    ]);
+    return;
+  }
+
+  var problems = [];
+  if (!Array.isArray(BOARD.tasks) || BOARD.tasks.length === 0) {
+    problems.push("BOARD.tasks precisa ser uma lista com pelo menos 1 task.");
+  } else {
+    BOARD.tasks.forEach(function (task, i) {
+      if (!task.name) problems.push("tasks[" + i + "] sem name.");
+      if (!task.delivers) problems.push("tasks[" + i + "] sem delivers (obrigatório: o resultado que a task entrega).");
+      if (!STATES[task.state]) problems.push("tasks[" + i + "] com state inválido: \"" + task.state + "\" (use done|active|queued|blocked|added).");
+    });
+  }
+
+  document.getElementById("plate-left").textContent =
+    (BOARD.spec || "spec") + " · task board";
+  document.getElementById("plate-right").textContent =
+    "atualizado " + (BOARD.updated || "—");
+  document.getElementById("sprint-title").textContent = BOARD.sprint || "Sprint";
+  if (BOARD.next) {
+    document.getElementById("next-wrap").hidden = false;
+    document.getElementById("next-action").textContent = BOARD.next;
+  }
+
+  if (problems.length) {
+    showError(["board-data.js com problemas:"].concat(problems));
+    return;
+  }
+
+  var doneCount = BOARD.tasks.filter(function (t) { return t.state === "done"; }).length;
+  var fig = el("figure", "fig");
+  fig.setAttribute("data-fig", doneCount + "/" + BOARD.tasks.length + " entregues");
+  var metro = el("div", "metro");
+
+  BOARD.tasks.forEach(function (task) {
+    var est = el("div", "est " + task.state);
+    var rail = el("div", "rail");
+    rail.appendChild(el("div", "dot"));
+    rail.appendChild(el("div", "line"));
+    est.appendChild(rail);
+
+    var info = el("div", "info");
+    var nome = el("div", "nome", task.name);
+    nome.appendChild(el("span", "tag", STATES[task.state].tag));
+    info.appendChild(nome);
+    info.appendChild(el("div", "delivers", task.delivers));
+    if (task.note) info.appendChild(el("div", "note", task.note));
+    est.appendChild(info);
+    metro.appendChild(est);
+  });
+
+  fig.appendChild(metro);
+  mount.appendChild(fig);
+})();
+</script>
+</body>
+</html>

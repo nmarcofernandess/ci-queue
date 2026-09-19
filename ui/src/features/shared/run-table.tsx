@@ -54,7 +54,7 @@ import {
 import type { JobRecord, JobStatus } from "@/lib/types"
 
 const features = tableFeatures({})
-export type RunTableJob = Omit<JobRecord, "id"> & {
+export type RunTableJob = Omit<JobRecord, "id" | "progressEnabled"> & {
   id?: string
   ticketId?: string
   rowKey?: string
@@ -62,6 +62,7 @@ export type RunTableJob = Omit<JobRecord, "id"> & {
   detailsAvailable?: boolean
   origin?: "machine" | "git"
   origins?: Array<"machine" | "git">
+  progressEnabled?: boolean
 }
 const helper = createColumnHelper<typeof features, RunTableJob>()
 const EMPTY: RunTableJob[] = []
