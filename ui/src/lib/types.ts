@@ -78,8 +78,10 @@ export type StatusSnapshot = {
   serverTime: string
   running: JobRecord | null
   queued: JobRecord[]
-  history: JobRecord[]
-  lastFailed: JobRecord | null
+  projection?: "live"
+  historyRevision?: string
+  history?: JobRecord[]
+  lastFailed?: JobRecord | null
   globalOccupancy: boolean
   otherProjectOccupancy?: boolean
   context?: { kind: "project" | "all" | "unassigned"; projectId?: string }
@@ -88,6 +90,7 @@ export type StatusSnapshot = {
 
 export type ExecutionsResponse = {
   schemaVersion: number
+  projection?: "summary"
   jobs: JobRecord[]
   hasMore: boolean
   snapshotBefore: string

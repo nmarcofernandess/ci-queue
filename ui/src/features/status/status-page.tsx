@@ -19,6 +19,7 @@ import {
   type ApiQuery,
   useApiQuery,
 } from "@/lib/api"
+import { sharedPageRequest } from "@/lib/query-store"
 import type {
   DashboardState,
   PresetHistoryEntry,
@@ -693,18 +694,26 @@ function useExecutionHistory(
     nextCursor: null,
   })
 
-  React.useEffect(() => {
-    const version = requestVersion.current + 1
-    requestVersion.current = version
-    void getExecutions(scope, {
+  const initialRequest = React.useCallback(
+    (signal?: AbortSignal) => getExecutions(scope, {
       q: search || undefined,
       result,
       from: periodStart,
-    })
-      .then((page) => {
-        if (requestVersion.current !== version) {
-          return
-        }
+    }, signal),
+    [periodStart, result, scope, search]
+  )
+  const initialPage = useApiQuery(
+    `executions:${requestKey}:${historyRevision}`,
+    initialRequest,
+    { pollMs: 10_000 }
+  )
+
+  /* eslint-disable react-hooks/set-state-in-effect -- external query-store publications hydrate pagination state. */
+  React.useEffect(() => {
+    const version = requestVersion.current + 1
+    requestVersion.current = version
+    if (initialPage.data) {
+      const page = initialPage.data
         setState({
           queryKey: requestKey,
           jobs: page.jobs,
@@ -717,24 +726,29 @@ function useExecutionHistory(
           nextCursor: page.nextCursor,
           unattributedRecords: page.coverage?.unattributedRecords,
         })
-      })
-      .catch((reason) => {
-        if (requestVersion.current !== version) {
-          return
-        }
+      return
+    }
+    if (initialPage.error) {
         setState({
           queryKey: requestKey,
-          jobs: [],
+          jobs: state.queryKey === requestKey ? state.jobs : [],
           loading: false,
           loadingMore: false,
-          error: errorFrom(reason, "Não foi possível carregar o histórico."),
+          error: errorFrom(initialPage.error, "Não foi possível carregar o histórico."),
           loadMoreError: undefined,
           hasMore: false,
           snapshotBefore: undefined,
           nextCursor: null,
         })
-      })
-  }, [historyRevision, periodStart, requestKey, result, scope, search])
+      return
+    }
+    setState((current) => current.queryKey === requestKey
+      ? { ...current, loading: true }
+      : { ...current, queryKey: requestKey, jobs: [], loading: true })
+  // state is intentionally read only to preserve known rows beside refresh errors.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPage.data, initialPage.error, requestKey])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const loadMore = React.useCallback(() => {
     if (
@@ -756,13 +770,13 @@ function useExecutionHistory(
       loadMoreError: undefined,
     }))
 
-    void getExecutions(scope, {
+    void sharedPageRequest(`executions-page:${requestKey}:${snapshotBefore}:${cursor}`, () => getExecutions(scope, {
       q: search || undefined,
       result,
       from: periodStart,
       snapshotBefore,
       cursor,
-    })
+    }))
       .then((page) => {
         if (requestVersion.current !== version) {
           return
@@ -1221,9 +1235,9 @@ function HistoryPanel({
 export function StatusPage() {
   const { scope, loading: projectsLoading } = useProjectContext()
   const statusRequest = React.useCallback(
-    () =>
+    (signal?: AbortSignal) =>
       scope
-        ? getStatus(scope)
+        ? getStatus(scope, signal)
         : Promise.reject(new Error("Selecione um projeto ou o arquivo sem projeto.")),
     [scope]
   )
@@ -1318,7 +1332,7 @@ export function StatusPage() {
           <HistoryPanel
             scope={scope}
             onOpenJob={setSelectedJobId}
-            historyRevision={status.data.history?.[0]?.id ?? ""}
+            historyRevision={status.data.historyRevision ?? status.data.history?.[0]?.id ?? ""}
           />
         </div>
         <aside className="flex flex-col gap-4">

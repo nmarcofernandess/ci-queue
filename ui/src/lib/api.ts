@@ -24,12 +24,11 @@ import type {
   WorktreesResponse,
 } from "@/lib/types"
 import { parseRemoteSlotsResponse } from "@/lib/remote-slots"
+import { queryStore } from "@/lib/query-store"
 
 type QueryValue = string | number | boolean | null | undefined
 
 type Query = Record<string, QueryValue>
-
-const queryCache = new Map<string, unknown>()
 
 export class ApiError extends Error {
   readonly status: number
@@ -59,9 +58,10 @@ function buildUrl(path: string, query?: Query) {
   return suffix ? `${path}?${suffix}` : path
 }
 
-async function requestJson<T>(path: string, query?: Query): Promise<T> {
+async function requestJson<T>(path: string, query?: Query, signal?: AbortSignal): Promise<T> {
   const response = await fetch(buildUrl(path, query), {
     headers: { Accept: "application/json" },
+    signal,
   })
 
   const body: unknown = await response.json().catch(() => null)
@@ -81,9 +81,10 @@ async function requestJson<T>(path: string, query?: Query): Promise<T> {
 async function requestScoped<T>(
   scope: ReadScope,
   path: string,
-  query?: Query
+  query?: Query,
+  signal?: AbortSignal
 ): Promise<T> {
-  const body = await requestJson<T>(path, query)
+  const body = await requestJson<T>(path, query, signal)
   if (!matchesScope(body, scope)) {
     throw new ApiError(409, "resposta fora do contexto", body)
   }
@@ -151,8 +152,11 @@ export function pickHostPath(
   return postJson<PickedHostPath>("/api/project-pick", csrfToken, { kind })
 }
 
-export function getStatus(scope: ReadScope) {
-  return requestScoped<StatusSnapshot>(scope, "/api/status", scopeQuery(scope))
+export function getStatus(scope: ReadScope, signal?: AbortSignal) {
+  return requestScoped<StatusSnapshot>(scope, "/api/status", {
+    ...scopeQuery(scope),
+    view: "live",
+  }, signal)
 }
 
 export function getExecutions(
@@ -165,12 +169,14 @@ export function getExecutions(
     cursor?: string
     snapshotBefore?: string
     offset?: number
-  } = {}
+  } = {},
+  signal?: AbortSignal
 ) {
   return requestScoped<ExecutionsResponse>(scope, "/api/executions", {
     ...scopeQuery(scope),
     ...query,
-  })
+    view: "summary",
+  }, signal)
 }
 
 export function getPresetHistory(scope: ProjectScope) {
@@ -213,8 +219,8 @@ export function getMachine() {
   return requestJson<MachineResponse>("/api/machine")
 }
 
-export function getWorktrees(scope: Extract<ReadScope, { kind: "project" | "all" }>) {
-  return requestScoped<WorktreesResponse>(scope, "/api/worktrees", scopeQuery(scope))
+export function getWorktrees(scope: Extract<ReadScope, { kind: "project" | "all" }>, signal?: AbortSignal) {
+  return requestScoped<WorktreesResponse>(scope, "/api/worktrees", scopeQuery(scope), signal)
 }
 
 export function getDashboardState(scope: ProjectScope) {
@@ -324,7 +330,7 @@ export type ApiQuery<T> = {
  */
 export function useApiQuery<T>(
   key: string,
-  request: () => Promise<T>,
+  request: (signal?: AbortSignal) => Promise<T>,
   options: {
     pollMs?: number
     enabled?: boolean
@@ -332,94 +338,20 @@ export function useApiQuery<T>(
   } = {}
 ): ApiQuery<T> {
   const { pollMs, enabled = true, pollWhile } = options
-  const [data, setData] = React.useState<T | undefined>(
-    () => queryCache.get(key) as T | undefined
+  queryStore.configure(key, request, pollMs, pollWhile)
+  const subscribe = React.useCallback(
+    (listener: () => void) => enabled ? queryStore.subscribe<T>(key, listener) : () => undefined,
+    [enabled, key]
   )
-  const [error, setError] = React.useState<ApiError | Error>()
-  const [refreshing, setRefreshing] = React.useState(true)
-  const [revision, setRevision] = React.useState(0)
-  const previousKey = React.useRef<string | undefined>(undefined)
-
-  React.useEffect(() => {
-    let disposed = false
-    const changed = previousKey.current !== key
-    previousKey.current = key
-    if (changed) {
-      setData(queryCache.get(key) as T | undefined)
-      setError(undefined)
-    }
-
-    if (!enabled) {
-      return () => {
-        disposed = true
-      }
-    }
-
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const load = async () => {
-      let keepPolling = true
-      setRefreshing(true)
-      try {
-        const next = await request()
-        if (!disposed) {
-          queryCache.set(key, next)
-          setData(next)
-          setError(undefined)
-          keepPolling = !pollWhile || pollWhile(next)
-        }
-      } catch (reason) {
-        if (!disposed) {
-          setError(
-            reason instanceof Error
-              ? reason
-              : new Error("Falha ao ler a bridge.")
-          )
-        }
-      } finally {
-        if (!disposed) {
-          setRefreshing(false)
-          if (pollMs && keepPolling) {
-            timer = setTimeout(() => {
-              if (disposed) {
-                return
-              }
-              if (document.hidden) {
-                const resume = () => {
-                  document.removeEventListener("visibilitychange", resume)
-                  if (!disposed && !document.hidden) {
-                    void load()
-                  }
-                }
-                document.addEventListener("visibilitychange", resume)
-                return
-              }
-              void load()
-            }, pollMs)
-          }
-        }
-      }
-    }
-
-    void load()
-    return () => {
-      disposed = true
-      if (timer) {
-        window.clearTimeout(timer)
-      }
-    }
-  }, [enabled, key, pollMs, pollWhile, request, revision])
-
-  const reload = React.useCallback(() => {
-    setError(undefined)
-    setRefreshing(true)
-    setRevision((value) => value + 1)
-  }, [])
+  const getSnapshot = React.useCallback(() => queryStore.snapshot<T>(key), [key])
+  const snapshot = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  const reload = React.useCallback(() => queryStore.reload<T>(key), [key])
 
   return {
-    data,
-    error,
-    loading: enabled && data === undefined && error === undefined,
-    refreshing: enabled && data !== undefined && refreshing,
+    data: snapshot.data,
+    error: snapshot.error,
+    loading: enabled && snapshot.data === undefined && snapshot.error === undefined,
+    refreshing: enabled && snapshot.data !== undefined && snapshot.refreshing,
     reload,
   }
 }

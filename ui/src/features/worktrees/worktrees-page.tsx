@@ -716,9 +716,9 @@ export function WorktreesPage() {
   const allowed =
     scope?.kind === "project" || scope?.kind === "all" ? scope : null
   const worktreeRequest = React.useCallback(
-    () =>
+    (signal?: AbortSignal) =>
       allowed
-        ? getWorktrees(allowed)
+        ? getWorktrees(allowed, signal)
         : Promise.reject(new Error("Selecione um projeto para ver worktrees.")),
     [allowed]
   )

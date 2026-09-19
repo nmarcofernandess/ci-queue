@@ -15,6 +15,8 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .record_store import SnapshotError, clear_stores, store_for
+
 
 JOB_ID = re.compile(r"[A-Za-z0-9-]{1,128}\Z")
 TERMINAL = frozenset(("passed", "failed", "cancelled", "interrupted"))
@@ -74,6 +76,12 @@ def _signature(directory):
 
 
 def read_json_directory(directory, strict=False, cached=False):
+    if cached:
+        try:
+            snapshot = store_for(directory).snapshot(strict=strict)
+        except SnapshotError as error:
+            raise RecordError(str(error)) from error
+        return list(snapshot.rows)
     directory = Path(directory)
     signature = _signature(directory)
     if signature is None:
@@ -97,6 +105,7 @@ def read_json_directory(directory, strict=False, cached=False):
 
 
 def invalidate_history_cache():
+    clear_stores()
     with _history_lock:
         _history_cache.update(key=None, value=[])
 
@@ -243,6 +252,33 @@ def public_job(job):
     return result
 
 
+def public_job_summary(job):
+    """Browser-safe list projection without the recursive progress tree."""
+    result = public_job(job)
+    if not isinstance(result, dict):
+        return result
+    progress = result.pop("progressSummary", None)
+    nodes = progress.get("nodes") if isinstance(progress, dict) else None
+    if isinstance(nodes, list):
+        result["hasRetries"] = any(
+            type(node.get("retryCount")) is int and node["retryCount"] > 0
+            for node in nodes if isinstance(node, dict)
+        )
+    return result
+
+
+def _history_revision(state_root):
+    snapshot = store_for(Path(state_root) / "history").snapshot()
+    ledger = Path(state_root) / "state" / "legacy-projects.json"
+    try:
+        info = ledger.stat()
+        ledger_version = (info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    except OSError:
+        ledger_version = None
+    raw = repr((snapshot.generation, snapshot.digests, snapshot.errors, ledger_version)).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()[:24]
+
+
 def lookup_job(state_root, job_id, project_id=None, unassigned=False):
     """Resolve a ticket by id. Filter belongs on list endpoints, not detail."""
     if unassigned and project_id:
@@ -291,9 +327,9 @@ def _public_running(state_root, running):
     return payload
 
 
-def _status_body(state_root, project, history_rows, running, queued, other_occupancy):
+def _status_body(state_root, project, history_rows, running, queued, other_occupancy, view="default"):
     last_failed = next((row for row in history_rows if row.get("status") in {"failed", "interrupted"}), None)
-    return {
+    payload = {
         "schemaVersion": 1,
         "project": project,
         "serverTime": iso_now(),
@@ -304,12 +340,26 @@ def _status_body(state_root, project, history_rows, running, queued, other_occup
         "globalOccupancy": bool(running or queued),
         "otherProjectOccupancy": other_occupancy,
     }
+    if view == "live":
+        payload["projection"] = "live"
+        payload["historyRevision"] = _history_revision(state_root)
+        payload.pop("history", None)
+        payload.pop("lastFailed", None)
+        payload["queued"] = [public_job_summary(row) for row in queued]
+        if isinstance(payload.get("running"), dict):
+            summary = payload["running"].get("progressSummary")
+            if isinstance(summary, dict):
+                payload["running"]["progressSummary"] = {
+                    key: summary[key] for key in ("schemaVersion", "available", "reason", "roots") if key in summary
+                }
+    return payload
 
 
-def status_snapshot(state_root, project_id, project_name):
+def status_snapshot(state_root, project_id, project_name, view="default"):
     """Global occupancy plus project-scoped terminal history."""
     history, running, queued = _living(state_root)
-    project_history = [progress_summary(row) for row in history if project_record(row, project_id)]
+    project_history = ([] if view == "live" else
+                       [progress_summary(row) for row in history if project_record(row, project_id)])
     other_running = bool(running) and not project_record(running, project_id)
     other_queued = any(not project_record(row, project_id) for row in queued)
     return _status_body(
@@ -318,24 +368,24 @@ def status_snapshot(state_root, project_id, project_name):
         project_history,
         running,
         queued,
-        bool(other_running or other_queued),
+        bool(other_running or other_queued), view,
     )
 
 
-def status_snapshot_unassigned(state_root):
+def status_snapshot_unassigned(state_root, view="default"):
     history, running, queued = _living(state_root)
-    unassigned = [progress_summary(row) for row in history
-                  if row.get("status") in TERMINAL and not row.get("projectId")]
+    unassigned = ([] if view == "live" else [progress_summary(row) for row in history
+                  if row.get("status") in TERMINAL and not row.get("projectId")])
     occupied = bool(running or queued)
-    return _status_body(state_root, None, unassigned, running, queued, occupied)
+    return _status_body(state_root, None, unassigned, running, queued, occupied, view)
 
 
-def status_snapshot_all(state_root):
+def status_snapshot_all(state_root, view="default"):
     history, running, queued = _living(state_root)
-    attributed = [progress_summary(row) for row in history
-                  if row.get("status") in TERMINAL and row.get("projectId")]
+    attributed = ([] if view == "live" else [progress_summary(row) for row in history
+                  if row.get("status") in TERMINAL and row.get("projectId")])
     occupied = bool(running or queued)
-    return _status_body(state_root, None, attributed, running, queued, occupied)
+    return _status_body(state_root, None, attributed, running, queued, occupied, view)
 
 
 def _matches_query(job, query):
@@ -368,7 +418,7 @@ def _cursor_value(value):
     return (parsed[0], parsed[1])
 
 
-def read_executions(state_root, project_id, q="", result="all", scope="terminal", from_time="", to_time="", snapshot_before="", cursor="", offset=0):
+def read_executions(state_root, project_id, q="", result="all", scope="terminal", from_time="", to_time="", snapshot_before="", cursor="", offset=0, view="default"):
     if result not in {"all", *TERMINAL}:
         raise RecordError("result inválido")
     if scope not in {"terminal", "legacy", "all"}:
@@ -409,15 +459,17 @@ def read_executions(state_root, project_id, q="", result="all", scope="terminal"
             continue
         if result != "all" and row.get("status") != result:
             continue
-        rows.append(progress_summary(row))
+        rows.append(row)
     rows.sort(key=lambda row: (str(row.get("finishedAt") or ""), str(row.get("id") or "")), reverse=True)
     if cursor_value:
         rows = [row for row in rows if (str(row.get("finishedAt") or ""), str(row.get("id") or "")) < cursor_value]
         offset = 0
     page = rows[offset:offset + PAGE_SIZE]
+    projected = [progress_summary(row) for row in page]
     return {
         "schemaVersion": 1,
-        "jobs": [public_job(row) for row in page],
+        **({"projection": "summary"} if view == "summary" else {}),
+        "jobs": [public_job_summary(row) if view == "summary" else public_job(row) for row in projected],
         "hasMore": len(rows) > offset + PAGE_SIZE,
         "snapshotBefore": snapshot,
         "nextCursor": _cursor_for(page[-1]) if page and len(rows) > offset + PAGE_SIZE else None,

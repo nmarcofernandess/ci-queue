@@ -407,7 +407,8 @@ def create_handler(context):
             if self._serve_ticket(path, query, scope):
                 return
             if path == "/api/status":
-                self.send_payload(200, with_context(status_snapshot_unassigned(self.api_context.state_root), scope))
+                self.send_payload(200, with_context(status_snapshot_unassigned(
+                    self.api_context.state_root, query.get("view", ["default"])[0]), scope))
                 return
             if path == "/api/executions":
                 payload = read_executions(
@@ -416,6 +417,7 @@ def create_handler(context):
                     scope="legacy", from_time=query.get("from", [""])[0],
                     to_time=query.get("to", [""])[0], snapshot_before=query.get("snapshotBefore", [""])[0],
                     cursor=query.get("cursor", [""])[0], offset=_integer(query.get("offset", ["0"])[0], "offset"),
+                    view=query.get("view", ["default"])[0],
                 )
                 self.send_payload(200, with_context(payload, scope))
                 return
@@ -431,7 +433,8 @@ def create_handler(context):
             if self._serve_ticket(path, query, scope):
                 return
             if path == "/api/status":
-                self.send_payload(200, with_context(status_snapshot_all(self.api_context.state_root), scope))
+                self.send_payload(200, with_context(status_snapshot_all(
+                    self.api_context.state_root, query.get("view", ["default"])[0]), scope))
                 return
             if path == "/api/executions":
                 payload = read_executions(
@@ -440,6 +443,7 @@ def create_handler(context):
                     scope="all", from_time=query.get("from", [""])[0],
                     to_time=query.get("to", [""])[0], snapshot_before=query.get("snapshotBefore", [""])[0],
                     cursor=query.get("cursor", [""])[0], offset=_integer(query.get("offset", ["0"])[0], "offset"),
+                    view=query.get("view", ["default"])[0],
                 )
                 self.send_payload(200, with_context(payload, scope))
                 return
@@ -512,6 +516,7 @@ def create_handler(context):
             if path == "/api/status":
                 self.send_payload(200, with_context(status_snapshot(
                     self.api_context.state_root, project.project_id, project.display_name,
+                    query.get("view", ["default"])[0],
                 ), scope, revision))
                 return
             if path == "/api/executions":
@@ -524,6 +529,7 @@ def create_handler(context):
                     scope=reader_scope, from_time=query.get("from", [""])[0],
                     to_time=query.get("to", [""])[0], snapshot_before=query.get("snapshotBefore", [""])[0],
                     cursor=query.get("cursor", [""])[0], offset=_integer(query.get("offset", ["0"])[0], "offset"),
+                    view=query.get("view", ["default"])[0],
                 )
                 self.send_payload(200, with_context(payload, scope, revision))
                 return

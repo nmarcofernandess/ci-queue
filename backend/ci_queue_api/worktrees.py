@@ -6,6 +6,7 @@ import queue
 import subprocess
 import threading
 import time
+import copy
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,6 +18,9 @@ _pending = set()
 _lock = threading.Lock()
 _requests = queue.Queue()
 _worker = None
+_inventories = {}
+_inventory_lock = threading.Lock()
+INVENTORY_CACHE_SECONDS = 60
 
 
 def _now():
@@ -206,7 +210,19 @@ def list_worktrees_all(state_root):
     }
 
 
+def _inventory_key(source):
+    repository_path, base_ref = _source(source)
+    common = getattr(source, "git_common_dir", None)
+    revision = getattr(source, "entry_revision", None)
+    return (str(repository_path), str(common), str(base_ref), revision)
+
+
 def list_worktrees(source):
+    cache_key = _inventory_key(source)
+    with _inventory_lock:
+        cached = _inventories.get(cache_key)
+        if cached and time.monotonic() - cached[0] < INVENTORY_CACHE_SECONDS:
+            return copy.deepcopy(cached[1])
     repository_path, base_ref = _source(source)
     rows = discover(source)
     if rows is None:
@@ -230,8 +246,11 @@ def list_worktrees(source):
                     "changedEntries": changed, "ahead": ahead, "behind": behind,
                     "gitObservedAt": _now(), "size": schedule_size(row["path"]),
                     "error": "Orçamento de leitura das worktrees esgotado." if timed_out else None})
-    return {"schemaVersion": 1, "observedAt": _now(), "baseRef": base_ref,
-            "baseSha": base_sha, "worktrees": rows, "error": None}
+    payload = {"schemaVersion": 1, "observedAt": _now(), "baseRef": base_ref,
+               "baseSha": base_sha, "worktrees": rows, "error": None}
+    with _inventory_lock:
+        _inventories[cache_key] = (time.monotonic(), copy.deepcopy(payload))
+    return payload
 
 
 def worktree_view(source, identifier):
