@@ -1,96 +1,71 @@
-# Quickstart do consumidor
+# Integrar um projeto ao CI Queue
 
-Este kit gera um catálogo, executa a receita na fila local e, **só quando você
-pede**, tenta integrar uma PR no GitHub. O worker nunca faz merge. O dashboard
-não tem botão de ship. DietFlow continua com o próprio `npm run ship` até um
-cutover separado.
+Esta é a entrada genérica. Leia o **[manual HTML autocontido](GUIA-INTEGRACAO-CI-QUEUE.html)** para o passeio completo e o exemplo Static + Jest. O HTML abre offline, sem CDN; o GitHub exibe seu fonte. Contratos formais: [CONTRACTS](CONTRACTS.md). Instalação: [INSTALL](INSTALL.md).
 
-## 1. Gerar o catálogo
+## 1. Separe máquina, projeto e estado
 
-No worktree do consumidor (já é um repositório Git; o init não roda `git init`):
+A máquina precisa de uma release verificada, Node compatível, CLI/worker e das dependências reais das receitas. API Python e UI compilada são a observabilidade; Vite de desenvolvimento não precisa rodar na instalação. `gh` é necessário para ship GitHub, não para todo teste standalone.
 
-```bash
-ci-queue init --name "Meu projeto" --base-ref dest/dev --json
-# ou, se não houver script npm `check`:
-ci-queue init --name "Meu projeto" --base-ref dest/dev \
-  --argv-json '["python","-m","pytest","-q"]' --json
-```
+O projeto precisa de Git, comando de teste verdadeiro, dependências e catálogo. O state pertence à máquina. Confirme `installation.json`; não troque `~/.local/state/local-ci/queue` por uma fila vazia em `~/.local/state/ci-queue` sem intenção. Use o mesmo state na CLI, worker e API.
 
-`--workflow` copia o verificador portátil de atestação para
-`.github/workflows/ci-queue-verdict.yml`. Sem isso, a política `wait` recusa
-até existir `ship.remoteVerdict`; o caminho explícito sem Actions é
-`ci-queue ship --no-remote`.
+## 2. Prepare o comando antes do catálogo
 
-## 2. Commitar
-
-A prova de ship exige árvore limpa e catálogo **em H**. Commitar `ci-queue.json`
-(e o workflow, se gerou) antes de enqueue/ship.
-
-## 3. Vincular o dashboard
-
-O init não escreve o registry. No dashboard, cadastre o projeto (pasta +
-catálogo). Sem isso a fila ainda funciona; a UI não adivinha o dono pelo path.
-
-## 4. Enfileirar e executar
+O teste continua executável fora da fila. `npm run check` direto não cria prova queue por si só. Para exigir duas verificações, faça um agregador que execute ambas e preserve falhas. `acceptedPresets: ["lint","test"]` significa **OR**, não AND.
 
 ```bash
-ci-queue enqueue check --json
-ci-queue worker --json
+git remote -v
+git branch --show-current
+git status --short
+# Base e argv devem existir no SEU projeto:
+ci-queue init --cwd "$PWD" --name "Meu projeto" --base-ref origin/dev \
+  --argv-json '["npm","run","check"]' --json
 ```
 
-O ticket terminal precisa ser `passed`, argv idêntico à receita aceita,
-preflight/postflight iguais, `statusShort` vazio, HEAD = H e base = B0 (ponta
-remota da base da PR, não um merge-base antigo). Um ticket chamado `check` com
-outro argv, `extraArgs` ou `custom` não conta.
+`init` não inicializa Git, não instala dependências, não inventa testes e não cadastra o projeto no dashboard. Pode declarar progress, mas não instrumenta o script. Preserve `project.id`. O catálogo precisa estar commitado em H antes do ship.
 
-## 5. Dry-run (somente leitura)
+## 3. Atualize as instruções do consumidor
+
+Antes do commit de adoção, atualizar **AGENTS.md ou seu alvo se symlink** e a **skill/instrução operacional versionada**. Registrar: entrada canônica; comando standalone; fila e state conferido; receitas aceitas; autorização de ship; progresso como aviso; fonte de diagnóstico. Evitar cópias paralelas. Se uma skill só existir fora do Git, entregar delta aplicável e caminho, sem alegar aplicação local.
+
+## 4. Enfileire no state correto
 
 ```bash
-ci-queue ship --dry-run --no-remote --json
+PROJECT="$PWD"
+STATE="$HOME/.local/state/ci-queue" # substituir pelo state instalado conferido
+ci-queue config --cwd "$PROJECT" --config "$PROJECT/ci-queue.json" --json
+ci-queue enqueue check --cwd "$PROJECT" --config "$PROJECT/ci-queue.json" \
+  --state "$STATE" --json
+ci-queue status --state "$STATE" --json
+ci-queue logs TICKET_ID --state "$STATE" --json
 ```
 
-GitHub/Git **lêem**. Não cria ticket, status, ready nem merge. O `ticketId`
-reutilizado tem de ser o que o worker gravou em `history/` — não um JSON
-passado à mão.
+Use o ID real retornado. Não execute um segundo `worker` após enqueue: na instalação macOS ele é on-demand. Fila vazia sem processo worker pode ser saudável. `--wait` e seu timeout não cancelam o job. Cancelamento explícito: `ci-queue cancel TICKET_ID --state "$STATE" --json`.
 
-## 6. Ship: `wait` versus `--no-remote`
+No Project Manager, confira e registre pasta/catálogo para inventário e histórico filtrado. Running e fila permanecem globais. Binding Node em `runtimes.json` é separado do cadastro; ver [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md).
+
+## 5. Ship começa depois da autoria
+
+Árvore limpa; HEAD publicado; PR aberto na base correta, preferencialmente draft; catálogo em Git; identidade API/Git adequada. O genérico não tem classificador automático de docs-only.
 
 ```bash
-# política wait (arquivo ausente = wait): prova local → atestação → ready se
-# draft (espera o run `pull_request`; não dispara workflow_dispatch) →
-# PR já ready sem run causal: um dispatch no ref da base, correlacionado
-# por run-name / inputs (PR, H, B0), não por `head_sha` do workflow_run →
-# merge REST
-ci-queue ship --pr 12 --json
-
-# pula o veredito remoto; não pula prova local nem checagens Git/PR
-ci-queue ship --pr 12 --no-remote --json
+# Inspeção: não enfileira, não atesta, não marca ready e não mergeia.
+ci-queue ship --cwd "$PWD" --config "$PWD/ci-queue.json" \
+  --state "$STATE" --dry-run --no-remote --json
 ```
 
-`--no-remote` não autoriza um `remote-verdict.json` corrompido. Timeout
-(`--timeout-ms`, padrão 60 min) não cancela o ticket e não enfileira de novo.
+Sem prova reutilizável, o dry-run retorna `LOCAL_RED`. Isso é esperado: não cria uma prova. A execução real abaixo só deve ocorrer após autorização de merge:
 
-O merge é `gh api` PUT `/repos/{owner}/{repo}/pulls/{pull}/merge` com
-`sha` = H e `merge_method=merge`. Não é `gh pr merge`. Não há `--admin`.
+```bash
+ci-queue ship --cwd "$PWD" --config "$PWD/ci-queue.json" \
+  --state "$STATE" --no-remote --json
+```
 
-## Corrida residual da base
+O ship reusa uma receita elegível de `ship.acceptedPresets`; se nenhuma existir, enfileira a **primeira**. Não há AND entre os nomes. O worker nunca mergeia e `passed` sozinho não dispara ship. A UI não tem botão de merge.
 
-A API de merge do GitHub **prende só o HEAD**. Não existe `expectedBaseSha`.
-O ship relê B0 imediatamente antes do PUT e inspeciona os pais depois:
+## 6. Remoto opcional e limites
 
-| Resultado | Relato |
-| --- | --- |
-| merge commit, 1º pai B0, 2º pai H, tree = H | `merged=true`, `mergeVerified=true` |
-| merge aconteceu com outro 1º pai | `merged=true`, `mergeVerified=false`, `MERGED_BASE_CHANGED` |
-| HTTP ambíguo | inspeciona a PR antes de qualquer retry; senão `merged="unknown"` |
+Arquivo `remote-verdict.json` ao lado do catálogo: `wait|skipped`; ausente significa wait. Wait exige `ship.remoteVerdict.workflow` e `job`. `--no-remote` força skipped, não corrige JSON inválido nem dispensa prova/identidade/HEAD/base/PR. `init --workflow` copia verificador de attestation, não uma suíte de testes remota. O verificador deve existir na base que o workflow fará checkout; verificar isso na primeira adoção.
 
-Isso **não** é um lock atômico de H+B. Uma mudança de B0 entre a última
-revalidação e o PUT ainda pode entrar. Não há trava local que outros agentes
-respeitem. `--no-remote` não fecha essa janela.
+Garantia: **HEAD pinado, base observada**. Revalidação antes e inspeção depois não são lock atômico H+B. `MERGED_BASE_CHANGED` exige inspeção, não novo merge cego. Nenhum `--admin`, status manual ou ticket fabricado.
 
-## O que este corte não faz
-
-- Cutover do DietFlow
-- `ship --when-green`, squash/rebase, merge queue, forks
-- Botão de merge no dashboard
-- Tratar last-green ou o nome da receita como prova
+**DietFlow não fez cutover.** Continua `npm run ship` em `scripts/ship/ship.ts`, com seu arquivo de política em `scripts/ship/remote-verdict.json`; leia a [entrada consumidora](https://github.com/dietflowoficial/Dietflow-app/blob/dev/docs/ci/CI-QUEUE-CONSUMIDOR.md).
