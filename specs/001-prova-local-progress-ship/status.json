@@ -1,0 +1,53 @@
+{
+  "schema_version": "superflow.status.v1",
+  "id": "001-prova-local-progress-ship",
+  "title": "Prova local com progress visivel e ship sem Actions",
+  "route": "analyst_prd",
+  "phase_budget": "deep",
+  "execution_strategy": "single",
+  "source": {
+    "type": "inline",
+    "github_issue": null,
+    "file": null
+  },
+  "confidence": "medium",
+  "current_phase": "execute",
+  "decision": {
+    "verdict": "prd_ready",
+    "prd_status": "ready",
+    "reason": "Execute through 5-1: Recode 11, Track B, derived progressEnabled, Alert. Review E1/E2 fixed and re-verified. Never edit dietflow-app.",
+    "prd_path": "PRD.md",
+    "discard_path": null
+  },
+  "scores": {
+    "maturity": 4,
+    "risk": 3
+  },
+  "phases": {
+    "inbox": "skipped",
+    "analyst": "complete",
+    "taskgen": "complete",
+    "build": "complete",
+    "review": "complete",
+    "plan": "complete",
+    "execute": "running",
+    "qa": "pending"
+  },
+  "artifacts": {
+    "prd": "PRD.md",
+    "analysis": "analysis.md",
+    "blueprint": "SPEC.md",
+    "progress": "progress.md",
+    "warlog": "WARLOG.md",
+    "plan": "implementation_plan.json",
+    "implementation_log": "implementation_log.json",
+    "review": "review_log.json",
+    "qa": null
+  },
+  "task_source": {
+    "type": "plan",
+    "path": "implementation_plan.json",
+    "progress": "progress.md"
+  },
+  "updated_at": "2026-09-19T01:10:00+00:00"
+}

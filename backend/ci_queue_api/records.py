@@ -236,6 +236,8 @@ def public_job(job):
     if not isinstance(job, dict):
         return job
     result = {key: job.get(key) for key in PUBLIC_JOB_FIELDS if key in job}
+    flags = job.get("flags")
+    result["progressEnabled"] = isinstance(flags, dict) and flags.get("progressEnabled") is True
     if "progressSummary" in job:
         result["progressSummary"] = job["progressSummary"]
     return result
