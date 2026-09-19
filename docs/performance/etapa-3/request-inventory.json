@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "5a9268e41e27644362dfd9e5cd4e163813f5e1a1",
+  "clockOneSecondIsHttp": false,
+  "requests": [
+    {"surface": "shell", "key": "projects", "endpoint": "/api/projects", "trigger": "project provider mount/revision", "pollMs": null},
+    {"surface": "shell", "key": "local-environment-health", "endpoint": "/health", "trigger": "local environment menu", "pollMs": 10000},
+    {"surface": "status", "key": "status:<scope>", "endpoint": "/api/status", "trigger": "mount/scope/revision", "pollMs": 10000},
+    {"surface": "status", "key": "dashboard-state:<project>", "endpoint": "/api/dashboard-state", "trigger": "project scope", "pollMs": 10000},
+    {"surface": "status", "key": "machine", "endpoint": "/api/machine", "trigger": "machine card", "pollMs": 60000},
+    {"surface": "history", "key": "manual:<scope,search,period,result>", "endpoint": "/api/executions", "trigger": "mount/filter/historyRevision/loadMore", "pollMs": null, "sharedStore": false},
+    {"surface": "last-greens", "key": "preset-history:<project>", "endpoint": "/api/preset-history", "trigger": "project mode", "pollMs": 10000},
+    {"surface": "last-greens", "key": "remote-slots:<project>", "endpoint": "/api/remote-slots", "trigger": "project mode", "pollMs": 10000},
+    {"surface": "drawer", "key": "job:<scope,id>", "endpoint": "/api/job", "trigger": "open drawer while living", "pollMs": 2000, "closedRequests": 0},
+    {"surface": "drawer-log", "key": "manual:<scope,id,offset>", "endpoint": "/api/log", "trigger": "log tab on demand/follow", "pollMs": null, "closedRequests": 0},
+    {"surface": "analysis", "key": "analysis-results:<scope,period>", "endpoint": "/api/analysis", "trigger": "mount/scope/period", "pollMs": 30000},
+    {"surface": "analysis-duration", "key": "analysis-duration:<scope,period,preset>", "endpoint": "/api/analysis?metric=duration", "trigger": "duration mode with preset", "pollMs": null},
+    {"surface": "worktrees", "key": "worktrees:<scope>", "endpoint": "/api/worktrees", "trigger": "mount/scope", "pollMs": 60000}
+  ],
+  "baseClientProperties": {
+    "cache": "response map only",
+    "inFlightDeduplication": false,
+    "scheduleSharing": false,
+    "historyUsesSharedHook": false,
+    "hiddenBehavior": "timer defers and installs visibility listener; listener cleanup on hidden unmount is not explicit",
+    "crossTabDeduplication": false
+  }
+}

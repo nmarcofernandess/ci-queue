@@ -1,0 +1,26 @@
+{
+  "base": "5a9268e41e27644362dfd9e5cd4e163813f5e1a1",
+  "source_blob": "f9d691128e45e8c880ba81343bccf5eade07eb79",
+  "before": {
+    "st_dev": 16777231,
+    "st_ino": 203918226,
+    "st_size": 54,
+    "st_mtime_ns": 1789839065248403300,
+    "st_ctime_ns": 1789839065248403300
+  },
+  "after_same_size_mtime_reset": {
+    "st_dev": 16777231,
+    "st_ino": 203918226,
+    "st_size": 54,
+    "st_mtime_ns": 1789839065248403300,
+    "st_ctime_ns": 1789839065248666257
+  },
+  "mtime_only_changed": false,
+  "ctime_changed": true,
+  "first_status": "passed",
+  "second_status": "failed",
+  "corrupt_strict": "RecordError",
+  "corrupt_permissive_rows": 0,
+  "platform": "macOS 26.6.2 local workspace volume",
+  "limit": "Uma fixture macOS. Não prova ctime como assinatura criptográfica universal nem detecta alteração invisível a todos os metadados."
+}
