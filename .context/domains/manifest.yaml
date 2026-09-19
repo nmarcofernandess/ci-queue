@@ -54,3 +54,11 @@ system_map:
     entry: ui/src/lib/api.ts
     types: ui/src/lib/types.ts
     rule: "Features consomem os fatos atuais via APIs scoped; composições visuais não fazem fetch."
+  integration_documentation:
+    entry: docs/CONSUMER-QUICKSTART.md
+    tutorial: docs/GUIA-INTEGRACAO-CI-QUEUE.html
+    contracts: docs/CONTRACTS.md
+    installation: docs/INSTALL.md
+    node_binding: docs/RUNTIME-ISOLATION.md
+    index: docs/README.md
+    rule: "Manual offline não é proof de runtime. Adoção atualiza AGENTS e skill/instrução do consumidor; não duplica contratos."

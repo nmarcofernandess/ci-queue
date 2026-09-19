@@ -4,6 +4,25 @@ CI Queue is an independent local CI executor and observability product. It owns
 its CLI, queue, supervisor, records, API, dashboard, installation and product
 tests. A consuming project owns its recipes, preparation and test harness.
 
+## Integration documentation
+
+The generic entry is `docs/CONSUMER-QUICKSTART.md`; the complete offline teaching
+manual is `docs/GUIA-INTEGRACAO-CI-QUEUE.html`. Owners and navigation are in
+`docs/README.md`. Formats belong to `docs/CONTRACTS.md`; release operations to
+`docs/INSTALL.md`; Node binding limits to `docs/RUNTIME-ISOLATION.md`.
+Read live code/tests on the requested branch before reconciling prose. Historical
+specs/plans are context, not current operational policy. Do not rewrite their
+phases as part of a docs reconciliation.
+
+When adopting CI Queue in a consumer, explicitly update its AGENTS file (the
+actual target if it is a symlink) and its versioned operational skill/instruction.
+Keep one editable owner; use pointers rather than parallel contract copies.
+`ship.acceptedPresets` is OR; absent proof enqueues the first recipe. Required
+multiple checks belong in a real aggregate recipe with failure propagation.
+Progress is observability, never ship eligibility. An offline manual is not a
+runtime proof. Draft documentation PRs do not authorize merge, installation,
+cutover, Full execution or changes to product policy.
+
 ## Working in this repository
 
 - Keep the executor and dashboard independent of a consumer checkout. A path,
