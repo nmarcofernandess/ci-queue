@@ -648,12 +648,22 @@ export function createSystemOps(input: SystemOpsInput): ShipOps {
       if (result.status !== 0) fail("ATTESTATION_FAILED", result.stderr.trim() || "falha na atestação")
     },
     async markReady(target: ShipTarget, signal: AbortSignal): Promise<void> {
-      const result = await runGh(
-        ["--method", "PATCH", `/repos/${target.repo}/pulls/${target.pr}`, "--input", "-"],
-        signal,
-        JSON.stringify({ draft: false }),
+      const result = await runCommand(
+        "gh",
+        ["pr", "ready", String(target.pr), "--repo", target.repo],
+        { signal },
       )
-      if (result.status !== 0) fail("TARGET_INVALID", result.stderr.trim() || "não foi possível marcar a PR ready")
+      if (result.status !== 0) {
+        fail("READY_FAILED", result.stderr.trim() || result.stdout.trim() || "não foi possível marcar a PR ready")
+      }
+      const pull = asPull(await ghJson([`/repos/${target.repo}/pulls/${target.pr}`], signal).catch(() => undefined))
+      if (!pull) fail("READY_FAILED", "não foi possível reler a PR após ready")
+      if (pull.draft === true) fail("READY_FAILED", "PR permanece draft após gh pr ready")
+      const identity = pullIdentity(pull)
+      if (!sameSha(identity.headSha, target.headSha)) fail("READY_FAILED", "HEAD mudou durante a transição ready")
+      if (identity.headBranch !== target.headBranch) fail("READY_FAILED", "branch mudou durante a transição ready")
+      if (!sameSha(identity.baseSha, target.baseSha)) fail("READY_FAILED", "B0 mudou durante a transição ready")
+      if (identity.baseBranch !== target.baseBranch) fail("READY_FAILED", "base mudou durante a transição ready")
     },
     async observeVerdict(inputVerdict: VerdictRequest, signal: AbortSignal): Promise<VerdictRun | undefined> {
       const repo = inputVerdict.target.repo
@@ -733,7 +743,7 @@ export function createSystemOps(input: SystemOpsInput): ShipOps {
       )
       if (result.status !== 0) fail("REMOTE_RUN_MISSING", result.stderr.trim() || "não foi possível disparar o veredito remoto")
     },
-    async mergePinned(target: ShipTarget, signal: AbortSignal): Promise<{ merged: boolean; sha?: string }> {
+    async mergePinned(target: ShipTarget, signal: AbortSignal): Promise<{ merged: boolean; sha?: string; error?: string }> {
       const current = asPull(await ghJson([`/repos/${target.repo}/pulls/${target.pr}`], signal).catch(() => undefined))
       if (current?.merged === true && current.merge_commit_sha) {
         return { merged: true, sha: current.merge_commit_sha }
@@ -743,10 +753,14 @@ export function createSystemOps(input: SystemOpsInput): ShipOps {
         signal,
         JSON.stringify({ sha: target.headSha, merge_method: "merge" }),
       )
-      if (result.status !== 0) return { merged: false }
-      const body = parseJson(result.stdout) as { merged?: boolean; sha?: string } | undefined
+      if (result.status !== 0) {
+        const detail = (result.stderr.trim() || result.stdout.trim() || `HTTP ${result.status}`).slice(0, 400)
+        return { merged: false, error: detail }
+      }
+      const body = parseJson(result.stdout) as { merged?: boolean; sha?: string; message?: string } | undefined
       if (body?.merged === true) return { merged: true, ...(body.sha ? { sha: body.sha } : {}) }
-      return { merged: false }
+      const detail = typeof body?.message === "string" ? body.message.slice(0, 400) : "merge não confirmado"
+      return { merged: false, error: detail }
     },
     async inspectMerge(target: ShipTarget, signal: AbortSignal): Promise<{
       merged: MergeState

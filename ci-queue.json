@@ -19,10 +19,23 @@
       "requireGitStability": true,
       "pinHeadSha": true,
       "abortOnStaleBase": true
+    },
+    "review": {
+      "progress": true,
+      "argv": ["npm", "run", "check"],
+      "requireCleanTree": false,
+      "fetchBase": "origin/dev",
+      "requireGitStability": false,
+      "pinHeadSha": true,
+      "abortOnStaleBase": false
     }
   },
   "ship": {
     "acceptedPresets": ["check"],
-    "attestationContext": "local/check"
+    "attestationContext": "local/check",
+    "remoteVerdict": {
+      "workflow": ".github/workflows/ci.yml",
+      "job": "ci-verdict"
+    }
   }
 }
