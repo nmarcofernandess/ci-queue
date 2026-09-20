@@ -69,6 +69,9 @@ class FrozenDict(dict):
     def update(self, *args, **kwargs):
         raise TypeError(f"'{type(self).__name__}' object does not support mutation")
 
+    def __ior__(self, other):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
 
 class FrozenList(list):
     def __setitem__(self, index, value):
@@ -101,6 +104,12 @@ class FrozenList(list):
     def reverse(self):
         raise TypeError(f"'{type(self).__name__}' object does not support mutation")
 
+    def __iadd__(self, other):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+    def __imul__(self, other):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
 
 def _freeze(value):
     if isinstance(value, dict):
@@ -125,9 +134,10 @@ class RecordStore:
 
     def _scan(self):
         if not self.directory.exists():
-            return {}
+            return {}, {}
         try:
             entries = {}
+            failures = {}
             with os.scandir(self.directory) as stream:
                 for entry in stream:
                     if not entry.name.endswith(".json"):
@@ -139,10 +149,10 @@ class RecordStore:
                     except (FileNotFoundError, ProcessLookupError):
                         continue
                     except OSError:
-                        continue
-            return entries
+                        failures[entry.name] = "registro ilegível: %s" % entry.name
+            return entries, failures
         except FileNotFoundError:
-            return {}
+            return {}, {}
         except OSError as error:
             raise SnapshotError("diretório de registros indisponível") from error
 
@@ -175,10 +185,24 @@ class RecordStore:
 
     def snapshot(self, strict=False):
         with self._lock:
-            observed = self._scan()
-            changed = set(observed) != set(self._entries)
+            observed, failures = self._scan()
+            changed = (set(observed) | set(failures)) != set(self._entries)
             next_entries = {}
-            for name in sorted(observed):
+            for name in sorted(set(observed) | set(failures)):
+                if name in failures:
+                    previous = self._entries.get(name)
+                    if (
+                        previous is not None
+                        and previous.error == failures[name]
+                        and previous.is_transient
+                        and previous.value is None
+                    ):
+                        next_entries[name] = previous
+                        continue
+                    fingerprint = previous.fingerprint if previous is not None else Fingerprint(0, 0, 0, 0, 0, 0)
+                    next_entries[name] = Entry(fingerprint, "", None, failures[name], is_transient=True)
+                    changed = True
+                    continue
                 previous = self._entries.get(name)
                 if previous is not None and previous.fingerprint == observed[name] and not previous.is_transient:
                     next_entries[name] = previous

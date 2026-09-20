@@ -7,7 +7,7 @@
  */
 import { createHash } from "node:crypto"
 import { execFileSync } from "node:child_process"
-import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { homedir } from "node:os"
 import { fileURLToPath } from "node:url"
@@ -76,6 +76,25 @@ function atomicFile(path, body, mode = 0o600) {
   const temporary = `${path}.${process.pid}.tmp`
   writeFileSync(temporary, body, { encoding: "utf8", mode })
   renameSync(temporary, path)
+  chmodSync(path, mode)
+}
+
+function snapshotFiles(paths) {
+  return paths.map((path) => {
+    if (!existsSync(path)) return { path, body: undefined, mode: undefined }
+    const info = statSync(path)
+    if (!info.isFile()) {
+      throw new Error(`snapshot recusou caminho não-regular: ${path}`)
+    }
+    return { path, body: readFileSync(path), mode: info.mode & 0o777 }
+  })
+}
+
+function restoreFiles(snapshots) {
+  for (const snapshot of snapshots) {
+    if (snapshot.body === undefined) rmSync(snapshot.path, { force: true })
+    else atomicFile(snapshot.path, snapshot.body, snapshot.mode ?? 0o600)
+  }
 }
 
 function readInstallation(prefix) {
@@ -228,8 +247,9 @@ function launchDomain(platform = process.platform, uid = typeof process.getuid =
   return `gui/${uid}`
 }
 
-function defaultLaunchctl(args) {
-  return execFileSync("launchctl", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 10_000 })
+function defaultLaunchctl(args, options = {}) {
+  const timeout = Number.isFinite(options.timeoutMs) ? Math.max(1, Math.trunc(options.timeoutMs)) : 10_000
+  return execFileSync("launchctl", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout })
 }
 
 function defaultPortOwnerProbe(adapter) {
@@ -259,18 +279,29 @@ function isMissingService(error) {
 
 function deactivateServices(services, adapter, { tolerateMissing = true, timeoutMs = 2000 } = {}) {
   const domain = launchDomain(adapter.platform, adapter.uid)
+  const deadline = Date.now() + Math.max(1, timeoutMs)
+  const run = (args) => {
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) {
+      throw new Error(`desativação excedeu o tempo limite antes de ${args[0]}`)
+    }
+    return adapter.run(args, { timeoutMs: Math.min(10_000, remaining) })
+  }
   for (const service of services) {
     try {
-      adapter.run(["bootout", `${domain}/${service.label}`])
+      run(["bootout", `${domain}/${service.label}`])
     } catch (error) {
       if (!tolerateMissing || !isMissingService(error)) throw new Error(`bootout falhou para ${service.label}: ${error?.message ?? error}`)
     }
-    const maxAttempts = Math.max(1, Math.ceil(timeoutMs / 50))
     let deactivated = false
-    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    while (Date.now() < deadline) {
       try {
-        adapter.run(["print", `${domain}/${service.label}`])
-        if (typeof adapter.wait === "function") adapter.wait(50)
+        run(["print", `${domain}/${service.label}`])
+        if (typeof adapter.wait === "function") {
+          const waitMs = Math.min(50, Math.max(0, deadline - Date.now()))
+          if (waitMs <= 0) break
+          adapter.wait(waitMs)
+        }
       } catch (error) {
         if (isMissingService(error)) {
           deactivated = true
@@ -360,17 +391,6 @@ function validateOwnedCanonical(service, existing) {
     if (readFileSync(service.file).equals(readFileSync(owner.referenceFile))) return
   }
   throw new Error(`envelope canônico alheio ou alterado; preservei ${service.file}`)
-}
-
-function snapshotFiles(paths) {
-  return paths.map((path) => ({ path, body: existsSync(path) ? readFileSync(path) : undefined }))
-}
-
-function restoreFiles(snapshots) {
-  for (const snapshot of snapshots) {
-    if (snapshot.body === undefined) rmSync(snapshot.path, { force: true })
-    else atomicFile(snapshot.path, snapshot.body)
-  }
 }
 
 export function installRelease(input) {

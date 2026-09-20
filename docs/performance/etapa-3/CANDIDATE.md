@@ -86,19 +86,19 @@ O pipeline completo local `npm run check` executou com sucesso (código de saíd
 
 ## Resolução do Review Adversarial (A01–A12, V01)
 
-1. **A01 · Ownership de envelopes launchd:** `scripts/install.mjs:validateOwnedCanonical` compara estritamente o SHA-256 do arquivo existente contra os bytes canônicos gerados pelo release, sem tolerar alterações arbitrárias que coincidam em substrings.
-2. **A02 · Espera fail-closed no bootout:** `scripts/install.mjs:bootoutService` aguarda com timeout determinístico que o serviço deixe de aparecer em `launchctl list`. Se permanecer ativo ao término da janela, encerra com erro fail-closed.
-3. **A03 · Preservação de receipt legado:** `scripts/install.mjs:isActiveInstallation` reconhece instalações que possuam serviços carregados mesmo sem receipt canônico anterior e preserva o receipt existente durante atualizações filesystem-only (`--no-activate`).
-4. **A04 · Rollback transacional do instalador:** `scripts/install.mjs:rollbackActiveServices` restaura atomicamente plists anteriores e re-carrega os serviços no caso de falha na gravação do binário lançador ou nos metadados de instalação.
-5. **A05 · Retentativa de erro transitório no RecordStore:** `backend/ci_queue_api/record_store.py` marca entradas transitórias com `is_transient=True`, permitindo nova tentativa de leitura e parsing no scan subsequente sem depender de alteração nos metadados do disco.
-6. **A06 · Resiliência a exclusão concorrente durante scandir:** `backend/ci_queue_api/record_store.py:_scan` captura `(FileNotFoundError, ProcessLookupError, OSError)` individualmente por arquivo, garantindo que remoções concorrentes de tickets durante a varredura não invalidem o restante dos registros retidos.
-7. **A07 · Imutabilidade profunda das rows de snapshot:** `backend/ci_queue_api/record_store.py` envelopa dicionários e listas cacheados em `FrozenDict` e `FrozenList` imutáveis, prevenindo mutações colaterais por rotas downstream e serializando perfeitamente via `json.dumps`.
-8. **A08 · Exposição de registros corrompidos em coverage:** `backend/ci_queue_api/records.py` e `history.py` informam `corruptRecords: len(snapshot.errors)` no objeto `coverage`, tornando arquivos não processáveis transparentes para a UI e operadores.
-9. **A09 · Propagação de retentativas (hasRetries):** `backend/ci_queue_api/records.py:public_job` inspeciona a árvore de execução completa (`progressSummary["nodes"]`) e preserva `hasRetries` nas projeções summary e live, garantindo o badge correto no frontend.
-10. **A10 · Preservação de paginação contínua no histórico:** `ui/src/features/status/status-page.tsx:useExecutionHistory` funde a primeira página atualizada sem truncar páginas 2+ já carregadas pelo usuário (`mergeFirstPage`), mantendo o cursor e protegendo contra formatos inesperados de resposta.
-11. **A11 · Ciclo de vida, visibilidade e descarte de respostas obsoletas no QueryStore:** `ui/src/lib/query-store.ts` sincroniza requisições com a visibilidade da página (`document.hidden`), respeita o predicado `pollWhile` em dados terminais, rejeita payloads obsoletos que cheguem após cancelamento/unsubscription e isola configurações sem inscritos.
-12. **A12 · Coalescência e limites de inventário de Worktrees:** `backend/ci_queue_api/worktrees.py` implementa single-flight por chave para evitar Git/du redundantes durante misses simultâneos, evicta revisões obsoletas e limita o cache a 64 entradas inativas.
-13. **V01 · Homologação, evidências reais e roteiro S6:** O recibo reflete exatamente os SHAs/árvores auditados, 45/45 testes browser reais executados no Chromium, suíte completa de integração `npm run check` verde, e roteiro S6 com todos os parâmetros mandatórios (`--bundle`, `--node`, `--python`, `--command`, `--activate`).
+1. **A01 · Ownership de envelopes launchd:** `scripts/install.mjs:validateOwnedCanonical` compara estritamente o SHA-256 do arquivo existente contra o receipt da instalação, sem tolerar alterações arbitrárias que coincidam em substrings.
+2. **A02 · Espera fail-closed no bootout:** `scripts/install.mjs:deactivateServices` usa deadline monotônico (`Date.now()+timeoutMs`); cada chamada `launchctl`/`wait` é limitada pelo remaining. Se o serviço permanecer carregado ao esgotar a janela, encerra fail-closed.
+3. **A03 · Preservação de receipt legado:** `scripts/install.mjs:isActiveInstallation` reconhece instalações que possuam serviços carregados mesmo sem `activationStatus` e preserva o receipt existente durante atualizações filesystem-only (`activate:false`).
+4. **A04 · Rollback transacional do instalador:** `scripts/install.mjs:snapshotFiles`/`restoreFiles`/`atomicFile` preservam bytes+mode de arquivos regulares; rollback de launcher 0755 restaura executável (não 0600). Destinos ausentes voltam a ausentes.
+5. **A05 · Retentativa de erro transitório no RecordStore:** `backend/ci_queue_api/record_store.py` marca entradas transitórias com `is_transient=True`, permitindo nova tentativa de leitura no scan subsequente sem depender de alteração nos metadados do disco.
+6. **A06 · Falha de leitura ≠ remoção:** `RecordStore._scan` trata apenas ENOENT/desaparecimento como remoção individual. EACCES/EIO viram erro de coverage (`registro ilegível`) e falham em `strict=True`; não certificam população completa.
+7. **A07 · Imutabilidade profunda das rows de snapshot:** `FrozenDict`/`FrozenList` bloqueiam assignment e operadores compostos (`|=`, `+=`, `*=`), preservando serialização JSON e `isinstance`.
+8. **A08 · Exposição de registros corrompidos em coverage:** `records.py`/`history.py` informam `corruptRecords` no objeto `coverage`.
+9. **A09 · Propagação de retentativas (hasRetries):** `public_job` inspeciona a árvore completa e preserva `hasRetries` nas projeções summary e live.
+10. **A10 · Paginação por geração aplicada:** `useExecutionHistory` só marca a geração como aplicada junto dos dados da resposta correspondente; G0→G1 sem cache reseta pages/cursor e rejeita merge com páginas da geração anterior.
+11. **A11 · AbortSignal até o fetch:** callbacks de `useApiQuery` (JobDrawer `getJob`/`getDiagnostic`, status, analysis, session, health) encaminham `signal` às funções de `api.ts` que já usam `fetch`.
+12. **A12 · Coalescência e limites de inventário de Worktrees:** `worktrees.py` single-flight por chave, eviction e limite de cache.
+13. **V01 · Homologação e roteiro S6:** este recibo nomeia métodos reais; o ticket canônico que prova um HEAD é o da fila oficial daquele HEAD. S6 usa o **diretório** retornado por `release:bundle` (sem glob `*.tar.gz`), com `--config`/`--state`/`--command`/`--node`/`--python` observados na instalação. `bootObserved=false` até janela autorizada de login.
 
 ---
 
@@ -112,6 +112,8 @@ O pipeline completo local `npm run check` executou com sucesso (código de saíd
    - O cache de 60s em `worktrees.py` pode atrasar em até 60 segundos a detecção puramente passiva de arquivos untracked criados fora do CI Queue. Ações interativas e criação de worktree invalidam ou revalidam ao vivo.
 4. **Boot pendente (S6 não executado):**
    - O retorno canônico após login real do macOS no ambiente do operador permanece como o único item pendente de validação operacional (`bootObserved=false`).
+5. **Ship ready (fora deste PR):**
+   - `markReady` via PATCH draft permanece no PR de lifecycle; não misturar com estes resíduos de leitura/instalação.
 
 ---
 
@@ -119,9 +121,10 @@ O pipeline completo local `npm run check` executou com sucesso (código de saíd
 
 Quando o operador autorizar a janela para ativação real e login:
 
-1. **Gerar pacote canônico (bundle):**
+1. **Gerar pacote canônico (bundle diretório):**
    ```bash
    npm run release:bundle
+   # anotar o diretório impresso, ex.: releases/ci-queue-0.1.0-<revision>/
    ```
 2. **Pré-inspeção:**
    ```bash
@@ -131,14 +134,17 @@ Quando o operador autorizar a janela para ativação real e login:
    lsof -nP -iTCP:8765 -sTCP:LISTEN
    curl --fail --silent http://127.0.0.1:8765/health
    ```
-3. **Ativação canônica via instalador com argumentos completos:**
+3. **Ativação canônica via instalador com argumentos completos observados:**
    ```bash
-   node scripts/install.mjs update \
-     --bundle releases/ci-queue-0.1.0-*.tar.gz \
+   BUNDLE="<diretório-exato-do-passo-1>"
+   node "$BUNDLE/scripts/install.mjs" update \
+     --bundle "$BUNDLE" \
      --prefix ~/.local/share/ci-queue \
-     --node /Users/marcoantonio/.local/share/dietflow-runtime/node/current/bin/node \
-     --python /usr/bin/python3 \
-     --command ~/.local/share/ci-queue/current/bin/ci-queue \
+     --state ~/.local/state/local-ci/queue \
+     --config /caminho/observado/ci-queue.json \
+     --node /caminho/observado/node \
+     --python /caminho/observado/python3 \
+     --command ~/.local/bin/ci-queue \
      --activate
    ```
 4. **Observação de estabilidade (60s):**

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, statSync, constants, accessSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -280,4 +280,54 @@ test("A04: rollback cleans up bootstrapped services and restores prior state if 
     assert.equal(launchctl.active.has("com.nmarcofernandess.ci-queue.worker"), true)
     assert.equal(launchctl.active.has("com.nmarcofernandess.ci-queue.dashboard"), true)
   } finally { rmSync(paths.root, { recursive: true, force: true }) }
+})
+
+test("A04: restoreFiles preserves executable mode on launcher rollback", () => {
+  const paths = setup("a".repeat(40))
+  const launchctl = fakeLaunchctl()
+  const commandPath = join(paths.root, "bin", "ci-queue")
+  mkdirSync(dirname(commandPath), { recursive: true })
+  try {
+    installRelease({ ...activationInput(paths, launchctl), commandPath })
+    assert.equal(statSync(commandPath).mode & 0o777, 0o755)
+    accessSync(commandPath, constants.X_OK)
+
+    const secondBundle = buildRelease({ root: paths.root, outputDir: join(paths.root, "bundles-2"), revision: "b".repeat(40) }).destination
+    const failing = fakeLaunchctl({ failBootstrapAt: 1 })
+    assert.throws(() => installRelease({
+      ...activationInput({ ...paths, destination: secondBundle }, failing),
+      commandPath,
+    }))
+    assert.equal(statSync(commandPath).mode & 0o777, 0o755)
+    accessSync(commandPath, constants.X_OK)
+    assert.match(readFileSync(commandPath, "utf8"), /^#!\/bin\/sh\n/)
+  } finally { rmSync(paths.root, { recursive: true, force: true }) }
+})
+
+test("A02: deactivation deadline includes launchctl wait time, not only sleep count", () => {
+  const paths = setup("c".repeat(40))
+  let now = 1_000_000
+  const realNow = Date.now
+  Date.now = () => now
+  try {
+    const launchctl = fakeLaunchctl({ hangOnBootout: true })
+    const originalWait = launchctl.wait
+    launchctl.wait = (ms) => {
+      now += ms
+      return originalWait(ms)
+    }
+    installRelease(activationInput(paths, launchctl))
+    assert.throws(() => uninstallRelease({
+      prefix: paths.prefix,
+      deactivate: true,
+      platform: "darwin",
+      uid: 501,
+      launchctl: launchctl.run,
+      wait: launchctl.wait,
+    }), /excedeu o tempo limite/)
+    assert.ok(now - 1_000_000 >= 2000, `deadline should consume wall budget, advanced=${now - 1_000_000}`)
+  } finally {
+    Date.now = realNow
+    rmSync(paths.root, { recursive: true, force: true })
+  }
 })

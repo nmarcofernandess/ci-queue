@@ -261,7 +261,8 @@ function DiagnosticPopover({
   const exportRequest = React.useRef<Promise<LogExport> | undefined>(undefined)
   const { scope } = useProjectContext()
   const diagnosticRequest = React.useCallback(
-    () => (scope ? getDiagnostic(scope, jobId) : Promise.reject(new Error("projeto ausente"))),
+    (signal?: AbortSignal) =>
+      scope ? getDiagnostic(scope, jobId, signal) : Promise.reject(new Error("projeto ausente")),
     [jobId, scope]
   )
   const diagnostic = useApiQuery(`diagnostic:${scope ? scopeKey(scope) : "none"}:${jobId}`, diagnosticRequest, {
@@ -447,7 +448,8 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
   )
   const [logRequested, setLogRequested] = React.useState(false)
   const jobRequest = React.useCallback(
-    () => (scope ? getJob(scope, jobId) : Promise.reject(new Error("projeto ausente"))),
+    (signal?: AbortSignal) =>
+      scope ? getJob(scope, jobId, signal) : Promise.reject(new Error("projeto ausente")),
     [jobId, scope]
   )
   const job = useApiQuery(`job:${scope ? scopeKey(scope) : "none"}:${jobId}`, jobRequest, {

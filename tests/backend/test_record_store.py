@@ -122,6 +122,7 @@ class RecordStoreTests(unittest.TestCase):
             "id": "nested",
             "meta": {"author": "marco"},
             "tags": ["ci", "queue"],
+            "progress": {"nodes": [{"id": "first"}]},
         }))
         store = RecordStore(self.root)
         snapshot = store.snapshot()
@@ -135,12 +136,68 @@ class RecordStoreTests(unittest.TestCase):
             row["tags"].append("tampered")
         with self.assertRaises(TypeError):
             row["tags"][0] = "tampered"
+        with self.assertRaises(TypeError):
+            row |= {"status": "passed"}
+        nodes = row["progress"]["nodes"]
+        with self.assertRaises(TypeError):
+            nodes += [{"id": "extra"}]
+        with self.assertRaises(TypeError):
+            nodes *= 2
 
         # Must be natively JSON serializable
         serialized = json.loads(json.dumps(row))
         self.assertEqual(serialized["id"], "nested")
         self.assertEqual(serialized["meta"]["author"], "marco")
         self.assertEqual(serialized["tags"], ["ci", "queue"])
+        again = store.snapshot()
+        self.assertEqual(again.generation, snapshot.generation)
+        self.assertEqual(again.digests, snapshot.digests)
+
+    def test_A06_stat_permission_error_is_coverage_not_silent_removal(self):
+        import errno
+        store = RecordStore(self.root)
+        store.snapshot()
+        real_scandir = os.scandir
+
+        class MockDirEntry:
+            def __init__(self, real):
+                self._real = real
+                self.name = real.name
+                self.path = real.path
+
+            def is_file(self, *args, **kwargs):
+                return self._real.is_file(*args, **kwargs)
+
+            def stat(self, *args, **kwargs):
+                if self.name == "1.json":
+                    raise PermissionError(errno.EACCES, "injected stat failure")
+                return self._real.stat(*args, **kwargs)
+
+        class MockScandirContext:
+            def __init__(self, entries):
+                self.entries = entries
+
+            def __enter__(self):
+                return iter(self.entries)
+
+            def __exit__(self, *args):
+                pass
+
+        def failing_scandir(path):
+            with real_scandir(path) as stream:
+                real_entries = list(stream)
+            return MockScandirContext([MockDirEntry(entry) for entry in real_entries])
+
+        with patch("os.scandir", side_effect=failing_scandir):
+            with self.assertRaises(SnapshotError):
+                store.snapshot(strict=True)
+            tolerant = store.snapshot()
+            self.assertTrue(any("1.json" in err for err in tolerant.errors))
+            ids = [row["id"] for row in tolerant.rows]
+            self.assertNotIn("1", ids)
+            self.assertIn("0", ids)
+            self.assertIn("2", ids)
+            self.assertEqual(len(list(self.root.glob("*.json"))), 3)
 
     def test_A08_read_executions_includes_corrupt_records_in_coverage(self):
         from ci_queue_api.records import read_executions

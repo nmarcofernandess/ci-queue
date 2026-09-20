@@ -119,8 +119,8 @@ async function postJson<T>(
   return payload as T
 }
 
-export function getHealth() {
-  return requestJson<HealthResponse>("/health")
+export function getHealth(signal?: AbortSignal) {
+  return requestJson<HealthResponse>("/health", undefined, signal)
 }
 
 export function getProjects(includeObserved = false) {
@@ -179,60 +179,64 @@ export function getExecutions(
   }, signal)
 }
 
-export function getPresetHistory(scope: ProjectScope) {
+export function getPresetHistory(scope: ProjectScope, signal?: AbortSignal) {
   return requestScoped<PresetHistoryResponse>(
     scope,
     "/api/preset-history",
-    scopeQuery(scope)
+    scopeQuery(scope),
+    signal
   )
 }
 
-export async function getRemoteSlots(scope: ProjectScope) {
+export async function getRemoteSlots(scope: ProjectScope, signal?: AbortSignal) {
   return parseRemoteSlotsResponse(
-    await requestScoped<unknown>(scope, "/api/remote-slots", scopeQuery(scope))
+    await requestScoped<unknown>(scope, "/api/remote-slots", scopeQuery(scope), signal)
   )
 }
 
 export function getResults(
   scope: Extract<ReadScope, { kind: "project" | "all" }>,
-  bounds: { from?: string; to?: string } = {}
+  bounds: { from?: string; to?: string } = {},
+  signal?: AbortSignal
 ) {
   return requestScoped<ResultsResponse>(scope, "/api/analysis", {
     ...scopeQuery(scope),
     ...bounds,
     metric: "results",
-  })
+  }, signal)
 }
 
 export function getDuration(
   scope: Extract<ReadScope, { kind: "project" | "all" }>,
-  query: { from?: string; to?: string; preset: string }
+  query: { from?: string; to?: string; preset: string },
+  signal?: AbortSignal
 ) {
   return requestScoped<AnalysisResponse>(scope, "/api/analysis", {
     ...scopeQuery(scope),
     ...query,
     metric: "duration",
-  })
+  }, signal)
 }
 
-export function getMachine() {
-  return requestJson<MachineResponse>("/api/machine")
+export function getMachine(signal?: AbortSignal) {
+  return requestJson<MachineResponse>("/api/machine", undefined, signal)
 }
 
 export function getWorktrees(scope: Extract<ReadScope, { kind: "project" | "all" }>, signal?: AbortSignal) {
   return requestScoped<WorktreesResponse>(scope, "/api/worktrees", scopeQuery(scope), signal)
 }
 
-export function getDashboardState(scope: ProjectScope) {
+export function getDashboardState(scope: ProjectScope, signal?: AbortSignal) {
   return requestScoped<DashboardState>(
     scope,
     "/api/dashboard-state",
-    scopeQuery(scope)
+    scopeQuery(scope),
+    signal
   )
 }
 
-export function getDashboardSession() {
-  return requestJson<DashboardSession>("/api/session")
+export function getDashboardSession(signal?: AbortSignal) {
+  return requestJson<DashboardSession>("/api/session", undefined, signal)
 }
 
 export function writeDashboardState(

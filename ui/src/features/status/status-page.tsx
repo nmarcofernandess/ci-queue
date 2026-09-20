@@ -180,7 +180,7 @@ function CurrentExecution({
 }
 
 function MachineCard() {
-  const request = React.useCallback(() => getMachine(), [])
+  const request = React.useCallback((signal?: AbortSignal) => getMachine(signal), [])
   const machine = useApiQuery("machine", request, { pollMs: 60_000 })
 
   return (
@@ -697,7 +697,7 @@ function useExecutionHistory(
   const periodStart = React.useMemo(() => queryPeriodStart(period), [period])
   const requestKey = `${scopeKey(scope)}\u0000${search}\u0000${period}\u0000${result}`
   const requestVersion = React.useRef(0)
-  const lastHistoryRevision = React.useRef(historyRevision)
+  const appliedHistoryRevision = React.useRef(historyRevision)
   const lastRequestKey = React.useRef(requestKey)
   const [state, setState] = React.useState<ExecutionHistoryState>({
     queryKey: requestKey,
@@ -726,10 +726,8 @@ function useExecutionHistory(
   )
 
   React.useEffect(() => {
-    const isNewGen = lastHistoryRevision.current !== historyRevision
     const isNewQuery = lastRequestKey.current !== requestKey
-    if (isNewGen || isNewQuery) {
-      lastHistoryRevision.current = historyRevision
+    if (isNewQuery) {
       lastRequestKey.current = requestKey
       requestVersion.current += 1
     }
@@ -741,6 +739,11 @@ function useExecutionHistory(
     if (initialPage.data) {
       const page = initialPage.data
       const pageJobs = Array.isArray(page.jobs) ? page.jobs : []
+      const isNewGen = appliedHistoryRevision.current !== historyRevision
+      if (isNewGen || isNewQuery) {
+        appliedHistoryRevision.current = historyRevision
+        if (isNewGen) requestVersion.current += 1
+      }
       setState((current) => {
         const preserveSubsequent =
           !isNewGen &&
@@ -791,10 +794,27 @@ function useExecutionHistory(
       return
     }
 
+    const waitingNewGen = appliedHistoryRevision.current !== historyRevision
+    if (waitingNewGen) {
+      requestVersion.current += 1
+      setState({
+        queryKey: requestKey,
+        jobs: [],
+        loading: true,
+        loadingMore: false,
+        error: undefined,
+        loadMoreError: undefined,
+        hasMore: false,
+        snapshotBefore: undefined,
+        nextCursor: null,
+      })
+      return
+    }
+
     setState((current) =>
       current.queryKey === requestKey
         ? { ...current, loading: true }
-        : { ...current, queryKey: requestKey, jobs: [], loading: true }
+        : { queryKey: requestKey, jobs: [], loading: true, loadingMore: false, error: undefined, loadMoreError: undefined, hasMore: false, snapshotBefore: undefined, nextCursor: null }
     )
   }, [initialPage.data, initialPage.error, requestKey, historyRevision])
 
@@ -1043,16 +1063,16 @@ function HistoryPanel({
   const needsMachine = filters.origin !== "git"
   const needsGit = filters.origin !== "machine"
   const presetRequest = React.useCallback(
-    () =>
+    (signal?: AbortSignal) =>
       projectScope
-        ? getPresetHistory(projectScope)
+        ? getPresetHistory(projectScope, signal)
         : Promise.reject(new Error("catálogo exige um projeto")),
     [projectScope]
   )
   const remoteRequest = React.useCallback(
-    () =>
+    (signal?: AbortSignal) =>
       projectScope
-        ? getRemoteSlots(projectScope)
+        ? getRemoteSlots(projectScope, signal)
         : Promise.reject(new Error("verdes exigem um projeto")),
     [projectScope]
   )
@@ -1296,9 +1316,9 @@ export function StatusPage() {
   })
   const projectScope = scope?.kind === "project" ? scope : null
   const dashboardRequest = React.useCallback(
-    () =>
+    (signal?: AbortSignal) =>
       projectScope
-        ? getDashboardState(projectScope)
+        ? getDashboardState(projectScope, signal)
         : Promise.reject(new Error("Meta exige um projeto")),
     [projectScope]
   )
