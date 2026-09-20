@@ -142,11 +142,11 @@ function copyBundle(bundle, prefix, manifest) {
   }
 }
 
-function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pythonPath, manifestSha256, homeDir }) {
+function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pythonPath, manifestSha256, homeDir, commandPath }) {
   if (!configPath) return []
   if (!nodePath || !pythonPath) throw new Error("--node e --python são obrigatórios ao gerar envelope de serviço")
   const launchRoot = join(releasePath, "launch-agents")
-  const environment = { PATH: servicePath(nodePath) }
+  const environment = { PATH: servicePath(nodePath, commandPath) }
   return [
     {
       label: "com.nmarcofernandess.ci-queue.worker",
@@ -157,7 +157,7 @@ function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pytho
         ProgramArguments: [nodePath, join(releasePath, "bin", "ci-queue.mjs"), "worker", "--state", stateRoot],
         EnvironmentVariables: environment,
         QueueDirectories: [join(stateRoot, "jobs")],
-        ProcessType: "Background",
+        ProcessType: "Standard",
       },
     },
     {
@@ -169,7 +169,7 @@ function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pytho
         ProgramArguments: [pythonPath, "-m", "ci_queue_api", "--config", configPath, "--state", stateRoot, "--ui", join(releasePath, "ui", "dist"), "--manifest", join(releasePath, "manifest.json"), "--manifest-sha256", manifestSha256],
         EnvironmentVariables: { ...environment, PYTHONPATH: join(releasePath, "backend") },
         KeepAlive: true,
-        ProcessType: "Background",
+        ProcessType: "Interactive",
       },
     },
   ]
@@ -262,6 +262,16 @@ function deactivateServices(services, adapter, { tolerateMissing = true } = {}) 
     } catch (error) {
       if (!tolerateMissing || !isMissingService(error)) throw new Error(`bootout falhou para ${service.label}: ${error?.message ?? error}`)
     }
+    if (adapter.run === defaultLaunchctl) {
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        try {
+          adapter.run(["print", `${domain}/${service.label}`])
+          adapter.wait(50)
+        } catch (error) {
+          if (isMissingService(error)) break
+        }
+      }
+    }
   }
 }
 
@@ -296,7 +306,22 @@ function activateServices(services, adapter) {
   const activated = []
   try {
     for (const service of services) {
-      adapter.run(["bootstrap", domain, service.file])
+      if (adapter.run === defaultLaunchctl) {
+        let lastBootstrapError
+        for (let attempt = 1; attempt <= 5; attempt += 1) {
+          try {
+            adapter.run(["bootstrap", domain, service.file])
+            lastBootstrapError = undefined
+            break
+          } catch (error) {
+            lastBootstrapError = error
+            if (attempt < 5) adapter.wait(200)
+          }
+        }
+        if (lastBootstrapError) throw lastBootstrapError
+      } else {
+        adapter.run(["bootstrap", domain, service.file])
+      }
       activated.push(service)
       verifyLoaded(adapter, service)
     }
@@ -310,16 +335,24 @@ function serviceReceipt(service) {
   return { label: service.label, file: service.file, sha256: sha256(service.file), referenceFile: service.referenceFile }
 }
 
-function validateOwnedCanonical(service, existing) {
+function validateOwnedCanonical(service, existing, prefix) {
   if (!SERVICE_LABELS.has(service.label)) throw new Error(`label de serviço não permitido: ${service.label}`)
   if (!existsSync(service.file)) return
   if (lstatSync(service.file).isSymbolicLink() || !lstatSync(service.file).isFile()) {
     throw new Error(`envelope canônico não é arquivo regular: ${service.file}`)
   }
   const owner = existing?.services?.find((candidate) => candidate?.label === service.label && resolve(candidate?.file ?? "") === resolve(service.file))
-  if (!owner?.sha256 || sha256(service.file) !== owner.sha256) {
-    throw new Error(`envelope canônico alheio ou alterado; preservei ${service.file}`)
+  if (owner?.sha256 && sha256(service.file) === owner.sha256) return
+  if (prefix) {
+    const releaseRoot = join(resolve(prefix), "releases")
+    try {
+      const content = readFileSync(service.file, "utf8")
+      if (content.includes(`<string>${service.label}</string>`) && content.includes(releaseRoot)) {
+        return
+      }
+    } catch {}
   }
+  throw new Error(`envelope canônico alheio ou alterado; preservei ${service.file}`)
 }
 
 function snapshotFiles(paths) {
@@ -355,6 +388,7 @@ export function installRelease(input) {
     pythonPath: input.pythonPath,
     manifestSha256,
     homeDir: resolve(input.homeDir ?? homedir()),
+    commandPath: input.commandPath,
   })
   writeServiceReferences(services)
   const preservingActiveInstallation = !input.activate && isActiveInstallation(existing)
@@ -366,7 +400,7 @@ export function installRelease(input) {
       uid: input.uid ?? (typeof process.getuid === "function" ? process.getuid() : undefined),
       wait: input.wait ?? ((milliseconds) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds)),
     }
-    for (const service of services) validateOwnedCanonical(service, existing)
+    for (const service of services) validateOwnedCanonical(service, existing, prefix)
     const portOwnerProbe = input.portOwnerProbe ?? (input.launchctl ? undefined : () => defaultPortOwnerProbe(adapter))
     if (portOwnerProbe) {
       const owner = portOwnerProbe()
