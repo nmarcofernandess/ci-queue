@@ -25,6 +25,11 @@ cutover, Full execution or changes to product policy.
 
 ## Working in this repository
 
+- Real product recipes on this Mac enter the official queue
+  (`ci-queue enqueue check|review --wait`). Fixtures inside the suite use
+  temporary states; do not start a second worker on the operator state, and do
+  not run `npm run check` outside the queue when `execution.executor=queue`.
+  Resume by inspecting ticket/status/process before enqueueing again.
 - Keep the executor and dashboard independent of a consumer checkout. A path,
   import, script or release asset must not require DietFlow internals.
 - Preserve proven process ownership, cancellation, locking and record formats
