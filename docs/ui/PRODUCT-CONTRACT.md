@@ -68,7 +68,7 @@ A fila e o histórico compartilham a composição DataTable do Dashboard 01. Cad
 
 A fila contém apenas tickets `queued` **da máquina**, na ordem da fila, e não possui busca ou filtros. O filtro de projeto não esconde a fila. Chip de projeto aparece quando o filtro não identifica o dono sozinho. Seu vazio usa o `Empty` oficial com o título **Fila livre** e sem repetir a última execução.
 
-O histórico contém apenas tickets terminais do filtro atual: um projeto, atribuídos em Todos, ou sem `projectId` em Histórico sem projeto. Em Todos o chip nomeia o dono. Acima e fora da borda da tabela ficam:
+O histórico une tickets terminais e observações de execução directa (`recordKind=observed-execution`) do filtro atual: um projeto, atribuídos em Todos, ou sem `projectId` em Histórico sem projeto. Observação não é ticket: chip/rótulo distinguem a origem; drawer sem log de fila trata ausência como legítima. Em Todos o chip nomeia o dono. Contagens de Análise, Meta, Últimos verdes e prova de ship **não** incluem observações. Acima e fora da borda da tabela ficam:
 
 1. ToggleGroup Execuções / Últimos verdes na primeira linha; fora de um projeto o verde fica `disabled` com tooltip **escolha um projeto**;
 2. InputGroup de busca na segunda linha, seguido dos Selects diretos de período e resultado;

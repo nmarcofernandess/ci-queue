@@ -55,6 +55,20 @@ Exige capability `execution-entry-guard-v1` (`ci-queue version --json`). CLI ant
 
 No Project Manager, confira e registre pasta/catálogo para inventário e histórico filtrado. Running e fila permanecem globais. Binding Node em `runtimes.json` é separado do cadastro; ver [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md).
 
+### 4.2 Publicar observação terminal (sem enfileirar)
+
+Quando uma receita roda **fora** da fila e o consumidor quer que o Histórico mostre o fato, publique metadados na CLI instalada. Exige capability `execution-observe-v1`. Isso **não** executa trabalho, **não** cria ticket e **não** autoriza ship:
+
+```bash
+# observation.json: schema execution-observation-v1 (kind, projectId, executionId,
+# status terminal, timestamps, recipe, cwd, headSha, …). Sem argv bruto nem logPath
+# absoluto inventado — ver CONTRACTS.
+ci-queue observe --stdin --json --state "$STATE" < observation.json
+ci-queue history --include-observed --project PROJECT_ID --state "$STATE" --json
+```
+
+Reimportação do mesmo `projectId`+`executionId` é idempotente. CLI antiga sem a capability: falhe fechado ou ignore conforme a política do consumidor; o produto não inventa bypass. Análise/Meta/Últimos verdes/prova de ship **não** contam observações.
+
 ## 5. Ship começa depois da autoria
 
 Árvore limpa; HEAD publicado; PR aberto na base correta, preferencialmente draft; catálogo em Git; identidade API/Git adequada. O genérico não tem classificador automático de docs-only.

@@ -25,6 +25,16 @@ import { findJobById, listHistoryJobs, listQueuedJobs, readRunningJob, resolveSt
 import { buildPresetHistory } from "./core/preset-history.js"
 import { listAdvisories, upsertAdvisory } from "./core/advisories.js"
 import { evaluateExecutionEntry, EXECUTION_ENTRY_GUARD_CAPABILITY } from "./core/execution-entry.js"
+import {
+  EXECUTION_OBSERVE_CAPABILITY,
+  OBSERVATION_MAX_BYTES,
+} from "./contracts/execution-observation.js"
+import {
+  listExecutionHistory,
+  ObservationError,
+  readStdinLimited,
+  storeExecutionObservation,
+} from "./core/execution-observations.js"
 
 type GlobalArgs = { command?: string; rest: string[]; json: boolean; stateRoot?: string; cwd?: string; configPath?: string }
 
@@ -120,7 +130,9 @@ function usage(): string {
     "  enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH [--flags-json JSON]",
     "  worker",
     "  status",
+    "  observe --stdin [--json]",
     "  history [--project ID] [--legacy]",
+    "  history --include-observed [--project ID]",
     "  preset-history [--preset NAME]",
     "  advisory upsert --preset NAME --head-sha SHA --reason TEXT [--pr N]",
     "  advisory list",
@@ -150,7 +162,25 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+        })
+      }
+      case "observe": {
+        if (!args.rest.includes("--stdin")) {
+          return failure("USAGE", "observe requer --stdin")
+        }
+        const raw = await readStdinLimited(process.stdin, OBSERVATION_MAX_BYTES)
+        let payload: unknown
+        try {
+          payload = JSON.parse(raw)
+        } catch {
+          return failure("OBSERVATION_INVALID", "stdin não é JSON válido")
+        }
+        const stored = storeExecutionObservation(root, payload)
+        return success({
+          id: stored.id,
+          executionId: stored.executionId,
+          outcome: stored.outcome,
         })
       }
       case "init": {
@@ -266,8 +296,20 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         return success(await runWorker(root))
       case "status":
         return success({ running: readRunningJob(root) ?? null, queued: listQueuedJobs(root), latest: listHistoryJobs(root)[0] ?? null })
-      case "history":
-        return success({ jobs: listHistoryJobs(root, optionValue(args.rest, "--project")).filter(ticket => !args.rest.includes("--legacy") || !ticket.projectId) })
+      case "history": {
+        const projectId = optionValue(args.rest, "--project")
+        if (args.rest.includes("--include-observed")) {
+          if (args.rest.includes("--legacy")) {
+            return failure("USAGE", "--legacy não pode ser combinado com --include-observed")
+          }
+          return success({ executions: listExecutionHistory(root, projectId) })
+        }
+        return success({
+          jobs: listHistoryJobs(root, projectId).filter(
+            (ticket) => !args.rest.includes("--legacy") || !ticket.projectId,
+          ),
+        })
+      }
       case "preset-history": {
         const loaded = readQueueConfig(args.cwd, args.configPath)
         const report = buildPresetHistory(listHistoryJobs(root, loaded.config.project.id), loaded.config)
@@ -358,6 +400,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
     }
   } catch (error) {
     if (error instanceof InitError) return failure(error.code, error.message)
+    if (error instanceof ObservationError) return failure(error.code, error.message)
     if (error instanceof ShipError) {
       return failure(error.code, error.message, {
         effects: error.effects,

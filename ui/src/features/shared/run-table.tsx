@@ -119,12 +119,23 @@ function identityBadge(
       job.progressSummary?.nodes?.some((node) => (node.retryCount ?? 0) > 0)
   )
   const chipVisible = projectChipVisible(job, chip)
+  const observed = job.recordKind === "observed-execution"
   const variant = <RunVariantBadge runVariant={job.runVariant} />
-  if (!flaky && !chipVisible && !job.runVariant) {
+  if (!flaky && !chipVisible && !observed && !job.runVariant) {
     return undefined
   }
   return (
     <>
+      {observed ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline">Direta</Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            Resultado declarado pelo receipt; não é comprovação canônica
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
       {chipVisible && job.projectName ? (
         <ProjectChip name={job.projectName} facts={projectChipFacts(job)} />
       ) : null}

@@ -17,6 +17,8 @@ Use o bundle efetivamente produzido, não um nome inventado. Manifest registra v
 
 Prefixo usual: `~/.local/share/ci-queue`. State novo usual: `~/.local/state/ci-queue`; instalação existente pode usar `~/.local/state/local-ci/queue`. Leia `installation.json` e mantenha o state real da máquina, CLI, worker e API. Não criar outra fila por copiar o exemplo.
 
+O launcher escrito em `~/.local/bin/ci-queue` (ou `--command`) exporta `CI_QUEUE_STATE_DIR` para o state passado em `install`/`update` quando a variável ainda não está no ambiente. Assim `observe`, `history`, worker e API usam o mesmo root — inclusive `<state>/observations/` — sem depender do fallback legado.
+
 Sem `--activate`, o instalador copia/registra a release, sem provar serviços carregados:
 
 ```bash
@@ -62,7 +64,7 @@ launchctl list | grep 'com.nmarcofernandess.ci-queue'
 
 Conferir CLI, installation.json, manifest/revisão de `/build.json`, paths dos envelopes e o mesmo state. Enfileirar um teste pequeno verdadeiro autorizado, observar resultado e retorno a ocioso. Depois de novo login, repetir a verificação. Se os serviços não voltarem, registrar achado do instalador com os envelopes observados; não criar daemon improvisado no consumidor.
 
-Falha em bootstrap retorna erro e não prova serviço saudável, mesmo quando installation.json já mudou. Verificar os serviços e repetir a operação documentada quando a fila estiver quieta. Preservar bundle anterior para recuperação; não remover histórico ou subir executor concorrente.
+Falha em bootstrap retorna erro e não prova serviço saudável, mesmo quando installation.json já mudou. Verificar os serviços e repetir a operação documentada quando a fila estiver quieta. Preservar bundle anterior para recuperação; não remover histórico, `observations/` ou subir executor concorrente. Rollback/update troca a release ativa; o state (tickets, logs, observações, cadastros) permanece no path registrado.
 
 ## Remoção e recuperação
 

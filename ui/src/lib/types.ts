@@ -69,6 +69,11 @@ export type JobRecord = {
   progressEnabled: boolean
   hasRetries?: boolean
   progressSummary?: ProgressSummary
+  /** Absent on legacy tickets; do not invent observed identity from absence. */
+  recordKind?: "queue-ticket" | "observed-execution"
+  executor?: "queue" | "direct" | "unknown"
+  executionId?: string
+  logAvailability?: "not-collected"
   durationReference?: {
     medianMs: number
     meanMs: number
