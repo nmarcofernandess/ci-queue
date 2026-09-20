@@ -8,7 +8,7 @@ emit="$root/scripts/progress-emit.sh"
 cd "$root"
 
 # Opt-in queue admission for this checkout (source CLI; no install cycle).
-npm run ci-queue -- guard --cwd "$root" --config "$root/ci-queue.json" \
+"$root/node_modules/.bin/tsx" "$root/src/cli.ts" guard --cwd "$root" --config "$root/ci-queue.json" \
   --state "${CI_QUEUE_STATE_DIR:-$HOME/.local/state/local-ci/queue}" --json >/dev/null
 
 eval "$(env | awk -F= '/^VITEST/ { print "unset " $1 }')"
