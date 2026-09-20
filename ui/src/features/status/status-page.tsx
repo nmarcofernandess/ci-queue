@@ -19,6 +19,7 @@ import {
   type ApiQuery,
   useApiQuery,
 } from "@/lib/api"
+import { sharedPageRequest } from "@/lib/query-store"
 import type {
   DashboardState,
   PresetHistoryEntry,
@@ -115,8 +116,9 @@ function CurrentExecution({
   const stages = current.progressSummary?.available
     ? (current.progressSummary.roots ?? [])
     : []
-  const flaky = current.progressSummary?.nodes?.some(
-    (node) => (node.retryCount ?? 0) > 0
+  const flaky = Boolean(
+    current.hasRetries ||
+      current.progressSummary?.nodes?.some((node) => (node.retryCount ?? 0) > 0)
   )
 
   return (
@@ -178,7 +180,7 @@ function CurrentExecution({
 }
 
 function MachineCard() {
-  const request = React.useCallback(() => getMachine(), [])
+  const request = React.useCallback((signal?: AbortSignal) => getMachine(signal), [])
   const machine = useApiQuery("machine", request, { pollMs: 60_000 })
 
   return (
@@ -563,6 +565,7 @@ type ExecutionHistoryState = {
   snapshotBefore: string | undefined
   nextCursor: string | null
   unattributedRecords?: number
+  corruptRecords?: number
 }
 
 const HISTORY_DEFAULTS: HistoryFilters = {
@@ -665,8 +668,21 @@ function appendExecutionJobs(
   current: RunTableJob[],
   next: RunTableJob[]
 ): RunTableJob[] {
-  const seen = new Set(current.map(jobIdentity))
-  return [...current, ...next.filter((job) => !seen.has(jobIdentity(job)))]
+  const safeCurrent = Array.isArray(current) ? current : []
+  const safeNext = Array.isArray(next) ? next : []
+  const seen = new Set(safeCurrent.map(jobIdentity))
+  return [...safeCurrent, ...safeNext.filter((job) => !seen.has(jobIdentity(job)))]
+}
+
+function mergeFirstPage(
+  current: RunTableJob[],
+  firstPage: RunTableJob[]
+): RunTableJob[] {
+  const safeFirst = Array.isArray(firstPage) ? firstPage : []
+  const safeCurrent = Array.isArray(current) ? current : []
+  const updatedIds = new Map(safeFirst.map((job) => [jobIdentity(job), job]))
+  const remaining = safeCurrent.filter((job) => !updatedIds.has(jobIdentity(job)))
+  return [...safeFirst, ...remaining]
 }
 
 function useExecutionHistory(
@@ -681,6 +697,8 @@ function useExecutionHistory(
   const periodStart = React.useMemo(() => queryPeriodStart(period), [period])
   const requestKey = `${scopeKey(scope)}\u0000${search}\u0000${period}\u0000${result}`
   const requestVersion = React.useRef(0)
+  const appliedHistoryRevision = React.useRef(historyRevision)
+  const lastRequestKey = React.useRef(requestKey)
   const [state, setState] = React.useState<ExecutionHistoryState>({
     queryKey: requestKey,
     jobs: [],
@@ -693,48 +711,112 @@ function useExecutionHistory(
     nextCursor: null,
   })
 
-  React.useEffect(() => {
-    const version = requestVersion.current + 1
-    requestVersion.current = version
-    void getExecutions(scope, {
+  const initialRequest = React.useCallback(
+    (signal?: AbortSignal) => getExecutions(scope, {
       q: search || undefined,
       result,
       from: periodStart,
-    })
-      .then((page) => {
-        if (requestVersion.current !== version) {
-          return
+    }, signal),
+    [periodStart, result, scope, search]
+  )
+  const initialPage = useApiQuery(
+    `executions:${requestKey}:${historyRevision}`,
+    initialRequest,
+    { pollMs: 10_000 }
+  )
+
+  React.useEffect(() => {
+    const isNewQuery = lastRequestKey.current !== requestKey
+    if (isNewQuery) {
+      lastRequestKey.current = requestKey
+      requestVersion.current += 1
+    }
+
+    const pageError = initialPage.error
+      ? errorFrom(initialPage.error, "Não foi possível carregar o histórico.")
+      : undefined
+
+    if (initialPage.data) {
+      const page = initialPage.data
+      const pageJobs = Array.isArray(page.jobs) ? page.jobs : []
+      const isNewGen = appliedHistoryRevision.current !== historyRevision
+      if (isNewGen || isNewQuery) {
+        appliedHistoryRevision.current = historyRevision
+        if (isNewGen) requestVersion.current += 1
+      }
+      setState((current) => {
+        const preserveSubsequent =
+          !isNewGen &&
+          !isNewQuery &&
+          current.queryKey === requestKey &&
+          current.jobs.length > pageJobs.length
+
+        if (preserveSubsequent) {
+          return {
+            ...current,
+            jobs: mergeFirstPage(current.jobs, pageJobs),
+            loading: false,
+            error: pageError,
+            unattributedRecords: page.coverage?.unattributedRecords,
+            corruptRecords: page.coverage?.corruptRecords,
+          }
         }
-        setState({
+
+        return {
           queryKey: requestKey,
-          jobs: page.jobs,
+          jobs: pageJobs,
           loading: false,
           loadingMore: false,
-          error: undefined,
+          error: pageError,
           loadMoreError: undefined,
-          hasMore: page.hasMore,
+          hasMore: Boolean(page.hasMore),
           snapshotBefore: page.snapshotBefore,
-          nextCursor: page.nextCursor,
+          nextCursor: page.nextCursor ?? null,
           unattributedRecords: page.coverage?.unattributedRecords,
-        })
-      })
-      .catch((reason) => {
-        if (requestVersion.current !== version) {
-          return
+          corruptRecords: page.coverage?.corruptRecords,
         }
-        setState({
-          queryKey: requestKey,
-          jobs: [],
-          loading: false,
-          loadingMore: false,
-          error: errorFrom(reason, "Não foi possível carregar o histórico."),
-          loadMoreError: undefined,
-          hasMore: false,
-          snapshotBefore: undefined,
-          nextCursor: null,
-        })
       })
-  }, [historyRevision, periodStart, requestKey, result, scope, search])
+      return
+    }
+
+    if (initialPage.error) {
+      setState((current) => ({
+        queryKey: requestKey,
+        jobs: current.queryKey === requestKey ? current.jobs : [],
+        loading: false,
+        loadingMore: false,
+        error: pageError,
+        loadMoreError: undefined,
+        hasMore: false,
+        snapshotBefore: undefined,
+        nextCursor: null,
+      }))
+      return
+    }
+
+    const waitingNewGen = appliedHistoryRevision.current !== historyRevision
+    if (waitingNewGen) {
+      requestVersion.current += 1
+      setState({
+        queryKey: requestKey,
+        jobs: [],
+        loading: true,
+        loadingMore: false,
+        error: undefined,
+        loadMoreError: undefined,
+        hasMore: false,
+        snapshotBefore: undefined,
+        nextCursor: null,
+      })
+      return
+    }
+
+    setState((current) =>
+      current.queryKey === requestKey
+        ? { ...current, loading: true }
+        : { queryKey: requestKey, jobs: [], loading: true, loadingMore: false, error: undefined, loadMoreError: undefined, hasMore: false, snapshotBefore: undefined, nextCursor: null }
+    )
+  }, [initialPage.data, initialPage.error, requestKey, historyRevision])
 
   const loadMore = React.useCallback(() => {
     if (
@@ -756,13 +838,13 @@ function useExecutionHistory(
       loadMoreError: undefined,
     }))
 
-    void getExecutions(scope, {
+    void sharedPageRequest(`executions-page:${requestKey}:${snapshotBefore}:${cursor}`, () => getExecutions(scope, {
       q: search || undefined,
       result,
       from: periodStart,
       snapshotBefore,
       cursor,
-    })
+    }))
       .then((page) => {
         if (requestVersion.current !== version) {
           return
@@ -779,6 +861,7 @@ function useExecutionHistory(
             hasMore: page.hasMore,
             nextCursor: page.nextCursor,
             unattributedRecords: page.coverage?.unattributedRecords,
+            corruptRecords: page.coverage?.corruptRecords,
           }
         })
       })
@@ -980,16 +1063,16 @@ function HistoryPanel({
   const needsMachine = filters.origin !== "git"
   const needsGit = filters.origin !== "machine"
   const presetRequest = React.useCallback(
-    () =>
+    (signal?: AbortSignal) =>
       projectScope
-        ? getPresetHistory(projectScope)
+        ? getPresetHistory(projectScope, signal)
         : Promise.reject(new Error("catálogo exige um projeto")),
     [projectScope]
   )
   const remoteRequest = React.useCallback(
-    () =>
+    (signal?: AbortSignal) =>
       projectScope
-        ? getRemoteSlots(projectScope)
+        ? getRemoteSlots(projectScope, signal)
         : Promise.reject(new Error("verdes exigem um projeto")),
     [projectScope]
   )
@@ -1221,9 +1304,9 @@ function HistoryPanel({
 export function StatusPage() {
   const { scope, loading: projectsLoading } = useProjectContext()
   const statusRequest = React.useCallback(
-    () =>
+    (signal?: AbortSignal) =>
       scope
-        ? getStatus(scope)
+        ? getStatus(scope, signal)
         : Promise.reject(new Error("Selecione um projeto ou o arquivo sem projeto.")),
     [scope]
   )
@@ -1233,9 +1316,9 @@ export function StatusPage() {
   })
   const projectScope = scope?.kind === "project" ? scope : null
   const dashboardRequest = React.useCallback(
-    () =>
+    (signal?: AbortSignal) =>
       projectScope
-        ? getDashboardState(projectScope)
+        ? getDashboardState(projectScope, signal)
         : Promise.reject(new Error("Meta exige um projeto")),
     [projectScope]
   )
@@ -1318,7 +1401,7 @@ export function StatusPage() {
           <HistoryPanel
             scope={scope}
             onOpenJob={setSelectedJobId}
-            historyRevision={status.data.history?.[0]?.id ?? ""}
+            historyRevision={status.data.historyRevision ?? status.data.history?.[0]?.id ?? ""}
           />
         </div>
         <aside className="flex flex-col gap-4">

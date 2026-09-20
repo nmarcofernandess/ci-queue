@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
  * Instala uma release já verificada sem apontar para checkout, symlink ou
- * `file:` de desenvolvimento. As operações são deliberadamente filesystem
- * only: o ativador real do LaunchAgent entra depois de a janela de cutover
- * provar que não há worker anterior disputando a mesma fila.
+ * `file:` de desenvolvimento. Sem `--activate`, as operações são somente de
+ * filesystem. A ativação publica LaunchAgents canônicos apenas durante uma
+ * janela de cutover que já tenha provado a fila quieta.
  */
 import { createHash } from "node:crypto"
 import { execFileSync } from "node:child_process"
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { homedir } from "node:os"
 import { fileURLToPath } from "node:url"
@@ -33,6 +33,11 @@ export const DEFAULT_STATE = existsSync(COMPATIBILITY_STATE)
   ? COMPATIBILITY_STATE
   : PRODUCT_STATE
 const INSTALLATION_FILENAME = "installation.json"
+const STAGED_INSTALLATION_FILENAME = "staged-installation.json"
+const SERVICE_LABELS = new Set([
+  "com.nmarcofernandess.ci-queue.worker",
+  "com.nmarcofernandess.ci-queue.dashboard",
+])
 
 function inside(child, parent) {
   const relation = relative(resolve(parent), resolve(child))
@@ -50,8 +55,46 @@ function installationPath(prefix) {
   return join(resolve(prefix), INSTALLATION_FILENAME)
 }
 
+function stagedInstallationPath(prefix) {
+  return join(resolve(prefix), STAGED_INSTALLATION_FILENAME)
+}
+
+function isActiveInstallation(installation) {
+  if (!installation || typeof installation !== "object") return false
+  if (installation.activationStatus === "verified") return true
+  if (installation.activationStatus === "staged") return false
+  if (Array.isArray(installation.services) && installation.services.length > 0) return true
+  return false
+}
+
 function sha256(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex")
+}
+
+function atomicFile(path, body, mode = 0o600) {
+  mkdirSync(dirname(path), { recursive: true, mode: 0o755 })
+  const temporary = `${path}.${process.pid}.tmp`
+  writeFileSync(temporary, body, { encoding: "utf8", mode })
+  renameSync(temporary, path)
+  chmodSync(path, mode)
+}
+
+function snapshotFiles(paths) {
+  return paths.map((path) => {
+    if (!existsSync(path)) return { path, body: undefined, mode: undefined }
+    const info = statSync(path)
+    if (!info.isFile()) {
+      throw new Error(`snapshot recusou caminho não-regular: ${path}`)
+    }
+    return { path, body: readFileSync(path), mode: info.mode & 0o777 }
+  })
+}
+
+function restoreFiles(snapshots) {
+  for (const snapshot of snapshots) {
+    if (snapshot.body === undefined) rmSync(snapshot.path, { force: true })
+    else atomicFile(snapshot.path, snapshot.body, snapshot.mode ?? 0o600)
+  }
 }
 
 function readInstallation(prefix) {
@@ -69,10 +112,9 @@ function assertQuietState(stateRoot) {
   const root = resolve(stateRoot)
   for (const path of [
     join(root, "running.json"),
-    // The retained local-ci layout and clean product installs share this path.
-    join(root, "locks", "runner.lock"),
-    // Read an early pre-release layout conservatively rather than risking two workers.
     join(root, "runner.lock"),
+    join(root, "locks", "runner.lock"),
+    join(root, "state", "maintenance.lock"),
   ]) {
     if (existsSync(path)) {
       throw new Error(`estado da fila incerto: ${path} existe; aguarde o executor terminar ou recupere-o antes da manutenção`)
@@ -122,32 +164,34 @@ function copyBundle(bundle, prefix, manifest) {
   }
 }
 
-function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pythonPath, manifestSha256 }) {
+function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pythonPath, manifestSha256, homeDir, commandPath }) {
   if (!configPath) return []
   if (!nodePath || !pythonPath) throw new Error("--node e --python são obrigatórios ao gerar envelope de serviço")
   const launchRoot = join(releasePath, "launch-agents")
-  const environment = { PATH: servicePath(nodePath) }
+  const environment = { PATH: servicePath(nodePath, commandPath) }
   return [
     {
       label: "com.nmarcofernandess.ci-queue.worker",
-      file: join(launchRoot, "com.nmarcofernandess.ci-queue.worker.plist"),
+      referenceFile: join(launchRoot, "com.nmarcofernandess.ci-queue.worker.plist"),
+      file: join(homeDir, "Library", "LaunchAgents", "com.nmarcofernandess.ci-queue.worker.plist"),
       plist: {
         Label: "com.nmarcofernandess.ci-queue.worker",
         ProgramArguments: [nodePath, join(releasePath, "bin", "ci-queue.mjs"), "worker", "--state", stateRoot],
         EnvironmentVariables: environment,
         QueueDirectories: [join(stateRoot, "jobs")],
-        ProcessType: "Background",
+        ProcessType: "Standard",
       },
     },
     {
       label: "com.nmarcofernandess.ci-queue.dashboard",
-      file: join(launchRoot, "com.nmarcofernandess.ci-queue.dashboard.plist"),
+      referenceFile: join(launchRoot, "com.nmarcofernandess.ci-queue.dashboard.plist"),
+      file: join(homeDir, "Library", "LaunchAgents", "com.nmarcofernandess.ci-queue.dashboard.plist"),
       plist: {
         Label: "com.nmarcofernandess.ci-queue.dashboard",
         ProgramArguments: [pythonPath, "-m", "ci_queue_api", "--config", configPath, "--state", stateRoot, "--ui", join(releasePath, "ui", "dist"), "--manifest", join(releasePath, "manifest.json"), "--manifest-sha256", manifestSha256],
         EnvironmentVariables: { ...environment, PYTHONPATH: join(releasePath, "backend") },
         KeepAlive: true,
-        ProcessType: "Background",
+        ProcessType: "Interactive",
       },
     },
   ]
@@ -164,11 +208,13 @@ function plistValue(value) {
   return `<string>${xmlEscape(value)}</string>`
 }
 
-function writeServiceEnvelope(services) {
+function serviceBody(service) {
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">${plistValue(service.plist)}</plist>\n`
+}
+
+function writeServiceReferences(services) {
   for (const service of services) {
-    mkdirSync(dirname(service.file), { recursive: true, mode: 0o755 })
-    const body = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">${plistValue(service.plist)}</plist>\n`
-    writeFileSync(service.file, body, { encoding: "utf8", mode: 0o600 })
+    atomicFile(service.referenceFile, serviceBody(service))
   }
 }
 
@@ -184,38 +230,167 @@ function writeCommandLauncher(path, nodePath, releasePath) {
   return { path: commandPath, sha256: createHash("sha256").update(body).digest("hex") }
 }
 
-function launchDomain() {
-  if (process.platform !== "darwin" || typeof process.getuid !== "function") {
-    throw new Error("ativação automática está disponível somente no macOS")
+function assertCommandOwnership(existing, requestedPath) {
+  if (!existing?.command?.path || !existsSync(existing.command.path)) return
+  if (!existing.command.sha256 || sha256(existing.command.path) !== existing.command.sha256) {
+    throw new Error(`comando instalado foi alterado; preservei ${existing.command.path}`)
   }
-  return `gui/${process.getuid()}`
+  if (requestedPath && resolve(requestedPath) !== resolve(existing.command.path)) {
+    throw new Error("instalação existente usa outro caminho de comando; recusei trocar o launcher implicitamente")
+  }
 }
 
-function deactivateServices(services) {
-  const domain = launchDomain()
+function launchDomain(platform = process.platform, uid = typeof process.getuid === "function" ? process.getuid() : undefined) {
+  if (platform !== "darwin" || uid === undefined) {
+    throw new Error("ativação automática está disponível somente no macOS")
+  }
+  return `gui/${uid}`
+}
+
+function defaultLaunchctl(args, options = {}) {
+  const timeout = Number.isFinite(options.timeoutMs) ? Math.max(1, Math.trunc(options.timeoutMs)) : 10_000
+  return execFileSync("launchctl", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout })
+}
+
+function defaultPortOwnerProbe(adapter) {
+  let output
+  try {
+    output = execFileSync("/usr/sbin/lsof", ["-nP", "-iTCP:8765", "-sTCP:LISTEN", "-Fp"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
+  } catch (error) {
+    if (error?.status === 1) return undefined
+    throw new Error(`não consegui inspecionar a porta 8765: ${error?.message ?? error}`)
+  }
+  const listenerPids = [...output.matchAll(/^p(\d+)$/gm)].map((match) => match[1])
+  if (!listenerPids.length) return undefined
+  try {
+    const current = adapter.run(["print", `${launchDomain(adapter.platform, adapter.uid)}/com.nmarcofernandess.ci-queue.dashboard`])
+    const servicePid = /\bpid\s*=\s*(\d+)/.exec(current)?.[1]
+    if (servicePid && listenerPids.length === 1 && listenerPids[0] === servicePid) return "com.nmarcofernandess.ci-queue.dashboard"
+  } catch (error) {
+    if (!isMissingService(error)) throw error
+  }
+  return `pid:${listenerPids.join(",")}`
+}
+
+function isMissingService(error) {
+  const message = `${error?.stderr ?? ""}\n${error?.message ?? ""}`
+  return /could not find service|no such process|service not found|113: could not find/i.test(message)
+}
+
+function deactivateServices(services, adapter, { tolerateMissing = true, timeoutMs = 2000 } = {}) {
+  const domain = launchDomain(adapter.platform, adapter.uid)
+  const deadline = Date.now() + Math.max(1, timeoutMs)
+  const run = (args) => {
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) {
+      throw new Error(`desativação excedeu o tempo limite antes de ${args[0]}`)
+    }
+    return adapter.run(args, { timeoutMs: Math.min(10_000, remaining) })
+  }
   for (const service of services) {
     try {
-      execFileSync("launchctl", ["bootout", `${domain}/${service.label}`], { stdio: "ignore" })
-    } catch {
-      // Serviço ausente já é o estado desejado.
+      run(["bootout", `${domain}/${service.label}`])
+    } catch (error) {
+      if (!tolerateMissing || !isMissingService(error)) throw new Error(`bootout falhou para ${service.label}: ${error?.message ?? error}`)
+    }
+    let deactivated = false
+    while (Date.now() < deadline) {
+      try {
+        run(["print", `${domain}/${service.label}`])
+        if (typeof adapter.wait === "function") {
+          const waitMs = Math.min(50, Math.max(0, deadline - Date.now()))
+          if (waitMs <= 0) break
+          adapter.wait(waitMs)
+        }
+      } catch (error) {
+        if (isMissingService(error)) {
+          deactivated = true
+          break
+        }
+        throw new Error(`falha ao consultar estado de desativação para ${service.label}: ${error?.message ?? error}`)
+      }
+    }
+    if (!deactivated) {
+      throw new Error(`desativação de ${service.label} excedeu o tempo limite e o serviço continua carregado`)
     }
   }
 }
 
-function activateServices(services) {
+function disabledLabels(adapter, services) {
+  const domain = launchDomain(adapter.platform, adapter.uid)
+  const output = adapter.run(["print-disabled", domain])
+  return services.filter(({ label }) => new RegExp(`"?${label.replaceAll(".", "\\.")}"?\\s*=>\\s*true`).test(output)).map(({ label }) => label)
+}
+
+function verifyLoaded(adapter, service, attempts = 3) {
+  const target = `${launchDomain(adapter.platform, adapter.uid)}/${service.label}`
+  let lastError
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const output = adapter.run(["print", target])
+      if (String(output).includes(service.label)) return
+      lastError = new Error(`launchctl print não confirmou estado loaded para ${service.label}`)
+    } catch (error) {
+      lastError = error
+    }
+    adapter.wait(50)
+  }
+  throw new Error(`ativação de ${service.label} não confirmou estado carregado: ${lastError?.message ?? lastError}`)
+}
+
+function activateServices(services, adapter) {
   if (!services.length) throw new Error("--activate requer --config, --node e --python")
-  const domain = launchDomain()
-  deactivateServices(services)
+  const disabled = disabledLabels(adapter, services)
+  if (disabled.length) throw new Error(`serviço desabilitado pelo usuário; preservei a escolha: ${disabled.join(", ")}`)
+  const domain = launchDomain(adapter.platform, adapter.uid)
+  deactivateServices(services, adapter)
   const activated = []
   try {
     for (const service of services) {
-      execFileSync("launchctl", ["bootstrap", domain, service.file], { stdio: "pipe" })
+      if (adapter.run === defaultLaunchctl) {
+        let lastBootstrapError
+        for (let attempt = 1; attempt <= 5; attempt += 1) {
+          try {
+            adapter.run(["bootstrap", domain, service.file])
+            lastBootstrapError = undefined
+            break
+          } catch (error) {
+            lastBootstrapError = error
+            if (attempt < 5) adapter.wait(200)
+          }
+        }
+        if (lastBootstrapError) throw lastBootstrapError
+      } else {
+        adapter.run(["bootstrap", domain, service.file])
+      }
       activated.push(service)
+      verifyLoaded(adapter, service)
     }
   } catch (error) {
-    deactivateServices(activated)
+    deactivateServices(activated, adapter)
     throw error
   }
+}
+
+function serviceReceipt(service) {
+  return { label: service.label, file: service.file, sha256: sha256(service.file), referenceFile: service.referenceFile }
+}
+
+function validateOwnedCanonical(service, existing) {
+  if (!SERVICE_LABELS.has(service.label)) throw new Error(`label de serviço não permitido: ${service.label}`)
+  if (!existsSync(service.file)) return
+  if (lstatSync(service.file).isSymbolicLink() || !lstatSync(service.file).isFile()) {
+    throw new Error(`envelope canônico não é arquivo regular: ${service.file}`)
+  }
+  const owner = existing?.services?.find((candidate) => candidate?.label === service.label && resolve(candidate?.file ?? "") === resolve(service.file))
+  if (owner?.sha256) {
+    if (sha256(service.file) === owner.sha256) return
+    throw new Error(`envelope canônico alheio ou alterado; preservei ${service.file}`)
+  }
+  if (owner && !owner.sha256 && owner.referenceFile && existsSync(owner.referenceFile)) {
+    if (readFileSync(service.file).equals(readFileSync(owner.referenceFile))) return
+  }
+  throw new Error(`envelope canônico alheio ou alterado; preservei ${service.file}`)
 }
 
 export function installRelease(input) {
@@ -227,6 +402,7 @@ export function installRelease(input) {
   if (existing && resolve(existing.stateRoot) !== stateRoot) {
     throw new Error("instalação existente usa outro state root; recusei trocar a fila por atualização implícita")
   }
+  assertCommandOwnership(existing, input.commandPath)
   const releasePath = copyBundle(resolve(input.bundle), prefix, manifest)
   const manifestPath = join(releasePath, "manifest.json")
   const manifestSha256 = sha256(manifestPath)
@@ -238,24 +414,112 @@ export function installRelease(input) {
     nodePath: input.nodePath,
     pythonPath: input.pythonPath,
     manifestSha256,
+    homeDir: resolve(input.homeDir ?? homedir()),
+    commandPath: input.commandPath,
   })
-  writeServiceEnvelope(services)
-  const command = writeCommandLauncher(input.commandPath, input.nodePath, releasePath)
+  writeServiceReferences(services)
+  const preservingActiveInstallation = !input.activate && isActiveInstallation(existing)
+  let ownedServices = services.map(({ label, referenceFile }) => ({ label, file: referenceFile, sha256: sha256(referenceFile), referenceFile }))
+  const command = preservingActiveInstallation ? undefined : (input.commandPath ? { path: resolve(input.commandPath), sha256: "" } : undefined)
+
+  if (input.activate) {
+    const adapter = {
+      run: input.launchctl ?? defaultLaunchctl,
+      platform: input.platform ?? process.platform,
+      uid: input.uid ?? (typeof process.getuid === "function" ? process.getuid() : undefined),
+      wait: input.wait ?? ((milliseconds) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds)),
+    }
+    for (const service of services) validateOwnedCanonical(service, existing)
+    const portOwnerProbe = input.portOwnerProbe ?? (input.launchctl ? undefined : () => defaultPortOwnerProbe(adapter))
+    if (portOwnerProbe) {
+      const owner = portOwnerProbe()
+      if (owner && owner !== "com.nmarcofernandess.ci-queue.dashboard") throw new Error(`porta do dashboard ocupada por processo desconhecido: ${owner}`)
+    }
+
+    const serviceFilesToSnapshot = new Set([
+      ...services.map(({ file }) => file),
+      ...(existing?.services?.map(({ file }) => file).filter(Boolean) ?? []),
+    ])
+    const existingServiceSnapshots = snapshotFiles([...serviceFilesToSnapshot])
+    const existingLauncherSnapshot = input.commandPath ? snapshotFiles([resolve(input.commandPath)]) : []
+    const existingReceiptSnapshot = snapshotFiles([installationPath(prefix)])
+    const existingStagedSnapshot = snapshotFiles([stagedInstallationPath(prefix)])
+
+    const activatedServices = []
+    try {
+      for (const service of services) atomicFile(service.file, serviceBody(service))
+      activateServices(services, adapter)
+      activatedServices.push(...services)
+      ownedServices = services.map(serviceReceipt)
+
+      const writtenCommand = writeCommandLauncher(input.commandPath, input.nodePath, releasePath)
+      const installation = {
+        schemaVersion: 1,
+        product: "ci-queue",
+        version: manifest.version,
+        revision: manifest.revision,
+        installedAt: new Date().toISOString(),
+        activationStatus: "verified",
+        releasePath,
+        stateRoot,
+        manifestPath,
+        manifestSha256,
+        services: ownedServices,
+        launchAgentsRoot: join(resolve(input.homeDir ?? homedir()), "Library", "LaunchAgents"),
+        ...(writtenCommand ? { command: writtenCommand } : {}),
+      }
+      atomicJson(installationPath(prefix), installation)
+      if (existsSync(stagedInstallationPath(prefix))) {
+        rmSync(stagedInstallationPath(prefix), { force: true })
+      }
+      return installation
+    } catch (error) {
+      let rollbackError
+      try {
+        if (activatedServices.length) {
+          try {
+            deactivateServices(activatedServices, adapter, { tolerateMissing: true })
+          } catch (deactErr) {
+            rollbackError = deactErr
+          }
+        }
+        restoreFiles(existingServiceSnapshots)
+        if (existingLauncherSnapshot.length) restoreFiles(existingLauncherSnapshot)
+        if (existingReceiptSnapshot.length) restoreFiles(existingReceiptSnapshot)
+        if (existingStagedSnapshot.length) restoreFiles(existingStagedSnapshot)
+        if (existing?.services?.length) {
+          activateServices(existing.services, adapter)
+        }
+      } catch (recoveryErr) {
+        rollbackError = rollbackError ?? recoveryErr
+      }
+      if (rollbackError) {
+        throw new Error(`ativação falhou e rollback ficou incerto: ${error?.message ?? error}; rollback: ${rollbackError?.message ?? rollbackError}`)
+      }
+      throw error
+    }
+  }
+
+  const writtenCommand = preservingActiveInstallation ? undefined : writeCommandLauncher(input.commandPath, input.nodePath, releasePath)
   const installation = {
     schemaVersion: 1,
     product: "ci-queue",
     version: manifest.version,
     revision: manifest.revision,
     installedAt: new Date().toISOString(),
+    activationStatus: "staged",
     releasePath,
     stateRoot,
     manifestPath,
     manifestSha256,
-    services: services.map(({ label, file }) => ({ label, file })),
-    ...(command ? { command } : {}),
+    services: ownedServices,
+    ...(writtenCommand ? { command: writtenCommand } : {}),
   }
-  atomicJson(installationPath(prefix), installation)
-  if (input.activate) activateServices(services)
+  if (preservingActiveInstallation) {
+    atomicJson(stagedInstallationPath(prefix), installation)
+  } else {
+    atomicJson(installationPath(prefix), installation)
+  }
   return installation
 }
 
@@ -264,18 +528,37 @@ export function uninstallRelease(input) {
   const installation = readInstallation(prefix)
   if (!installation) return { removed: false, reason: "not-installed" }
   assertQuietState(installation.stateRoot)
-  if (input.deactivate) deactivateServices(installation.services ?? [])
+  if (isActiveInstallation(installation) && !input.deactivate) {
+    throw new Error("instalação ativa requer --deactivate para remoção segura")
+  }
+  const adapter = {
+    run: input.launchctl ?? defaultLaunchctl,
+    platform: input.platform ?? process.platform,
+    uid: input.uid ?? (typeof process.getuid === "function" ? process.getuid() : undefined),
+    wait: input.wait ?? ((milliseconds) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds)),
+  }
+  const serviceFiles = []
   for (const service of installation.services ?? []) {
-    if (typeof service?.file !== "string" || !inside(service.file, installation.releasePath)) {
-      throw new Error("manifest de instalação contém serviço fora da release")
+    if (!SERVICE_LABELS.has(service?.label) || typeof service?.file !== "string") {
+      throw new Error("manifest de instalação contém serviço sem ownership verificável")
     }
-    if (existsSync(service.file)) rmSync(service.file, { force: true })
+    const canonical = typeof installation.launchAgentsRoot === "string" && resolve(service.file) === join(resolve(installation.launchAgentsRoot), `${service.label}.plist`)
+    const allowed = inside(service.file, installation.releasePath) || canonical
+    if (!allowed) throw new Error("manifest de instalação contém serviço fora dos destinos permitidos")
+    const legacyReleaseEnvelope = inside(service.file, installation.releasePath) && service.sha256 === undefined
+    if (!legacyReleaseEnvelope && typeof service.sha256 !== "string") throw new Error("manifest de instalação contém serviço sem hash de ownership")
+    if (existsSync(service.file) && !legacyReleaseEnvelope && sha256(service.file) !== service.sha256) throw new Error(`envelope instalado foi alterado; preservei ${service.file}`)
+    serviceFiles.push(service.file)
   }
   if (installation.command?.path && existsSync(installation.command.path) &&
       sha256(installation.command.path) !== installation.command.sha256) {
     throw new Error(`comando instalado foi alterado; preservei ${installation.command.path}`)
   }
   if (!inside(installation.releasePath, prefix)) throw new Error("release ativa fora do prefixo da instalação")
+  if (input.deactivate) deactivateServices(installation.services ?? [], adapter)
+  for (const file of serviceFiles) {
+    if (existsSync(file)) rmSync(file, { force: true })
+  }
   if (existsSync(installation.releasePath)) rmSync(installation.releasePath, { recursive: true, force: true })
   if (installation.command?.path && existsSync(installation.command.path)) {
     rmSync(installation.command.path, { force: true })
@@ -285,6 +568,7 @@ export function uninstallRelease(input) {
     if (existsSync(installation.stateRoot)) rmSync(installation.stateRoot, { recursive: true, force: true })
   }
   rmSync(installationPath(prefix), { force: true })
+  rmSync(stagedInstallationPath(prefix), { force: true })
   return { removed: true, statePreserved: !input.purgeState }
 }
 

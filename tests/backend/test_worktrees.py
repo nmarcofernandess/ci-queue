@@ -72,3 +72,63 @@ class WorktreeContracts(unittest.TestCase):
             cancelled = Mock(return_value=SimpleNamespace(returncode=1, stdout='', stderr='User canceled.\n'))
             with self.assertRaises(native_actions.PickCancelled):
                 native_actions.pick_local_path('directory', runner=cancelled)
+
+    def test_A12_single_flight_coalesces_concurrent_misses(self):
+        import threading
+        import time
+
+        source = SimpleNamespace(
+            repository_path="/fake/repo",
+            base_ref="main",
+            git_common_dir=None,
+            entry_revision=1,
+        )
+        discover_calls = 0
+        started = threading.Event()
+        proceed = threading.Event()
+
+        def slow_discover(src):
+            nonlocal discover_calls
+            discover_calls += 1
+            started.set()
+            proceed.wait(timeout=2.0)
+            return [{"id": "wt-1", "path": "/fake/repo", "headSha": "abc"}]
+
+        with patch.object(worktrees, '_inventories', {}), patch.object(worktrees, '_in_flight_inventories', {}):
+            with patch.object(worktrees, 'discover', side_effect=slow_discover), patch.object(worktrees, '_git', return_value=""):
+                results = []
+
+                def worker():
+                    results.append(worktrees.list_worktrees(source))
+
+                t1 = threading.Thread(target=worker)
+                t2 = threading.Thread(target=worker)
+                t1.start()
+                started.wait(timeout=2.0)
+                t2.start()
+                time.sleep(0.05)
+                proceed.set()
+                t1.join()
+                t2.join()
+
+                self.assertEqual(discover_calls, 1)
+                self.assertEqual(len(results), 2)
+                self.assertEqual(results[0]["worktrees"][0]["id"], "wt-1")
+                self.assertEqual(results[1]["worktrees"][0]["id"], "wt-1")
+
+    def test_A12_obsolete_revisions_evicted(self):
+        with patch.object(worktrees, '_inventories', {}), patch.object(worktrees, '_in_flight_inventories', {}):
+            with patch.object(worktrees, 'discover', return_value=[]), patch.object(worktrees, '_git', return_value=""):
+                for rev in range(1, 302):
+                    src = SimpleNamespace(
+                        repository_path="/fake/repo",
+                        base_ref="main",
+                        git_common_dir=None,
+                        entry_revision=rev,
+                    )
+                    worktrees.list_worktrees(src)
+
+                # Exactly 1 revision must be retained for this repo, not 301
+                repo_keys = [k for k in worktrees._inventories if k[0] == "/fake/repo"]
+                self.assertEqual(len(repo_keys), 1)
+                self.assertEqual(repo_keys[0][3], 301)

@@ -750,9 +750,9 @@ export function AnalysisPage() {
     [persistKey]
   )
   const presetRequest = React.useCallback(
-    () =>
+    (signal?: AbortSignal) =>
       allowed?.kind === "project"
-        ? getPresetHistory(allowed)
+        ? getPresetHistory(allowed, signal)
         : Promise.reject(new Error("Análise exige um projeto")),
     [allowed]
   )
@@ -762,9 +762,9 @@ export function AnalysisPage() {
     { enabled: allowed?.kind === "project" }
   )
   const resultsRequest = React.useCallback(
-    () =>
+    (signal?: AbortSignal) =>
       allowed
-        ? getResults(allowed, { from: periodStart })
+        ? getResults(allowed, { from: periodStart }, signal)
         : Promise.reject(new Error("Análise exige um projeto")),
     [allowed, periodStart]
   )
@@ -798,9 +798,9 @@ export function AnalysisPage() {
     ? projects.find((item) => item.id === durationOwnerId)?.bindingState
     : undefined
   const durationRequest = React.useCallback(
-    () =>
+    (signal?: AbortSignal) =>
       allowed && durationPreset
-        ? getDuration(allowed, { from: periodStart, preset: durationPreset })
+        ? getDuration(allowed, { from: periodStart, preset: durationPreset }, signal)
         : Promise.reject(new Error("Selecione um preset declarado")),
     [allowed, durationPreset, periodStart]
   )

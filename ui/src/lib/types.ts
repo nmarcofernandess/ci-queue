@@ -63,6 +63,7 @@ export type JobRecord = {
   cleanupBlockedReason?: string | null
   commitSubject?: string
   progressEnabled: boolean
+  hasRetries?: boolean
   progressSummary?: ProgressSummary
   durationReference?: {
     medianMs: number
@@ -78,8 +79,10 @@ export type StatusSnapshot = {
   serverTime: string
   running: JobRecord | null
   queued: JobRecord[]
-  history: JobRecord[]
-  lastFailed: JobRecord | null
+  projection?: "live"
+  historyRevision?: string
+  history?: JobRecord[]
+  lastFailed?: JobRecord | null
   globalOccupancy: boolean
   otherProjectOccupancy?: boolean
   context?: { kind: "project" | "all" | "unassigned"; projectId?: string }
@@ -88,11 +91,12 @@ export type StatusSnapshot = {
 
 export type ExecutionsResponse = {
   schemaVersion: number
+  projection?: "summary"
   jobs: JobRecord[]
   hasMore: boolean
   snapshotBefore: string
   nextCursor: string | null
-  coverage: { unattributedRecords: number }
+  coverage: { unattributedRecords: number; corruptRecords?: number }
 }
 
 export type PresetRunReference = {
@@ -132,7 +136,7 @@ export type PresetHistoryResponse = {
   catalog: { resolved: boolean; projectId: string; declaredCount: number }
   presets: PresetHistoryEntry[]
   totals: { tickets: number; presets: number }
-  coverage: { unattributedRecords: number }
+  coverage: { unattributedRecords: number; corruptRecords?: number }
 }
 
 export type RemoteSlotsReason = {

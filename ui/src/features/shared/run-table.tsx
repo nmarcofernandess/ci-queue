@@ -113,8 +113,9 @@ function identityBadge(
   job: RunTableJob,
   chip: { always?: boolean; filterProjectId?: string }
 ) {
-  const flaky = job.progressSummary?.nodes?.some(
-    (node) => (node.retryCount ?? 0) > 0
+  const flaky = Boolean(
+    job.hasRetries ||
+      job.progressSummary?.nodes?.some((node) => (node.retryCount ?? 0) > 0)
   )
   const chipVisible = projectChipVisible(job, chip)
   if (!flaky && !chipVisible) {
