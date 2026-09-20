@@ -41,6 +41,18 @@ ci-queue logs TICKET_ID --state "$STATE" --json
 
 Use o ID real retornado. Não execute um segundo `worker` após enqueue: na instalação macOS ele é on-demand. Fila vazia sem processo worker pode ser saudável. `--wait` e seu timeout não cancelam o job. Cancelamento explícito: `ci-queue cancel TICKET_ID --state "$STATE" --json`.
 
+### 4.1 Admissão quando `execution.executor=queue`
+
+Se o catálogo declara `execution.executor=queue`, os scripts de entrada do consumidor devem chamar a CLI instalada **antes** do build/teste:
+
+```bash
+# humano (stderr): diagnóstico legível
+ci-queue guard --cwd "$PROJECT" --config "$PROJECT/ci-queue.json" --state "$STATE"
+# máquina: acrescente --json (envelope em stdout)
+```
+
+Exige capability `execution-entry-guard-v1` (`ci-queue version --json`). CLI antiga sem essa capability **não** autoriza bypass: falhe fechado e atualize a instalação. Fora da fila (e fora de Actions reconhecido), o exit é não-zero com `QUEUE_REQUIRED` e o comando sugerido `enqueue <preset>` (não hardcode `check`). Não enfileirar automaticamente a partir do guard. O worker injeta `CI_QUEUE_JOB_ID` / aliases; isso, mais o ticket `running` coerente, libera a admissão.
+
 No Project Manager, confira e registre pasta/catálogo para inventário e histórico filtrado. Running e fila permanecem globais. Binding Node em `runtimes.json` é separado do cadastro; ver [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md).
 
 ## 5. Ship começa depois da autoria

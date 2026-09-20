@@ -100,7 +100,7 @@ export async function evaluateExecutionEntry(input: GuardInput): Promise<GuardRe
       "QUEUE_REQUIRED: este check local precisa ser executado pelo CI Queue.",
       `Projeto: ${input.config.project.name}`,
       `Cwd: ${cwd}`,
-      `Comando: ${command} enqueue check --cwd '${cwd}' --config '<config>' --state '<state>' --wait`,
+      `Comando: ${command} enqueue <preset> --cwd '${cwd}' --config '<config>' --state '<state>' --wait`,
       "Para trabalho não commitado: usar a receita review, que não é prova de ship.",
     ].join("\n"),
   }

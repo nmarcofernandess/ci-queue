@@ -50,7 +50,7 @@ describe("execution-entry guard", () => {
       expect(verdict.allowed).toBe(false)
       if (!verdict.allowed) {
         expect(verdict.code).toBe("QUEUE_REQUIRED")
-        expect(verdict.message).toMatch(/ci-queue enqueue check/)
+        expect(verdict.message).toMatch(/ci-queue enqueue <preset>/)
       }
     } finally {
       rmSync(root, { recursive: true, force: true })
