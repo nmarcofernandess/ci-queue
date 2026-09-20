@@ -249,6 +249,15 @@ def public_job(job):
     result["progressEnabled"] = isinstance(flags, dict) and flags.get("progressEnabled") is True
     if "progressSummary" in job:
         result["progressSummary"] = job["progressSummary"]
+    progress = job.get("progressSummary")
+    nodes = progress.get("nodes") if isinstance(progress, dict) else None
+    if isinstance(nodes, list):
+        result["hasRetries"] = any(
+            type(node.get("retryCount")) is int and node["retryCount"] > 0
+            for node in nodes if isinstance(node, dict)
+        )
+    elif "hasRetries" in job:
+        result["hasRetries"] = bool(job["hasRetries"])
     return result
 
 
@@ -257,13 +266,7 @@ def public_job_summary(job):
     result = public_job(job)
     if not isinstance(result, dict):
         return result
-    progress = result.pop("progressSummary", None)
-    nodes = progress.get("nodes") if isinstance(progress, dict) else None
-    if isinstance(nodes, list):
-        result["hasRetries"] = any(
-            type(node.get("retryCount")) is int and node["retryCount"] > 0
-            for node in nodes if isinstance(node, dict)
-        )
+    result.pop("progressSummary", None)
     return result
 
 
@@ -466,6 +469,7 @@ def read_executions(state_root, project_id, q="", result="all", scope="terminal"
         offset = 0
     page = rows[offset:offset + PAGE_SIZE]
     projected = [progress_summary(row) for row in page]
+    corrupt_count = len(store_for(Path(state_root) / "history").snapshot().errors)
     return {
         "schemaVersion": 1,
         **({"projection": "summary"} if view == "summary" else {}),
@@ -473,5 +477,5 @@ def read_executions(state_root, project_id, q="", result="all", scope="terminal"
         "hasMore": len(rows) > offset + PAGE_SIZE,
         "snapshotBefore": snapshot,
         "nextCursor": _cursor_for(page[-1]) if page and len(rows) > offset + PAGE_SIZE else None,
-        "coverage": {"unattributedRecords": unknown},
+        "coverage": {"unattributedRecords": unknown, "corruptRecords": corrupt_count},
     }

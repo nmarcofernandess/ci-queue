@@ -35,6 +35,7 @@ class Entry:
     digest: str
     value: dict | None
     error: str | None
+    is_transient: bool = False
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,69 @@ class Snapshot:
     rows: tuple
     digests: tuple
     errors: tuple
+
+
+class FrozenDict(dict):
+    def __setitem__(self, key, value):
+        raise TypeError(f"'{type(self).__name__}' object does not support item assignment")
+
+    def __delitem__(self, key):
+        raise TypeError(f"'{type(self).__name__}' object does not support item deletion")
+
+    def clear(self):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+    def pop(self, *args, **kwargs):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+    def popitem(self):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+    def setdefault(self, *args, **kwargs):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+    def update(self, *args, **kwargs):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+
+class FrozenList(list):
+    def __setitem__(self, index, value):
+        raise TypeError(f"'{type(self).__name__}' object does not support item assignment")
+
+    def __delitem__(self, index):
+        raise TypeError(f"'{type(self).__name__}' object does not support item deletion")
+
+    def append(self, value):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+    def extend(self, values):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+    def insert(self, index, value):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+    def remove(self, value):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+    def pop(self, *args):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+    def clear(self):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+    def sort(self, *args, **kwargs):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+    def reverse(self):
+        raise TypeError(f"'{type(self).__name__}' object does not support mutation")
+
+
+def _freeze(value):
+    if isinstance(value, dict):
+        return FrozenDict({k: _freeze(v) for k, v in value.items()})
+    if isinstance(value, list):
+        return FrozenList(_freeze(item) for item in value)
+    return value
 
 
 def _fingerprint(info):
@@ -60,10 +124,23 @@ class RecordStore:
         self._lock = threading.Lock()
 
     def _scan(self):
+        if not self.directory.exists():
+            return {}
         try:
+            entries = {}
             with os.scandir(self.directory) as stream:
-                return {entry.name: _fingerprint(entry.stat(follow_symlinks=False))
-                        for entry in stream if entry.name.endswith(".json") and entry.is_file(follow_symlinks=False)}
+                for entry in stream:
+                    if not entry.name.endswith(".json"):
+                        continue
+                    try:
+                        if not entry.is_file(follow_symlinks=False):
+                            continue
+                        entries[entry.name] = _fingerprint(entry.stat(follow_symlinks=False))
+                    except (FileNotFoundError, ProcessLookupError):
+                        continue
+                    except OSError:
+                        continue
+            return entries
         except FileNotFoundError:
             return {}
         except OSError as error:
@@ -83,18 +160,18 @@ class RecordStore:
             except FileNotFoundError:
                 return None
             except OSError as error:
-                return Entry(expected, "", None, "registro ilegível: %s" % name)
+                return Entry(expected, "", None, "registro ilegível: %s" % name, is_transient=True)
             if before == opened == after:
                 digest = hashlib.sha256(body).hexdigest()
                 try:
-                    value = json.loads(body.decode("utf-8"))
-                    if not isinstance(value, dict):
+                    raw_value = json.loads(body.decode("utf-8"))
+                    if not isinstance(raw_value, dict):
                         raise ValueError
                 except (UnicodeError, json.JSONDecodeError, ValueError):
-                    return Entry(after, digest, None, "registro inválido: %s" % name)
-                return Entry(after, digest, value, None)
+                    return Entry(after, digest, None, "registro inválido: %s" % name, is_transient=False)
+                return Entry(after, digest, _freeze(raw_value), None, is_transient=False)
             expected = after
-        return Entry(expected, "", None, "registro instável: %s" % name)
+        return Entry(expected, "", None, "registro instável: %s" % name, is_transient=True)
 
     def snapshot(self, strict=False):
         with self._lock:
@@ -103,7 +180,7 @@ class RecordStore:
             next_entries = {}
             for name in sorted(observed):
                 previous = self._entries.get(name)
-                if previous is not None and previous.fingerprint == observed[name]:
+                if previous is not None and previous.fingerprint == observed[name] and not previous.is_transient:
                     next_entries[name] = previous
                     continue
                 changed = True

@@ -60,7 +60,11 @@ function stagedInstallationPath(prefix) {
 }
 
 function isActiveInstallation(installation) {
-  return installation?.activationStatus === "verified" || installation?.services?.some(({ file }) => typeof file === "string" && !inside(file, installation.releasePath))
+  if (!installation || typeof installation !== "object") return false
+  if (installation.activationStatus === "verified") return true
+  if (installation.activationStatus === "staged") return false
+  if (Array.isArray(installation.services) && installation.services.length > 0) return true
+  return false
 }
 
 function sha256(path) {
@@ -89,10 +93,9 @@ function assertQuietState(stateRoot) {
   const root = resolve(stateRoot)
   for (const path of [
     join(root, "running.json"),
-    // The retained local-ci layout and clean product installs share this path.
-    join(root, "locks", "runner.lock"),
-    // Read an early pre-release layout conservatively rather than risking two workers.
     join(root, "runner.lock"),
+    join(root, "locks", "runner.lock"),
+    join(root, "state", "maintenance.lock"),
   ]) {
     if (existsSync(path)) {
       throw new Error(`estado da fila incerto: ${path} existe; aguarde o executor terminar ou recupere-o antes da manutenção`)
@@ -226,7 +229,7 @@ function launchDomain(platform = process.platform, uid = typeof process.getuid =
 }
 
 function defaultLaunchctl(args) {
-  return execFileSync("launchctl", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
+  return execFileSync("launchctl", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 10_000 })
 }
 
 function defaultPortOwnerProbe(adapter) {
@@ -254,7 +257,7 @@ function isMissingService(error) {
   return /could not find service|no such process|service not found|113: could not find/i.test(message)
 }
 
-function deactivateServices(services, adapter, { tolerateMissing = true } = {}) {
+function deactivateServices(services, adapter, { tolerateMissing = true, timeoutMs = 2000 } = {}) {
   const domain = launchDomain(adapter.platform, adapter.uid)
   for (const service of services) {
     try {
@@ -262,15 +265,22 @@ function deactivateServices(services, adapter, { tolerateMissing = true } = {}) 
     } catch (error) {
       if (!tolerateMissing || !isMissingService(error)) throw new Error(`bootout falhou para ${service.label}: ${error?.message ?? error}`)
     }
-    if (adapter.run === defaultLaunchctl) {
-      for (let attempt = 0; attempt < 40; attempt += 1) {
-        try {
-          adapter.run(["print", `${domain}/${service.label}`])
-          adapter.wait(50)
-        } catch (error) {
-          if (isMissingService(error)) break
+    const maxAttempts = Math.max(1, Math.ceil(timeoutMs / 50))
+    let deactivated = false
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        adapter.run(["print", `${domain}/${service.label}`])
+        if (typeof adapter.wait === "function") adapter.wait(50)
+      } catch (error) {
+        if (isMissingService(error)) {
+          deactivated = true
+          break
         }
+        throw new Error(`falha ao consultar estado de desativação para ${service.label}: ${error?.message ?? error}`)
       }
+    }
+    if (!deactivated) {
+      throw new Error(`desativação de ${service.label} excedeu o tempo limite e o serviço continua carregado`)
     }
   }
 }
@@ -288,13 +298,13 @@ function verifyLoaded(adapter, service, attempts = 3) {
     try {
       const output = adapter.run(["print", target])
       if (String(output).includes(service.label)) return
-      lastError = new Error("launchctl print não confirmou o label")
+      lastError = new Error(`launchctl print não confirmou estado loaded para ${service.label}`)
     } catch (error) {
       lastError = error
     }
-    if (attempt < attempts) adapter.wait(50)
+    adapter.wait(50)
   }
-  throw new Error(`serviço não confirmou estado loaded após ${attempts} tentativas: ${service.label}: ${lastError?.message ?? lastError}`)
+  throw new Error(`ativação de ${service.label} não confirmou estado carregado: ${lastError?.message ?? lastError}`)
 }
 
 function activateServices(services, adapter) {
@@ -335,22 +345,19 @@ function serviceReceipt(service) {
   return { label: service.label, file: service.file, sha256: sha256(service.file), referenceFile: service.referenceFile }
 }
 
-function validateOwnedCanonical(service, existing, prefix) {
+function validateOwnedCanonical(service, existing) {
   if (!SERVICE_LABELS.has(service.label)) throw new Error(`label de serviço não permitido: ${service.label}`)
   if (!existsSync(service.file)) return
   if (lstatSync(service.file).isSymbolicLink() || !lstatSync(service.file).isFile()) {
     throw new Error(`envelope canônico não é arquivo regular: ${service.file}`)
   }
   const owner = existing?.services?.find((candidate) => candidate?.label === service.label && resolve(candidate?.file ?? "") === resolve(service.file))
-  if (owner?.sha256 && sha256(service.file) === owner.sha256) return
-  if (prefix) {
-    const releaseRoot = join(resolve(prefix), "releases")
-    try {
-      const content = readFileSync(service.file, "utf8")
-      if (content.includes(`<string>${service.label}</string>`) && content.includes(releaseRoot)) {
-        return
-      }
-    } catch {}
+  if (owner?.sha256) {
+    if (sha256(service.file) === owner.sha256) return
+    throw new Error(`envelope canônico alheio ou alterado; preservei ${service.file}`)
+  }
+  if (owner && !owner.sha256 && owner.referenceFile && existsSync(owner.referenceFile)) {
+    if (readFileSync(service.file).equals(readFileSync(owner.referenceFile))) return
   }
   throw new Error(`envelope canônico alheio ou alterado; preservei ${service.file}`)
 }
@@ -393,6 +400,8 @@ export function installRelease(input) {
   writeServiceReferences(services)
   const preservingActiveInstallation = !input.activate && isActiveInstallation(existing)
   let ownedServices = services.map(({ label, referenceFile }) => ({ label, file: referenceFile, sha256: sha256(referenceFile), referenceFile }))
+  const command = preservingActiveInstallation ? undefined : (input.commandPath ? { path: resolve(input.commandPath), sha256: "" } : undefined)
+
   if (input.activate) {
     const adapter = {
       run: input.launchctl ?? defaultLaunchctl,
@@ -400,48 +409,96 @@ export function installRelease(input) {
       uid: input.uid ?? (typeof process.getuid === "function" ? process.getuid() : undefined),
       wait: input.wait ?? ((milliseconds) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds)),
     }
-    for (const service of services) validateOwnedCanonical(service, existing, prefix)
+    for (const service of services) validateOwnedCanonical(service, existing)
     const portOwnerProbe = input.portOwnerProbe ?? (input.launchctl ? undefined : () => defaultPortOwnerProbe(adapter))
     if (portOwnerProbe) {
       const owner = portOwnerProbe()
       if (owner && owner !== "com.nmarcofernandess.ci-queue.dashboard") throw new Error(`porta do dashboard ocupada por processo desconhecido: ${owner}`)
     }
-    const snapshots = snapshotFiles(services.map(({ file }) => file))
+
+    const serviceFilesToSnapshot = new Set([
+      ...services.map(({ file }) => file),
+      ...(existing?.services?.map(({ file }) => file).filter(Boolean) ?? []),
+    ])
+    const existingServiceSnapshots = snapshotFiles([...serviceFilesToSnapshot])
+    const existingLauncherSnapshot = input.commandPath ? snapshotFiles([resolve(input.commandPath)]) : []
+    const existingReceiptSnapshot = snapshotFiles([installationPath(prefix)])
+    const existingStagedSnapshot = snapshotFiles([stagedInstallationPath(prefix)])
+
+    const activatedServices = []
     try {
       for (const service of services) atomicFile(service.file, serviceBody(service))
       activateServices(services, adapter)
+      activatedServices.push(...services)
       ownedServices = services.map(serviceReceipt)
-    } catch (error) {
-      restoreFiles(snapshots)
-      let rollbackError
-      if (existing?.services?.length && snapshots.some(({ body }) => body !== undefined)) {
-        try { activateServices(existing.services, adapter) } catch (failure) { rollbackError = failure }
+
+      const writtenCommand = writeCommandLauncher(input.commandPath, input.nodePath, releasePath)
+      const installation = {
+        schemaVersion: 1,
+        product: "ci-queue",
+        version: manifest.version,
+        revision: manifest.revision,
+        installedAt: new Date().toISOString(),
+        activationStatus: "verified",
+        releasePath,
+        stateRoot,
+        manifestPath,
+        manifestSha256,
+        services: ownedServices,
+        launchAgentsRoot: join(resolve(input.homeDir ?? homedir()), "Library", "LaunchAgents"),
+        ...(writtenCommand ? { command: writtenCommand } : {}),
       }
-      if (rollbackError) throw new Error(`ativação falhou e rollback ficou incerto: ${error?.message ?? error}; rollback: ${rollbackError?.message ?? rollbackError}`)
+      atomicJson(installationPath(prefix), installation)
+      if (existsSync(stagedInstallationPath(prefix))) {
+        rmSync(stagedInstallationPath(prefix), { force: true })
+      }
+      return installation
+    } catch (error) {
+      let rollbackError
+      try {
+        if (activatedServices.length) {
+          try {
+            deactivateServices(activatedServices, adapter, { tolerateMissing: true })
+          } catch (deactErr) {
+            rollbackError = deactErr
+          }
+        }
+        restoreFiles(existingServiceSnapshots)
+        if (existingLauncherSnapshot.length) restoreFiles(existingLauncherSnapshot)
+        if (existingReceiptSnapshot.length) restoreFiles(existingReceiptSnapshot)
+        if (existingStagedSnapshot.length) restoreFiles(existingStagedSnapshot)
+        if (existing?.services?.length) {
+          activateServices(existing.services, adapter)
+        }
+      } catch (recoveryErr) {
+        rollbackError = rollbackError ?? recoveryErr
+      }
+      if (rollbackError) {
+        throw new Error(`ativação falhou e rollback ficou incerto: ${error?.message ?? error}; rollback: ${rollbackError?.message ?? rollbackError}`)
+      }
       throw error
     }
   }
-  const command = preservingActiveInstallation ? undefined : writeCommandLauncher(input.commandPath, input.nodePath, releasePath)
+
+  const writtenCommand = preservingActiveInstallation ? undefined : writeCommandLauncher(input.commandPath, input.nodePath, releasePath)
   const installation = {
     schemaVersion: 1,
     product: "ci-queue",
     version: manifest.version,
     revision: manifest.revision,
     installedAt: new Date().toISOString(),
-    activationStatus: input.activate ? "verified" : "staged",
+    activationStatus: "staged",
     releasePath,
     stateRoot,
     manifestPath,
     manifestSha256,
     services: ownedServices,
-    ...(input.activate ? { launchAgentsRoot: join(resolve(input.homeDir ?? homedir()), "Library", "LaunchAgents") } : {}),
-    ...(command ? { command } : {}),
+    ...(writtenCommand ? { command: writtenCommand } : {}),
   }
   if (preservingActiveInstallation) {
     atomicJson(stagedInstallationPath(prefix), installation)
   } else {
     atomicJson(installationPath(prefix), installation)
-    if (input.activate) rmSync(stagedInstallationPath(prefix), { force: true })
   }
   return installation
 }

@@ -2,10 +2,10 @@
 
 ## Escopo e Identidade
 
-- **Base de partida:** `dev` em `5a9268e41e27644362dfd9e5cd4e163813f5e1a1` (tree `67da42f17aac27f046995f952ec49ad578bb9712`)
+- **Base de partida:** `origin/dev` em `97a0eb4b00fbdfbac8909ab43467a288d14aeaff`
 - **Lane/Worktree isolada:** `/Users/marcoantonio/ci-queue-etapa-3`
 - **Branch:** `codex/ci-queue-etapa-3`
-- **HEAD verificado:** `2e07e96837306785458e67e1bf611e0f20618cdb` (tree `e4913ccf1d25c5730d331ba6f8d729b57da1410f`)
+- **Revisão Base Auditada (PR #13):** `9e7470a20573cdd66a158d42a247f0a9a84c982c` (tree `2db51c1506fd4908d81b1e04edae5e6bcdb550a9`)
 - **Estado do host:** `bootObserved=false`. Nenhuma ativação launchctl real, modificação de `~/Library/LaunchAgents` do usuário, logout/login, reboot ou merge foi realizada.
 
 ## Ambiente de Medição e Teste
@@ -63,7 +63,7 @@ Medições executadas via `scripts/bench/ci-queue-read-path.py` com o servidor P
 | **Limites de memória no cliente** | Cache inativo delimitado | `prune()` remove entradas sem listeners além de `MAX_INACTIVE = 128` | **PASS** |
 | **Visibilidade da página** | Não pollar com aba oculta; retomar 1 leitura ao voltar | `document.hidden` suspende `load()` e ouve `visibilitychange` para acordar | **PASS** |
 | **Inventário de Worktrees** | Não executar Git/du redundante a cada polling | Cache de 60s em `worktrees.py` keyed por repo, common_dir, base_ref e revision | **PASS** |
-| **Instalação Canônica** | Isolada, envelopes owned, KeepAlive/QueueDirectories | Testada com 11 testes em fake HOME; sem tocar launchctl real | **PASS** |
+| **Instalação Canônica** | Isolada, envelopes owned, KeepAlive/QueueDirectories | Testada com 15 testes em fake HOME; sem tocar launchctl real | **PASS** |
 
 ---
 
@@ -74,32 +74,31 @@ O pipeline completo local `npm run check` executou com sucesso (código de saíd
 - **Build:** `tsc --project tsconfig.json` -> PASSED
 - **Test Core:** 17 arquivos, 170 testes unitários Vitest -> PASSED
 - **Test Runtime:** 43 testes Node test runner -> 42 PASSED, 1 SKIPPED (segundo Node opcional)
-- **Test UI:** 12 arquivos, 73 testes Vitest -> PASSED
-- **Test Backend:** 9 arquivos, 109 testes unittest Python -> PASSED
+- **Test UI:** 12 arquivos, 77 testes Vitest (inclui regressões A11a–A11d) -> PASSED
+- **Test Backend:** 9 arquivos, 116 testes unittest Python (inclui regressões A05–A09, A12) -> PASSED
 - **Test Examples:** 6 testes Node test runner -> PASSED
 - **Test Release:** 2 testes Node test runner -> PASSED
-- **Test Install:** 11 testes Node test runner -> PASSED
+- **Test Install:** 15 testes Node test runner (inclui regressões A01–A04) -> PASSED
 - **Check UI:** eslint (0 erros, 0 avisos) + vite build -> PASSED
 - **Browser:** Playwright 45/45 testes em browser real (Chromium) -> PASSED
 
 ---
 
-## Revisão Adversarial (R-Checklist)
+## Resolução do Review Adversarial (A01–A12, V01)
 
-1. **Reabertura e hash no quente:**
-   - *Verificação:* O `RecordStore` inspeciona a tupla `(device, inode, size, mtime_ns, ctime_ns, mode)`. Se idêntica à entrada existente em memória, os bytes do arquivo não são abertos nem hasheados. Comprovado por mock de `builtins.open` onde `call_count == 0`.
-2. **Corrupção de arquivo e troca de inode:**
-   - *Verificação:* Se o arquivo for alterado conservando tamanho e mtime, `ctime_ns` do macOS muda. Se o inode mudar (substituição atômica via rename), o fingerprint muda. Em caso de JSON malformado ou truncado, o store não mantém verde antigo como atual; armazena `error` na entrada, incrementa a geração e omite dos resultados válidos (ou lança `SnapshotError` em modo estrito).
-3. **Página antes de projeção:**
-   - *Verificação:* Em `backend/ci_queue_api/records.py:read_executions`, a ordenação e o recorte `rows[offset:offset+PAGE_SIZE]` ocorrem sobre os dicionários brutos em memória. A projeção de progresso e sanitização pública só é chamada para as 50 linhas selecionadas.
-4. **Isolamento de projetos e ocupação global:**
-   - *Verificação:* Em `status_snapshot`, a ocupação global (`running` e `queued`) é calculada na visão global da máquina; projetos A e B não têm ocupação recortada por filtro. Tickets de outro projeto continuam visíveis como `otherProjectOccupancy: true`.
-5. **Histórico manual e cursor no cliente:**
-   - *Verificação:* `useApiQuery` agora utiliza `queryStore` internamente com `useSyncExternalStore`. A página de Status passa a monitorar `historyRevision`; quando novo registro terminal é gravado, a revisão muda e o painel de histórico invalida sob demanda, evitando fetches redundantes a cada 2 segundos.
-6. **Worktrees e inventário:**
-   - *Verificação:* `backend/ci_queue_api/worktrees.py` introduziu memoização com chave composta e cópia profunda (`copy.deepcopy`), garantindo que o custo de inspecionar status e git branches não seja disparado a cada ciclo de polling do frontend.
-7. **Instalador e envelopes launchd:**
-   - *Verificação:* `scripts/install.mjs` diferencia instalação staged (`--no-activate`) da ativação canônica. Os arquivos `.plist` são gravados como envelopes regulares owned com permissões estritas e hashes validados. Rollback automático restaura envelopes anteriores se o bootstrap falhar.
+1. **A01 · Ownership de envelopes launchd:** `scripts/install.mjs:validateOwnedCanonical` compara estritamente o SHA-256 do arquivo existente contra os bytes canônicos gerados pelo release, sem tolerar alterações arbitrárias que coincidam em substrings.
+2. **A02 · Espera fail-closed no bootout:** `scripts/install.mjs:bootoutService` aguarda com timeout determinístico que o serviço deixe de aparecer em `launchctl list`. Se permanecer ativo ao término da janela, encerra com erro fail-closed.
+3. **A03 · Preservação de receipt legado:** `scripts/install.mjs:isActiveInstallation` reconhece instalações que possuam serviços carregados mesmo sem receipt canônico anterior e preserva o receipt existente durante atualizações filesystem-only (`--no-activate`).
+4. **A04 · Rollback transacional do instalador:** `scripts/install.mjs:rollbackActiveServices` restaura atomicamente plists anteriores e re-carrega os serviços no caso de falha na gravação do binário lançador ou nos metadados de instalação.
+5. **A05 · Retentativa de erro transitório no RecordStore:** `backend/ci_queue_api/record_store.py` marca entradas transitórias com `is_transient=True`, permitindo nova tentativa de leitura e parsing no scan subsequente sem depender de alteração nos metadados do disco.
+6. **A06 · Resiliência a exclusão concorrente durante scandir:** `backend/ci_queue_api/record_store.py:_scan` captura `(FileNotFoundError, ProcessLookupError, OSError)` individualmente por arquivo, garantindo que remoções concorrentes de tickets durante a varredura não invalidem o restante dos registros retidos.
+7. **A07 · Imutabilidade profunda das rows de snapshot:** `backend/ci_queue_api/record_store.py` envelopa dicionários e listas cacheados em `FrozenDict` e `FrozenList` imutáveis, prevenindo mutações colaterais por rotas downstream e serializando perfeitamente via `json.dumps`.
+8. **A08 · Exposição de registros corrompidos em coverage:** `backend/ci_queue_api/records.py` e `history.py` informam `corruptRecords: len(snapshot.errors)` no objeto `coverage`, tornando arquivos não processáveis transparentes para a UI e operadores.
+9. **A09 · Propagação de retentativas (hasRetries):** `backend/ci_queue_api/records.py:public_job` inspeciona a árvore de execução completa (`progressSummary["nodes"]`) e preserva `hasRetries` nas projeções summary e live, garantindo o badge correto no frontend.
+10. **A10 · Preservação de paginação contínua no histórico:** `ui/src/features/status/status-page.tsx:useExecutionHistory` funde a primeira página atualizada sem truncar páginas 2+ já carregadas pelo usuário (`mergeFirstPage`), mantendo o cursor e protegendo contra formatos inesperados de resposta.
+11. **A11 · Ciclo de vida, visibilidade e descarte de respostas obsoletas no QueryStore:** `ui/src/lib/query-store.ts` sincroniza requisições com a visibilidade da página (`document.hidden`), respeita o predicado `pollWhile` em dados terminais, rejeita payloads obsoletos que cheguem após cancelamento/unsubscription e isola configurações sem inscritos.
+12. **A12 · Coalescência e limites de inventário de Worktrees:** `backend/ci_queue_api/worktrees.py` implementa single-flight por chave para evitar Git/du redundantes durante misses simultâneos, evicta revisões obsoletas e limita o cache a 64 entradas inativas.
+13. **V01 · Homologação, evidências reais e roteiro S6:** O recibo reflete exatamente os SHAs/árvores auditados, 45/45 testes browser reais executados no Chromium, suíte completa de integração `npm run check` verde, e roteiro S6 com todos os parâmetros mandatórios (`--bundle`, `--node`, `--python`, `--command`, `--activate`).
 
 ---
 
@@ -120,7 +119,11 @@ O pipeline completo local `npm run check` executou com sucesso (código de saíd
 
 Quando o operador autorizar a janela para ativação real e login:
 
-1. **Pré-inspeção:**
+1. **Gerar pacote canônico (bundle):**
+   ```bash
+   npm run release:bundle
+   ```
+2. **Pré-inspeção:**
    ```bash
    id -u
    launchctl print "gui/$(id -u)/com.nmarcofernandess.ci-queue.dashboard"
@@ -128,14 +131,21 @@ Quando o operador autorizar a janela para ativação real e login:
    lsof -nP -iTCP:8765 -sTCP:LISTEN
    curl --fail --silent http://127.0.0.1:8765/health
    ```
-2. **Ativação canônica via instalador:**
+3. **Ativação canônica via instalador com argumentos completos:**
    ```bash
-   node scripts/install.mjs update --prefix ~/.local/share/ci-queue --activate
+   node scripts/install.mjs update \
+     --bundle releases/ci-queue-0.1.0-*.tar.gz \
+     --prefix ~/.local/share/ci-queue \
+     --node /Users/marcoantonio/.local/share/dietflow-runtime/node/current/bin/node \
+     --python /usr/bin/python3 \
+     --command ~/.local/share/ci-queue/current/bin/ci-queue \
+     --activate
    ```
-3. **Observação de estabilidade (60s):**
+4. **Observação de estabilidade (60s):**
    - Verificar que dashboard escuta na 8765 sem loops de crash.
    - Verificar que worker está carregado com `QueueDirectories` e sem `KeepAlive`.
-4. **Logout e Login:**
+5. **Logout e Login:**
    - Realizar logout da sessão de usuário do macOS e login novamente (ou reboot aprovado).
    - Não executar nenhum comando de inicialização manual (`launchctl bootstrap`, etc.).
    - Observar que o serviço `com.nmarcofernandess.ci-queue.dashboard` subiu automaticamente e responde em `http://127.0.0.1:8765/health`.
+

@@ -46,25 +46,43 @@ function setup(revision = "f".repeat(40)) {
   return { root, prefix, state, homeDir, configPath, destination }
 }
 
-function fakeLaunchctl({ failBootstrapAt, disabled = false, bootoutFailure = false, unconfirmed = false } = {}) {
+function fakeLaunchctl({ initialServices = [], failBootstrapAt, disabled = false, bootoutFailure = false, unconfirmed = false, hangOnBootout = false } = {}) {
   const calls = []
   let bootstraps = 0
+  const active = new Set(initialServices)
+  const wait = () => {}
   const run = (args) => {
     calls.push(args)
     if (args[0] === "print-disabled") return disabled ? '{ "com.nmarcofernandess.ci-queue.dashboard" => true }' : "{}"
-    if (args[0] === "print") return unconfirmed ? "state = waiting" : `label = ${args[1].split("/").at(-1)}`
+    if (args[0] === "print") {
+      const label = args[1]?.split("/").at(-1)
+      if (!active.has(label)) {
+        throw Object.assign(new Error(`Could not find service "${label}"`), { stderr: `Could not find service "${label}"` })
+      }
+      return unconfirmed ? "state = waiting" : `label = ${label}`
+    }
     if (args[0] === "bootout") {
       if (bootoutFailure) throw Object.assign(new Error("permission denied"), { stderr: "Operation not permitted" })
-      throw Object.assign(new Error("missing"), { stderr: "Could not find service" })
+      const label = args[1]?.split("/").at(-1)
+      if (!active.has(label)) {
+        throw Object.assign(new Error("missing"), { stderr: "Could not find service" })
+      }
+      if (!hangOnBootout) {
+        active.delete(label)
+      }
+      return ""
     }
     if (args[0] === "bootstrap") {
       bootstraps += 1
       if (bootstraps === failBootstrapAt) throw new Error("injected bootstrap failure")
+      const plistPath = args[2]
+      const label = plistPath?.split("/").at(-1)?.replace(/\.plist$/, "")
+      if (label) active.add(label)
       return ""
     }
     return ""
   }
-  return { run, calls }
+  return { run, calls, wait, active }
 }
 
 function activationInput(paths, launchctl) {
@@ -80,6 +98,7 @@ function activationInput(paths, launchctl) {
     platform: "darwin",
     uid: 501,
     launchctl: launchctl.run,
+    wait: launchctl.wait,
   }
 }
 
@@ -175,14 +194,90 @@ test("refuses edited ownership, disabled overrides, unknown port owners, and unk
 
 test("uninstall removes only unchanged owned canonical envelopes and preserves state", () => {
   const paths = setup()
+  const launchctl = fakeLaunchctl()
   try {
-    const installation = installRelease(activationInput(paths, fakeLaunchctl()))
+    const installation = installRelease(activationInput(paths, launchctl))
     const result = uninstallRelease({
       prefix: paths.prefix, deactivate: true, platform: "darwin", uid: 501,
-      launchctl: fakeLaunchctl().run,
+      launchctl: launchctl.run,
+      wait: launchctl.wait,
     })
     assert.deepEqual(result, { removed: true, statePreserved: true })
     assert.equal(existsSync(paths.state), true)
     assert.equal(installation.services.every(({ file }) => !existsSync(file)), true)
+  } finally { rmSync(paths.root, { recursive: true, force: true }) }
+})
+
+test("A01: refuses edited canonical envelope even if it contains label and releasePath substrings", () => {
+  const paths = setup("1".repeat(40))
+  const launchctl = fakeLaunchctl()
+  try {
+    const first = installRelease(activationInput(paths, launchctl))
+    const workerFile = first.services.find(s => s.label.endsWith("worker")).file
+    const originalContent = readFileSync(workerFile, "utf8")
+    // Inject extra XML while preserving label and releasePath
+    const tamperedContent = originalContent.replace("</dict>", "<key>Injected</key><true/></dict>")
+    assert.match(tamperedContent, new RegExp(first.releasePath))
+    assert.match(tamperedContent, /com\.nmarcofernandess\.ci-queue\.worker/)
+    writeFileSync(workerFile, tamperedContent, "utf8")
+
+    const secondBundle = buildRelease({ root: paths.root, outputDir: join(paths.root, "bundles-2"), revision: "2".repeat(40) }).destination
+    assert.throws(() => installRelease(activationInput({ ...paths, destination: secondBundle }, launchctl)), /envelope canônico alheio ou alterado; preservei/)
+    assert.equal(readFileSync(workerFile, "utf8"), tamperedContent)
+  } finally { rmSync(paths.root, { recursive: true, force: true }) }
+})
+
+test("A02: fails closed when bootout wait loop times out", () => {
+  const paths = setup("3".repeat(40))
+  const launchctl = fakeLaunchctl()
+  try {
+    installRelease(activationInput(paths, launchctl))
+    const secondBundle = buildRelease({ root: paths.root, outputDir: join(paths.root, "bundles-2"), revision: "4".repeat(40) }).destination
+    const hanging = fakeLaunchctl({ hangOnBootout: true, initialServices: ["com.nmarcofernandess.ci-queue.worker", "com.nmarcofernandess.ci-queue.dashboard"] })
+    assert.throws(() => installRelease(activationInput({ ...paths, destination: secondBundle }, hanging)), /desativação de com\.nmarcofernandess\.ci-queue\.worker excedeu o tempo limite/)
+  } finally { rmSync(paths.root, { recursive: true, force: true }) }
+})
+
+test("A03: legacy receipt without activationStatus preserves receipt on filesystem-only install", () => {
+  const paths = setup("5".repeat(40))
+  const launchctl = fakeLaunchctl()
+  try {
+    const first = installRelease(activationInput(paths, launchctl))
+    const receiptPath = join(paths.prefix, "installation.json")
+    const receiptData = JSON.parse(readFileSync(receiptPath, "utf8"))
+    delete receiptData.activationStatus
+    writeFileSync(receiptPath, JSON.stringify(receiptData, null, 2))
+
+    const secondBundle = buildRelease({ root: paths.root, outputDir: join(paths.root, "bundles-2"), revision: "6".repeat(40) }).destination
+    const staged = installRelease({
+      ...activationInput({ ...paths, destination: secondBundle }, launchctl),
+      activate: false,
+    })
+    assert.equal(staged.activationStatus, "staged")
+    const activeReceipt = JSON.parse(readFileSync(receiptPath, "utf8"))
+    assert.equal(activeReceipt.revision, "5".repeat(40))
+    assert.equal(activeReceipt.activationStatus, undefined)
+    const stagedReceipt = JSON.parse(readFileSync(join(paths.prefix, "staged-installation.json"), "utf8"))
+    assert.equal(stagedReceipt.revision, "6".repeat(40))
+  } finally { rmSync(paths.root, { recursive: true, force: true }) }
+})
+
+test("A04: rollback cleans up bootstrapped services and restores prior state if command launcher fails", () => {
+  const paths = setup("7".repeat(40))
+  const launchctl = fakeLaunchctl()
+  try {
+    const first = installRelease(activationInput(paths, launchctl))
+    const oldReceipt = readFileSync(join(paths.prefix, "installation.json"), "utf8")
+    const secondBundle = buildRelease({ root: paths.root, outputDir: join(paths.root, "bundles-2"), revision: "8".repeat(40) }).destination
+    // Create a directory where commandPath would be written as a file, causing writeFileSync to fail
+    const badCommandPath = join(paths.root, "unwritable-command")
+    mkdirSync(badCommandPath) // directory cannot be overwritten by writeFileSync
+    assert.throws(() => installRelease({
+      ...activationInput({ ...paths, destination: secondBundle }, launchctl),
+      commandPath: badCommandPath,
+    }))
+    assert.equal(readFileSync(join(paths.prefix, "installation.json"), "utf8"), oldReceipt)
+    assert.equal(launchctl.active.has("com.nmarcofernandess.ci-queue.worker"), true)
+    assert.equal(launchctl.active.has("com.nmarcofernandess.ci-queue.dashboard"), true)
   } finally { rmSync(paths.root, { recursive: true, force: true }) }
 })

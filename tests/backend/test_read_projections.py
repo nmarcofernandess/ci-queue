@@ -46,6 +46,35 @@ class ReadProjectionTests(unittest.TestCase):
         self.assertNotIn("lastFailed", payload)
         self.assertEqual(len(payload["historyRevision"]), 24)
 
+    def test_A09_has_retries_detected_in_descendant_nodes_and_preserved_in_projections(self):
+        from ci_queue_api.records import public_job, public_job_summary, progress_summary
+        job_with_nested_retry = {
+            "id": "job-nested-retry",
+            "projectId": "alpha",
+            "status": "passed",
+            "progress": {
+                "nodes": [
+                    {"id": "suite", "label": "Suite", "status": "passed", "retryCount": 0},
+                    {"id": "case-1", "label": "Case 1", "parentId": "suite", "status": "passed", "retryCount": 2},
+                ]
+            },
+        }
+        summarized = progress_summary(job_with_nested_retry)
+        pj = public_job(summarized)
+        self.assertTrue(pj["hasRetries"])
+        self.assertIn("progressSummary", pj)
+
+        pjs = public_job_summary(summarized)
+        self.assertTrue(pjs["hasRetries"])
+        self.assertNotIn("progressSummary", pjs)
+
+        # In live status when this job is running
+        (self.root / "running.json").write_text(json.dumps(summarized))
+        live_payload = status_snapshot_all(self.root, view="live")
+        running = live_payload["running"]
+        self.assertTrue(running["hasRetries"])
+        self.assertNotIn("nodes", running["progressSummary"])
+
 
 if __name__ == "__main__":
     unittest.main()

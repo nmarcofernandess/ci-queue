@@ -7,6 +7,7 @@ import statistics
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .record_store import store_for
 from .records import history_key, read_history, read_json
 
 
@@ -167,12 +168,13 @@ def build_preset_history(state_root, config):
         values.append(entry)
     values.sort(key=lambda item: item["preset"])
     values.sort(key=lambda item: (item["lastGreenCanonical"] or {}).get("finishedAt") or "", reverse=True)
+    corrupt_count = len(store_for(Path(state_root) / "history").snapshot().errors)
     return {
         "schemaVersion": 1,
         "catalog": {"resolved": True, "projectId": config.project_id, "declaredCount": len(config.presets)},
         "presets": values,
         "totals": {"tickets": sum(item["runCount"] for item in values), "presets": len(values)},
-        "coverage": {"unattributedRecords": unattributed},
+        "coverage": {"unattributedRecords": unattributed, "corruptRecords": corrupt_count},
     }
 
 

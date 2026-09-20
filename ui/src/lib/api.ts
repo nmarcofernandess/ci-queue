@@ -268,39 +268,40 @@ export function revealWorktree(
   )
 }
 
-export function getJob(scope: ReadScope, jobId: string) {
+export function getJob(scope: ReadScope, jobId: string, signal?: AbortSignal) {
   return requestScoped<JobRecord>(scope, "/api/job", {
     ...scopeQuery(scope),
     jobId,
-  })
+  }, signal)
 }
 
 export function getLog(
   scope: ReadScope,
   jobId: string,
   offset = 0,
-  length = 512 * 1024
+  length = 512 * 1024,
+  signal?: AbortSignal
 ) {
   return requestScoped<LogSlice>(scope, "/api/log", {
     ...scopeQuery(scope),
     jobId,
     offset,
     length,
-  })
+  }, signal)
 }
 
-export function getLogExport(scope: ReadScope, jobId: string) {
+export function getLogExport(scope: ReadScope, jobId: string, signal?: AbortSignal) {
   return requestScoped<LogExport>(scope, "/api/log/export", {
     ...scopeQuery(scope),
     jobId,
-  })
+  }, signal)
 }
 
-export function getDiagnostic(scope: ReadScope, jobId: string) {
+export function getDiagnostic(scope: ReadScope, jobId: string, signal?: AbortSignal) {
   return requestScoped<Diagnostic>(scope, "/api/diagnostic", {
     ...scopeQuery(scope),
     jobId,
-  }).catch(
+  }, signal).catch(
     (error) => {
       if (
         error instanceof ApiError &&
@@ -338,10 +339,17 @@ export function useApiQuery<T>(
   } = {}
 ): ApiQuery<T> {
   const { pollMs, enabled = true, pollWhile } = options
-  queryStore.configure(key, request, pollMs, pollWhile)
+  const subscriberConfig = React.useMemo(
+    () => ({ request, pollMs, pollWhile }),
+    [request, pollMs, pollWhile]
+  )
+  if (enabled) {
+    queryStore.configure(key, request, pollMs, pollWhile)
+  }
   const subscribe = React.useCallback(
-    (listener: () => void) => enabled ? queryStore.subscribe<T>(key, listener) : () => undefined,
-    [enabled, key]
+    (listener: () => void) =>
+      enabled ? queryStore.subscribe<T>(key, listener, subscriberConfig) : () => undefined,
+    [enabled, key, subscriberConfig]
   )
   const getSnapshot = React.useCallback(() => queryStore.snapshot<T>(key), [key])
   const snapshot = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot)

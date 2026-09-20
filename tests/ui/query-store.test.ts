@@ -60,4 +60,107 @@ describe("canonical query store", () => {
     second()
     expect(signal?.aborted).toBe(true)
   })
+
+  it("A11a: resumes unpolled query started while hidden when visibility changes", async () => {
+    class MockDocument extends EventTarget {
+      hidden = true
+    }
+    const mockDoc = new MockDocument()
+    const originalDoc = (globalThis as any).document
+    ;(globalThis as any).document = mockDoc
+
+    try {
+      const request = vi.fn().mockResolvedValue("resumed-data")
+      queryStore.configure("unpolled-hidden", request)
+      const stop = queryStore.subscribe("unpolled-hidden", () => undefined)
+      // Started while hidden: should not have called request yet
+      expect(request).toHaveBeenCalledTimes(0)
+
+      // Tab becomes visible
+      mockDoc.hidden = false
+      mockDoc.dispatchEvent(new Event("visibilitychange"))
+
+      await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(1))
+      await vi.waitFor(() => expect(queryStore.snapshot<string>("unpolled-hidden").data).toBe("resumed-data"))
+      stop()
+    } finally {
+      ;(globalThis as any).document = originalDoc
+    }
+  })
+
+  it("A11b: visibility change respects pollWhile predicate on terminal data", async () => {
+    class MockDocument extends EventTarget {
+      hidden = false
+    }
+    const mockDoc = new MockDocument()
+    const originalDoc = (globalThis as any).document
+    ;(globalThis as any).document = mockDoc
+
+    try {
+      const request = vi.fn().mockResolvedValue({ status: "passed" })
+      queryStore.configure(
+        "terminal-job",
+        request,
+        5000,
+        (job: { status: string }) => job.status === "running"
+      )
+      const stop = queryStore.subscribe("terminal-job", () => undefined)
+      await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(1))
+      expect(queryStore.snapshot<{ status: string }>("terminal-job").data?.status).toBe("passed")
+
+      // Visibility event fires
+      mockDoc.dispatchEvent(new Event("visibilitychange"))
+      // Because pollWhile returned false for passed status, request must NOT have been called again
+      expect(request).toHaveBeenCalledTimes(1)
+      stop()
+    } finally {
+      ;(globalThis as any).document = originalDoc
+    }
+  })
+
+  it("A11c: late resolution after cancel/unsubscribe does not publish obsolete data", async () => {
+    let resolveSlow!: (value: string) => void
+    const slowRequest = vi.fn(
+      () => new Promise<string>((resolve) => { resolveSlow = resolve })
+    )
+    const fastRequest = vi.fn().mockResolvedValue("fresh")
+
+    // First subscriber starts slow request
+    const unsub1 = queryStore.subscribe("stale-race", () => undefined, { request: slowRequest })
+    expect(slowRequest).toHaveBeenCalledTimes(1)
+
+    // Unsubscribe first subscriber
+    unsub1()
+
+    // Second subscriber starts fresh request
+    const unsub2 = queryStore.subscribe("stale-race", () => undefined, { request: fastRequest })
+
+    // Slow request resolves late with "stale"
+    resolveSlow("stale")
+
+    // Fresh request should be published, stale must never overwrite fresh
+    await vi.waitFor(() => expect(queryStore.snapshot<string>("stale-race").data).toBe("fresh"))
+    expect(queryStore.snapshot<string>("stale-race").data).toBe("fresh")
+    unsub2()
+  })
+
+  it("A11d: configure without subscription does not mutate an active resource's schedule", async () => {
+    const activeRequest = vi.fn().mockResolvedValue("active")
+    const speculativeRequest = vi.fn().mockResolvedValue("speculative")
+
+    const unsub = queryStore.subscribe("active-key", () => undefined, {
+      request: activeRequest,
+      pollMs: 1000,
+    })
+    await vi.waitFor(() => expect(activeRequest).toHaveBeenCalledTimes(1))
+
+    // Speculative configure call (e.g. from disabled hook)
+    queryStore.configure("active-key", speculativeRequest, 99999)
+
+    // Reload active resource
+    queryStore.reload("active-key")
+    await vi.waitFor(() => expect(activeRequest).toHaveBeenCalledTimes(2))
+    expect(speculativeRequest).toHaveBeenCalledTimes(0)
+    unsub()
+  })
 })

@@ -63,6 +63,7 @@ export type JobRecord = {
   cleanupBlockedReason?: string | null
   commitSubject?: string
   progressEnabled: boolean
+  hasRetries?: boolean
   progressSummary?: ProgressSummary
   durationReference?: {
     medianMs: number
@@ -95,7 +96,7 @@ export type ExecutionsResponse = {
   hasMore: boolean
   snapshotBefore: string
   nextCursor: string | null
-  coverage: { unattributedRecords: number }
+  coverage: { unattributedRecords: number; corruptRecords?: number }
 }
 
 export type PresetRunReference = {
@@ -135,7 +136,7 @@ export type PresetHistoryResponse = {
   catalog: { resolved: boolean; projectId: string; declaredCount: number }
   presets: PresetHistoryEntry[]
   totals: { tickets: number; presets: number }
-  coverage: { unattributedRecords: number }
+  coverage: { unattributedRecords: number; corruptRecords?: number }
 }
 
 export type RemoteSlotsReason = {
