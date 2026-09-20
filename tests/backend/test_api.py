@@ -298,12 +298,14 @@ class HistoryAndAnalysisTests(Fixture):
                 {"id": "static", "label": "Static", "status": "passed", "kind": "stage", "durationMs": 1000},
                 {"id": "gates", "parentId": "static", "label": "Gates", "status": "passed", "kind": "group"},
                 {"id": "typecheck", "parentId": "gates", "label": "typecheck", "status": "passed", "retryCount": 1},
-                {"id": "jest", "label": "Jest", "status": "running", "detail": "14 de 20"},
+                {"id": "jest", "label": "Jest", "status": "running", "kind": "stage", "detail": "14 de 20"},
+                {"id": "kindless", "label": "Kindless", "status": "running", "detail": "should stay out"},
             ]
         }), encoding="utf-8")
 
         summary = status_snapshot(self.state, "example", "Example project")["running"]["progressSummary"]
-        self.assertEqual([node["id"] for node in summary["roots"]], ["static", "jest"])
+        self.assertEqual([node["id"] for node in summary["roots"]], ["static", "jest", "kindless"])
+        self.assertEqual([node["id"] for node in summary["active"]], ["jest"])
         self.assertEqual(summary["active"][0]["detail"], "14 de 20")
         child = next(node for node in summary["nodes"] if node["id"] == "typecheck")
         self.assertEqual(child["parentId"], "gates")
