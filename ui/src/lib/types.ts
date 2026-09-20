@@ -44,6 +44,8 @@ export type ProgressSummary = {
   active?: ProgressNode[]
 }
 
+export type RunVariant = "custom" | "focal"
+
 /** Browser-safe job projection. Process arguments and environment stay private. */
 export type JobRecord = {
   id: string
@@ -62,6 +64,8 @@ export type JobRecord = {
   failureReason?: string | null
   cleanupBlockedReason?: string | null
   commitSubject?: string
+  /** Observational only — Personalizado / Focal badges; never ship eligibility. */
+  runVariant?: RunVariant
   progressEnabled: boolean
   hasRetries?: boolean
   progressSummary?: ProgressSummary

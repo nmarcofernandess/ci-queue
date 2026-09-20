@@ -9,6 +9,7 @@ import {
   API_VERSION,
   normalizeTicketFlags,
   parseRequestContext,
+  parseRunVariant,
   type CliFailure,
   type CliResult,
   type CliSuccess,
@@ -69,7 +70,7 @@ function splitExtra(args: string[]): string[] {
 }
 
 function enqueuePreset(args: string[]): string | undefined {
-  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--flags-json", "--timeout-ms", "--request-context"])
+  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--flags-json", "--timeout-ms", "--request-context", "--run-variant"])
   for (let index = 0; index < args.length; index += 1) {
     const value = args[index]
     if (value === "--") return undefined
@@ -226,6 +227,17 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           if (!requestContext) return failure("USAGE", "--request-context não respeita o contrato de identificadores")
         }
         if (recipe && !args.cwd) return failure("USAGE", "--cwd absoluto é obrigatório com --recipe")
+        const runVariantRaw = optionValue(args.rest, "--run-variant")
+        let runVariant: ReturnType<typeof parseRunVariant>
+        if (runVariantRaw !== undefined) {
+          try {
+            runVariant = parseRunVariant(runVariantRaw)
+          } catch (error) {
+            return failure("USAGE", error instanceof Error ? error.message : String(error))
+          }
+        } else {
+          runVariant = undefined
+        }
         const ticket = recipe
           ? enqueueExplicitTicket({
             recipe,
@@ -238,6 +250,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
             ...(optionValue(args.rest, "--artifacts-json") ? { artifacts: parseJsonArray(optionValue(args.rest, "--artifacts-json"), "--artifacts-json") } : {}),
             ...(optionValue(args.rest, "--flags-json") ? { flags: parseFlags(optionValue(args.rest, "--flags-json")) } : {}),
             requestContext,
+            ...(runVariant ? { runVariant } : {}),
           })
           : enqueueTicket({ preset: preset!, stateRoot: root, cwd: args.cwd, configPath: args.configPath, extraArgs: splitExtra(args.rest), requestContext })
         if (args.rest.includes("--wait")) {

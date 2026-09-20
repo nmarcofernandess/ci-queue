@@ -186,6 +186,18 @@ export type RequestContext = {
 }
 
 /** Persisted ticket: fields added in v2/v3 remain optional for v1 readers. */
+export type RunVariant = "custom" | "focal"
+
+export const RUN_VARIANTS = ["custom", "focal"] as const
+
+export function parseRunVariant(value: unknown): RunVariant | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== "string" || !(RUN_VARIANTS as readonly string[]).includes(value)) {
+    throw new Error("--run-variant precisa ser custom ou focal")
+  }
+  return value as RunVariant
+}
+
 export type QueueTicket = {
   id: string
   createdAt: string
@@ -225,6 +237,8 @@ export type QueueTicket = {
   processObservation?: ProcessObservation
   processObservations?: ProcessObservation[]
   requestContext?: RequestContext
+  /** Observational only — never affects ship eligibility. */
+  runVariant?: RunVariant
   /** User-space Node guard evidence; never implies an OS sandbox. */
   runtime?: RuntimeReceipt
 }

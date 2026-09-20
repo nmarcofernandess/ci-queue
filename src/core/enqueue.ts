@@ -7,6 +7,7 @@ import {
   normalizeTicketFlags,
   type QueueTicket,
   type RequestContext,
+  type RunVariant,
 } from "../contracts/schema.js"
 import { initialExecutionDeadline } from "./deadline.js"
 import { readGitInfo, validateTicketAdmission } from "./runner.js"
@@ -40,6 +41,7 @@ export type ExplicitEnqueueInput = {
   flags?: QueueTicket["flags"]
   requestedBy?: string
   requestContext?: RequestContext
+  runVariant?: RunVariant
   now?: Date
 }
 
@@ -125,6 +127,7 @@ export function enqueueExplicitTicket(input: ExplicitEnqueueInput): QueueTicket 
     projectId: input.projectId,
     projectName: input.projectName,
     ...(input.requestContext ? { requestContext: input.requestContext } : {}),
+    ...(input.runVariant ? { runVariant: input.runVariant } : {}),
   }
   validateTicketAdmission(ticket)
   stageTicketWrite(input.stateRoot, ticket)

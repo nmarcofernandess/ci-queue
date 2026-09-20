@@ -63,6 +63,13 @@ describe("ship eligibility", () => {
     expect(findEligibleTicket([valid], query)).toBe(valid)
   })
 
+  it("ignores runVariant for material ship eligibility", () => {
+    const base = { ...valid }
+    expect(isShipEligibleTicket({ ...base, runVariant: undefined }, query)).toBe(true)
+    expect(isShipEligibleTicket({ ...base, runVariant: "focal" }, query)).toBe(true)
+    expect(isShipEligibleTicket({ ...base, runVariant: "custom" }, query)).toBe(true)
+  })
+
   it("rejects a different executed argv", () => {
     expect(isShipEligibleTicket({ ...valid, argv: [process.execPath, "-e", "process.exit(0)"] }, query)).toBe(false)
   })

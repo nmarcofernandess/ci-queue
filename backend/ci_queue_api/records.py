@@ -25,7 +25,7 @@ PAGE_SIZE = 50
 PUBLIC_JOB_FIELDS = (
     "id", "projectId", "projectName", "preset", "status", "exitCode", "branch", "headSha",
     "createdAt", "startedAt", "finishedAt", "durationMs", "cwd", "failureReason",
-    "cleanupBlockedReason", "commitSubject",
+    "cleanupBlockedReason", "commitSubject", "runVariant",
 )
 
 

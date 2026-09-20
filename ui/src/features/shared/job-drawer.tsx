@@ -26,6 +26,7 @@ import { FactsTable } from "./facts-table"
 import { describeJobState, progressSurface, unconfiguredProgressCopy } from "./presentation"
 import { ProjectChip } from "./project-chip"
 import { projectChipFacts } from "./project-chip-model"
+import { RunVariantBadge } from "./run-variant-badge"
 import {
   Popover,
   PopoverContent,
@@ -498,11 +499,16 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
             : undefined
         }
         badge={
-          job.data?.projectName ? (
-            <ProjectChip
-              name={job.data.projectName}
-              facts={projectChipFacts(job.data)}
-            />
+          job.data?.projectName || job.data?.runVariant ? (
+            <>
+              {job.data.projectName ? (
+                <ProjectChip
+                  name={job.data.projectName}
+                  facts={projectChipFacts(job.data)}
+                />
+              ) : null}
+              <RunVariantBadge runVariant={job.data.runVariant} />
+            </>
           ) : undefined
         }
         closeLabel="Fechar execução"
