@@ -38,13 +38,24 @@ Uma receita aceita por ship precisa de `requireCleanTree=true`, `requireGitStabi
 
 `ci-queue enqueue <preset> --config /projeto/ci-queue.json --state /estado` congela o pedido. O worker é dono do claim e executa argv/cwd do ticket, não relê internals de DietFlow. Estados: queued, running, passed, failed, cancelled, interrupted. Exit code, runtime e verificações Git podem determinar falha; progress não fabrica sucesso.
 
-State: `jobs/`, `running.json`, `history/`, `logs/`, `artifacts/`, `progress/`. Registro terminal em history é autoritativo. Sidecar progress é consolidado no ticket ao fim e removido. Logs/artefatos usam caminhos do ticket. Ausência de log é indisponibilidade, não conteúdo vazio bem-sucedido.
+State: `jobs/`, `running.json`, `history/`, `logs/`, `artifacts/`, `progress/`, `observations/`. Registro terminal em history é autoritativo para tickets de fila. Sidecar progress é consolidado no ticket ao fim e removido. Logs/artefatos usam caminhos do ticket. Ausência de log é indisponibilidade, não conteúdo vazio bem-sucedido.
 
-O state explícito/ambiente deve ser o mesmo da API/worker. Sem override, o caminho compatível `~/.local/state/local-ci/queue`, se presente, é preservado; não criar outra fila ao copiar um comando de instalação nova.
+O state explícito/ambiente deve ser o mesmo da API/worker. Sem override, o caminho compatível `~/.local/state/local-ci/queue`, se presente, é preservado; não criar outra fila ao copiar um comando de instalação nova. O launcher instalado exporta `CI_QUEUE_STATE_DIR` para o state registrado; CLI, worker e API leem o mesmo root.
 
 `--wait` e seu timeout não cancelam o job. `cancel` é explícito e segue ownership do processo. Um worker por state. Worker on-demand ausente enquanto a fila está vazia pode ser saudável. Não apagar locks ou sinalizar PID sem identidade para forçar recuperação.
 
-CLI JSON usa `{apiVersion, ok, result}` ou `{apiVersion, ok:false, error}`. Comandos reais vivem em `src/cli.ts`: config, enqueue, worker, status, history, preset-history, logs, cancel, runtime, advisory, init e ship. Não inventar `ci-queue doctor` ou `logs --follow`; o wrapper DietFlow oferece seu próprio follow.
+CLI JSON usa `{apiVersion, ok, result}` ou `{apiVersion, ok:false, error}`. Comandos reais vivem em `src/cli.ts`: config, enqueue, worker, status, history, observe, preset-history, logs, cancel, runtime, advisory, init, guard e ship. Não inventar `ci-queue doctor` ou `logs --follow`; o wrapper DietFlow oferece seu próprio follow.
+
+### Observações de execução directa (`execution-observe-v1`)
+
+Capability anunciada em `ci-queue version --json`. Publicação:
+
+```bash
+ci-queue observe --stdin --json < observation.json
+ci-queue history --include-observed --project PROJECT_ID --state "$STATE" --json
+```
+
+Schema: `src/contracts/execution-observation.ts` (`kind=ci-execution-observation`, schemaVersion 1). Grava em `<state>/observations/`; **não** cria ticket, **não** toca `jobs/` / `running.json` / `history/` de fila, **não** controla o processo da receita e **não** é prova de ship, Meta, last-green nem advisory. `history` sem `--include-observed` permanece só tickets. A superfície humana do Histórico une tickets e observações; contagens de Análise/prova continuam só com tickets. Observação sem log local do produto é ausência legítima — o consumidor publicou metadados, não stdout bruto.
 
 ## Progress TSV v1
 
@@ -92,7 +103,7 @@ Garantia: **head-pinned-base-observed**, não lock atômico H+B. PUT de merge le
 
 Cadastro local: `<state>/state/projects.json`; runtimes: `<state>/runtimes.json`; atribuição legada: `<state>/state/legacy-projects.json`. São autoridades diferentes. Registry usa gitCommonDir e `git worktree list`, não busca recursiva em pasta pai. Main worktree não significa branch main. Se common-dir vive, outro checkout pode permitir recuperação; se o clone inteiro mudou, relocalização explícita é necessária.
 
-Histórico, Worktrees e Análise seguem projeto/Todos. Running e Fila são globais. Abrir ticket de B com A selecionado não troca A. `context=all` é modo; `projectId=all` é ID literal. Meta/Últimos verdes/Pendências precisam de projeto concreto/capacidade apropriada. Sem projeto mantém legado separado, sem atribuição inferida.
+Histórico, Worktrees e Análise seguem projeto/Todos. Running e Fila são globais. Abrir ticket de B com A selecionado não troca A. `context=all` é modo; `projectId=all` é ID literal. Meta/Últimos verdes/Pendências precisam de projeto concreto/capacidade apropriada. Sem projeto mantém legado separado, sem atribuição inferida. Ampliar o Histórico humano com observações **não** altera o denominador das análises de tickets/greens nesta entrega.
 
 ## Runtime Node
 
