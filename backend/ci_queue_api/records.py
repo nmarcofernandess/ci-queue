@@ -233,7 +233,14 @@ def progress_summary(job, progress=None):
         if type(retry_count) is int and retry_count >= 0:
             result["retryCount"] = retry_count
         return result
-    active = [node for node in known.values() if node.get("status") == "running"] if job.get("status") == "running" else []
+    active = []
+    if job.get("status") == "running":
+        structural_kinds = {"stage", "group", "suite"}
+        for node in known.values():
+            if node.get("status") == "running" and node.get("kind") in structural_kinds:
+                active.append(node)
+                if len(active) >= 32:
+                    break
     return {**job, "progressSummary": {"schemaVersion": 1, "available": True,
                                          "nodes": [public(node) for node in known.values()],
                                          "roots": [public(node) for node in roots],
@@ -353,7 +360,7 @@ def _status_body(state_root, project, history_rows, running, queued, other_occup
             summary = payload["running"].get("progressSummary")
             if isinstance(summary, dict):
                 payload["running"]["progressSummary"] = {
-                    key: summary[key] for key in ("schemaVersion", "available", "reason", "roots") if key in summary
+                    key: summary[key] for key in ("schemaVersion", "available", "reason", "roots", "active") if key in summary
                 }
     return payload
 
