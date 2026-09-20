@@ -47,12 +47,17 @@ from .provenance import release_provenance
 from .records import (
     RecordError,
     iso_now,
+    lookup_execution,
     lookup_job,
     public_job,
     read_executions,
     status_snapshot,
     status_snapshot_all,
     status_snapshot_unassigned,
+)
+from .execution_observations import (
+    observation_diagnostic_unavailable,
+    observation_log_unavailable,
 )
 from .worktrees import list_worktrees, list_worktrees_all, worktree_view
 
@@ -368,8 +373,9 @@ def create_handler(context):
             if path not in {"/api/job", "/api/log", "/api/log/export", "/api/diagnostic"}:
                 return False
             job_id = query.get("jobId", [""])[0]
-            job = lookup_job(self.api_context.state_root, job_id)
+            job = lookup_execution(self.api_context.state_root, job_id)
             anon = _UnassignedConfig()
+            is_observed = isinstance(job, dict) and job.get("recordKind") == "observed-execution"
             if path == "/api/job":
                 if job is None:
                     self.error(404, "ticket não encontrado")
@@ -379,6 +385,9 @@ def create_handler(context):
             if path == "/api/log":
                 if job is None:
                     self.error(404, "ticket não encontrado")
+                    return True
+                if is_observed:
+                    self.send_payload(200, with_context(observation_log_unavailable(job_id), scope, revision))
                     return True
                 self.send_payload(200, with_context(read_log_slice(
                     self.api_context.state_root, anon, job_id,
@@ -390,11 +399,18 @@ def create_handler(context):
                 if job is None:
                     self.error(404, "ticket não encontrado")
                     return True
+                if is_observed:
+                    self.send_payload(200, with_context(observation_log_unavailable(job_id), scope, revision))
+                    return True
                 self.send_payload(200, with_context(read_log_export(
                     self.api_context.state_root, anon, job_id,
                 ), scope, revision))
                 return True
             if path == "/api/diagnostic":
+                if is_observed:
+                    payload = observation_diagnostic_unavailable(job_id)
+                    self.send_payload(200, with_context(payload, scope, revision))
+                    return True
                 payload = read_diagnostic(self.api_context.state_root, anon, job_id)
                 self.send_payload(
                     200 if payload.get("available") else 404,

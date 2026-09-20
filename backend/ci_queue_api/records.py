@@ -16,6 +16,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .record_store import SnapshotError, clear_stores, store_for
+from .execution_observations import (
+    lookup_observed_execution,
+    read_observed_executions,
+)
 
 
 JOB_ID = re.compile(r"[A-Za-z0-9-]{1,128}\Z")
@@ -26,6 +30,7 @@ PUBLIC_JOB_FIELDS = (
     "id", "projectId", "projectName", "preset", "status", "exitCode", "branch", "headSha",
     "createdAt", "startedAt", "finishedAt", "durationMs", "cwd", "failureReason",
     "cleanupBlockedReason", "commitSubject",
+    "recordKind", "executor", "executionId", "logAvailability",
 )
 
 
@@ -245,8 +250,21 @@ def public_job(job):
     if not isinstance(job, dict):
         return job
     result = {key: job.get(key) for key in PUBLIC_JOB_FIELDS if key in job}
+    if "recordKind" not in result and "id" in result:
+        # Legacy tickets omit recordKind; do not invent observed identity.
+        pass
+    if "executor" not in result and isinstance(job, dict):
+        source = job.get("source")
+        if source in {"direct-runtime", "direct-cloud"}:
+            result["executor"] = "direct"
+        elif source == "queue" or source is None:
+            if job.get("recordKind") != "observed-execution":
+                result["executor"] = "queue"
     flags = job.get("flags")
-    result["progressEnabled"] = isinstance(flags, dict) and flags.get("progressEnabled") is True
+    if "progressEnabled" in job and isinstance(job.get("progressEnabled"), bool):
+        result["progressEnabled"] = job["progressEnabled"]
+    else:
+        result["progressEnabled"] = isinstance(flags, dict) and flags.get("progressEnabled") is True
     if "progressSummary" in job:
         result["progressSummary"] = job["progressSummary"]
     progress = job.get("progressSummary")
@@ -261,6 +279,44 @@ def public_job(job):
     return result
 
 
+def ticket_history_projection(job):
+    """Annotate a native ticket for unified execution history."""
+    if not isinstance(job, dict):
+        return job
+    source = job.get("source")
+    if source in {"direct-runtime", "direct-cloud"}:
+        executor = "direct"
+    elif source == "queue" or source is None:
+        executor = "queue"
+    else:
+        executor = "unknown"
+    return {**job, "recordKind": "queue-ticket", "executor": executor}
+
+
+def read_execution_history(state_root, strict=False):
+    """Union of ticket + observation projections. Does not alter read_history()."""
+    tickets = [ticket_history_projection(row) for row in read_history(state_root, strict=strict)]
+    observed, _invalid = read_observed_executions(state_root, strict=strict)
+    ticket_ids = {row.get("id") for row in tickets}
+    merged = list(tickets)
+    for row in observed:
+        if row.get("id") in ticket_ids:
+            continue
+        merged.append(row)
+    return merged
+
+
+def lookup_execution(state_root, job_id, project_id=None, unassigned=False):
+    """Resolve ticket first; then a validated observation id."""
+    job = lookup_job(state_root, job_id, project_id=project_id, unassigned=unassigned)
+    if job is not None:
+        return ticket_history_projection(job)
+    observed = lookup_observed_execution(state_root, job_id)
+    if observed is None:
+        return None
+    return observed
+
+
 def public_job_summary(job):
     """Browser-safe list projection without the recursive progress tree."""
     result = public_job(job)
@@ -272,13 +328,18 @@ def public_job_summary(job):
 
 def _history_revision(state_root):
     snapshot = store_for(Path(state_root) / "history").snapshot()
+    observed = store_for(Path(state_root) / "observations").snapshot()
     ledger = Path(state_root) / "state" / "legacy-projects.json"
     try:
         info = ledger.stat()
         ledger_version = (info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
     except OSError:
         ledger_version = None
-    raw = repr((snapshot.generation, snapshot.digests, snapshot.errors, ledger_version)).encode("utf-8")
+    raw = repr((
+        snapshot.generation, snapshot.digests, snapshot.errors,
+        observed.generation, observed.digests, observed.errors,
+        ledger_version,
+    )).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()[:24]
 
 
@@ -361,8 +422,19 @@ def _status_body(state_root, project, history_rows, running, queued, other_occup
 def status_snapshot(state_root, project_id, project_name, view="default"):
     """Global occupancy plus project-scoped terminal history."""
     history, running, queued = _living(state_root)
-    project_history = ([] if view == "live" else
-                       [progress_summary(row) for row in history if project_record(row, project_id)])
+    if view == "live":
+        project_history = []
+    else:
+        project_history = [
+            progress_summary(row) for row in history
+            if project_record(row, project_id)
+        ]
+        observed, _invalid = read_observed_executions(state_root)
+        ticket_ids = {row.get("id") for row in project_history}
+        for row in observed:
+            if row.get("projectId") == project_id and row.get("id") not in ticket_ids:
+                project_history.append(row)
+        project_history.sort(key=history_key, reverse=True)
     other_running = bool(running) and not project_record(running, project_id)
     other_queued = any(not project_record(row, project_id) for row in queued)
     return _status_body(
@@ -377,6 +449,7 @@ def status_snapshot(state_root, project_id, project_name, view="default"):
 
 def status_snapshot_unassigned(state_root, view="default"):
     history, running, queued = _living(state_root)
+    # Observations always carry projectId — never appear in Sem projeto.
     unassigned = ([] if view == "live" else [progress_summary(row) for row in history
                   if row.get("status") in TERMINAL and not row.get("projectId")])
     occupied = bool(running or queued)
@@ -385,8 +458,17 @@ def status_snapshot_unassigned(state_root, view="default"):
 
 def status_snapshot_all(state_root, view="default"):
     history, running, queued = _living(state_root)
-    attributed = ([] if view == "live" else [progress_summary(row) for row in history
-                  if row.get("status") in TERMINAL and row.get("projectId")])
+    if view == "live":
+        attributed = []
+    else:
+        attributed = [progress_summary(row) for row in history
+                      if row.get("status") in TERMINAL and row.get("projectId")]
+        observed, _invalid = read_observed_executions(state_root)
+        ticket_ids = {row.get("id") for row in attributed}
+        for row in observed:
+            if row.get("projectId") and row.get("id") not in ticket_ids:
+                attributed.append(row)
+        attributed.sort(key=history_key, reverse=True)
     occupied = bool(running or queued)
     return _status_body(state_root, None, attributed, running, queued, occupied, view)
 
@@ -441,7 +523,7 @@ def read_executions(state_root, project_id, q="", result="all", scope="terminal"
     cursor_value = _cursor_value(cursor) if cursor else None
     rows = []
     unknown = 0
-    for row in read_history(state_root):
+    for row in read_execution_history(state_root):
         unassigned = not row.get("projectId")
         if unassigned:
             unknown += 1
@@ -468,8 +550,15 @@ def read_executions(state_root, project_id, q="", result="all", scope="terminal"
         rows = [row for row in rows if (str(row.get("finishedAt") or ""), str(row.get("id") or "")) < cursor_value]
         offset = 0
     page = rows[offset:offset + PAGE_SIZE]
-    projected = [progress_summary(row) for row in page]
-    corrupt_count = len(store_for(Path(state_root) / "history").snapshot().errors)
+    projected = []
+    for row in page:
+        if row.get("recordKind") == "observed-execution":
+            projected.append(row)
+        else:
+            projected.append(progress_summary(row))
+    history_corrupt = len(store_for(Path(state_root) / "history").snapshot().errors)
+    _observed_rows, observed_invalid = read_observed_executions(state_root)
+    corrupt_count = history_corrupt + observed_invalid
     return {
         "schemaVersion": 1,
         **({"projection": "summary"} if view == "summary" else {}),
