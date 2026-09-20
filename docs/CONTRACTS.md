@@ -1,153 +1,99 @@
-# Contratos e operação
+# Contratos do CI Queue
 
-O produto possui fila, supervisão, armazenamento, API e UI. O consumidor possui
-receitas, preparação, testes e política de aprovação. Configuração mínima e
-comandos executáveis estão no [exemplo independente](../examples/local-project/README.md).
-Instalação e recuperação ficam em [INSTALL](INSTALL.md); superfícies no
-[contrato da interface](ui/PRODUCT-CONTRACT.md).
+Referência reconciliada com `dev` em `5a9268e41e27644362dfd9e5cd4e163813f5e1a1` (19/09/2026). A entrada de adoção é [CONSUMER-QUICKSTART](CONSUMER-QUICKSTART.md); exemplos completos e diagramas estão no [manual offline](GUIA-INTEGRACAO-CI-QUEUE.html). Código e testes prevalecem sobre snapshots históricos.
 
-## Configuração e execução
+## Fronteiras
 
-`ci-queue.json` usa `schemaVersion: 1`, `project: { id, name }` estável e
-`presets: { nome: { argv: [...] } }`. `repository.path` é resolvido relativo ao
-arquivo; `repository.baseRef` define a comparação Git. Flags de receita opcionais:
-`requireCleanTree`, `fetchBase`, `requireGitStability`, `pinHeadSha`,
-`executionTimeoutMs`, `progress` e `abortOnStaleBase`. O bloco opcional `ship`
-declara `acceptedPresets`, `attestationContext` e, se houver wait remoto,
-`remoteVerdict.{workflow,job}`. A fonte tipada é `src/contracts/schema.ts`;
-o leitor valida `src/contracts/config.ts`. Início zero-to-ship:
-[CONSUMER-QUICKSTART](CONSUMER-QUICKSTART.md).
+O consumidor declara preparação, receitas, test runners e política. CI Queue executa argv no cwd, supervisiona processos, conserva registros e projeta observabilidade. O worker/runner nunca importa `src/ship` nem mergeia. O ship genérico é um controller separado; `passed` não o dispara. Dashboard não tem botão de merge.
 
-`ci-queue enqueue <preset> --config /projeto/ci-queue.json --state /estado`
-cria o ticket. `--wait` espera um terminal; terminar o cliente não cancela o job.
-`status`, `history [--project ID] [--legacy]`, `preset-history`, `logs <id>` e
-`cancel <id>` são operações da CLI. `--json` responde com
-`{ apiVersion: 1, ok, result|error }`. A CLI de logs é leitura local integral;
-o browser usa trechos limitados e redigidos. Ausência de log é erro, não sucesso
-vazio. `version --json` identifica capabilities; na distribuição, a CLI
-informa a revisão e o digest do manifest adjacente ao runtime. No checkout sem
-manifest esses campos são null; nunca são inferidos do Git ou do cwd.
-A capability `node-runtime-guard-v1` anuncia o pin opt-in de Node por
-`projectId` em `<state-root>/runtimes.json`. Sem entrada, o job permanece
-`unconfigured`. Com entrada, o receipt em `history/<id>.json` registra o
-executável, a versão e as observações. `verified` cobre processos observados,
-não a árvore inteira. Detalhe: [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md).
-`ci-queue runtime show|register` grava o registry; não coloque o pin em
-`ci-queue.json`.
+Fonte do formato: `src/contracts/schema.ts` e `config.ts`. Tickets v1/v2/v3 continuam legíveis segundo o parser; tickets novos usam schemaVersion 3. API pública/CLI: apiVersion 1. Catálogo: schemaVersion 1. Versão do protocolo progress é outro eixo: 1.
 
-Tickets v1/v2/v3 permanecem legíveis. `jobs/` contém a espera, `running.json`
-a reserva ativa e `history/` os terminais. O único worker reivindica a fila sob
-lock; o runner possui o grupo de processos. Cancelamento e timeout usam identidade
-de processo, não busca por nome. Reserva órfã termina interrompida sem adotar a
-execução; limpeza incerta bloqueia o próximo claim, preservando o diagnóstico.
-Não remova locks para forçar um segundo executor.
+## Catálogo
 
-`logs/<id>.log` é append-only durante a execução. `progress/<id>.json` é o
-sidecar atômico, incorporado ao ticket terminal. Temporários reconhecidos,
-antigos e sem produtor vivo são movidos para `jobs-rejected/`; arquivos não
-reconhecidos e processos vivos são preservados. Não há expiração automática
-nova para logs ou artifacts. O consumidor declara os artifacts; sua política de
-retenção não foi redesenhada neste corte.
+| Campo | Contrato / leitor |
+|---|---|
+| `project.id` | Identidade estável, não derivada de display name. Enqueue a persiste; ship genérico e leitores scoped a validam. |
+| `project.name` | Apresentação; renomear não cria outra série histórica. |
+| `repository.path` | Localizador relativo ao arquivo de catálogo; define executionCwd. Não é scanner recursivo nem nome da branch principal. |
+| `repository.baseRef` | Referência base do projeto; receita pode declarar `fetchBase`. |
+| `presets.<nome>.argv` | Vetor não vazio de strings válidas. Não é shell-string. Extras alteram a execução canônica. |
+| `requireCleanTree` | Árvore limpa no preflight. |
+| `requireGitStability` | Verde exige snapshot Git pré/pós estável. |
+| `pinHeadSha` | HEAD no início precisa corresponder ao congelado no enqueue. |
+| `fetchBase` | Ref não vazia, buscada/provada pelo runner. |
+| `executionTimeoutMs` | Prazo opcional positivo de execução, limitado pelo parser; armado após captura de identidade do processo. Não é timeout de espera da CLI. |
+| `abortOnStaleBase` | Política de gasto do worker; true exige fetchBase. Base remota comprovadamente não ancestral pode encerrar com `stale-base`. Observação indisponível não prova stale. |
+| `progress` | Declaração da receita, persistida em `flags.progressEnabled`; nunca gate de ship. |
+| `artifacts` | Diretórios relativos do consumidor para publicação ao final. Uma linha TSV não cria arquivo. |
+| `note` | Documentação, não política executável. |
+| `ship.acceptedPresets` | Lista não vazia/única de receitas existentes e ship-bound. É OR; sem prova reutilizável usa a primeira. |
+| `ship.attestationContext` | Contexto remoto da atestação do ship genérico. Não é nome de teste. |
+| `ship.remoteVerdict` | Workflow/job esperados quando policy=wait. Não configura teste clínico nem classificador por diff. |
 
-## Progresso sem dependência de biblioteca
+Uma receita aceita por ship precisa de `requireCleanTree=true`, `requireGitStability=true`, `pinHeadSha=true` e `fetchBase` não vazio. Para exigir A **e** B, criar agregador no consumidor e aceitar esse agregador. Não ensinar `[lint,test]` como AND. O bloco `execution.queue` do DietFlow é extensão do adaptador consumidor, não política lida pelo parser genérico.
 
-A receita com `progress: true` pode emitir linhas TSV em stdout:
+`init` preserva ou cria a identidade e resolve receita/base; não inicializa Git, não instala dependências, não instrumenta scripts e não escreve o cadastro local do dashboard. `init --workflow` copia workflow/verificador de attestation, não suíte remota. Catálogo e política devem estar em H para ship.
+
+## Fila, registros e comando
+
+`ci-queue enqueue <preset> --config /projeto/ci-queue.json --state /estado` congela o pedido. O worker é dono do claim e executa argv/cwd do ticket, não relê internals de DietFlow. Estados: queued, running, passed, failed, cancelled, interrupted. Exit code, runtime e verificações Git podem determinar falha; progress não fabrica sucesso.
+
+State: `jobs/`, `running.json`, `history/`, `logs/`, `artifacts/`, `progress/`. Registro terminal em history é autoritativo. Sidecar progress é consolidado no ticket ao fim e removido. Logs/artefatos usam caminhos do ticket. Ausência de log é indisponibilidade, não conteúdo vazio bem-sucedido.
+
+O state explícito/ambiente deve ser o mesmo da API/worker. Sem override, o caminho compatível `~/.local/state/local-ci/queue`, se presente, é preservado; não criar outra fila ao copiar um comando de instalação nova.
+
+`--wait` e seu timeout não cancelam o job. `cancel` é explícito e segue ownership do processo. Um worker por state. Worker on-demand ausente enquanto a fila está vazia pode ser saudável. Não apagar locks ou sinalizar PID sem identidade para forçar recuperação.
+
+CLI JSON usa `{apiVersion, ok, result}` ou `{apiVersion, ok:false, error}`. Comandos reais vivem em `src/cli.ts`: config, enqueue, worker, status, history, preset-history, logs, cancel, runtime, advisory, init e ship. Não inventar `ci-queue doctor` ou `logs --follow`; o wrapper DietFlow oferece seu próprio follow.
+
+## Progress TSV v1
+
+Separador é TAB real, não espaços ou caracteres literais barra-t. O manual contém blocos copiáveis com TAB.
 
 ```text
-@@ci-queue-progress<TAB>1<TAB>node<TAB>id<TAB>parentId-ou--<TAB>kind<TAB>status<TAB>durationMs-ou--<TAB>label
-@@ci-queue-progress<TAB>1<TAB>counts<TAB>id<TAB>kind<TAB>completed<TAB>total<TAB>passed<TAB>failed<TAB>running<TAB>pending<TAB>skipped
+prefix TAB 1 TAB node TAB id TAB parentId-ou-- TAB kind TAB status TAB durationMs-ou-- TAB label
+prefix TAB 1 TAB counts TAB id TAB kind TAB completed TAB total TAB passed TAB failed TAB running TAB pending TAB skipped
 ```
 
-`<TAB>` significa um tab literal. `@@local-ci-progress` continua aceito.
+Prefixos: `@@ci-queue-progress` e legado `@@local-ci-progress`. Node tem 9 campos; counts tem 12. IDs usam letras, números, `_ . : -`; mantenha identidade estável. Emita pai antes do filho e nó antes de counts. Tipos: stage/group/gate/suite/case/artifact. Estados de nó: pending/running/passed/failed/skipped, não cancelled/interrupted.
 
-### Duração dos nós (etapa 2)
+Counts: inteiros não negativos; `completed = passed + failed + skipped`; `total = completed + running + pending`. Tipos de contagem: gates/suites/cases/artifacts/items. Linhas inválidas ou counts sem nó não são prova. O collector não deduz pai, resultado, total ou duração pela soma dos filhos.
 
-Campos opcionais e retrocompatíveis em cada nó de progresso:
+Emissão é cooperativa: worker sobrescreve `LOCAL_CI_PROGRESS_ENABLED` com 1 somente quando a flag persistida é true e informa job id/aliases. Collector ingere linhas independentemente da declaração. API deriva `progressEnabled` top-level de `job.flags.progressEnabled is True`; não expõe flags/argv inteiros. Drawer atual prioriza o aviso se não declarado, mesmo se linhas foram capturadas. Declarado sem nós mostra ausência de publicação; no terminal pode haver apenas Artefatos, o que não prova instrumentação da receita.
 
-- `durationMs` — inteiro ≥ 0; **0 é valor real** quando o emissor o publica.
-- `durationSource` — `emitter` (valor do TSV) ou `collector` (intervalo monotônico `running→terminal` observado pelo coletor).
-- `durationUnavailableReason` — ausência honesta: `missing-start`, `collector-restarted`, `clock-invalid`, `missing-end`.
+Copy de configuração, variante default:
 
-Precedência: valor explícito do emissor vence, inclusive 0. Sem duração no terminal, o coletor mede se viu um `running` contínuo na mesma tentativa; caso contrário publica reason, nunca inventa 0. Pai não é soma dos filhos. Retry mantém a duração da tentativa atual/última. Árvore, faixa, API, CLI e diagnóstico preservam os mesmos campos.
+- **Progresso contínuo não configurado**
+- **Esta receita não declara progresso contínuo. Os estágios da execução não aparecem.**
 
-IDs são estáveis dentro do job. Tipos de nó: stage, group, gate, suite, case,
-artifact; estados: pending, running, passed, failed, skipped. Contadores são
-inteiros não negativos: passed + failed + skipped = completed e
-completed + running + pending = total. Tipos de contador: gates, suites, cases,
-artifacts, items. Duração ausente permanece ausente. Emita o pai antes dos filhos.
+Aviso não altera status, failureReason ou elegibilidade. Ticket legado sem flag é false; não reescrever histórico para remover aviso. FailureReason continua objeto separado.
 
-O collector deriva `retryCount` quando **o mesmo ID** transita failed → running.
-Repetição de running não incrementa; passed não apaga o fato. Não crie um nó por
-tentativa. A UI mostra Flaky detectado na execução atual, histórico e drawer,
-mas o exit code do runner continua soberano. O consumidor que proíbe verde após
-retry deve configurá-lo em seu próprio test runner. O protocolo não decide merge.
+### Duração e retry
 
-## Leitura e ações
+Fonte: `src/core/progress-timing.ts`. Duração explícita do emissor prevalece; zero só quando medido. Collector usa observação monotônica running→terminal do mesmo ciclo e a UI a apresenta como aproximada. Ausência não vira zero: missing-start, missing-end, collector-restarted ou clock-invalid. O relógio decorrido do browser é outro dado, não duração de nó nem ETA.
 
-A API lê fatos por contexto de requisição: `projectId`, `context=all` ou
-`context=unassigned`. Os três são mutuamente exclusivos. `projectId=all` continua
-sendo um identificador de projeto válido; a vista Todos é só `context=all`.
-Pedido sem `projectId`/`context` cai no bootstrap; omitir a query **não** é Todos.
-Não existe `activeProject` mutável no servidor.
+Failed→running no mesmo ID incrementa retry observado. Repetir running não é retry. A duração representa a tentativa corrente, não soma de tentativas. O projeto decide política de flaky e o exit code; collector/UI não inventam verde.
 
-Execução atual e fila são ocupação da **máquina**: `running` e `queued` em
-`/api/status` são globais em qualquer filtro, com `projectName` no ticket.
-Histórico, worktrees e análise seguem o filtro (`project` | `all` | `unassigned`).
-Meta, pendências, últimos verdes Git, preset-history, remote-slots e
-dashboard-state exigem um projeto concreto; em Todos ou sem projeto esses
-modos não misturam.
+## Ship e prova material
 
-Detalhe de um ticket (`/api/job`, log, export, diagnostic) lê por `jobId` e
-**não** recorta pelo filtro da request. O eco de `context` permanece o da
-request. Listas continuam filtradas. Órfãos sem `projectId` só entram na lista
-unassigned.
+Fontes: `src/ship/eligibility.ts`, `ship.ts`, `system-ops.ts`. A tupla inclui projeto, cwd absoluto normalizado lexicalmente, HEAD, base, receita/argv e flags materiais. Não prometer resolução de symlink pelo helper que usa `path.resolve`.
 
-Histórico sem `projectId` comprovado fica no arquivo separado. O cadastro local
-mora em `state/projects.json` e não controla a fila. Instalação descreve a
-atribuição por commit comprovado e seu rollback; nenhum reader adivinha origem
-pelo path.
+Prova exige queue/legado compatível, passed/exit0, timestamps, prazo coerente, ausência de custom/extraArgs, flags fetch/clean/stability/pin/timeout e snapshots Git limpos/iguais. Progress, runtime receipt e abortOnStaleBase não são requisitos de elegibilidade.
 
-`GET /api/worktrees?context=all` agrega os projetos ativos do cadastro, marca
-cada linha com o dono e conserva erro factual por projeto. Reveal e
-worktree-view em Todos exigem o `projectId` do dono da linha.
+Por receita, considerar a tentativa canônica **terminal** mais recente por startedAt (fallback createdAt, desempate id). Failed/cancelled/interrupted posterior impede reutilizar verde anterior dessa receita. Queued/running não sombreiam. O genérico percorre acceptedPresets na ordem e reusa a primeira receita cujo latest é elegível; sem prova pode reusar pending correspondente ou enfileirar [0]. O DietFlow tem seleção entre receitas própria; não presumir implementação idêntica.
 
-Análise de Resultados em um projeto agrega todos os terminais retidos daquele
-projeto no período, inclusive nomes históricos. Em Todos, agrupa
-`(projectId, preset)` com `projectName` e não mistura órfãos. Duração usa verdes
-da receita atual com início e duração válidos e um único preset declarado; em
-Todos o par é `projectId:preset` (UUID + `PRESET_NAME`) e preset solto é 400.
-Unassigned permanece `PROJECT_REQUIRED` na análise. Máquina publica somente disco
-livre atual. Não existe causalidade inferida de RAM/OOM, catálogo de Problemas ou
-histórico de recursos neste MVP.
+Política adjacente `remote-verdict.json`: wait/skipped, ausente=wait. Wait requer remoteVerdict configurado. `--no-remote` dispensa espera remota, não prova/PR/identidade/base. JSON inválido continua erro. Dry-run lê e não enfileira, atesta, marca ready, despacha ou mergeia; leitura Git pode atualizar refs. Não é prova de merge.
 
-O verde local exige receita atual, argv idêntico, projeto, passed, exitCode 0 e
-nenhum custom/extraArgs. Git é somente um espelho de resumo publicado pelo
-consumidor, sem logs ou histórico completo; a leitura não dispara rede. CLI e
-HTTP têm implementações próprias, com testes de paridade de fatos. `ci-queue ship`
-reutiliza o ticket terminal que o worker gravou; last-green e o nome da receita
-não são prova. Worker e runner não importam `src/ship` e não chamam merge no
-GitHub. O merge, quando o operador pede `ship`, é PUT REST com `sha` = HEAD
-congelado e `merge_method=merge`; a base é observada antes e inspecionada
-depois (`guarantee: head-pinned-base-observed`). Não há transação atômica H+B.
-`MERGED_BASE_CHANGED` significa que o merge ocorreu sobre outro primeiro pai.
+Autoria ocorre antes: commit/push/PR. Ship congela H/B0/catálogo, obtém prova, atesta, marca ready, espera remoto se aplicável, revalida e integra. Worker jamais faz esses passos. O template genérico verifica attestation; não executa testes como fallback.
 
-Meta é um único objetivo editável por projeto, sem SHA informado. Pendências
-são recomendações readonly geradas por `advisory upsert`, idempotentes por
-projeto/preset/PR; nunca bloqueiam o executor ou o merge. A resolução exige um
-verde canônico posterior cuja revisão contenha a recomendada. Meta, Abrir pasta e o cadastro local de projetos têm mutações no dashboard;
-loopback, origem, CSRF e IDs observados protegem ações nativas, que usam argv
-fixa sem shell. GET nunca escreve o registry. `repositoryPath` é localizador, não identidade.
-Cadastro e bootstrap persistem a worktree principal do Git (o checkout do
-clone, em qualquer branch) quando o common-dir lista uma árvore viva. Leitura
-resolve pasta e catálogo por `gitCommonDir` se o path gravado sumiu. Não se
-assume o nome de branch `main`. O probe inspeciona só a pasta
-escolhida, sem rede Git, hooks ou execução de receita. Procurar pasta ou
-arquivo abre o diálogo nativo do host (`POST /api/project-pick`); o campo
-continua colável. O input file do browser não é tratado como caminho absoluto.
-Cancelar a escolha não escreve o registry.
+Garantia: **head-pinned-base-observed**, não lock atômico H+B. PUT de merge leva sha=H; revalidar B0 antes e inspecionar pais/árvore depois. `MERGED_BASE_CHANGED` pode significar merge já realizado: inspecionar antes de repetir. Sem admin/status manual/ticket fabricado.
 
-Análise de Resultados agrega todos os terminais retidos do projeto no período,
-inclusive nomes históricos, e devolve contagens por preset. Duração usa verdes
-da receita atual com início e duração válidos e um único preset declarado.
-Máquina publica somente disco livre atual. Não existe causalidade inferida de
-RAM/OOM, catálogo de Problemas ou histórico de recursos neste MVP.
+## Multi-projeto e UI
+
+Cadastro local: `<state>/state/projects.json`; runtimes: `<state>/runtimes.json`; atribuição legada: `<state>/state/legacy-projects.json`. São autoridades diferentes. Registry usa gitCommonDir e `git worktree list`, não busca recursiva em pasta pai. Main worktree não significa branch main. Se common-dir vive, outro checkout pode permitir recuperação; se o clone inteiro mudou, relocalização explícita é necessária.
+
+Histórico, Worktrees e Análise seguem projeto/Todos. Running e Fila são globais. Abrir ticket de B com A selecionado não troca A. `context=all` é modo; `projectId=all` é ID literal. Meta/Últimos verdes/Pendências precisam de projeto concreto/capacidade apropriada. Sem projeto mantém legado separado, sem atribuição inferida.
+
+## Runtime Node
+
+`node-runtime-guard-v1` é opt-in por projectId. Sem binding: unconfigured, ambiente legado. `runtime show` lê; `runtime register` escreve registry local. Node do worker não fixa todos os filhos. Requisitos versionados e detalhes do PATH/shims/preload/receipt e escape env-i estão em [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md). Verified cobre processos observados, não sandbox.
