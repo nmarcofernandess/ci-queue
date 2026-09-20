@@ -200,15 +200,33 @@ async function orchestrate(ops: ShipOps, request: ShipRequest, signal: AbortSign
     const config = configRaw
 
     const filePolicy = await ops.readPolicy(frozen)
-    const policy = request.noRemote ? "skipped" : filePolicy
+    if (request.noRemote && request.remote) {
+      fail("USAGE", "--remote e --no-remote juntos", effects)
+    }
+    const policy = request.noRemote
+      ? "skipped"
+      : request.remote
+        ? "wait"
+        : filePolicy
+    const policyOrigin = request.noRemote
+      ? "flag:--no-remote"
+      : request.remote
+        ? "flag:--remote"
+        : "file:remote-verdict.json|default"
     if (policy === "wait" && !config.remoteVerdict) {
-      fail("SHIP_CONFIG", "wait exige remoteVerdict.workflow", effects)
+      fail(
+        "SHIP_CONFIG",
+        "wait exige ship.remoteVerdict.workflow/job no catálogo (ou remote-verdict.json skipped / --no-remote)",
+        effects,
+      )
     }
 
     const query = await guard(ops.readProofQuery(frozen, signal))
     if (query.acceptedRecipes.length === 0) {
       fail("SHIP_CONFIG", "ship.acceptedPresets vazio", effects)
     }
+
+    ops.log(`[ship] modo=${policy}; origem=${policyOrigin}; prova=local; repo=${frozen.repo}; PR=${frozen.pr}; H=${frozen.headSha}; B0=${frozen.baseSha}`)
 
     const report = (extra: Partial<ShipReport> = {}): ShipReport => ({
       target: frozen,
@@ -278,6 +296,9 @@ async function orchestrate(ops: ShipOps, request: ShipRequest, signal: AbortSign
     }
 
     if (!ticket) fail("LOCAL_RED", "não há prova local reutilizável", effects)
+    ops.log(effects.reused
+      ? `[ship] reutilizando ticket ${ticket.id}`
+      : `[ship] prova válida ticket=${ticket.id}`)
 
     phase = "setup"
     try {
@@ -290,15 +311,22 @@ async function orchestrate(ops: ShipOps, request: ShipRequest, signal: AbortSign
     try {
       await guard(ops.attest(frozen, config.attestationContext, signal))
       effects.attested = true
+      ops.log("[ship] atestação publicada")
     } catch (error) {
       if (isAbortError(error) || signal.aborted) failAbort()
       if (policy === "wait") fail("ATTESTATION_FAILED", "falha na atestação", effects)
       limitation = "attestation-failed"
+      ops.log("[ship] atestação indisponível, não obrigatória neste modo")
     }
 
     if (frozen.isDraft) {
-      await guard(ops.markReady(frozen, signal))
-      effects.markedReady = true
+      try {
+        await guard(ops.markReady(frozen, signal))
+        effects.markedReady = true
+        ops.log("[ship] PR ready confirmado")
+      } catch (error) {
+        rethrow(error, effects)
+      }
     }
 
     if (policy === "wait" && config.remoteVerdict) {
@@ -317,6 +345,8 @@ async function orchestrate(ops: ShipOps, request: ShipRequest, signal: AbortSign
       } catch (error) {
         rethrow(error, effects)
       }
+    } else if (policy === "skipped") {
+      ops.log("[ship] Actions dispensado pela política explícita")
     }
 
     phase = "setup"
@@ -327,11 +357,13 @@ async function orchestrate(ops: ShipOps, request: ShipRequest, signal: AbortSign
     }
 
     phase = "merge"
+    ops.log("[ship] solicitando merge pinado")
     const merged = await mergePinnedHonestly(ops, frozen, signal, effects)
     mergeSha = merged.sha
     effects.merged = merged.merged
     effects.mergeVerified = merged.mergeVerified
     if (merged.mergeSha) mergeSha = merged.mergeSha
+    ops.log(`[ship] merged=${effects.merged}; mergeVerified=${effects.mergeVerified}; sha=${mergeSha ?? ""}`)
     return report({ mergeSha })
   } catch (error) {
     if (error instanceof ShipError) throw error
@@ -397,7 +429,7 @@ async function mergePinnedHonestly(
   effects: ShipEffects,
 ): Promise<{ merged: MergeState; mergeVerified: boolean; sha?: string; mergeSha?: string }> {
   let inspect: Awaited<ReturnType<ShipOps["inspectMerge"]>> | undefined
-  let posted: { merged: boolean; sha?: string } | undefined
+  let posted: { merged: boolean; sha?: string; error?: string } | undefined
   const inspectSignal = () => new AbortController().signal
 
   try {
@@ -436,7 +468,12 @@ async function mergePinnedHonestly(
     } else if (inspect.merged === "unknown") {
       fail("MERGE_OUTCOME_UNKNOWN", "resultado do merge ambíguo", { ...snapshot(effects), merged: "unknown" }, inspect.sha)
     } else {
-      fail("MERGE_REFUSED", "o servidor recusou o merge", { ...snapshot(effects), merged: false }, inspect.sha)
+      fail(
+        "MERGE_REFUSED",
+        posted?.error || "o servidor recusou o merge",
+        { ...snapshot(effects), merged: false },
+        inspect.sha,
+      )
     }
   }
 

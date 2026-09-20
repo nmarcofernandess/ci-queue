@@ -121,22 +121,11 @@ if (!process.stdin.isTTY) {
 }
 const invocation = (${parseGhInvocation.toString()})(argv, stdin)
 if (recordPath) appendFileSync(recordPath, JSON.stringify(invocation) + "\\n")
-if (argv[0] === "pr") {
-  process.stderr.write("gh pr is forbidden in this fake\\n")
-  process.exit(2)
-}
 if (argv.includes("--admin")) {
   process.stderr.write("--admin is forbidden\\n")
   process.exit(2)
 }
-if (argv[0] !== "api") {
-  process.stderr.write("unsupported gh command\\n")
-  process.exit(2)
-}
 const state = JSON.parse(readFileSync(statePath, "utf8"))
-const method = invocation.method
-const path = invocation.path
-const body = invocation.body && typeof invocation.body === "object" ? invocation.body : {}
 
 function send(value, status = 0) {
   writeSync(1, typeof value === "string" ? value : JSON.stringify(value) + "\\n")
@@ -167,6 +156,45 @@ function prPayload() {
   }
 }
 
+function markReadyEffects() {
+  state.draft = false
+  if (state.baseMovesAfterAttest === true) state.deferBaseMove = true
+  state.runs = [...(state.runs ?? []), {
+    id: 77,
+    run_attempt: 1,
+    event: "pull_request",
+    head_sha: state.headSha,
+    name: "CI Queue verdict",
+    display_title: "ci-verdict PR " + state.pr + " H " + state.headSha + " B0 " + state.originalBaseSha,
+    path: ".github/workflows/ci-queue-verdict.yml",
+    status: "completed",
+    conclusion: "success",
+    pull_requests: [{
+      number: state.pr,
+      head: { sha: state.headSha },
+      base: { sha: state.originalBaseSha },
+    }],
+  }]
+  state.jobs = [{ name: "ci-verdict", status: "completed", conclusion: "success" }]
+  writeFileSync(statePath, JSON.stringify(state) + "\\n")
+}
+
+if (argv[0] === "pr") {
+  if (argv[1] === "ready") {
+    markReadyEffects()
+    send("")
+  }
+  process.stderr.write("gh pr is forbidden in this fake\\n")
+  process.exit(2)
+}
+if (argv[0] !== "api") {
+  process.stderr.write("unsupported gh command\\n")
+  process.exit(2)
+}
+const method = invocation.method
+const path = invocation.path
+const body = invocation.body && typeof invocation.body === "object" ? invocation.body : {}
+
 if (method === "GET" && path === "repos/" + state.repo) {
   send({
     id: state.repositoryId,
@@ -179,6 +207,16 @@ if (method === "GET" && path === "repos/" + state.repo) {
 }
 
 if (method === "GET" && (path === "repos/" + state.repo + "/pulls/" + state.pr || path === "repos/" + state.repo + "/pulls")) {
+  if (state.deferBaseMove === true) {
+    if (state.seenPullAfterReady === true) {
+      state.baseSha = state.movedBaseSha
+      state.deferBaseMove = false
+      writeFileSync(statePath, JSON.stringify(state) + "\\n")
+    } else {
+      state.seenPullAfterReady = true
+      writeFileSync(statePath, JSON.stringify(state) + "\\n")
+    }
+  }
   if (path.endsWith("/pulls")) send([prPayload()])
   send(prPayload())
 }
@@ -201,30 +239,12 @@ if (method === "POST" && path === "repos/" + state.repo + "/statuses/" + state.h
     created_at: "2026-09-17T00:00:00Z",
   }
   state.statuses = [...(state.statuses ?? []), status]
-  if (state.baseMovesAfterAttest) state.baseSha = state.movedBaseSha
   writeFileSync(statePath, JSON.stringify(state) + "\\n")
   send(status)
 }
 
 if (method === "PATCH" && path === "repos/" + state.repo + "/pulls/" + state.pr) {
-  if (String(body.draft) === "false") state.draft = false
-  state.runs = [...(state.runs ?? []), {
-    id: 77,
-    run_attempt: 1,
-    event: "pull_request",
-    head_sha: state.headSha,
-    name: "CI Queue verdict",
-    display_title: "ci-verdict PR " + state.pr + " H " + state.headSha + " B0 " + state.originalBaseSha,
-    path: ".github/workflows/ci-queue-verdict.yml",
-    status: "completed",
-    conclusion: "success",
-    pull_requests: [{
-      number: state.pr,
-      head: { sha: state.headSha },
-      base: { sha: state.originalBaseSha },
-    }],
-  }]
-  state.jobs = [{ name: "ci-verdict", status: "completed", conclusion: "success" }]
+  // Draft conversion via REST PATCH is unsupported; keep draft unchanged.
   writeFileSync(statePath, JSON.stringify(state) + "\\n")
   send(prPayload())
 }
@@ -488,7 +508,8 @@ test("ship wait after draft uses the pull_request run and does not dispatch", { 
     assert.equal(ship.payload.result.guarantee, "head-pinned-base-observed")
 
     const records = fixture.records()
-    assert.equal(records.some((item) => item.argv[0] === "pr" || item.argv.includes("pr") && item.argv.includes("merge")), false)
+    assert.equal(records.some((item) => item.argv[0] === "pr" && item.argv[1] === "merge"), false)
+    assert.equal(records.some((item) => item.argv[0] === "pr" && item.argv[1] === "ready"), true)
     assert.equal(records.some((item) => item.argv.includes("--admin")), false)
     assert.equal(records.some((item) => item.method === "POST" && String(item.path).includes("/dispatches")), false)
     const merge = records.find((item) => item.method === "PUT" && item.path === `repos/${REPO}/pulls/${PR}/merge`)

@@ -285,7 +285,7 @@ function createFake(overrides: Partial<ShipOps> & {
 }
 
 function request(partial: Partial<ShipRequest> = {}): ShipRequest {
-  return { dryRun: false, noRemote: false, timeoutMs: 5_000, ...partial }
+  return { dryRun: false, noRemote: false, remote: false, timeoutMs: 5_000, ...partial }
 }
 
 async function expectShipError(work: () => Promise<unknown>, code: string): Promise<ShipError> {
@@ -633,5 +633,46 @@ describe("runShip", () => {
     expect(error.effects.mergeVerified).toBe(false)
     expect(error.mergeSha).toBe(MERGE)
     expect(fake.calls.mergePinned[0]?.headSha).toBe(H)
+  })
+
+  it("does not set markedReady when markReady leaves the PR draft", async () => {
+    const fake = createFake({
+      history: [valid],
+      policy: "skipped",
+      target: { ...target, isDraft: true },
+      async markReady() {
+        throw new ShipError("READY_FAILED", "PR permanece draft após gh pr ready", emptyShipEffects())
+      },
+    })
+    const error = await expectShipError(() => runShip(fake, request()), "READY_FAILED")
+    expect(error.effects.markedReady).toBe(false)
+    expect(error.effects.attested).toBe(true)
+    expect(error.effects.merged).toBe(false)
+    expect(fake.calls.mergePinned).toEqual([])
+  })
+
+  it("rejects --remote together with --no-remote", async () => {
+    const fake = createFake({ history: [valid], policy: "wait" })
+    const error = await expectShipError(
+      () => runShip(fake, request({ remote: true, noRemote: true })),
+      "USAGE",
+    )
+    expect(error.message).toMatch(/juntos/)
+  })
+
+  it("forces wait when --remote is set regardless of skipped file policy", async () => {
+    let polls = 0
+    const fake = createFake({
+      history: [valid],
+      policy: "skipped",
+      async observeVerdict() {
+        polls += 1
+        return polls === 1 ? undefined : causalRun
+      },
+    })
+    const report = await runShip(fake, request({ remote: true, timeoutMs: 60_000 }))
+    expect(report.policy).toBe("wait")
+    expect(fake.calls.dispatchVerdict).toBe(1)
+    expect(report.effects.merged).toBe(true)
   })
 })
