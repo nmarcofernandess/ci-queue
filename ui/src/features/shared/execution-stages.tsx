@@ -9,16 +9,35 @@ import {
 } from "@/components/ui/item"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import {
+  deepestActiveContext,
+  formatProgressDetail,
+} from "./progress-detail"
 import { ProgressDuration } from "./progress-duration"
 import { describeProgressState } from "./presentation"
 import { StatusIndicator } from "./status-indicator"
 
+function stageContextDescription(
+  stage: ProgressNode,
+  active: readonly ProgressNode[],
+): string | null {
+  const ctx = deepestActiveContext(stage.id, active)
+  if (!ctx) return null
+  const detail = formatProgressDetail(ctx.detail)
+  if (ctx.id !== stage.id) {
+    return detail ? `${ctx.label} · ${detail}` : ctx.label
+  }
+  return detail
+}
+
 export function ExecutionStages({
   stages,
   jobStatus,
+  active = [],
 }: {
   stages: readonly ProgressNode[]
   jobStatus: JobStatus | undefined
+  active?: readonly ProgressNode[]
 }) {
   const root = React.useRef<HTMLDivElement>(null)
   const following = React.useRef(true)
@@ -100,7 +119,9 @@ export function ExecutionStages({
                   {stage.label}
                 </ItemTitle>
                 <ItemDescription className="text-xs">
-                  <ProgressDuration node={stage} jobStatus={jobStatus} />
+                  {stageContextDescription(stage, active) ?? (
+                    <ProgressDuration node={stage} jobStatus={jobStatus} />
+                  )}
                 </ItemDescription>
               </ItemContent>
             </Item>

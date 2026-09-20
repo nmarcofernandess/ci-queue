@@ -16,6 +16,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item"
 import type { JobStatus, ProgressNode } from "@/lib/types"
+import { formatProgressDetail } from "./progress-detail"
 import { ProgressDuration } from "./progress-duration"
 import { describeProgressState } from "./presentation"
 import { StatusIndicator } from "./status-indicator"
@@ -71,9 +72,7 @@ function ProgressNodeRow({
         </ItemTitle>
         {node.detail ? (
           <ItemDescription className="line-clamp-none text-xs [overflow-wrap:anywhere]">
-            {typeof node.detail === "string"
-              ? node.detail
-              : `${node.detail.completed} de ${node.detail.total}`}
+            {formatProgressDetail(node.detail)}
           </ItemDescription>
         ) : null}
         {(node.retryCount ?? 0) > 0 ? (

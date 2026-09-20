@@ -166,6 +166,7 @@ function CurrentExecution({
               key={current.id}
               stages={stages}
               jobStatus={current.status}
+              active={current.progressSummary?.active ?? []}
             />
           ) : null}
           <ElapsedItem
