@@ -22,6 +22,7 @@ import { enqueueExplicitTicket, enqueueTicket } from "./core/enqueue.js"
 import { runWorker } from "./core/worker.js"
 import { findJobById, listHistoryJobs, listQueuedJobs, readRunningJob, resolveStateRoot } from "./core/state.js"
 import { buildPresetHistory } from "./core/preset-history.js"
+import { listAdvisories, upsertAdvisory } from "./core/advisories.js"
 import { evaluateExecutionEntry, EXECUTION_ENTRY_GUARD_CAPABILITY } from "./core/execution-entry.js"
 
 type GlobalArgs = { command?: string; rest: string[]; json: boolean; stateRoot?: string; cwd?: string; configPath?: string }
