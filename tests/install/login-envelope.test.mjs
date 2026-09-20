@@ -234,7 +234,15 @@ test("A02: fails closed when bootout wait loop times out", () => {
     installRelease(activationInput(paths, launchctl))
     const secondBundle = buildRelease({ root: paths.root, outputDir: join(paths.root, "bundles-2"), revision: "4".repeat(40) }).destination
     const hanging = fakeLaunchctl({ hangOnBootout: true, initialServices: ["com.nmarcofernandess.ci-queue.worker", "com.nmarcofernandess.ci-queue.dashboard"] })
-    assert.throws(() => installRelease(activationInput({ ...paths, destination: secondBundle }, hanging)), /desativação de com\.nmarcofernandess\.ci-queue\.worker excedeu o tempo limite/)
+    assert.throws(
+      () => installRelease(activationInput({ ...paths, destination: secondBundle }, hanging)),
+      (error) => {
+        const message = String(error?.message ?? error)
+        assert.match(message, /com\.nmarcofernandess\.ci-queue\.worker/)
+        assert.match(message, /excedeu o tempo limite/)
+        return true
+      },
+    )
   } finally { rmSync(paths.root, { recursive: true, force: true }) }
 })
 

@@ -14,7 +14,13 @@ import {
 } from "@/lib/api"
 import type { Diagnostic, JobRecord, LogExport, LogSlice } from "@/lib/types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   DetailDrawer,
   DetailDrawerHeader,
@@ -23,7 +29,12 @@ import {
   DetailDrawerFooter,
 } from "./detail-drawer"
 import { FactsTable } from "./facts-table"
-import { describeJobState, progressSurface, unconfiguredProgressCopy } from "./presentation"
+import {
+  describeJobState,
+  observedProgressCopy,
+  progressSurface,
+  unconfiguredProgressCopy,
+} from "./presentation"
 import { ProjectChip } from "./project-chip"
 import { projectChipFacts } from "./project-chip-model"
 import {
@@ -68,8 +79,11 @@ async function copyText(value: string, limit: number | undefined) {
 }
 
 function contextForJob(job: JobRecord) {
+  const observed = job.recordKind === "observed-execution"
   return [
-    `Ticket: ${job.id}`,
+    observed ? `Execução: ${job.executionId || job.id}` : `Ticket: ${job.id}`,
+    ...(observed ? [`Registro: ${job.id}`] : []),
+    `Executor: ${observed ? "direct" : job.executor || "queue"}`,
     `Preset: ${job.preset || "Não informado"}`,
     `Estado: ${statusLabel(job.status)}`,
     `Branch: ${job.branch || "Não informada"}`,
@@ -96,16 +110,39 @@ function diagnosticBundle(diagnostic: Diagnostic, logExport?: LogExport) {
 type DiagnosticExportAction = "copy-diagnostic" | "download-diagnostic"
 
 function JobDetailsTable({ job }: { job: JobRecord }) {
+  const observed = job.recordKind === "observed-execution"
   return (
     <FactsTable
       caption="Detalhes da execução"
       rows={[
-        {
-          id: "ticket",
-          label: "Ticket",
-          value: job.id || "Não informado",
-          technical: true,
-        },
+        ...(observed
+          ? [
+              {
+                id: "execution",
+                label: "Execução",
+                value: job.executionId || job.id || "Não informado",
+                technical: true,
+              },
+              {
+                id: "record",
+                label: "Registro",
+                value: job.id || "Não informado",
+                technical: true,
+              },
+              {
+                id: "origin",
+                label: "Origem",
+                value: "Execução direta",
+              },
+            ]
+          : [
+              {
+                id: "ticket",
+                label: "Ticket",
+                value: job.id || "Não informado",
+                technical: true,
+              },
+            ]),
         { id: "branch", label: "Branch", value: job.branch || "Não informado" },
         {
           id: "sha",
@@ -156,6 +193,11 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
       ) : null}
       {surface === "tree" ? (
         <ProgressTree nodes={nodes} jobStatus={job.data.status} />
+      ) : surface === "not-collected" ? (
+        <EmptyState
+          title={observedProgressCopy.title}
+          description={observedProgressCopy.description}
+        />
       ) : surface === "unconfigured" ? (
         <Alert variant={unconfiguredProgressCopy.variant}>
           <CircleAlertIcon />
@@ -457,11 +499,12 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
     pollWhile: jobIsLive,
     enabled: Boolean(scope),
   })
+  const isObserved = job.data?.recordKind === "observed-execution"
   const log = useLiveLog(
     scope,
     jobId,
-    logRequested && Boolean(job.data),
-    job.data?.status === "running"
+    logRequested && Boolean(job.data) && !isObserved,
+    !isObserved && job.data?.status === "running"
   )
   const session = useDashboardSession()
 
@@ -498,11 +541,25 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
             : undefined
         }
         badge={
-          job.data?.projectName ? (
-            <ProjectChip
-              name={job.data.projectName}
-              facts={projectChipFacts(job.data)}
-            />
+          job.data ? (
+            <>
+              {job.data.recordKind === "observed-execution" ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline">Direta</Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Resultado declarado pelo receipt; não é comprovação canônica
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+              {job.data.projectName ? (
+                <ProjectChip
+                  name={job.data.projectName}
+                  facts={projectChipFacts(job.data)}
+                />
+              ) : null}
+            </>
           ) : undefined
         }
         closeLabel="Fechar execução"
@@ -538,6 +595,11 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
                 error={job.error}
                 onRetry={job.reload}
               />
+            ) : isObserved ? (
+              <EmptyState
+                title="Log bruto não coletado"
+                description="O resultado foi registrado a partir do receipt. Logs ou relatórios específicos podem existir no ambiente de origem."
+              />
             ) : (
               <LogPanel log={log} running={job.data?.status === "running"} />
             )}
@@ -554,10 +616,12 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
           <ClipboardIcon data-icon="inline-start" />
           Copiar contexto
         </Button>
-        <DiagnosticPopover
-          jobId={jobId}
-          clipboardLimitBytes={session.data?.clipboardLimitBytes}
-        />
+        {isObserved ? null : (
+          <DiagnosticPopover
+            jobId={jobId}
+            clipboardLimitBytes={session.data?.clipboardLimitBytes}
+          />
+        )}
       </DetailDrawerFooter>
     </DetailDrawer>
   )

@@ -102,7 +102,7 @@ export function describeProgressState(
   return describeJobState(nodeStatus)
 }
 
-export type ProgressSurface = "tree" | "unconfigured" | "declared-silent"
+export type ProgressSurface = "tree" | "unconfigured" | "declared-silent" | "not-collected"
 
 export const unconfiguredProgressCopy = {
   variant: "default" as const,
@@ -111,9 +111,22 @@ export const unconfiguredProgressCopy = {
     "Esta receita não declara progresso contínuo. Os estágios da execução não aparecem.",
 }
 
+export const observedProgressCopy = {
+  title: "Etapas não coletadas por este registro",
+  description:
+    "O resultado foi registrado a partir do receipt. Este histórico não inclui a árvore de progresso da fila.",
+}
+
+export function isObservedExecution(
+  job: Pick<JobRecord, "recordKind"> | null | undefined
+): boolean {
+  return job?.recordKind === "observed-execution"
+}
+
 export function progressSurface(
-  job: Pick<JobRecord, "progressEnabled" | "progressSummary">
+  job: Pick<JobRecord, "progressEnabled" | "progressSummary" | "recordKind">
 ): ProgressSurface {
+  if (isObservedExecution(job)) return "not-collected"
   if (job.progressEnabled !== true) return "unconfigured"
   const nodes = job.progressSummary?.nodes ?? job.progressSummary?.roots ?? []
   return nodes.length ? "tree" : "declared-silent"

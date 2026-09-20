@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "kind": "ci-execution-observation",
+  "executionId": "20260920090000-example",
+  "projectId": "fixture-project",
+  "projectName": "Projeto de teste",
+  "recipe": "smoketest",
+  "executor": "direct",
+  "status": "passed",
+  "startedAt": "2026-09-20T09:00:00.000Z",
+  "finishedAt": "2026-09-20T09:00:01.000Z",
+  "durationMs": 1000,
+  "exitCode": 0,
+  "cwd": "/workspace/project",
+  "branch": "feature/history",
+  "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "runtime": {"platform": "linux", "arch": "x64", "node": "v24.20.0"},
+  "evidenceSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}

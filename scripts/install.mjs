@@ -218,12 +218,20 @@ function writeServiceReferences(services) {
   }
 }
 
-function writeCommandLauncher(path, nodePath, releasePath) {
+function writeCommandLauncher(path, nodePath, releasePath, stateRoot) {
   if (!path) return undefined
   if (!nodePath) throw new Error("--node é obrigatório ao instalar o comando")
+  if (!stateRoot) throw new Error("stateRoot é obrigatório ao instalar o comando")
   const commandPath = resolve(path)
   const shellQuote = (value) => `'${String(value).replaceAll("'", `'"'"'`)}'`
-  const body = `#!/bin/sh\nexec ${shellQuote(nodePath)} ${shellQuote(join(releasePath, "bin", "ci-queue.mjs"))} "$@"\n`
+  const body = [
+    "#!/bin/sh",
+    `if [ -z "\${CI_QUEUE_STATE_DIR:-}" ]; then`,
+    `  export CI_QUEUE_STATE_DIR=${shellQuote(resolve(stateRoot))}`,
+    "fi",
+    `exec ${shellQuote(nodePath)} ${shellQuote(join(releasePath, "bin", "ci-queue.mjs"))} "$@"`,
+    "",
+  ].join("\n")
   mkdirSync(dirname(commandPath), { recursive: true, mode: 0o755 })
   writeFileSync(commandPath, body, { encoding: "utf8", mode: 0o755 })
   chmodSync(commandPath, 0o755)
@@ -452,7 +460,7 @@ export function installRelease(input) {
       activatedServices.push(...services)
       ownedServices = services.map(serviceReceipt)
 
-      const writtenCommand = writeCommandLauncher(input.commandPath, input.nodePath, releasePath)
+      const writtenCommand = writeCommandLauncher(input.commandPath, input.nodePath, releasePath, stateRoot)
       const installation = {
         schemaVersion: 1,
         product: "ci-queue",
@@ -500,7 +508,7 @@ export function installRelease(input) {
     }
   }
 
-  const writtenCommand = preservingActiveInstallation ? undefined : writeCommandLauncher(input.commandPath, input.nodePath, releasePath)
+  const writtenCommand = preservingActiveInstallation ? undefined : writeCommandLauncher(input.commandPath, input.nodePath, releasePath, stateRoot)
   const installation = {
     schemaVersion: 1,
     product: "ci-queue",
