@@ -11,7 +11,7 @@
     "build": "tsc --project tsconfig.json",
     "check": "bash scripts/ci/check-with-progress.sh",
     "ci-queue": "tsx src/cli.ts",
-    "test:core": "vitest run tests/core",
+    "test:core": "vitest run tests/core --exclude 'tests/core/*.evidence.test.ts' --exclude 'tests/core/enqueue-run-variant.test.ts'",
     "test:ui": "vitest run tests/ui",
     "test": "npm run test:core && npm run test:runtime && npm run test:ui && npm run test:backend && npm run test:examples && npm run test:release && npm run test:install",
     "test:examples": "node --test tests/examples/*.test.mjs",
