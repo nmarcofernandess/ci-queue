@@ -249,6 +249,10 @@ export type QueueProjectConfig = {
   presets: Record<string, ProjectPreset>
   artifacts?: string[]
   ship?: ShipConfig
+  execution?: {
+    executor: "queue"
+    queue?: { command?: string }
+  }
 }
 
 export type CliSuccess<T> = { apiVersion: typeof API_VERSION; ok: true; result: T }

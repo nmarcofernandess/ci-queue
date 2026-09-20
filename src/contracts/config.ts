@@ -144,6 +144,29 @@ function readShip(value: unknown, presets: Record<string, ProjectPreset>): ShipC
   }
 }
 
+function readExecution(value: unknown): QueueProjectConfig["execution"] {
+  if (value === undefined) return undefined
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("execution inválido")
+  }
+  const raw = value as Record<string, unknown>
+  if (raw.executor !== "queue") {
+    throw new Error('execution.executor suportado: "queue"')
+  }
+  let queue: { command?: string } | undefined
+  if (raw.queue !== undefined) {
+    if (!raw.queue || typeof raw.queue !== "object" || Array.isArray(raw.queue)) {
+      throw new Error("execution.queue inválido")
+    }
+    const command = (raw.queue as { command?: unknown }).command
+    if (command !== undefined && (typeof command !== "string" || !command.trim())) {
+      throw new Error("execution.queue.command inválido")
+    }
+    queue = typeof command === "string" ? { command: command.trim() } : {}
+  }
+  return { executor: "queue", ...(queue ? { queue } : {}) }
+}
+
 /**
  * Normaliza aliases planos apenas para uma transição assistida. Arquivos novos
  * devem escrever o formato documentado `project` + `presets` na raiz.
@@ -168,6 +191,7 @@ export function parseQueueConfig(raw: Record<string, unknown>, projectRoot: stri
     ? [...raw.artifacts] as string[]
     : undefined
   const ship = readShip(raw.ship, presets)
+  const execution = readExecution(raw.execution)
   return {
     schemaVersion: 1,
     project: { id: projectId, name: projectName.trim() },
@@ -175,6 +199,7 @@ export function parseQueueConfig(raw: Record<string, unknown>, projectRoot: stri
     presets,
     ...(artifacts ? { artifacts } : {}),
     ...(ship ? { ship } : {}),
+    ...(execution ? { execution } : {}),
   }
 }
 

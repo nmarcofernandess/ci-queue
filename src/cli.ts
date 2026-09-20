@@ -22,7 +22,7 @@ import { enqueueExplicitTicket, enqueueTicket } from "./core/enqueue.js"
 import { runWorker } from "./core/worker.js"
 import { findJobById, listHistoryJobs, listQueuedJobs, readRunningJob, resolveStateRoot } from "./core/state.js"
 import { buildPresetHistory } from "./core/preset-history.js"
-import { listAdvisories, upsertAdvisory } from "./core/advisories.js"
+import { evaluateExecutionEntry, EXECUTION_ENTRY_GUARD_CAPABILITY } from "./core/execution-entry.js"
 
 type GlobalArgs = { command?: string; rest: string[]; json: boolean; stateRoot?: string; cwd?: string; configPath?: string }
 
@@ -112,7 +112,8 @@ function usage(): string {
     "Uso: ci-queue <comando> [--state DIR] [--cwd DIR] [--config FILE] [--json]",
     "  version",
     "  init [--name NAME] [--base-ref REMOTE/BRANCH] [--argv-json JSON] [--workflow] [--force]",
-    "  ship [--pr N] [--repo [HOST/]OWNER/REPO] [--dry-run] [--no-remote] [--timeout-ms N]",
+    "  guard [--cwd PATH] [--config FILE] [--state ROOT] [--json]",
+    "  ship [--pr N] [--repo [HOST/]OWNER/REPO] [--dry-run] [--remote|--no-remote] [--timeout-ms N]",
     "  enqueue <preset> [--wait] [--timeout-ms N] [-- <args da receita>]",
     "  enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH [--flags-json JSON]",
     "  worker",
@@ -147,7 +148,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, "ship", "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
       }
       case "init": {
@@ -161,6 +162,30 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           ...(argvText !== undefined ? { argv: parseJsonArray(argvText, "--argv-json") } : {}),
         }))
       }
+      case "guard": {
+        let loaded
+        try {
+          loaded = readQueueConfig(args.cwd ?? process.cwd(), args.configPath)
+        } catch (error) {
+          return failure("USAGE", error instanceof Error ? error.message : String(error))
+        }
+        const verdict = await evaluateExecutionEntry({
+          config: loaded.config,
+          stateRoot: root,
+          cwd: loaded.executionCwd,
+          env: process.env,
+        })
+        if (!verdict.allowed) {
+          return failure(verdict.code, verdict.message)
+        }
+        return success({
+          allowed: true,
+          reason: verdict.reason,
+          capability: EXECUTION_ENTRY_GUARD_CAPABILITY,
+          projectId: loaded.config.project.id,
+          cwd: loaded.executionCwd,
+        })
+      }
       case "ship": {
         const timeoutRaw = optionValue(args.rest, "--timeout-ms")
         const timeoutMs = timeoutRaw ? Number(timeoutRaw) : 60 * 60_000
@@ -171,6 +196,9 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           return failure("USAGE", "--pr precisa ser um inteiro positivo")
         }
         const repo = optionValue(args.rest, "--repo")
+        const noRemote = args.rest.includes("--no-remote")
+        const remote = args.rest.includes("--remote")
+        if (noRemote && remote) return failure("USAGE", "--remote e --no-remote juntos")
         const report = await runShip(createSystemOps({
           cwd: args.cwd ?? process.cwd(),
           stateRoot: root,
@@ -178,7 +206,8 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           log: (message) => process.stderr.write(`${message}\n`),
         }), {
           dryRun: args.rest.includes("--dry-run"),
-          noRemote: args.rest.includes("--no-remote"),
+          noRemote,
+          remote,
           timeoutMs,
           ...(pr !== undefined ? { pr } : {}),
           ...(repo ? { repo } : {}),

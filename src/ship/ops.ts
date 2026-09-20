@@ -32,6 +32,7 @@ export type ShipEffects = {
 export type ShipRequest = {
   dryRun: boolean
   noRemote: boolean
+  remote: boolean
   timeoutMs: number
   pr?: number
   repo?: string
@@ -83,7 +84,7 @@ export type ShipOps = {
   markReady(target: ShipTarget, signal: AbortSignal): Promise<void>
   observeVerdict(input: VerdictRequest, signal: AbortSignal): Promise<VerdictRun | undefined>
   dispatchVerdict(input: VerdictRequest, signal: AbortSignal): Promise<void>
-  mergePinned(target: ShipTarget, signal: AbortSignal): Promise<{ merged: boolean; sha?: string }>
+  mergePinned(target: ShipTarget, signal: AbortSignal): Promise<{ merged: boolean; sha?: string; error?: string }>
   inspectMerge(target: ShipTarget, signal: AbortSignal): Promise<{
     merged: MergeState
     sha?: string
