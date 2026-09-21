@@ -91,6 +91,13 @@ function worktreeRowId(worktree: WorktreeRecord) {
   return worktree.projectId ? `${worktree.projectId}:${worktree.id}` : worktree.id
 }
 
+function stickyColumn(id: string) {
+  if (id === "selection") return "start"
+  if (id === "path") return "after-selection"
+  if (id === "actions") return "end"
+  return undefined
+}
+
 function selectionFromStorage(key: string | undefined): RowSelectionState {
   if (!key) return {}
   try {
@@ -489,20 +496,21 @@ function WorktreeDataTable({
   })
 
   return (
-    <DataTableFrame placement="body" label="Worktrees">
+    <DataTableFrame placement="body" label="Worktrees" width="wide">
       <TableHeader>
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map((header) => (
               <TableHead
                 key={header.id}
+                data-sticky={stickyColumn(header.column.id)}
                 className={
                   header.column.id === "selection"
                     ? "w-11"
                     : header.column.id === "actions"
-                      ? "w-10"
+                      ? "w-14"
                       : header.column.id === "path"
-                        ? "w-44"
+                        ? "w-96"
                         : header.column.id === "size" ||
                             header.column.id === "state"
                           ? "w-28"
@@ -525,7 +533,11 @@ function WorktreeDataTable({
               data-state={row.getIsSelected() ? "selected" : undefined}
             >
               {row.getAllCells().map((cell) => (
-                <TableCell key={cell.id} className="overflow-hidden">
+                <TableCell
+                  key={cell.id}
+                  className="overflow-hidden"
+                  data-sticky={stickyColumn(cell.column.id)}
+                >
                   <table.FlexRender cell={cell} />
                 </TableCell>
               ))}
@@ -611,7 +623,7 @@ function WorktreeTable({
   }
 
   return (
-    <main className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
+    <main className="flex min-w-0 flex-1 flex-col gap-5 p-4 lg:p-6">
       <div className="flex items-baseline gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Worktrees</h1>
         {worktrees.data ? (
@@ -731,7 +743,7 @@ export function WorktreesPage() {
 
   if (!allowed) {
     return (
-      <main className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
+      <main className="flex min-w-0 flex-1 flex-col gap-5 p-4 lg:p-6">
         <ErrorState
           title="Worktrees exigem um projeto"
           error={new Error("Cadastre ou selecione um projeto com pasta Git.")}

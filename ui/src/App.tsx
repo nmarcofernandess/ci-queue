@@ -54,7 +54,7 @@ export function App() {
           }
         >
           <AppSidebar activeRoute={route} />
-          <SidebarInset>
+          <SidebarInset className="min-w-0">
             <SiteHeader
               title={appRouteLabels[route]}
               onManageProjects={() => setManagingProjects(true)}

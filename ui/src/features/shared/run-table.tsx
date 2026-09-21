@@ -102,11 +102,11 @@ function detailId(job: RunTableJob) {
 }
 
 function columnClass(id: string) {
-  if (id === "status") return "w-16"
-  if (id === "execution") return "w-52"
+  if (id === "status") return "w-20"
+  if (id === "execution") return "w-[32rem]"
   if (id === "time") return "w-28"
-  if (id === "duration") return "w-20"
-  if (id === "actions") return "w-14 text-right"
+  if (id === "duration") return "w-24"
+  if (id === "actions") return "w-20 text-right"
   return undefined
 }
 
@@ -245,7 +245,7 @@ function RunDataTable({
             return (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="block max-w-64 truncate font-mono text-xs">
+                  <span className="block truncate font-mono text-xs" title={label}>
                     {label}
                   </span>
                 </TooltipTrigger>
@@ -281,7 +281,7 @@ function RunDataTable({
       row.rowKey ?? row.id ?? row.ticketId ?? `${row.preset}-${row.finishedAt}`,
   })
   return (
-    <DataTableFrame placement="card" label="Execuções">
+    <DataTableFrame placement="card" label="Execuções" width="wide">
       <TableHeader>
         {table.getHeaderGroups().map((group) => (
           <TableRow key={group.id}>
@@ -289,6 +289,7 @@ function RunDataTable({
               <TableHead
                 key={header.id}
                 className={columnClass(header.column.id)}
+                data-sticky={header.column.id === "actions" ? "end" : undefined}
               >
                 {header.isPlaceholder ? null : (
                   <table.FlexRender header={header} />
@@ -305,6 +306,7 @@ function RunDataTable({
               <TableCell
                 key={cell.id}
                 className={`overflow-hidden ${columnClass(cell.column.id) ?? ""}`}
+                data-sticky={cell.column.id === "actions" ? "end" : undefined}
               >
                 <table.FlexRender cell={cell} />
               </TableCell>
@@ -336,7 +338,7 @@ function EmptyTable({
   kind: "queue" | "terminal"
 }) {
   return (
-    <DataTableFrame placement="card" label="Execuções">
+    <DataTableFrame placement="card" label="Execuções" width="wide">
       <TableHeader>
         <TableRow>
           {headers(kind).map((header, index) => (
@@ -427,7 +429,7 @@ export function RunTable({
       <CardContent className="px-0">
         {loading ? (
           <div className="overflow-hidden">
-            <DataTableFrame placement="card" label="Carregando execuções">
+            <DataTableFrame placement="card" label="Carregando execuções" width="wide">
               <TableHeader>
                 <TableRow>
                   {headers(kind).map((h, i) => (
