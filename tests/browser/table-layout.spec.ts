@@ -18,11 +18,21 @@ async function columnAlignment(table: Locator) {
   }
 }
 
-for (const width of [1440, 820, 390]) {
+const layoutScenarios = [
+  { width: 1600, zoom: 1 },
+  { width: 1440, zoom: 1 },
+  { width: 820, zoom: 1 },
+  { width: 640, zoom: 1 },
+  { width: 390, zoom: 1 },
+  { width: 1440, zoom: 2 },
+] as const
+
+for (const { width, zoom } of layoutScenarios) {
   for (const theme of ['light', 'dark'] as const) {
-    test(`tables keep content and actions usable at ${width}px in ${theme}`, async ({ page }, testInfo) => {
+    test(`tables keep content and actions usable at ${width}px and ${zoom * 100}% in ${theme}`, async ({ page }, testInfo) => {
       test.setTimeout(30_000)
       await page.setViewportSize({ width, height: 900 })
+      if (zoom > 1) await page.evaluate((value) => { document.documentElement.style.zoom = String(value) }, zoom)
       const longBranch = 'feature/a-long-branch-name-that-stays-readable-until-the-column-is-full'
       const longWorktree = 'a-worktree-directory-name-that-needs-more-than-eleven-rem'
       await installConsistencyFixtures(page, {
@@ -50,10 +60,11 @@ for (const width of [1440, 820, 390]) {
       const revision = flaky.getByRole('cell').nth(4)
       expect((await revision.boundingBox())!.width).toBeGreaterThan(100)
       await columnAlignment(history)
-      await shot(page, testInfo.outputPath(`history-initial-${width}-${theme}.png`))
+      const zoomSuffix = zoom === 1 ? '' : `-zoom-${zoom * 100}`
+      await shot(page, testInfo.outputPath(`history-initial-${width}-${theme}${zoomSuffix}.png`))
       const historyScroll = history.locator('..')
       const eye = flaky.getByRole('button', { name: 'Inspecionar' })
-      if (width === 1440) {
+      if (width === 1440 && zoom === 1) {
         const revisionBox = (await revision.boundingBox())!
         const eyeBox = (await eye.boundingBox())!
         expect(revisionBox.x).toBeLessThan(eyeBox.x - 48)
@@ -62,19 +73,19 @@ for (const width of [1440, 820, 390]) {
       await expect(eye).toBeInViewport()
       if (width < 820) expect(await historyScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
-      await shot(page, testInfo.outputPath(`history-${width}-${theme}.png`))
+      await shot(page, testInfo.outputPath(`history-${width}-${theme}${zoomSuffix}.png`))
 
       await page.goto('/#worktrees')
       const worktrees = page.getByRole('table', { name: 'Worktrees' })
       const row = worktrees.getByRole('row').filter({ has: page.getByRole('button', { name: longWorktree, exact: true }) })
       const tableScroll = worktrees.locator('..')
       await columnAlignment(worktrees)
-      if (width === 1440) {
+      if (width === 1440 && zoom === 1) {
         const branch = (await worktrees.getByRole('columnheader', { name: 'Branch' }).boundingBox())!
         const container = (await tableScroll.boundingBox())!
         expect(branch.x).toBeLessThan(container.x + container.width - 150)
       }
-      await shot(page, testInfo.outputPath(`worktrees-initial-${width}-${theme}.png`))
+      await shot(page, testInfo.outputPath(`worktrees-initial-${width}-${theme}${zoomSuffix}.png`))
       await tableScroll.evaluate(element => {
         element.scrollLeft = Math.floor((element.scrollWidth - element.clientWidth) / 2)
       })
@@ -90,7 +101,7 @@ for (const width of [1440, 820, 390]) {
       ])
       expect(middleHitTargets.every(Boolean)).toBe(true)
       expect(middleHitTargets[0]!.x + middleHitTargets[0]!.width).toBeLessThanOrEqual(middleHitTargets[1]!.x)
-      await shot(page, testInfo.outputPath(`worktrees-middle-${width}-${theme}.png`))
+      await shot(page, testInfo.outputPath(`worktrees-middle-${width}-${theme}${zoomSuffix}.png`))
       await tableScroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
       await expect(worktreeName).toBeInViewport()
       await expect(worktreeCheckbox).toBeInViewport()
@@ -99,7 +110,7 @@ for (const width of [1440, 820, 390]) {
       await expect(row).toHaveAttribute('data-state', 'selected')
       if (width < 820) expect(await tableScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
-      await shot(page, testInfo.outputPath(`worktrees-${width}-${theme}.png`))
+      await shot(page, testInfo.outputPath(`worktrees-${width}-${theme}${zoomSuffix}.png`))
       await worktreeEye.focus()
       await expect(worktreeEye).toBeFocused()
       await page.keyboard.press('Enter')
