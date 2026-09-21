@@ -532,42 +532,48 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
 
     // Persiste a cadeia já observada antes da última asserção visual, para que
     // uma falha de navegação no drawer não apague o ticket/worker/timeline reais.
+    const partialReceiptPath = testInfo.outputPath("c03-same-ticket-receipt.json")
+    writeFileSync(partialReceiptPath, JSON.stringify({
+      ticketId: c03Ticket.id,
+      producer: {
+        root: producerRoot,
+        headSha: producerHead,
+        fixtureSha256: directorySha256(join(producerRoot, "scripts/__tests__/fixtures/pw-observe"), "fixture do produtor"),
+        manifestSha256: sha256(readFileSync(manifest)),
+      },
+      consumer: {
+        root: ROOT,
+        headSha: consumerHead,
+        compiledBundleSha256: bundleSha256,
+      },
+      state: "temporary",
+      testExecuted: true,
+      terminalUi: "pending-verification",
+      runtime: history?.runtime,
+      command: c03Ticket.argv,
+      timeline,
+    }, null, 2))
     await testInfo.attach("c03-same-ticket-receipt.json", {
-      body: JSON.stringify({
-        ticketId: c03Ticket.id,
-        producer: {
-          root: producerRoot,
-          headSha: producerHead,
-          fixtureSha256: directorySha256(join(producerRoot, "scripts/__tests__/fixtures/pw-observe"), "fixture do produtor"),
-          manifestSha256: sha256(readFileSync(manifest)),
-        },
-        consumer: {
-          root: ROOT,
-          headSha: consumerHead,
-          compiledBundleSha256: bundleSha256,
-        },
-        state: "temporary",
-        testExecuted: true,
-        terminalUi: "pending-verification",
-        runtime: history?.runtime,
-        command: c03Ticket.argv,
-        timeline,
-      }, null, 2),
+      path: partialReceiptPath,
       contentType: "application/json",
     })
 
     await page.reload()
     await page.getByRole("button", { name: "c03-q2q3", exact: true }).click()
     const expandE2e = page.getByRole("button", { name: "Expandir E2E", exact: true })
-    if (await expandE2e.isVisible()) await expandE2e.click()
+    await expect(expandE2e).toBeVisible()
+    await expandE2e.click()
+    await expect(page.getByText("Playwright", { exact: true })).toBeVisible()
     await expect(page.getByRole("dialog").getByText("7 de 7", { exact: true })).toBeVisible()
+    const terminalUiPath = testInfo.outputPath("c03-terminal-ui.json")
+    writeFileSync(terminalUiPath, JSON.stringify({
+      ticketId: c03Ticket.id,
+      testExecuted: true,
+      terminalUi: "verified",
+      timeline,
+    }, null, 2))
     await testInfo.attach("c03-terminal-ui.json", {
-      body: JSON.stringify({
-        ticketId: c03Ticket.id,
-        testExecuted: true,
-        terminalUi: "verified",
-        timeline,
-      }, null, 2),
+      path: terminalUiPath,
       contentType: "application/json",
     })
   } catch (error) {
