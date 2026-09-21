@@ -117,20 +117,27 @@ test('all projects keeps the recipe readable alongside project and variant badge
   await shot(page, testInfo.outputPath('history-all-projects.png'))
 })
 
-test('analysis keeps the preset in view while numeric columns scroll', async ({ page }, testInfo) => {
-  await page.setViewportSize({ width: 390, height: 900 })
-  await installConsistencyFixtures(page)
-  await page.goto('/#analysis')
-  const table = page.getByRole('table', { name: 'Resultados por preset' })
-  const container = table.locator('..')
-  const preset = table.getByRole('row').filter({ has: page.getByRole('button', { name: 'smoketest', exact: true }) }).getByRole('cell').first()
-  await shot(page, testInfo.outputPath('analysis-initial-390-light.png'))
-  await container.evaluate(element => { element.scrollLeft = element.scrollWidth })
-  await expect(preset).toBeInViewport()
-  await expect(table.getByRole('columnheader', { name: 'Total' })).toBeInViewport()
-  expect(await container.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
-  await shot(page, testInfo.outputPath('analysis-390-light.png'))
-})
+for (const theme of ['light', 'dark'] as const) {
+  test(`analysis keeps the preset in view while numeric columns scroll in ${theme}`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 900 })
+    await installConsistencyFixtures(page, { theme })
+    await page.goto('/#analysis')
+    const table = page.getByRole('table', { name: 'Resultados por preset' })
+    const container = table.locator('..')
+    const preset = table.getByRole('row').filter({ has: page.getByRole('button', { name: 'smoketest', exact: true }) }).getByRole('cell').first()
+    await shot(page, testInfo.outputPath(`analysis-initial-390-${theme}.png`))
+    await container.evaluate(element => { element.scrollLeft = element.scrollWidth })
+    await expect(preset).toBeInViewport()
+    await expect(table.getByRole('columnheader', { name: 'Total' })).toBeInViewport()
+    expect(await container.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
+    const backgrounds = await preset.evaluate(cell => ({
+      sticky: getComputedStyle(cell).backgroundColor,
+      card: getComputedStyle(cell.closest('[data-slot=card]')!).backgroundColor,
+    }))
+    expect(backgrounds.sticky).toBe(backgrounds.card)
+    await shot(page, testInfo.outputPath(`analysis-390-${theme}.png`))
+  })
+}
 
 test('a failed stage takes priority over retry while the execution is running', async ({ page }) => {
   const progress = fixtureJob.progressSummary!

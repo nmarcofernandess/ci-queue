@@ -142,6 +142,7 @@
     background-color: var(--background);
   }
 
+  [data-slot="card"] [data-slot="table"] [data-sticky],
   [data-slot="table"][data-placement="card"] [data-sticky] {
     background-color: var(--card);
   }
@@ -166,6 +167,7 @@
     background-color: color-mix(in oklab, var(--muted) 50%, var(--background));
   }
 
+  [data-slot="card"] [data-slot="table"] tr:hover [data-sticky],
   [data-slot="table"][data-placement="card"] tr:hover [data-sticky] {
     background-color: color-mix(in oklab, var(--muted) 50%, var(--card));
   }
