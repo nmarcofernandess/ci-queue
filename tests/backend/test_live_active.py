@@ -84,6 +84,32 @@ class LiveActiveTests(unittest.TestCase):
         self.assertFalse(any(node["kind"] == "case" for node in summary["active"]))
         self.assertTrue(any(node["id"] == "playwright" for node in summary["active"]))
 
+    def test_live_preserves_pending_child_denominator_under_running_root(self):
+        job = {"id": "planned-1", "projectId": "alpha", "status": "running",
+               "preset": "full", "flags": {"progressEnabled": True}}
+        detail = {"kind": "cases", "completed": 0, "total": 7, "passed": 0,
+                  "failed": 0, "running": 0, "pending": 7, "skipped": 0}
+        progress = {"nodes": [
+            {"id": "e2e", "label": "E2E", "status": "running", "kind": "stage"},
+            {"id": "next", "parentId": "e2e", "label": "Next", "status": "running", "kind": "stage"},
+            {"id": "playwright", "parentId": "e2e", "label": "Playwright", "status": "pending", "kind": "stage", "detail": detail},
+        ]}
+        (self.root / "running.json").write_text(json.dumps(job))
+        (self.root / "progress" / "planned-1.json").write_text(json.dumps(progress))
+        summary = status_snapshot_all(self.root, view="live")["running"]["progressSummary"]
+        self.assertEqual(summary["planned"], [{"rootId": "e2e", "id": "playwright", "label": "Playwright", "status": "pending", "kind": "stage", "parentId": "e2e", "detail": detail}])
+        self.assertNotIn("nodes", summary)
+
+    def test_omitted_retry_summary_survives_live_and_terminal_projection(self):
+        job = {"id": "retry-1", "projectId": "alpha", "status": "running",
+               "preset": "e2e", "flags": {"progressEnabled": True}}
+        progress = {"nodes": [{"id": "pw", "label": "Playwright", "status": "running", "kind": "stage"}],
+                    "retrySummary": {"pw": 1}}
+        (self.root / "running.json").write_text(json.dumps(job))
+        (self.root / "progress" / "retry-1.json").write_text(json.dumps(progress))
+        self.assertTrue(status_snapshot_all(self.root, view="live")["running"]["hasRetries"])
+        self.assertTrue(status_snapshot_all(self.root)["running"]["hasRetries"])
+
 
 if __name__ == "__main__":
     unittest.main()

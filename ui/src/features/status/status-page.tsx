@@ -169,6 +169,7 @@ function CurrentExecution({
               stages={stages}
               jobStatus={current.status}
               active={current.progressSummary?.active ?? []}
+              planned={current.progressSummary?.planned ?? []}
             />
           ) : null}
           <ElapsedItem

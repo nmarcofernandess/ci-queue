@@ -17,6 +17,7 @@ import { atomicWriteJson, progressPath, readJsonFile, removeFile } from "./state
 
 /** Stable stdout protocol. Consumers can emit it without importing CI Queue. */
 export const PROGRESS_PREFIX = "@@ci-queue-progress"
+export const PROGRESS_Q2Q3_CAPABILITY = "progress-q2q3-v1"
 const LEGACY_PROGRESS_PREFIX = "@@local-ci-progress"
 
 const VALID_ID = /^[A-Za-z0-9_.:-]+$/
@@ -27,7 +28,9 @@ const COUNT_KINDS = new Set<ProgressCountKind>(["gates", "suites", "cases", "art
 type NodeEvent = ProgressNodeUpdate & { type: "node" }
 type CountsEvent = ProgressCounts & { type: "counts"; id: string }
 type VariantEvent = { type: "variant"; runVariant: "focal" }
-type ProgressEvent = NodeEvent | CountsEvent | VariantEvent
+type ReplaceChildrenEvent = { type: "replace-children"; id: string }
+type RetriesEvent = { type: "retries"; id: string; count: number }
+type ProgressEvent = NodeEvent | CountsEvent | VariantEvent | ReplaceChildrenEvent | RetriesEvent
 
 export function createProgressState(updatedAt: string | null = null): JobProgress {
   return { schema: 1, updatedAt, nodes: [] }
@@ -51,6 +54,13 @@ export function parseProgressLine(line: unknown): ProgressEvent | undefined {
   if ((parts[0] !== PROGRESS_PREFIX && parts[0] !== LEGACY_PROGRESS_PREFIX) || parts[1] !== "1") return undefined
   if (parts[2] === "variant" && parts.length === 4 && parts[3] === "focal") {
     return { type: "variant", runVariant: "focal" }
+  }
+  if (parts[2] === "replace-children" && parts.length === 4 && VALID_ID.test(parts[3])) {
+    return { type: "replace-children", id: parts[3] }
+  }
+  if (parts[2] === "retries" && parts.length === 5 && VALID_ID.test(parts[3])) {
+    const count = nonNegative(parts[4])
+    if (count !== undefined) return { type: "retries", id: parts[3], count }
   }
   if (parts[2] === "node" && parts.length === 9) {
     const [, , , id, parent, rawKind, rawStatus, duration, label] = parts
@@ -80,6 +90,33 @@ export function applyProgressLine(
   const event = parseProgressLine(line)
   if (!event) return state
   if (event.type === "variant") return { ...state, updatedAt: now, runVariant: event.runVariant }
+  if (event.type === "replace-children") {
+    const owner = state.nodes.find((node) => node.id === event.id)
+    if (!owner || !["stage", "group", "suite"].includes(owner.kind)) return state
+    const descendants = new Set<string>()
+    for (let changed = true; changed;) {
+      changed = false
+      for (const node of state.nodes) {
+        if (node.parentId && (node.parentId === event.id || descendants.has(node.parentId)) && !descendants.has(node.id)) {
+          descendants.add(node.id)
+          changed = true
+        }
+      }
+    }
+    if (state.nodes.some((node) => descendants.has(node.id)
+      && node.status !== "pending"
+      && !(node.kind === "group" && node.id.endsWith(":truncated") && node.status === "skipped"))) return state
+    return {
+      ...state,
+      updatedAt: now,
+      nodes: state.nodes.filter((node) => !descendants.has(node.id)).map((node) =>
+        node.id === event.id ? { ...node, inventoryReplaced: true, detail: undefined } : node),
+    }
+  }
+  if (event.type === "retries") {
+    if (!state.nodes.some((node) => node.id === event.id)) return state
+    return { ...state, updatedAt: now, retrySummary: { ...state.retrySummary, [event.id]: event.count } }
+  }
   if (event.type === "node") {
     const index = state.nodes.findIndex((node) => node.id === event.id)
     const previous = state.nodes[index]
@@ -112,6 +149,8 @@ export function isJobProgress(value: unknown): value is JobProgress {
   const state = value as JobProgress
   return state.schema === 1 && (state.updatedAt === null || typeof state.updatedAt === "string") && Array.isArray(state.nodes)
     && (state.runVariant === undefined || state.runVariant === "focal")
+    && (state.retrySummary === undefined || (typeof state.retrySummary === "object" && state.retrySummary !== null
+      && Object.entries(state.retrySummary).every(([id, count]) => VALID_ID.test(id) && Number.isSafeInteger(count) && count >= 0)))
 }
 
 export function readProgressSnapshot(root: string, id: string): JobProgress | undefined {
@@ -195,6 +234,7 @@ export class ProgressCollector {
       updatedAt: this.state.updatedAt,
       nodes: this.state.nodes.map(cloneProgressNode),
       ...(this.state.runVariant ? { runVariant: this.state.runVariant } : {}),
+      ...(this.state.retrySummary ? { retrySummary: { ...this.state.retrySummary } } : {}),
     }
   }
 

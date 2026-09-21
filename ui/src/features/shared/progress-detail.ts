@@ -42,3 +42,23 @@ export function deepestActiveContext(
   }
   return best
 }
+
+export function stageContextDescription(
+  stage: ProgressNode,
+  active: readonly ProgressNode[],
+  planned: readonly (ProgressNode & { rootId: string })[],
+): string | null {
+  const current = deepestActiveContext(stage.id, active)
+  const currentDetail = formatProgressDetail(current?.detail)
+  if (currentDetail) return current?.id === stage.id ? currentDetail : `${current?.label} · ${currentDetail}`
+
+  const next = planned.find((node) => node.rootId === stage.id && formatProgressDetail(node.detail))
+  if (next) {
+    const plannedDetail = `${next.label}: ${formatProgressDetail(next.detail)}`
+    return current && current.id !== stage.id ? `${current.label} · ${plannedDetail}` : plannedDetail
+  }
+
+  const ownDetail = formatProgressDetail(stage.detail)
+  if (ownDetail) return ownDetail
+  return current && current.id !== stage.id ? current.label : null
+}

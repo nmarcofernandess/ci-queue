@@ -70,8 +70,10 @@ function ProgressNodeRow({
         >
           {node.label}
         </ItemTitle>
-        {node.detail ? (
+        {node.detail || node.inventoryReplaced ? (
           <ItemDescription className="line-clamp-none text-xs [overflow-wrap:anywhere]">
+            {node.inventoryReplaced ? "Inventário atualizado na execução" : null}
+            {node.inventoryReplaced && node.detail ? " · " : null}
             {formatProgressDetail(node.detail)}
           </ItemDescription>
         ) : null}

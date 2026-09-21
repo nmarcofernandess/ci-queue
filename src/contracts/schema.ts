@@ -169,6 +169,8 @@ export type ProgressNode = {
   durationUnavailableReason?: ProgressDurationUnavailableReason
   detail?: ProgressCounts
   retryCount?: number
+  /** The predeclared children were replaced by the execution's actual inventory. */
+  inventoryReplaced?: boolean
 }
 
 export type JobProgress = {
@@ -177,6 +179,8 @@ export type JobProgress = {
   nodes: ProgressNode[]
   /** Producer-confirmed observational variant; never a proof predicate. */
   runVariant?: RunVariant
+  /** Retry facts from cases omitted by the presentation budget, keyed by owner node. */
+  retrySummary?: Record<string, number>
 }
 
 export type RequestContext = {

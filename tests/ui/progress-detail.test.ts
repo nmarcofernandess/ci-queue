@@ -1,13 +1,24 @@
 import assert from "node:assert/strict"
-import { describe, it } from "node:test"
+import { describe, it } from "vitest"
 
 import type { ProgressNode } from "../../ui/src/lib/types.ts"
 import {
   deepestActiveContext,
   formatProgressDetail,
+  stageContextDescription,
 } from "../../ui/src/features/shared/progress-detail.ts"
 
 describe("progress-detail", () => {
+  it("shows known counts on a pending root and a planned descendant while Next runs", () => {
+    const detail = { kind: "cases", completed: 0, total: 7, passed: 0, failed: 0, running: 0, pending: 7, skipped: 0 }
+    const plannedRoot = { id: "playwright", label: "Playwright", kind: "stage", status: "pending", detail } as ProgressNode
+    assert.equal(stageContextDescription(plannedRoot, [], []), "0 de 7")
+    const root = { id: "e2e", label: "E2E", kind: "stage", status: "running" } as ProgressNode
+    const active = [root, { id: "next", parentId: "e2e", label: "Next", kind: "stage", status: "running" } as ProgressNode]
+    const planned = [{ ...plannedRoot, parentId: "e2e", rootId: "e2e" }]
+    assert.equal(stageContextDescription(root, active, planned), "Next · Playwright: 0 de 7")
+    assert.equal(stageContextDescription({ ...root, status: "passed", detail }, [], []), "0 de 7")
+  })
   it("ignores running cases when choosing strip context", () => {
     const active = [
       { id: "e2e", kind: "stage", status: "running", label: "E2E" },

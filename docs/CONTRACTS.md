@@ -72,6 +72,14 @@ Counts: inteiros não negativos; `completed = passed + failed + skipped`; `total
 
 `prefix TAB 1 TAB variant TAB focal` é a confirmação tardia e opcional de um recorte de população pelo produtor durante o próprio ticket. Só o token `focal` é aceito nesse evento: `custom` deve ser declarado no enqueue. O worker associa a linha ao ticket que está executando; o sidecar projeta o badge live e o registro terminal conserva a confirmação. O evento não altera status, contadores, argv ou elegibilidade de ship. Um ticket legado continua sem badge; uma descoberta falha não emite confirmação.
 
+`progress-q2q3-v1` anuncia o contrato completo de inventário, retries omitidos, variante e projeção live. O consumidor que depende dele confere a capability e o manifest instalado antes do enqueue. Na instalação, confira também a revisão efetiva do worker e da API.
+
+`prefix TAB 1 TAB replace-children TAB ownerId` substitui somente os descendentes ainda pendentes do owner estrutural. O collector preserva filhos de outro owner e recusa substituir resultados observados; remove o detalhe antigo do owner e marca `inventoryReplaced=true`. O produtor usa o evento quando o inventário antecipado difere da população real do `onBegin`, antes de publicar os novos nós e contadores. A árvore mostra “Inventário atualizado na execução”; casos removidos não viram passed nem skipped.
+
+`prefix TAB 1 TAB retries TAB ownerId TAB count` registra a quantidade de casos com retry fora do detalhe materializado. O valor é um inteiro não negativo por owner e não altera o veredito nem cria caso ou tentativa fictícia. `hasRetries` combina esse resumo com `retryCount` dos nós visíveis, inclusive na projeção live e no terminal.
+
+Na projeção live, `roots` inclui o detalhe da própria raiz e `active` continua limitado aos contextos estruturais running. `planned` conserva até 32 descendentes estruturais pending com contagens válidas e `rootId`; a faixa pode mostrar um denominador conhecido antes da corrida sem promover pending a running. A árvore completa permanece no detalhe do ticket.
+
 Emissão é cooperativa: worker sobrescreve `LOCAL_CI_PROGRESS_ENABLED` com 1 somente quando a flag persistida é true e informa job id/aliases. Collector ingere linhas independentemente da declaração. API deriva `progressEnabled` top-level de `job.flags.progressEnabled is True`; não expõe flags/argv inteiros. Drawer atual prioriza o aviso se não declarado, mesmo se linhas foram capturadas. Declarado sem nós mostra ausência de publicação; no terminal pode haver apenas Artefatos, o que não prova instrumentação da receita.
 
 Copy de configuração, variante default:

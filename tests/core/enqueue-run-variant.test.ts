@@ -1,8 +1,8 @@
 import assert from "node:assert/strict"
-import { mkdtempSync, rmSync } from "node:fs"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, it } from "node:test"
+import { afterEach, describe, it } from "vitest"
 
 import { runCli } from "../../src/cli.ts"
 import { enqueueExplicitTicket } from "../../src/core/enqueue.ts"
@@ -60,6 +60,26 @@ describe("enqueue runVariant", () => {
     writeProgressSnapshot(state, ticket.id, { ...createProgressState(), runVariant: "focal" })
     assert.equal(attachProgressToTicket(state, ticket).runVariant, "focal")
     assert.equal(ticket.runVariant, "custom")
+  })
+
+  it("shows the same late focal variant in CLI status as the live API", async () => {
+    const { project, state } = tempPair()
+    const ticket = enqueueExplicitTicket({
+      recipe: "e2e", argv: [process.execPath, "-e", "process.exit(0)"],
+      projectId: "fixture-project", projectName: "Fixture", cwd: project,
+      stateRoot: state, runVariant: "custom",
+    })
+    writeFileSync(join(state, "running.json"), JSON.stringify({ ...ticket, status: "running" }))
+    writeProgressSnapshot(state, ticket.id, { ...createProgressState(), runVariant: "focal" })
+    const status = await runCli(["status", "--state", state, "--json"])
+    assert.equal(status.ok, true)
+    if (status.ok) assert.equal((status.result as { running: { runVariant: string } }).running.runVariant, "focal")
+  })
+
+  it("advertises the complete Q2/Q3 progress contract", async () => {
+    const version = await runCli(["version", "--json"])
+    assert.equal(version.ok, true)
+    if (version.ok) assert.ok((version.result as { capabilities: string[] }).capabilities.includes("progress-q2q3-v1"))
   })
 
   it("rejects unknown --run-variant with USAGE", async () => {

@@ -23,6 +23,7 @@ import { enqueueExplicitTicket, enqueueTicket } from "./core/enqueue.js"
 import { runWorker } from "./core/worker.js"
 import { findJobById, listHistoryJobs, listQueuedJobs, readRunningJob, resolveStateRoot } from "./core/state.js"
 import { buildPresetHistory } from "./core/preset-history.js"
+import { attachProgressToTicket, PROGRESS_Q2Q3_CAPABILITY } from "./core/progress.js"
 import { listAdvisories, upsertAdvisory } from "./core/advisories.js"
 import { evaluateExecutionEntry, EXECUTION_ENTRY_GUARD_CAPABILITY } from "./core/execution-entry.js"
 import {
@@ -162,7 +163,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
       }
       case "observe": {
@@ -300,8 +301,10 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
       }
       case "worker":
         return success(await runWorker(root))
-      case "status":
-        return success({ running: readRunningJob(root) ?? null, queued: listQueuedJobs(root), latest: listHistoryJobs(root)[0] ?? null })
+      case "status": {
+        const running = readRunningJob(root)
+        return success({ running: running ? attachProgressToTicket(root, running) : null, queued: listQueuedJobs(root), latest: listHistoryJobs(root)[0] ?? null })
+      }
       case "history": {
         const projectId = optionValue(args.rest, "--project")
         if (args.rest.includes("--include-observed")) {

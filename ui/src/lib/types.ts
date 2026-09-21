@@ -21,6 +21,7 @@ export type ProgressNode = {
   durationSource?: ProgressDurationSource
   durationUnavailableReason?: ProgressDurationUnavailableReason
   retryCount?: number
+  inventoryReplaced?: boolean
   detail?:
     | string
     | {
@@ -42,6 +43,7 @@ export type ProgressSummary = {
   nodes?: ProgressNode[]
   roots?: ProgressNode[]
   active?: ProgressNode[]
+  planned?: (ProgressNode & { rootId: string })[]
 }
 
 export type RunVariant = "custom" | "focal"
