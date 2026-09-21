@@ -151,7 +151,8 @@ export function readGitInfo(cwd: string, baseRef?: string): GitInfo | undefined 
   const headSha = git(cwd, ["rev-parse", "HEAD"])
   if (!headSha) return undefined
   const branch = git(cwd, ["branch", "--show-current"]) || "HEAD-detached"
-  const statusShort = git(cwd, ["status", "--short"]) ?? ""
+  const statusShort = git(cwd, ["status", "--short"])
+  if (statusShort === undefined) return undefined
   const baseSha = baseRef ? git(cwd, ["rev-parse", baseRef]) : undefined
   return { branch, headSha, baseSha: baseSha ?? "", statusShort }
 }
@@ -596,6 +597,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   let runtime: RuntimeSession
   try {
     preflight = assertPreflight(ticket, parsed.flags)
+    ticket = { ...ticket, preflight }
   } catch (error) {
     const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: error instanceof Error ? error.message : String(error) }, collector)
     return closeAndMaybeDropSidecar(root, failed)
@@ -614,7 +616,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   }
 
   try {
-    ticket = mergeRunning(root, { ...ticket, preflight })
+    ticket = mergeRunning(root, ticket)
   } catch (error) {
     discardRuntimeDirectory(runtime.directory)
     throw new Error(`não foi possível reservar running.json: ${error instanceof Error ? error.message : String(error)}`)
