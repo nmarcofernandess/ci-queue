@@ -172,7 +172,16 @@ test('history keeps the loaded query, its next page and an accessible refresh er
     finishedAt: new Date().toISOString(),
     durationMs: 62_000,
   }
+  const recoveredFirstPage = Array.from({ length: 50 }, (_, index) => ({
+    ...baseJob,
+    id: `history-recovered-${index + 1}`,
+    preset: `history-recovered-${index + 1}`,
+    status: 'passed',
+    finishedAt: new Date().toISOString(),
+    durationMs: 62_000,
+  }))
   let rejectRefresh = false
+  let generation: 'a' | 'b' = 'a'
 
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url())
@@ -197,12 +206,13 @@ test('history keeps the loaded query, its next page and an accessible refresh er
         await route.fulfill({ status: 503, json: { error: 'History refresh unavailable' } })
         return
       }
+      const activeFirstPage = generation === 'a' ? firstPage : recoveredFirstPage
       await route.fulfill({
         json: {
-          jobs: firstPage,
-          hasMore: true,
-          snapshotBefore: 'fixture-snapshot',
-          nextCursor: 'page-two',
+          jobs: activeFirstPage,
+          hasMore: generation === 'a',
+          snapshotBefore: `fixture-snapshot-${generation}`,
+          nextCursor: generation === 'a' ? 'page-two' : null,
           coverage: { unattributedRecords: 0 },
         },
       })
@@ -214,8 +224,8 @@ test('history keeps the loaded query, its next page and an accessible refresh er
         project: { id: 'example', name: 'Example' },
         running: null,
         queued: [],
-        history: firstPage,
-        historyRevision: 'history-a',
+        history: generation === 'a' ? firstPage : recoveredFirstPage,
+        historyRevision: `history-${generation}`,
         globalOccupancy: false,
       },
       '/api/session': { csrfToken: 'fixture', canReveal: false },
@@ -244,10 +254,13 @@ test('history keeps the loaded query, its next page and an accessible refresh er
   await expect(history.getByRole('button', { name: 'history-a-page-two', exact: true })).toBeVisible()
 
   rejectRefresh = false
+  generation = 'b'
+  await page.clock.fastForward(10_000)
   await page.clock.fastForward(10_000)
   await expect(refreshError).toHaveCount(0)
-  await expect(history.getByRole('button', { name: 'history-a-50', exact: true })).toBeVisible()
-  await expect(history.getByRole('button', { name: 'history-a-page-two', exact: true })).toBeVisible()
+  await expect(history.getByRole('button', { name: 'history-recovered-50', exact: true })).toBeVisible()
+  await expect(history.getByRole('button', { name: 'history-a-50', exact: true })).toHaveCount(0)
+  await expect(history.getByRole('button', { name: 'history-a-page-two', exact: true })).toHaveCount(0)
 
   await page.getByRole('textbox', { name: 'Buscar por preset, branch, SHA ou ticket' }).fill('history-b')
   await expect(page.getByText('History B unavailable', { exact: true })).toBeVisible()
