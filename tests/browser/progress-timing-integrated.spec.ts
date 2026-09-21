@@ -8,6 +8,7 @@ import { tmpdir } from "node:os"
 import { join, relative, resolve, sep } from "node:path"
 
 import { enqueueExplicitTicket } from "../../src/core/enqueue.js"
+import { runCli } from "../../src/cli.js"
 import { cancelQueuedOrRunningTicket } from "../../src/core/runner.js"
 import { progressPath, listHistoryJobs } from "../../src/core/state.js"
 import { runWorker } from "../../src/core/worker.js"
@@ -410,6 +411,215 @@ test("R06 real API+UI shows emitter, collector approx, and legacy em dash", asyn
     await expect(drawer.getByText("—", { exact: true }).first()).toBeVisible()
   } finally {
     api.stop()
+  }
+})
+
+test("C03 same ticket keeps global B occupancy, drawer B, and focal variant under filter A in compiled UI", async ({ page }, testInfo) => {
+  const dedicatedRunner = process.env.C03_DEDICATED === "1"
+  const producerRoot = process.env.C03_DIETFLOW_ROOT
+  const expectedProducerHead = process.env.C03_DIETFLOW_HEAD
+  const expectedConsumerHead = process.env.C03_CI_QUEUE_HEAD
+  test.skip(!dedicatedRunner, "C03 só executa pelo runner dedicado")
+  if (!dedicatedRunner) return
+  if (!producerRoot || !expectedProducerHead || !expectedConsumerHead) {
+    throw new Error("runner C03 dedicado exige C03_DIETFLOW_ROOT, C03_DIETFLOW_HEAD e C03_CI_QUEUE_HEAD")
+  }
+
+  const consumerHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim()
+  expect(consumerHead).toBe(expectedConsumerHead)
+
+  const temporaryRoot = mkdtempSync(join(tmpdir(), "ci-queue-c03-project-filter-"))
+  const state = join(temporaryRoot, "state")
+  const bundle = join(temporaryRoot, "compiled-ui")
+  const filterProjectId = "project-a"
+  const runningProjectId = "project-b"
+  const runningTicketId = "c03-project-b-running"
+  let api: Awaited<ReturnType<typeof startApiForState>> | undefined
+  let ui: Awaited<ReturnType<typeof startCompiledUi>> | undefined
+  let apiStopped = false
+  let testBodyFailed = false
+
+  try {
+    mkdirSync(join(state, "state"), { recursive: true })
+    mkdirSync(join(state, "progress"), { recursive: true })
+    writeFileSync(
+      join(state, "state", "projects.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        revision: 1,
+        bootstrapProjectId: filterProjectId,
+        projects: {
+          [filterProjectId]: {
+            id: filterProjectId,
+            displayName: "Projeto A",
+            repositoryPath: null,
+            gitCommonDir: null,
+            configPath: null,
+            archivedAt: null,
+            revision: 1,
+            createdAt: "2026-09-21T19:10:00Z",
+            updatedAt: "2026-09-21T19:10:00Z",
+          },
+          [runningProjectId]: {
+            id: runningProjectId,
+            displayName: "Projeto B",
+            repositoryPath: null,
+            gitCommonDir: null,
+            configPath: null,
+            archivedAt: null,
+            revision: 1,
+            createdAt: "2026-09-21T19:10:00Z",
+            updatedAt: "2026-09-21T19:10:00Z",
+          },
+        },
+      }),
+    )
+    writeFileSync(
+      join(state, "running.json"),
+      JSON.stringify({
+        id: runningTicketId,
+        projectId: runningProjectId,
+        projectName: "Projeto B",
+        preset: "e2e",
+        status: "running",
+        createdAt: "2026-09-21T19:10:00Z",
+        startedAt: "2026-09-21T19:10:01Z",
+        branch: "candidate-b",
+        headSha: "b".repeat(40),
+        cwd: ROOT,
+        command: "npx playwright test",
+        flags: { progressEnabled: true },
+        runVariant: "custom",
+      }),
+    )
+    writeFileSync(
+      join(state, "progress", `${runningTicketId}.json`),
+      JSON.stringify({
+        schema: 1,
+        updatedAt: "2026-09-21T19:10:02Z",
+        runVariant: "focal",
+        nodes: [{ id: "playwright", label: "Playwright", kind: "stage", status: "running" }],
+      }),
+    )
+
+    api = await startApiForState(state, await reservePort())
+    const bundleSha256 = compileCandidateUi(bundle)
+    ui = await startCompiledUi(bundle, api.url)
+
+    const statusResponse = await page.request.get(`${api.url}/api/status?projectId=${filterProjectId}&view=live`)
+    expect(statusResponse.status()).toBe(200)
+    const status = await statusResponse.json() as {
+      globalOccupancy?: boolean
+      otherProjectOccupancy?: boolean
+      context?: { kind?: string; projectId?: string }
+      running?: { id?: string; projectId?: string; runVariant?: string }
+    }
+    expect(status).toMatchObject({
+      globalOccupancy: true,
+      otherProjectOccupancy: true,
+      context: { kind: "project", projectId: filterProjectId },
+      running: { id: runningTicketId, projectId: runningProjectId, runVariant: "focal" },
+    })
+
+    const cliStatus = await runCli(["status", "--state", state, "--json"])
+    expect(cliStatus.ok).toBe(true)
+    if (!cliStatus.ok) throw new Error(`CLI C03 status falhou: ${cliStatus.error.message}`)
+    const cliRunning = (cliStatus.result as { running?: { id?: string; projectId?: string; runVariant?: string } }).running
+    expect(cliRunning).toMatchObject({
+      id: runningTicketId,
+      projectId: runningProjectId,
+      runVariant: "focal",
+    })
+
+    const receiptPath = testInfo.outputPath("c03-project-filter-receipt.json")
+    const receipt = {
+      testExecuted: true,
+      mode: "focal-api-compiled-ui-cli",
+      state: "temporary",
+      consumer: { root: ROOT, headSha: consumerHead, compiledBundleSha256: bundleSha256 },
+      filter: { projectId: filterProjectId },
+      running: {
+        ticketId: runningTicketId,
+        projectId: runningProjectId,
+        rawRunVariant: "custom",
+        effectiveRunVariant: status.running?.runVariant ?? null,
+      },
+      api: {
+        globalOccupancy: status.globalOccupancy ?? null,
+        otherProjectOccupancy: status.otherProjectOccupancy ?? null,
+        context: status.context ?? null,
+      },
+      cli: { effectiveRunVariant: cliRunning?.runVariant ?? null },
+      drawer: "pending-verification",
+    }
+    writeFileSync(receiptPath, JSON.stringify(receipt, null, 2))
+    expect(JSON.parse(readFileSync(receiptPath, "utf8"))).toMatchObject({
+      testExecuted: true,
+      mode: "focal-api-compiled-ui-cli",
+      api: { globalOccupancy: true, otherProjectOccupancy: true },
+      running: { effectiveRunVariant: "focal" },
+      cli: { effectiveRunVariant: "focal" },
+    })
+
+    await page.addInitScript(() => localStorage.setItem("ci-queue.lastProjectId", "project-a"))
+    await page.goto(`${ui.url}/?projectId=${filterProjectId}#status`)
+    const current = page.locator("[data-slot=entity-identity][data-presentation=current]")
+    await expect(current.getByRole("button", { name: "e2e", exact: true })).toBeVisible({ timeout: 10_000 })
+    await expect(current.getByText("Projeto B", { exact: true })).toBeVisible()
+    await expect(current.getByText("Focal", { exact: true })).toBeVisible()
+    await expect(new URL(page.url()).searchParams.get("projectId")).toBe(filterProjectId)
+    expect(new URL(page.url()).searchParams.get("context")).toBeNull()
+
+    await current.getByRole("button", { name: "e2e", exact: true }).click()
+    const drawer = page.getByRole("dialog")
+    await expect(drawer).toBeVisible()
+    await expect(drawer.locator("[data-slot=drawer-title]")).toHaveText("e2e")
+    await expect(drawer.getByText("Projeto B", { exact: true })).toBeVisible()
+    await expect(drawer.getByText("Focal", { exact: true })).toBeVisible()
+    await expect(new URL(page.url()).searchParams.get("projectId")).toBe(filterProjectId)
+    expect(new URL(page.url()).searchParams.get("context")).toBeNull()
+
+    writeFileSync(receiptPath, JSON.stringify({ ...receipt, drawer: "verified" }, null, 2))
+    await testInfo.attach("c03-project-filter-receipt.json", {
+      path: receiptPath,
+      contentType: "application/json",
+    })
+  } catch (error) {
+    testBodyFailed = true
+    throw error
+  } finally {
+    const cleanupErrors: Error[] = []
+    const rememberCleanupError = (step: string, error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      cleanupErrors.push(new Error(`${step}: ${message}`))
+    }
+    if (ui) {
+      try {
+        await ui.stop()
+      } catch (error) {
+        rememberCleanupError("encerramento da UI de filtro C03", error)
+      }
+    }
+    if (api) {
+      try {
+        await api.stop()
+        apiStopped = true
+      } catch (error) {
+        rememberCleanupError("encerramento da API de filtro C03", error)
+      }
+    }
+    if (!api || apiStopped) {
+      try {
+        rmSync(temporaryRoot, { recursive: true, force: true })
+      } catch (error) {
+        rememberCleanupError("remoção do estado temporário de filtro C03", error)
+      }
+    } else {
+      cleanupErrors.push(new Error(`API de filtro C03 permanece ativa; estado temporário preservado em ${temporaryRoot}`))
+    }
+    if (cleanupErrors.length > 0 && !testBodyFailed) {
+      throw new AggregateError(cleanupErrors, "cleanup do filtro C03 incompleto")
+    }
   }
 })
 
