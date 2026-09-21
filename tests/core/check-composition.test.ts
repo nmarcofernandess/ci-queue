@@ -68,6 +68,9 @@ case "\${2:-}" in
   test:core)
     ${options.coreFails ? "exit 19" : "exit 0"}
     ;;
+  test:runtime:prepared)
+    exec node --test tests/runtime/*.test.mjs
+    ;;
   test:ui|test:backend|test:examples|test:release|test:install|check:ui|test:browser)
     exit 0
     ;;
@@ -119,6 +122,7 @@ it("uses one fresh build in check while its prepared test body runs the runtime 
     "build",
     "test:prepared",
     "test:core",
+    "test:runtime:prepared",
     "test:ui",
     "test:backend",
     "test:examples",
@@ -134,13 +138,15 @@ it("uses one fresh build in check while its prepared test body runs the runtime 
 
 it("keeps the standalone test entry fresh before it runs the same runtime runner", () => {
   const f = fixture()
-  const result = spawnSync("npm", ["run", "test"], { cwd: f.root, encoding: "utf8", env: envFor(f) })
+  const result = spawnSync("bash", [testSuite, "fresh"], { cwd: f.root, encoding: "utf8", env: envFor(f) })
 
   expect(result.status).toBe(0)
+  const pkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as { scripts: { test: string } }
+  expect(pkg.scripts.test).toBe("bash scripts/ci/test-suite.sh fresh")
   expect(calls(f)).toEqual([
-    "test",
     "build",
     "test:core",
+    "test:runtime:prepared",
     "test:ui",
     "test:backend",
     "test:examples",
@@ -164,7 +170,7 @@ it("does not consume absent build output and propagates the runtime failure", ()
   const result = runCheck(f)
 
   expect(result.status).toBe(41)
-  expect(calls(f)).toEqual(["build", "test:prepared", "test:core"])
+  expect(calls(f)).toEqual(["build", "test:prepared", "test:core", "test:runtime:prepared"])
   expect(readFileSync(f.runners, "utf8")).toBe("runtime-runner\n")
   expect(existsSync(f.dist)).toBe(false)
 })
@@ -179,6 +185,6 @@ it("propagates core and runtime failures without running later test populations"
   const runtime = fixture({ runtimeFails: true })
   const runtimeResult = runCheck(runtime)
   expect(runtimeResult.status).toBe(23)
-  expect(calls(runtime)).toEqual(["build", "test:prepared", "test:core"])
+  expect(calls(runtime)).toEqual(["build", "test:prepared", "test:core", "test:runtime:prepared"])
   expect(readFileSync(runtime.runners, "utf8")).toBe("runtime-runner\n")
 })
