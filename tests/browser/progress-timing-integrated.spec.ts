@@ -15,7 +15,6 @@ import { runWorker } from "../../src/core/worker.js"
 const ROOT = join(import.meta.dirname, "../..")
 /** Same origin Vite proxies to by default (see ui/vite.config.ts). */
 const PORT = 18876
-const COMPILED_UI = join(ROOT, "ui", "dist")
 
 async function startCandidateApi(running?: { job: Record<string, unknown>; progress: Record<string, unknown> }) {
   const root = mkdtempSync(join(tmpdir(), "ci-queue-timing-int-"))
@@ -162,8 +161,8 @@ function compiledUiHash(root: string): string {
   return directorySha256(root, "bundle compilado da UI")
 }
 
-function compileCandidateUi(): string {
-  const result = spawnSync("npm", ["--prefix", join(ROOT, "ui"), "run", "build"], {
+function compileCandidateUi(output: string): string {
+  const result = spawnSync("npm", ["--prefix", join(ROOT, "ui"), "run", "build", "--", "--outDir", output, "--emptyOutDir"], {
     cwd: ROOT,
     encoding: "utf8",
     timeout: 120_000,
@@ -171,7 +170,7 @@ function compileCandidateUi(): string {
   if (result.status !== 0) {
     throw new Error(`build da UI candidata falhou: ${result.stderr || result.stdout}`)
   }
-  return compiledUiHash(COMPILED_UI)
+  return compiledUiHash(output)
 }
 
 async function waitFor(predicate: () => boolean, label: string, timeoutMs = 10_000): Promise<void> {
@@ -295,7 +294,7 @@ function contentType(path: string): string {
   return "text/html; charset=utf-8"
 }
 
-async function startCompiledUi(apiOrigin: string) {
+async function startCompiledUi(bundleRoot: string, apiOrigin: string) {
   const server = createServer((request, response) => {
     const requestUrl = request.url ?? "/"
     const pathname = new URL(requestUrl, "http://127.0.0.1").pathname
@@ -312,10 +311,10 @@ async function startCompiledUi(apiOrigin: string) {
       request.pipe(upstream)
       return
     }
-    const candidate = resolve(COMPILED_UI, `.${pathname}`)
-    const path = candidate.startsWith(`${COMPILED_UI}${sep}`) && existsSync(candidate) && statSync(candidate).isFile()
+    const candidate = resolve(bundleRoot, `.${pathname}`)
+    const path = candidate.startsWith(`${bundleRoot}${sep}`) && existsSync(candidate) && statSync(candidate).isFile()
       ? candidate
-      : join(COMPILED_UI, "index.html")
+      : join(bundleRoot, "index.html")
     response.writeHead(200, { "content-type": contentType(path) })
     response.end(readFileSync(path))
   })
@@ -388,11 +387,15 @@ test("R06 real API+UI shows emitter, collector approx, and legacy em dash", asyn
 })
 
 test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 durable history in compiled UI", async ({ page }, testInfo) => {
+  const dedicatedRunner = process.env.C03_DEDICATED === "1"
   const producerRoot = process.env.C03_DIETFLOW_ROOT
   const expectedProducerHead = process.env.C03_DIETFLOW_HEAD
   const expectedConsumerHead = process.env.C03_CI_QUEUE_HEAD
-  test.skip(!producerRoot || !expectedProducerHead || !expectedConsumerHead, "C03 exige roots e SHAs explícitos no ticket dedicado")
-  if (!producerRoot || !expectedProducerHead || !expectedConsumerHead) return
+  test.skip(!dedicatedRunner, "C03 só executa pelo runner dedicado")
+  if (!dedicatedRunner) return
+  if (!producerRoot || !expectedProducerHead || !expectedConsumerHead) {
+    throw new Error("runner C03 dedicado exige C03_DIETFLOW_ROOT, C03_DIETFLOW_HEAD e C03_CI_QUEUE_HEAD")
+  }
 
   const producer = join(producerRoot, "scripts/__tests__/fixtures/pw-observe/c03-producer.sh")
   expect(existsSync(producer)).toBe(true)
@@ -406,6 +409,7 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
   const gate = join(temporaryRoot, "release.fifo")
   const ready = join(temporaryRoot, "producer-ready")
   const artifacts = join(temporaryRoot, "playwright-output")
+  const bundle = join(temporaryRoot, "compiled-ui")
   const previousGate = process.env.C03_GATE_PATH
   const previousReady = process.env.C03_READY_PATH
   const previousArtifacts = process.env.C03_ARTIFACT_DIR
@@ -416,36 +420,37 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
   let gateReleased = false
   let ticket: ReturnType<typeof enqueueExplicitTicket> | undefined
   const timeline: Record<string, string> = { createdAt: new Date().toISOString() }
-
-  execFileSync("mkfifo", [gate])
-  mkdirSync(join(state, "state"), { recursive: true })
-  writeFileSync(
-    join(state, "state", "projects.json"),
-    JSON.stringify({
-      schemaVersion: 1,
-      revision: 1,
-      bootstrapProjectId: "dietflow-c03",
-      projects: {
-        "dietflow-c03": {
-          id: "dietflow-c03",
-          displayName: "DietFlow C03 producer",
-          repositoryPath: producerRoot,
-          gitCommonDir: null,
-          configPath: null,
-          archivedAt: null,
-          revision: 1,
-          createdAt: timeline.createdAt,
-          updatedAt: timeline.createdAt,
-        },
-      },
-    }),
-  )
-  process.env.C03_GATE_PATH = gate
-  process.env.C03_READY_PATH = ready
-  process.env.C03_ARTIFACT_DIR = artifacts
+  let testBodyFailed = false
 
   try {
-    ticket = enqueueExplicitTicket({
+    execFileSync("mkfifo", [gate])
+    mkdirSync(join(state, "state"), { recursive: true })
+    writeFileSync(
+      join(state, "state", "projects.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        revision: 1,
+        bootstrapProjectId: "dietflow-c03",
+        projects: {
+          "dietflow-c03": {
+            id: "dietflow-c03",
+            displayName: "DietFlow C03 producer",
+            repositoryPath: producerRoot,
+            gitCommonDir: null,
+            configPath: null,
+            archivedAt: null,
+            revision: 1,
+            createdAt: timeline.createdAt,
+            updatedAt: timeline.createdAt,
+          },
+        },
+      }),
+    )
+    process.env.C03_GATE_PATH = gate
+    process.env.C03_READY_PATH = ready
+    process.env.C03_ARTIFACT_DIR = artifacts
+
+    const c03Ticket = enqueueExplicitTicket({
       recipe: "c03-q2q3",
       argv: ["/bin/bash", producer],
       projectId: "dietflow-c03",
@@ -455,6 +460,7 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
       flags: { progressEnabled: true },
       requestedBy: "c03-browser-proof",
     })
+    ticket = c03Ticket
     timeline.enqueuedAt = new Date().toISOString()
     worker = runWorker(state).finally(() => { workerSettled = true })
 
@@ -465,15 +471,15 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
     expect(discovery.caseIds).toHaveLength(7)
 
     api = await startApiForState(state, await reservePort())
-    const bundleSha256 = compileCandidateUi()
-    ui = await startCompiledUi(api.url)
+    const bundleSha256 = compileCandidateUi(bundle)
+    ui = await startCompiledUi(bundle, api.url)
 
     const liveResponse = await page.request.get(`${api.url}/api/status?context=all&view=live`)
     expect(liveResponse.status()).toBe(200)
     const live = await liveResponse.json() as {
       running?: { id?: string; progressSummary?: { planned?: Array<Record<string, unknown>> } }
     }
-    expect(live.running?.id).toBe(ticket.id)
+    expect(live.running?.id).toBe(c03Ticket.id)
     expect(live.running?.progressSummary?.planned).toMatchObject([
       { rootId: "e2e", id: "playwright", detail: { completed: 0, total: 7, pending: 7 } },
     ])
@@ -487,14 +493,14 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
     await waitFor(() => releaseGate(gate), "leitor da barreira FIFO", 1_000)
     gateReleased = true
     timeline.releasedAt = new Date().toISOString()
-    await expect(worker).resolves.toMatchObject({ processed: [ticket.id], busy: false })
+    await expect(worker).resolves.toMatchObject({ processed: [c03Ticket.id], busy: false })
     timeline.terminalAt = new Date().toISOString()
 
-    const history = listHistoryJobs(state).find((job) => job.id === ticket.id)
-    expect(history).toMatchObject({ id: ticket.id, status: "passed", exitCode: 0 })
+    const history = listHistoryJobs(state).find((job) => job.id === c03Ticket.id)
+    expect(history).toMatchObject({ id: c03Ticket.id, status: "passed", exitCode: 0 })
     const playwright = history?.progress?.nodes?.find((node) => node.id === "playwright")
     expect(playwright?.detail).toMatchObject({ completed: 7, total: 7, passed: 7, failed: 0, pending: 0 })
-    expect(existsSync(progressPath(state, ticket.id))).toBe(false)
+    expect(existsSync(progressPath(state, c03Ticket.id))).toBe(false)
 
     await page.reload()
     await page.getByRole("button", { name: "c03-q2q3", exact: true }).click()
@@ -502,7 +508,7 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
 
     await testInfo.attach("c03-same-ticket-receipt.json", {
       body: JSON.stringify({
-        ticketId: ticket.id,
+        ticketId: c03Ticket.id,
         producer: {
           root: producerRoot,
           headSha: producerHead,
@@ -515,33 +521,81 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
           compiledBundleSha256: bundleSha256,
         },
         state: "temporary",
+        testExecuted: true,
         runtime: history?.runtime,
-        command: ticket.argv,
+        command: c03Ticket.argv,
         timeline,
       }, null, 2),
       contentType: "application/json",
     })
+  } catch (error) {
+    testBodyFailed = true
+    throw error
   } finally {
+    const cleanupErrors: Error[] = []
+    const rememberCleanupError = (step: string, error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      cleanupErrors.push(new Error(`${step}: ${message}`))
+    }
+
     if (worker && !workerSettled) {
       if (!gateReleased) {
-        await waitFor(() => workerSettled || releaseGate(gate), "leitor da barreira FIFO no cleanup", 1_000)
-        gateReleased = !workerSettled
+        try {
+          await waitFor(() => workerSettled || releaseGate(gate), "leitor da barreira FIFO no cleanup", 1_000)
+          gateReleased = !workerSettled
+        } catch (error) {
+          rememberCleanupError("liberação da barreira FIFO", error)
+        }
       }
       try {
         await settleWithin(worker, "término do worker C03", 10_000)
-      } catch {
-        if (ticket) await cancelQueuedOrRunningTicket(state, ticket.id)
-        await settleWithin(worker, "término cancelado do worker C03", 10_000)
+      } catch (error) {
+        rememberCleanupError("término inicial do worker C03", error)
+        if (ticket) {
+          try {
+            await cancelQueuedOrRunningTicket(state, ticket.id)
+          } catch (cancelError) {
+            rememberCleanupError("cancelamento do worker C03", cancelError)
+          }
+        }
+        try {
+          await settleWithin(worker, "término cancelado do worker C03", 10_000)
+        } catch (settleError) {
+          rememberCleanupError("término cancelado do worker C03", settleError)
+        }
       }
     }
-    if (ui) await ui.stop()
-    if (api) await api.stop()
+    if (ui) {
+      try {
+        await ui.stop()
+      } catch (error) {
+        rememberCleanupError("encerramento da UI C03", error)
+      }
+    }
+    if (api) {
+      try {
+        await api.stop()
+      } catch (error) {
+        rememberCleanupError("encerramento da API C03", error)
+      }
+    }
     if (previousGate === undefined) delete process.env.C03_GATE_PATH
     else process.env.C03_GATE_PATH = previousGate
     if (previousReady === undefined) delete process.env.C03_READY_PATH
     else process.env.C03_READY_PATH = previousReady
     if (previousArtifacts === undefined) delete process.env.C03_ARTIFACT_DIR
     else process.env.C03_ARTIFACT_DIR = previousArtifacts
-    rmSync(temporaryRoot, { recursive: true, force: true })
+    if (!worker || workerSettled) {
+      try {
+        rmSync(temporaryRoot, { recursive: true, force: true })
+      } catch (error) {
+        rememberCleanupError("remoção do estado temporário C03", error)
+      }
+    } else {
+      cleanupErrors.push(new Error(`worker C03 permanece ativo; estado temporário preservado em ${temporaryRoot}`))
+    }
+    if (cleanupErrors.length > 0 && !testBodyFailed) {
+      throw new AggregateError(cleanupErrors, "cleanup C03 incompleto")
+    }
   }
 })
