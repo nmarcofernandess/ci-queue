@@ -1,10 +1,15 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
+import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test'
 import { fixtureJob, fixtureTerminals, fixtureTrees, installConsistencyFixtures } from './fixtures/ui-consistency'
 
 const capture = process.env.CI_QUEUE_CAPTURE_TABLE_LAYOUT === '1'
 
 async function shot(page: Page, path: string) {
   if (capture) await page.screenshot({ path, animations: 'disabled', scale: 'device' })
+}
+
+async function recordViewport(testInfo: TestInfo, name: string, sample: Record<string, number>) {
+  await writeFile(testInfo.outputPath(`${name}.json`), JSON.stringify(sample, null, 2))
 }
 
 async function columnAlignment(table: Locator) {
@@ -77,9 +82,11 @@ for (const { width, zoom } of layoutScenarios) {
         innerHeight: cssViewport.height,
         devicePixelRatio: zoom,
       })
-      await testInfo.attach(`viewport-${width}-${theme}-zoom-${zoom * 100}.json`, {
-        body: JSON.stringify({ physicalViewport: { width, height: 900 }, zoomPercent: zoom * 100, ...viewport }, null, 2),
-        contentType: 'application/json',
+      await recordViewport(testInfo, `viewport-${width}-${theme}-zoom-${zoom * 100}`, {
+        physicalWidth: width,
+        physicalHeight: 900,
+        zoomPercent: zoom * 100,
+        ...viewport,
       })
       const longBranch = 'feature/a-long-branch-name-that-stays-readable-until-the-column-is-full'
       const longWorktree = 'a-worktree-directory-name-that-needs-more-than-eleven-rem'
