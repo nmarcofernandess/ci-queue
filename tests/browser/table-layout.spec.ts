@@ -35,7 +35,6 @@ for (const { width, zoom } of layoutScenarios) {
     test(`tables keep content and actions usable at ${width}px and ${zoom * 100}% in ${theme}`, async ({ page }, testInfo) => {
       test.setTimeout(30_000)
       await page.setViewportSize({ width, height: 900 })
-      if (zoom > 1) await page.evaluate((value) => { document.documentElement.style.zoom = String(value) }, zoom)
       const longBranch = 'feature/a-long-branch-name-that-stays-readable-until-the-column-is-full'
       const longWorktree = 'a-worktree-directory-name-that-needs-more-than-eleven-rem'
       await installConsistencyFixtures(page, {
@@ -51,6 +50,7 @@ for (const { width, zoom } of layoutScenarios) {
       })
 
       await page.goto('/#status')
+      if (zoom > 1) await page.evaluate((value) => { document.documentElement.style.zoom = String(value) }, zoom)
       const history = page.getByRole('table', { name: 'Execuções' }).last()
       await expect(history.getByRole('button', { name: 'smoketest', exact: true })).toBeVisible()
       const flaky = history.getByRole('row').filter({ has: page.getByRole('button', { name: 'smoketest', exact: true }) })
@@ -79,6 +79,7 @@ for (const { width, zoom } of layoutScenarios) {
       await shot(page, testInfo.outputPath(`history-${width}-${theme}${zoomSuffix}.png`))
 
       await page.goto('/#worktrees')
+      if (zoom > 1) await page.evaluate((value) => { document.documentElement.style.zoom = String(value) }, zoom)
       const worktrees = page.getByRole('table', { name: 'Worktrees' })
       const row = worktrees.getByRole('row').filter({ has: page.getByRole('button', { name: longWorktree, exact: true }) })
       const tableScroll = worktrees.locator('..')
