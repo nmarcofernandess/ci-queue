@@ -37,6 +37,7 @@ import {
 } from "./presentation"
 import { ProjectChip } from "./project-chip"
 import { projectChipFacts } from "./project-chip-model"
+import { RunVariantBadge } from "./run-variant-badge"
 import {
   Popover,
   PopoverContent,
@@ -541,7 +542,10 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
             : undefined
         }
         badge={
-          job.data ? (
+          job.data &&
+          (job.data.projectName ||
+            job.data.runVariant ||
+            job.data.recordKind === "observed-execution") ? (
             <>
               {job.data.recordKind === "observed-execution" ? (
                 <Tooltip>
@@ -559,6 +563,7 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
                   facts={projectChipFacts(job.data)}
                 />
               ) : null}
+              <RunVariantBadge runVariant={job.data.runVariant} />
             </>
           ) : undefined
         }

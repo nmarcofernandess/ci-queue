@@ -9,6 +9,9 @@ import {
 } from "@/components/ui/item"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import {
+  stageContextDescription,
+} from "./progress-detail"
 import { ProgressDuration } from "./progress-duration"
 import { describeProgressState } from "./presentation"
 import { StatusIndicator } from "./status-indicator"
@@ -16,9 +19,13 @@ import { StatusIndicator } from "./status-indicator"
 export function ExecutionStages({
   stages,
   jobStatus,
+  active = [],
+  planned = [],
 }: {
   stages: readonly ProgressNode[]
   jobStatus: JobStatus | undefined
+  active?: readonly ProgressNode[]
+  planned?: readonly (ProgressNode & { rootId: string })[]
 }) {
   const root = React.useRef<HTMLDivElement>(null)
   const following = React.useRef(true)
@@ -100,7 +107,9 @@ export function ExecutionStages({
                   {stage.label}
                 </ItemTitle>
                 <ItemDescription className="text-xs">
-                  <ProgressDuration node={stage} jobStatus={jobStatus} />
+                  {stageContextDescription(stage, active, planned) ?? (
+                    <ProgressDuration node={stage} jobStatus={jobStatus} />
+                  )}
                 </ItemDescription>
               </ItemContent>
             </Item>

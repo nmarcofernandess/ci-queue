@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { ElapsedItem } from "@/features/shared/live-time"
 import { ProjectChip } from "@/features/shared/project-chip"
 import { projectChipFacts } from "@/features/shared/project-chip-model"
+import { RunVariantBadge } from "@/features/shared/run-variant-badge"
 import * as React from "react"
 
 import { useProjectContext } from "@/features/projects/project-context"
@@ -143,7 +144,7 @@ function CurrentExecution({
               </>
             }
             badge={
-              current.projectName || flaky ? (
+              current.projectName || flaky || current.runVariant ? (
                 <>
                   {current.projectName ? (
                     <ProjectChip
@@ -151,6 +152,7 @@ function CurrentExecution({
                       facts={projectChipFacts(current)}
                     />
                   ) : null}
+                  <RunVariantBadge runVariant={current.runVariant} />
                   {flaky ? (
                     <Badge variant="outline">Flaky detectado</Badge>
                   ) : null}
@@ -166,6 +168,8 @@ function CurrentExecution({
               key={current.id}
               stages={stages}
               jobStatus={current.status}
+              active={current.progressSummary?.active ?? []}
+              planned={current.progressSummary?.planned ?? []}
             />
           ) : null}
           <ElapsedItem

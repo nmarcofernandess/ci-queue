@@ -9,6 +9,7 @@ import {
   API_VERSION,
   normalizeTicketFlags,
   parseRequestContext,
+  parseRunVariant,
   type CliFailure,
   type CliResult,
   type CliSuccess,
@@ -22,6 +23,7 @@ import { enqueueExplicitTicket, enqueueTicket } from "./core/enqueue.js"
 import { runWorker } from "./core/worker.js"
 import { findJobById, listHistoryJobs, listQueuedJobs, readRunningJob, resolveStateRoot } from "./core/state.js"
 import { buildPresetHistory } from "./core/preset-history.js"
+import { attachProgressToTicket, PROGRESS_Q2Q3_CAPABILITY } from "./core/progress.js"
 import { listAdvisories, upsertAdvisory } from "./core/advisories.js"
 import { evaluateExecutionEntry, EXECUTION_ENTRY_GUARD_CAPABILITY } from "./core/execution-entry.js"
 import {
@@ -79,7 +81,7 @@ function splitExtra(args: string[]): string[] {
 }
 
 function enqueuePreset(args: string[]): string | undefined {
-  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--flags-json", "--timeout-ms", "--request-context"])
+  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--flags-json", "--timeout-ms", "--request-context", "--run-variant"])
   for (let index = 0; index < args.length; index += 1) {
     const value = args[index]
     if (value === "--") return undefined
@@ -161,7 +163,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
       }
       case "observe": {
@@ -256,6 +258,23 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           if (!requestContext) return failure("USAGE", "--request-context não respeita o contrato de identificadores")
         }
         if (recipe && !args.cwd) return failure("USAGE", "--cwd absoluto é obrigatório com --recipe")
+        const runVariantRaw = optionValue(args.rest, "--run-variant")
+        if (args.rest.includes("--run-variant") && runVariantRaw === undefined) {
+          return failure("USAGE", "--run-variant requer focal ou custom")
+        }
+        if (!recipe && runVariantRaw !== undefined) {
+          return failure("USAGE", "--run-variant exige --recipe; o preset não declara a descoberta do consumidor")
+        }
+        let runVariant: ReturnType<typeof parseRunVariant>
+        if (runVariantRaw !== undefined) {
+          try {
+            runVariant = parseRunVariant(runVariantRaw)
+          } catch (error) {
+            return failure("USAGE", error instanceof Error ? error.message : String(error))
+          }
+        } else {
+          runVariant = undefined
+        }
         const ticket = recipe
           ? enqueueExplicitTicket({
             recipe,
@@ -268,6 +287,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
             ...(optionValue(args.rest, "--artifacts-json") ? { artifacts: parseJsonArray(optionValue(args.rest, "--artifacts-json"), "--artifacts-json") } : {}),
             ...(optionValue(args.rest, "--flags-json") ? { flags: parseFlags(optionValue(args.rest, "--flags-json")) } : {}),
             requestContext,
+            ...(runVariant ? { runVariant } : {}),
           })
           : enqueueTicket({ preset: preset!, stateRoot: root, cwd: args.cwd, configPath: args.configPath, extraArgs: splitExtra(args.rest), requestContext })
         if (args.rest.includes("--wait")) {
@@ -281,8 +301,10 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
       }
       case "worker":
         return success(await runWorker(root))
-      case "status":
-        return success({ running: readRunningJob(root) ?? null, queued: listQueuedJobs(root), latest: listHistoryJobs(root)[0] ?? null })
+      case "status": {
+        const running = readRunningJob(root)
+        return success({ running: running ? attachProgressToTicket(root, running) : null, queued: listQueuedJobs(root), latest: listHistoryJobs(root)[0] ?? null })
+      }
       case "history": {
         const projectId = optionValue(args.rest, "--project")
         if (args.rest.includes("--include-observed")) {

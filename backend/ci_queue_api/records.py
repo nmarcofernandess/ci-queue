@@ -29,7 +29,7 @@ PAGE_SIZE = 50
 PUBLIC_JOB_FIELDS = (
     "id", "projectId", "projectName", "preset", "status", "exitCode", "branch", "headSha",
     "createdAt", "startedAt", "finishedAt", "durationMs", "cwd", "failureReason",
-    "cleanupBlockedReason", "commitSubject",
+    "cleanupBlockedReason", "commitSubject", "runVariant",
     "recordKind", "executor", "executionId", "logAvailability",
 )
 
@@ -178,6 +178,8 @@ def progress_summary(job, progress=None):
     if not isinstance(job, dict):
         return job
     raw = progress if progress is not None else job.get("progress")
+    if isinstance(raw, dict) and raw.get("runVariant") == "focal":
+        job = {**job, "runVariant": "focal"}
     nodes = raw.get("nodes") if isinstance(raw, dict) else None
     if not isinstance(nodes, list) or not nodes:
         return job
@@ -237,12 +239,42 @@ def progress_summary(job, progress=None):
         retry_count = node.get("retryCount")
         if type(retry_count) is int and retry_count >= 0:
             result["retryCount"] = retry_count
+        if node.get("inventoryReplaced") is True:
+            result["inventoryReplaced"] = True
         return result
-    active = [node for node in known.values() if node.get("status") == "running"] if job.get("status") == "running" else []
+    active = []
+    planned = []
+    if job.get("status") == "running":
+        structural_kinds = {"stage", "group", "suite"}
+        for node in known.values():
+            if node.get("status") == "running" and node.get("kind") in structural_kinds:
+                active.append(node)
+                if len(active) >= 32:
+                    break
+        for node in known.values():
+            if node.get("status") != "pending" or node.get("kind") not in structural_kinds:
+                continue
+            projected = public(node)
+            if not isinstance(projected.get("detail"), dict):
+                continue
+            root = node
+            while root.get("parentId") in known:
+                root = known[root["parentId"]]
+            if root["id"] == node["id"]:
+                continue
+            planned.append({**projected, "rootId": root["id"]})
+            if len(planned) >= 32:
+                break
+    retry_summary = raw.get("retrySummary") if isinstance(raw, dict) else None
+    has_omitted_retries = (isinstance(retry_summary, dict) and any(
+        type(count) is int and count > 0 for count in retry_summary.values()))
+    has_visible_retries = any(type(node.get("retryCount")) is int and node["retryCount"] > 0 for node in known.values())
     return {**job, "progressSummary": {"schemaVersion": 1, "available": True,
                                          "nodes": [public(node) for node in known.values()],
                                          "roots": [public(node) for node in roots],
-                                         "active": [public(node) for node in active]}}
+                                         "active": [public(node) for node in active],
+                                         "planned": planned},
+            "hasRetries": has_omitted_retries or has_visible_retries}
 
 
 def public_job(job):
@@ -270,7 +302,7 @@ def public_job(job):
     progress = job.get("progressSummary")
     nodes = progress.get("nodes") if isinstance(progress, dict) else None
     if isinstance(nodes, list):
-        result["hasRetries"] = any(
+        result["hasRetries"] = bool(job.get("hasRetries")) or any(
             type(node.get("retryCount")) is int and node["retryCount"] > 0
             for node in nodes if isinstance(node, dict)
         )
@@ -414,7 +446,7 @@ def _status_body(state_root, project, history_rows, running, queued, other_occup
             summary = payload["running"].get("progressSummary")
             if isinstance(summary, dict):
                 payload["running"]["progressSummary"] = {
-                    key: summary[key] for key in ("schemaVersion", "available", "reason", "roots") if key in summary
+                    key: summary[key] for key in ("schemaVersion", "available", "reason", "roots", "active", "planned") if key in summary
                 }
     return payload
 

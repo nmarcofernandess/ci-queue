@@ -8,7 +8,7 @@ const ROOT = join(import.meta.dirname, "../..")
 /** Same origin Vite proxies to by default (see ui/vite.config.ts). */
 const PORT = 18876
 
-async function startCandidateApi() {
+async function startCandidateApi(running?: { job: Record<string, unknown>; progress: Record<string, unknown> }) {
   const root = mkdtempSync(join(tmpdir(), "ci-queue-timing-int-"))
   const state = join(root, "state-root")
   mkdirSync(join(state, "history"), { recursive: true })
@@ -90,6 +90,11 @@ async function startCandidateApi() {
       },
     }),
   )
+  if (running) {
+    mkdirSync(join(state, "progress"), { recursive: true })
+    writeFileSync(join(state, "running.json"), JSON.stringify(running.job))
+    writeFileSync(join(state, "progress", `${running.job.id}.json`), JSON.stringify(running.progress))
+  }
   const env = { ...process.env }
   delete env.CI_QUEUE_STATE_DIR
   const child: ChildProcess = spawn(
@@ -124,6 +129,35 @@ async function startCandidateApi() {
 }
 
 test.describe.configure({ mode: "serial" })
+
+test("Q2/Q3 real API+UI shows the planned Playwright 0/7 while Next runs", async ({ page }) => {
+  const detail = { kind: "cases", completed: 0, total: 7, passed: 0, failed: 0, running: 0, pending: 7, skipped: 0 }
+  const api = await startCandidateApi({
+    job: {
+      id: "planned-demo", projectId: "demo", projectName: "Timing Demo", preset: "full",
+      status: "running", createdAt: "2026-09-17T12:00:00Z", startedAt: "2026-09-17T12:00:01Z",
+      branch: "dev", headSha: "d".repeat(40), flags: { progressEnabled: true },
+    },
+    progress: { schema: 1, updatedAt: "2026-09-17T12:00:02Z", nodes: [
+      { id: "e2e", label: "E2E", kind: "stage", status: "running" },
+      { id: "next", parentId: "e2e", label: "Next", kind: "stage", status: "running" },
+      { id: "playwright", parentId: "e2e", label: "Playwright", kind: "stage", status: "pending", detail },
+    ] },
+  })
+  try {
+    const response = await page.request.get("/api/status?context=all&view=live")
+    expect(response.status()).toBe(200)
+    const payload = await response.json()
+    expect(payload.running.progressSummary.planned).toMatchObject([{ rootId: "e2e", id: "playwright", detail }])
+    await page.addInitScript(() => localStorage.setItem("ci-queue.lastProjectId", "demo"))
+    await page.goto("/?projectId=demo")
+    await expect(page.getByText("Next · Playwright: 0 de 7")).toBeVisible({ timeout: 10_000 })
+    await page.getByRole("button", { name: "full", exact: true }).click()
+    await expect(page.getByRole("dialog").getByText("0 de 7")).toBeVisible()
+  } finally {
+    api.stop()
+  }
+})
 
 test("R06 real API+UI shows emitter, collector approx, and legacy em dash", async ({ page }) => {
   // No page.route / route.fulfill on proof endpoints — Vite proxies to candidata API.

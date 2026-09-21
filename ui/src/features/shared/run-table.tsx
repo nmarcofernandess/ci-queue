@@ -6,6 +6,7 @@ import { InspectButton } from "./inspect-button"
 import { RelativeTime, JobDuration, QueueWait } from "./live-time"
 import { ProjectChip } from "./project-chip"
 import { projectChipFacts, projectChipVisible } from "./project-chip-model"
+import { RunVariantBadge } from "./run-variant-badge"
 import * as React from "react"
 import {
   createColumnHelper,
@@ -119,7 +120,8 @@ function identityBadge(
   )
   const chipVisible = projectChipVisible(job, chip)
   const observed = job.recordKind === "observed-execution"
-  if (!flaky && !chipVisible && !observed) {
+  const variant = <RunVariantBadge runVariant={job.runVariant} />
+  if (!flaky && !chipVisible && !observed && !job.runVariant) {
     return undefined
   }
   return (
@@ -137,6 +139,7 @@ function identityBadge(
       {chipVisible && job.projectName ? (
         <ProjectChip name={job.projectName} facts={projectChipFacts(job)} />
       ) : null}
+      {variant}
       {flaky ? <Badge variant="outline">Flaky detectado</Badge> : null}
     </>
   )
