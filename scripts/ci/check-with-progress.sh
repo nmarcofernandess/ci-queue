@@ -35,6 +35,6 @@ run_stage() {
 }
 
 run_stage build Build build
-run_stage test Test test
+run_stage test Test test:prepared
 run_stage check-ui "Check UI" check:ui
 run_stage browser Browser test:browser

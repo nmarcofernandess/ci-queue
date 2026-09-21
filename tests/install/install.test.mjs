@@ -26,6 +26,7 @@ function sourceFixture() {
     "docs/INSTALL.md",
     "scripts/ci/verify-local-attestation.sh",
     "scripts/ci/check-with-progress.sh",
+    "scripts/ci/test-suite.sh",
     "scripts/progress-emit.sh",
     "templates/github/ci-queue-verdict.yml",
   ]) {
