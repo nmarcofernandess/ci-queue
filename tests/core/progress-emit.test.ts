@@ -9,7 +9,7 @@ import { parseProgressLine } from "../../src/core/progress.js"
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const helper = join(repoRoot, "scripts/progress-emit.sh")
 const wrapper = join(repoRoot, "scripts/ci/check-with-progress.sh")
-const STAGES = ["build", "test", "check:ui", "test:browser"] as const
+const STAGES = ["build", "test:prepared", "check:ui", "test:browser"] as const
 
 const cleanup: string[] = []
 afterEach(() => {
@@ -60,8 +60,27 @@ exit 0
   return { dir, log, vitestLog }
 }
 
+function guardState() {
+  const state = tempDir("ci-queue-progress-guard-")
+  writeFileSync(join(state, "running.json"), JSON.stringify({
+    id: "fixture-check",
+    status: "running",
+    projectId: "070e4c47-709b-4fe1-9f98-d80d313a87f4",
+    cwd: repoRoot,
+    preset: "check",
+    argv: ["npm", "run", "check"],
+  }))
+  return state
+}
+
 function wrapperEnv(pathDir: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env, ...extra, PATH: `${pathDir}:${process.env.PATH ?? ""}` }
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    ...extra,
+    PATH: [pathDir, process.env.PATH ?? ""].filter(Boolean).join(":"),
+    CI_QUEUE_STATE_DIR: guardState(),
+    CI_QUEUE_JOB_ID: "fixture-check",
+  }
   delete env.CHECK_WITH_PROGRESS_CMD
   return env
 }
@@ -130,14 +149,14 @@ it("emits failed for the broken stage, keeps that exit code, and skips later sta
     const expectedRan = STAGES.slice(0, STAGES.indexOf(failAt) + 1)
     expect(ran, failAt).toEqual(expectedRan)
     const nodes = parseNodes(result.stdout)
-    const failedId = failAt === "check:ui" ? "check-ui" : failAt === "test:browser" ? "browser" : failAt
+    const failedId = failAt === "test:prepared" ? "test" : failAt === "check:ui" ? "check-ui" : failAt === "test:browser" ? "browser" : failAt
     expect(nodes.filter((event) => event.id === failedId).map((event) => event.status), failAt).toEqual([
       "running",
       "failed",
     ])
     const later = STAGES.slice(STAGES.indexOf(failAt) + 1)
     for (const script of later) {
-      const laterId = script === "check:ui" ? "check-ui" : script === "test:browser" ? "browser" : script
+      const laterId = script === "test:prepared" ? "test" : script === "check:ui" ? "check-ui" : script === "test:browser" ? "browser" : script
       expect(nodes.some((event) => event.id === laterId), `${failAt} leaked ${laterId}`).toBe(false)
     }
   }
@@ -172,6 +191,7 @@ it("points npm run check at the wrapper, keeps catalog argv, and ships both scri
   const release = readFileSync(join(repoRoot, "scripts/release.mjs"), "utf8")
   expect(release).toContain('"scripts/progress-emit.sh"')
   expect(release).toContain('"scripts/ci/check-with-progress.sh"')
+  expect(release).toContain('"scripts/ci/test-suite.sh"')
   expect(readFileSync(wrapper, "utf8")).not.toMatch(/CHECK_WITH_PROGRESS_CMD/)
   expect(readFileSync(join(repoRoot, "package.json"), "utf8")).not.toMatch(/CHECK_WITH_PROGRESS_CMD/)
 })

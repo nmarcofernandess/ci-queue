@@ -31,12 +31,22 @@ function fixture(options: FixtureOptions = {}) {
   const runners = join(root, "runners.log")
   const source = join(root, "source.txt")
   const dist = join(root, "dist.txt")
+  const state = join(root, "state")
   const fakeNpm = join(bin, "npm")
   const fakeNode = join(bin, "node")
   const sourceValue = options.source ?? "source-v2"
   const initialDist = options.initialDist ?? "source-v1"
 
   mkdirSync(bin)
+  mkdirSync(state)
+  writeFileSync(join(state, "running.json"), JSON.stringify({
+    id: "fixture-check",
+    status: "running",
+    projectId: "070e4c47-709b-4fe1-9f98-d80d313a87f4",
+    cwd: repoRoot,
+    preset: "check",
+    argv: ["npm", "run", "check"],
+  }))
   writeFileSync(calls, "")
   writeFileSync(runners, "")
   writeFileSync(source, sourceValue)
@@ -80,11 +90,16 @@ exec ${JSON.stringify(process.execPath)} "$@"
 `)
   chmodSync(fakeNpm, 0o755)
   chmodSync(fakeNode, 0o755)
-  return { root, bin, calls, runners, source, dist }
+  return { root, bin, calls, runners, source, dist, state }
 }
 
 function envFor(f: ReturnType<typeof fixture>): NodeJS.ProcessEnv {
-  return { ...process.env, PATH: `${f.bin}:${process.env.PATH ?? ""}` }
+  return {
+    ...process.env,
+    PATH: `${f.bin}:${process.env.PATH ?? ""}`,
+    CI_QUEUE_STATE_DIR: f.state,
+    CI_QUEUE_JOB_ID: "fixture-check",
+  }
 }
 
 function runCheck(f: ReturnType<typeof fixture>) {
@@ -92,7 +107,7 @@ function runCheck(f: ReturnType<typeof fixture>) {
 }
 
 function calls(f: ReturnType<typeof fixture>) {
-  return readFileSync(f.calls, "utf8").trim().split("\\n").filter(Boolean)
+  return readFileSync(f.calls, "utf8").trim().split("\n").filter(Boolean)
 }
 
 it("uses one fresh build in check while its prepared test body runs the runtime runner", () => {
@@ -112,7 +127,7 @@ it("uses one fresh build in check while its prepared test body runs the runtime 
     "check:ui",
     "test:browser",
   ])
-  expect(readFileSync(f.runners, "utf8")).toBe("runtime-runner\\n")
+  expect(readFileSync(f.runners, "utf8")).toBe("runtime-runner\n")
   expect(readFileSync(f.dist, "utf8")).toBe("source-v2")
   expect(`${result.stdout}\\n${result.stderr}`).not.toContain("nested-runtime-fixture")
 })
@@ -132,7 +147,7 @@ it("keeps the standalone test entry fresh before it runs the same runtime runner
     "test:release",
     "test:install",
   ])
-  expect(readFileSync(f.runners, "utf8")).toBe("runtime-runner\\n")
+  expect(readFileSync(f.runners, "utf8")).toBe("runtime-runner\n")
 })
 
 it("fails the aggregate before runners when the only build fails", () => {
@@ -150,7 +165,7 @@ it("does not consume absent build output and propagates the runtime failure", ()
 
   expect(result.status).toBe(41)
   expect(calls(f)).toEqual(["build", "test:prepared", "test:core"])
-  expect(readFileSync(f.runners, "utf8")).toBe("runtime-runner\\n")
+  expect(readFileSync(f.runners, "utf8")).toBe("runtime-runner\n")
   expect(existsSync(f.dist)).toBe(false)
 })
 
@@ -165,5 +180,5 @@ it("propagates core and runtime failures without running later test populations"
   const runtimeResult = runCheck(runtime)
   expect(runtimeResult.status).toBe(23)
   expect(calls(runtime)).toEqual(["build", "test:prepared", "test:core"])
-  expect(readFileSync(runtime.runners, "utf8")).toBe("runtime-runner\\n")
+  expect(readFileSync(runtime.runners, "utf8")).toBe("runtime-runner\n")
 })

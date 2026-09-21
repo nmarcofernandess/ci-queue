@@ -59,6 +59,7 @@ function productishSource(root) {
     "templates",
     "scripts/ci/verify-local-attestation.sh",
     "scripts/ci/check-with-progress.sh",
+    "scripts/ci/test-suite.sh",
     "scripts/progress-emit.sh",
     "scripts/install.mjs",
     "scripts/release.mjs",
