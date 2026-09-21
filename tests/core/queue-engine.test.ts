@@ -183,6 +183,7 @@ describe("queue lifecycle", () => {
     expect(terminal).toMatchObject({
       id: ticket.id,
       status: "failed",
+      exitCode: 1,
       failureReason: expect.stringContaining("não foi possível ler o estado Git pós-job"),
       preflight: expect.objectContaining({ statusShort: "" }),
     })
