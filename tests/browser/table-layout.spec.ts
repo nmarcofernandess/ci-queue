@@ -75,12 +75,27 @@ for (const width of [1440, 820, 390]) {
         expect(branch.x).toBeLessThan(container.x + container.width - 150)
       }
       await shot(page, testInfo.outputPath(`worktrees-initial-${width}-${theme}.png`))
-      await tableScroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
-      await expect(row.getByRole('button', { name: longWorktree, exact: true })).toBeInViewport()
-      await expect(row.getByRole('checkbox')).toBeInViewport()
+      await tableScroll.evaluate(element => {
+        element.scrollLeft = Math.floor((element.scrollWidth - element.clientWidth) / 2)
+      })
+      const worktreeName = row.getByRole('button', { name: longWorktree, exact: true })
+      const worktreeCheckbox = row.getByRole('checkbox')
       const worktreeEye = row.getByRole('button', { name: 'Inspecionar' })
+      await expect(worktreeName).toBeInViewport()
+      await expect(worktreeCheckbox).toBeInViewport()
       await expect(worktreeEye).toBeInViewport()
-      await row.getByRole('checkbox').check()
+      const middleHitTargets = await Promise.all([
+        worktreeCheckbox.boundingBox(),
+        worktreeEye.boundingBox(),
+      ])
+      expect(middleHitTargets.every(Boolean)).toBe(true)
+      expect(middleHitTargets[0]!.x + middleHitTargets[0]!.width).toBeLessThanOrEqual(middleHitTargets[1]!.x)
+      await shot(page, testInfo.outputPath(`worktrees-middle-${width}-${theme}.png`))
+      await tableScroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
+      await expect(worktreeName).toBeInViewport()
+      await expect(worktreeCheckbox).toBeInViewport()
+      await expect(worktreeEye).toBeInViewport()
+      await worktreeCheckbox.check()
       await expect(row).toHaveAttribute('data-state', 'selected')
       if (width < 820) expect(await tableScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
