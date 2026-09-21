@@ -175,6 +175,8 @@ export type JobProgress = {
   schema: typeof LOCAL_CI_PROGRESS_SCHEMA
   updatedAt: string | null
   nodes: ProgressNode[]
+  /** Producer-confirmed observational variant; never a proof predicate. */
+  runVariant?: RunVariant
 }
 
 export type RequestContext = {

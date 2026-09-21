@@ -70,6 +70,8 @@ Prefixos: `@@ci-queue-progress` e legado `@@local-ci-progress`. Node tem 9 campo
 
 Counts: inteiros não negativos; `completed = passed + failed + skipped`; `total = completed + running + pending`. Tipos de contagem: gates/suites/cases/artifacts/items. Linhas inválidas ou counts sem nó não são prova. O collector não deduz pai, resultado, total ou duração pela soma dos filhos.
 
+`prefix TAB 1 TAB variant TAB focal` é a confirmação tardia e opcional de um recorte de população pelo produtor durante o próprio ticket. Só o token `focal` é aceito nesse evento: `custom` deve ser declarado no enqueue. O worker associa a linha ao ticket que está executando; o sidecar projeta o badge live e o registro terminal conserva a confirmação. O evento não altera status, contadores, argv ou elegibilidade de ship. Um ticket legado continua sem badge; uma descoberta falha não emite confirmação.
+
 Emissão é cooperativa: worker sobrescreve `LOCAL_CI_PROGRESS_ENABLED` com 1 somente quando a flag persistida é true e informa job id/aliases. Collector ingere linhas independentemente da declaração. API deriva `progressEnabled` top-level de `job.flags.progressEnabled is True`; não expõe flags/argv inteiros. Drawer atual prioriza o aviso se não declarado, mesmo se linhas foram capturadas. Declarado sem nós mostra ausência de publicação; no terminal pode haver apenas Artefatos, o que não prova instrumentação da receita.
 
 Copy de configuração, variante default:

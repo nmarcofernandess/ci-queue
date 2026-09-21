@@ -258,6 +258,12 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         }
         if (recipe && !args.cwd) return failure("USAGE", "--cwd absoluto é obrigatório com --recipe")
         const runVariantRaw = optionValue(args.rest, "--run-variant")
+        if (args.rest.includes("--run-variant") && runVariantRaw === undefined) {
+          return failure("USAGE", "--run-variant requer focal ou custom")
+        }
+        if (!recipe && runVariantRaw !== undefined) {
+          return failure("USAGE", "--run-variant exige --recipe; o preset não declara a descoberta do consumidor")
+        }
         let runVariant: ReturnType<typeof parseRunVariant>
         if (runVariantRaw !== undefined) {
           try {

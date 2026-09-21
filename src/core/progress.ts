@@ -26,7 +26,8 @@ const COUNT_KINDS = new Set<ProgressCountKind>(["gates", "suites", "cases", "art
 
 type NodeEvent = ProgressNodeUpdate & { type: "node" }
 type CountsEvent = ProgressCounts & { type: "counts"; id: string }
-type ProgressEvent = NodeEvent | CountsEvent
+type VariantEvent = { type: "variant"; runVariant: "focal" }
+type ProgressEvent = NodeEvent | CountsEvent | VariantEvent
 
 export function createProgressState(updatedAt: string | null = null): JobProgress {
   return { schema: 1, updatedAt, nodes: [] }
@@ -48,6 +49,9 @@ export function parseProgressLine(line: unknown): ProgressEvent | undefined {
   if (typeof line !== "string") return undefined
   const parts = line.split("\t")
   if ((parts[0] !== PROGRESS_PREFIX && parts[0] !== LEGACY_PROGRESS_PREFIX) || parts[1] !== "1") return undefined
+  if (parts[2] === "variant" && parts.length === 4 && parts[3] === "focal") {
+    return { type: "variant", runVariant: "focal" }
+  }
   if (parts[2] === "node" && parts.length === 9) {
     const [, , , id, parent, rawKind, rawStatus, duration, label] = parts
     const durationMs = duration === "-" || duration === "" ? undefined : nonNegative(duration)
@@ -75,6 +79,7 @@ export function applyProgressLine(
 ): JobProgress {
   const event = parseProgressLine(line)
   if (!event) return state
+  if (event.type === "variant") return { ...state, updatedAt: now, runVariant: event.runVariant }
   if (event.type === "node") {
     const index = state.nodes.findIndex((node) => node.id === event.id)
     const previous = state.nodes[index]
@@ -106,6 +111,7 @@ export function isJobProgress(value: unknown): value is JobProgress {
   if (!value || typeof value !== "object") return false
   const state = value as JobProgress
   return state.schema === 1 && (state.updatedAt === null || typeof state.updatedAt === "string") && Array.isArray(state.nodes)
+    && (state.runVariant === undefined || state.runVariant === "focal")
 }
 
 export function readProgressSnapshot(root: string, id: string): JobProgress | undefined {
@@ -123,7 +129,7 @@ export function removeProgressSnapshot(root: string, id: string): void {
 
 export function attachProgressToTicket<T extends { id: string }>(root: string, ticket: T): T {
   const progress = readProgressSnapshot(root, ticket.id)
-  return progress ? { ...ticket, progress } : ticket
+  return progress ? { ...ticket, progress, ...(progress.runVariant ? { runVariant: progress.runVariant } : {}) } : ticket
 }
 
 export class ProgressLineDecoder {
@@ -188,6 +194,7 @@ export class ProgressCollector {
       schema: this.state.schema,
       updatedAt: this.state.updatedAt,
       nodes: this.state.nodes.map(cloneProgressNode),
+      ...(this.state.runVariant ? { runVariant: this.state.runVariant } : {}),
     }
   }
 

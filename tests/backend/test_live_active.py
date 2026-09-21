@@ -33,6 +33,7 @@ class LiveActiveTests(unittest.TestCase):
             "flags": {"progressEnabled": True},
         }
         progress = {
+            "runVariant": "focal",
             "nodes": [
                 {"id": "e2e", "label": "E2E", "status": "running", "kind": "stage"},
                 {
@@ -72,6 +73,7 @@ class LiveActiveTests(unittest.TestCase):
         (self.root / "progress" / "job-live-1.json").write_text(json.dumps(progress))
 
         payload = status_snapshot_all(self.root, view="live")
+        self.assertEqual(payload["running"]["runVariant"], "focal")
         summary = payload["running"]["progressSummary"]
         self.assertTrue(summary["available"])
         self.assertIn("roots", summary)

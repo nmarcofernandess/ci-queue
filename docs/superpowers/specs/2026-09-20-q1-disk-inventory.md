@@ -1,10 +1,10 @@
 # Q1 disk inventory (no prune)
 
-Date: 2026-09-20  
-Status: INVENTORY_ONLY — **prune is NOT authorized**  
-Cycle: Q2+Q3 observe cut · Q1 satellite  
-Bases: CI Queue `381010175e4e` · DietFlow `a86d66b1af25`  
-Sources: design satellite (`2026-09-20-q2-q3-observe-cut-design.md` § Satellite — Q1 inventory) + evidence package `~/Downloads/CI-QUEUE-Q1-Q3-2026-09-20/` (`RELATORIO-Q1-Q3.md`)  
+Date: 2026-09-20
+Status: INVENTORY_ONLY — **prune is NOT authorized**
+Cycle: Q2+Q3 observe cut · Q1 satellite
+Bases: CI Queue `381010175e4e` · DietFlow `a86d66b1af25`
+Sources: design satellite (`2026-09-20-q2-q3-observe-cut-design.md` § Satellite — Q1 inventory) + evidence package `~/Downloads/CI-QUEUE-Q1-Q3-2026-09-20/` (`RELATORIO-Q1-Q3.md`)
 Operator volume: Data volume ~3–6 Gi free (fluctuating; 98–99% full)
 
 This document is a **metadata map**. No deletions were performed in this cycle. Future prune requires separate operator approval, synthetic-state tests, and preserved hashes for logs/history.

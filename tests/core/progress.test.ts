@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest"
-import { applyProgressLine, createProgressState } from "../../src/core/progress.js"
+import { applyProgressLine, createProgressState, parseProgressLine } from "../../src/core/progress.js"
 
 const marker = (status: string, duration = "-") =>
   ["@@ci-queue-progress", "1", "node", "case:1", "suite:1", "case", status, duration, "Retries"].join("\t")
 
 describe("progress attempts", () => {
+  it("accepts only a producer-confirmed focal upgrade without changing progress counts", () => {
+    const focal = "@@ci-queue-progress\t1\tvariant\tfocal"
+    expect(parseProgressLine(focal)).toEqual({ type: "variant", runVariant: "focal" })
+    expect(parseProgressLine("@@ci-queue-progress\t1\tvariant\tcustom")).toBeUndefined()
+    expect(parseProgressLine("@@ci-queue-progress\t1\tvariant\tfocal\textra")).toBeUndefined()
+    const before = applyProgressLine(createProgressState(), marker("running"))
+    const after = applyProgressLine(before, focal)
+    expect(after.runVariant).toBe("focal")
+    expect(after.nodes).toEqual(before.nodes)
+  })
   it("counts only failed to running transitions within the same node and preserves the terminal fact", () => {
     let progress = createProgressState()
     for (const status of ["running", "failed", "running", "running", "passed"]) {

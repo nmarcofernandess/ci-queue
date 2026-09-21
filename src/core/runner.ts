@@ -305,7 +305,7 @@ function withFinalProgress(
     publishArtifactNode(active, "skipped")
   }
   const progress = active.finalize()
-  return { ...ticket, progress }
+  return { ...ticket, progress, ...(progress.runVariant ? { runVariant: progress.runVariant } : {}) }
 }
 
 function finalProgress(
@@ -451,6 +451,7 @@ export function buildJobEnv(root: string, ticket: QueueTicket): NodeJS.ProcessEn
     CI_QUEUE_PROJECT_ID: ticket.projectId ?? "",
     CI_QUEUE_STATE_DIR: root,
     CI_QUEUE_PRESET: ticket.preset,
+    CI_QUEUE_RUN_VARIANT: ticket.runVariant ?? "",
     // v1 compatibility aliases remain necessary while existing project
     // recipes/proofs migrate to the product-named environment.
     DIETFLOW_CI_QUEUE_DIR: root,

@@ -6,6 +6,7 @@ import { afterEach, describe, it } from "node:test"
 
 import { runCli } from "../../src/cli.ts"
 import { enqueueExplicitTicket } from "../../src/core/enqueue.ts"
+import { attachProgressToTicket, createProgressState, writeProgressSnapshot } from "../../src/core/progress.ts"
 
 const cleanup: string[] = []
 afterEach(() => {
@@ -49,6 +50,18 @@ describe("enqueue runVariant", () => {
     assert.equal(ticket.runVariant, undefined)
   })
 
+  it("promotes a confirmed focal event from the same ticket sidecar", () => {
+    const { project, state } = tempPair()
+    const ticket = enqueueExplicitTicket({
+      recipe: "e2e", argv: [process.execPath, "-e", "process.exit(0)"],
+      projectId: "fixture-project", projectName: "Fixture", cwd: project,
+      stateRoot: state, runVariant: "custom",
+    })
+    writeProgressSnapshot(state, ticket.id, { ...createProgressState(), runVariant: "focal" })
+    assert.equal(attachProgressToTicket(state, ticket).runVariant, "focal")
+    assert.equal(ticket.runVariant, "custom")
+  })
+
   it("rejects unknown --run-variant with USAGE", async () => {
     const { project, state } = tempPair()
     const result = await runCli([
@@ -73,6 +86,15 @@ describe("enqueue runVariant", () => {
     if (result.ok) return
     assert.equal(result.error.code, "USAGE")
     assert.equal(result.error.message, "--run-variant precisa ser custom ou focal")
+  })
+
+  it("rejects a variant without a value or an explicit recipe", async () => {
+    const { project, state } = tempPair()
+    for (const args of [["--run-variant"], ["--run-variant", "focal"]]) {
+      const result = await runCli(["enqueue", "check", "--cwd", project, "--state", state, ...args, "--json"])
+      assert.equal(result.ok, false)
+      if (!result.ok) assert.equal(result.error.code, "USAGE")
+    }
   })
 
   it("accepts --run-variant focal via CLI", async () => {

@@ -178,6 +178,8 @@ def progress_summary(job, progress=None):
     if not isinstance(job, dict):
         return job
     raw = progress if progress is not None else job.get("progress")
+    if isinstance(raw, dict) and raw.get("runVariant") == "focal":
+        job = {**job, "runVariant": "focal"}
     nodes = raw.get("nodes") if isinstance(raw, dict) else None
     if not isinstance(nodes, list) or not nodes:
         return job
