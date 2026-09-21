@@ -405,8 +405,10 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
   const state = join(temporaryRoot, "state")
   const gate = join(temporaryRoot, "release.fifo")
   const ready = join(temporaryRoot, "producer-ready")
+  const artifacts = join(temporaryRoot, "playwright-output")
   const previousGate = process.env.C03_GATE_PATH
   const previousReady = process.env.C03_READY_PATH
+  const previousArtifacts = process.env.C03_ARTIFACT_DIR
   let api: Awaited<ReturnType<typeof startApiForState>> | undefined
   let ui: Awaited<ReturnType<typeof startCompiledUi>> | undefined
   let worker: Promise<Awaited<ReturnType<typeof runWorker>>> | undefined
@@ -440,6 +442,7 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
   )
   process.env.C03_GATE_PATH = gate
   process.env.C03_READY_PATH = ready
+  process.env.C03_ARTIFACT_DIR = artifacts
 
   try {
     ticket = enqueueExplicitTicket({
@@ -537,6 +540,8 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
     else process.env.C03_GATE_PATH = previousGate
     if (previousReady === undefined) delete process.env.C03_READY_PATH
     else process.env.C03_READY_PATH = previousReady
+    if (previousArtifacts === undefined) delete process.env.C03_ARTIFACT_DIR
+    else process.env.C03_ARTIFACT_DIR = previousArtifacts
     rmSync(temporaryRoot, { recursive: true, force: true })
   }
 })
