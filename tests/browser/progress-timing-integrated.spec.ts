@@ -529,6 +529,16 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
     const playwright = history?.progress?.nodes?.find((node) => node.id === "playwright")
     expect(playwright?.detail).toMatchObject({ completed: 7, total: 7, passed: 7, failed: 0, pending: 0 })
     expect(existsSync(progressPath(state, c03Ticket.id))).toBe(false)
+    const terminalHistory = {
+      status: history?.status ?? null,
+      exitCode: history?.exitCode ?? null,
+      progress: history?.progress ?? null,
+    }
+    expect(terminalHistory).toMatchObject({
+      status: "passed",
+      exitCode: 0,
+      progress: { nodes: expect.any(Array) },
+    })
 
     // Persiste a cadeia já observada antes da última asserção visual, para que
     // uma falha de navegação no drawer não apague o ticket/worker/timeline reais.
@@ -549,10 +559,27 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
       state: "temporary",
       testExecuted: true,
       terminalUi: "pending-verification",
-      runtime: history?.runtime,
+      terminalHistory,
+      runtime: {
+        source: "inner temporary CI Queue worker history",
+        observed: history?.runtime ?? "unconfigured",
+      },
       command: c03Ticket.argv,
       timeline,
     }, null, 2))
+    expect(JSON.parse(readFileSync(partialReceiptPath, "utf8"))).toMatchObject({
+      ticketId: c03Ticket.id,
+      testExecuted: true,
+      terminalHistory: {
+        status: "passed",
+        exitCode: 0,
+        progress: { nodes: expect.any(Array) },
+      },
+      runtime: {
+        source: "inner temporary CI Queue worker history",
+        observed: "unconfigured",
+      },
+    })
     await testInfo.attach("c03-same-ticket-receipt.json", {
       path: partialReceiptPath,
       contentType: "application/json",
@@ -570,8 +597,23 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
       ticketId: c03Ticket.id,
       testExecuted: true,
       terminalUi: "verified",
+      terminalHistory,
+      runtime: {
+        source: "inner temporary CI Queue worker history",
+        observed: history?.runtime ?? "unconfigured",
+      },
       timeline,
     }, null, 2))
+    expect(JSON.parse(readFileSync(terminalUiPath, "utf8"))).toMatchObject({
+      ticketId: c03Ticket.id,
+      testExecuted: true,
+      terminalUi: "verified",
+      terminalHistory: {
+        status: "passed",
+        exitCode: 0,
+        progress: { nodes: expect.any(Array) },
+      },
+    })
     await testInfo.attach("c03-terminal-ui.json", {
       path: terminalUiPath,
       contentType: "application/json",
