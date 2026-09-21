@@ -577,7 +577,12 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
       },
       runtime: {
         source: "inner temporary CI Queue worker history",
-        observed: "unconfigured",
+        observed: {
+          capability: "node-runtime-guard-v1",
+          coverage: "unconfigured",
+          state: "unconfigured",
+          observations: expect.any(Array),
+        },
       },
     })
     await testInfo.attach("c03-same-ticket-receipt.json", {
