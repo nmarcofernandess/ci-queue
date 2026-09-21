@@ -18,6 +18,20 @@ async function columnAlignment(table: Locator) {
   }
 }
 
+async function expectActionReachableInTable(page: Page, container: Locator, action: Locator) {
+  const [containerBox, actionBox, viewportHeight] = await Promise.all([
+    container.boundingBox(),
+    action.boundingBox(),
+    page.evaluate(() => window.innerHeight),
+  ])
+
+  expect(containerBox && actionBox).toBeTruthy()
+  expect(actionBox!.x).toBeGreaterThanOrEqual(containerBox!.x)
+  expect(actionBox!.x + actionBox!.width).toBeLessThanOrEqual(containerBox!.x + containerBox!.width)
+  expect(actionBox!.y).toBeGreaterThanOrEqual(0)
+  expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(viewportHeight)
+}
+
 const layoutScenarios = [
   { width: 1600, zoom: 1 },
   { width: 1440, zoom: 1 },
@@ -72,8 +86,9 @@ for (const { width, zoom } of layoutScenarios) {
         const eyeBox = (await eye.boundingBox())!
         expect(revisionBox.x).toBeLessThan(eyeBox.x - 48)
       }
+      await historyScroll.scrollIntoViewIfNeeded()
       await historyScroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
-      await expect(eye).toBeInViewport()
+      await expectActionReachableInTable(page, historyScroll, eye)
       if (width < 820) expect(await historyScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
       await shot(page, testInfo.outputPath(`history-${width}-${theme}${zoomSuffix}.png`))
@@ -90,15 +105,16 @@ for (const { width, zoom } of layoutScenarios) {
         expect(branch.x).toBeLessThan(container.x + container.width - 150)
       }
       await shot(page, testInfo.outputPath(`worktrees-initial-${width}-${theme}${zoomSuffix}.png`))
+      await tableScroll.scrollIntoViewIfNeeded()
       await tableScroll.evaluate(element => {
         element.scrollLeft = Math.floor((element.scrollWidth - element.clientWidth) / 2)
       })
       const worktreeName = row.getByRole('button', { name: longWorktree, exact: true })
       const worktreeCheckbox = row.getByRole('checkbox')
       const worktreeEye = row.getByRole('button', { name: 'Inspecionar' })
-      await expect(worktreeName).toBeInViewport()
-      await expect(worktreeCheckbox).toBeInViewport()
-      await expect(worktreeEye).toBeInViewport()
+      await expectActionReachableInTable(page, tableScroll, worktreeName)
+      await expectActionReachableInTable(page, tableScroll, worktreeCheckbox)
+      await expectActionReachableInTable(page, tableScroll, worktreeEye)
       const middleHitTargets = await Promise.all([
         worktreeCheckbox.boundingBox(),
         worktreeEye.boundingBox(),
@@ -107,9 +123,9 @@ for (const { width, zoom } of layoutScenarios) {
       expect(middleHitTargets[0]!.x + middleHitTargets[0]!.width).toBeLessThanOrEqual(middleHitTargets[1]!.x)
       await shot(page, testInfo.outputPath(`worktrees-middle-${width}-${theme}${zoomSuffix}.png`))
       await tableScroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
-      await expect(worktreeName).toBeInViewport()
-      await expect(worktreeCheckbox).toBeInViewport()
-      await expect(worktreeEye).toBeInViewport()
+      await expectActionReachableInTable(page, tableScroll, worktreeName)
+      await expectActionReachableInTable(page, tableScroll, worktreeCheckbox)
+      await expectActionReachableInTable(page, tableScroll, worktreeEye)
       await worktreeCheckbox.check()
       await expect(row).toHaveAttribute('data-state', 'selected')
       if (width < 820) expect(await tableScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
