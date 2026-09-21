@@ -254,6 +254,70 @@ test('history keeps the loaded query, its next page and an accessible refresh er
   await expect(history.getByRole('button', { name: 'history-a-50', exact: true })).toHaveCount(0)
 })
 
+test('history drops project A rows before a failed project B query', async ({ page }, testInfo) => {
+  testInfo.setTimeout(10_000)
+  const projects = {
+    ...fixtureProjects,
+    projects: [
+      ...fixtureProjects.projects,
+      {
+        ...fixtureProjects.projects[0],
+        id: 'other',
+        displayName: 'Other',
+        repositoryPath: '/other',
+        resolvedRepositoryPath: '/other',
+      },
+    ],
+  }
+  const projectAJob = {
+    ...baseJob,
+    id: 'history-project-a',
+    preset: 'history-project-a',
+    status: 'passed',
+    finishedAt: new Date().toISOString(),
+    durationMs: 62_000,
+  }
+
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/api/executions') {
+      if (url.searchParams.get('projectId') === 'other') {
+        await route.fulfill({ status: 503, json: { error: 'Other history unavailable' } })
+        return
+      }
+      await route.fulfill({
+        json: {
+          jobs: [projectAJob],
+          hasMore: false,
+          nextCursor: null,
+          coverage: { unattributedRecords: 0 },
+        },
+      })
+      return
+    }
+    if (url.pathname === '/api/projects') {
+      await route.fulfill({ json: projects })
+      return
+    }
+    const data: Record<string, unknown> = {
+      '/api/status': { project: { id: 'example', name: 'Example' }, running: null, queued: [], history: [projectAJob], globalOccupancy: false },
+      '/api/session': { csrfToken: 'fixture', canReveal: false },
+      '/api/dashboard-state': { revision: 0, presets: ['smoke'], meta: null, pending: [] },
+      '/api/machine': {},
+      '/api/job': projectAJob,
+    }
+    await route.fulfill({ json: data[url.pathname] ?? {} })
+  })
+
+  await page.goto('/#status')
+  const history = page.getByRole('table', { name: 'Execuções' }).last()
+  await expect(history.getByRole('button', { name: 'history-project-a', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Example', exact: true }).click()
+  await page.getByRole('button', { name: 'Other /other', exact: true }).click()
+  await expect(page.getByText('Other history unavailable', { exact: true })).toBeVisible()
+  await expect(history.getByRole('button', { name: 'history-project-a', exact: true })).toHaveCount(0)
+})
+
 test('worktree selection persists and copy menu exposes only the two formats', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   const trees = ['one', 'two'].map((id, index) => ({ id, path: `/example/${id}`, branch: `branch-${id}`, headSha: 'abcdef12', dirty: index === 0, changedEntries: index === 0 ? 1 : 0, ahead: 0, behind: 0, locked: false, size: { bytes: 1073741824, state: 'ready', observedAt: new Date().toISOString(), error: null } }))
