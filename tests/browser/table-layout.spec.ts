@@ -32,6 +32,22 @@ async function expectActionReachableInTable(page: Page, container: Locator, acti
   expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(viewportHeight)
 }
 
+async function expectTitleReachableBesideAction(page: Page, container: Locator, title: Locator, action: Locator) {
+  const [containerBox, titleBox, actionBox, viewportHeight] = await Promise.all([
+    container.boundingBox(),
+    title.boundingBox(),
+    action.boundingBox(),
+    page.evaluate(() => window.innerHeight),
+  ])
+
+  expect(containerBox && titleBox && actionBox).toBeTruthy()
+  const visibleLeft = Math.max(titleBox!.x, containerBox!.x)
+  const visibleRight = Math.min(titleBox!.x + titleBox!.width, actionBox!.x, containerBox!.x + containerBox!.width)
+  expect(visibleRight - visibleLeft).toBeGreaterThanOrEqual(45)
+  expect(titleBox!.y).toBeGreaterThanOrEqual(0)
+  expect(titleBox!.y + titleBox!.height).toBeLessThanOrEqual(viewportHeight)
+}
+
 const layoutScenarios = [
   { width: 1600, zoom: 1 },
   { width: 1440, zoom: 1 },
@@ -126,7 +142,7 @@ for (const { width, zoom } of layoutScenarios) {
       const worktreeName = row.getByRole('button', { name: longWorktree, exact: true })
       const worktreeCheckbox = row.getByRole('checkbox')
       const worktreeEye = row.getByRole('button', { name: 'Inspecionar' })
-      await expectActionReachableInTable(page, tableScroll, worktreeName)
+      await expectTitleReachableBesideAction(page, tableScroll, worktreeName, worktreeEye)
       await expectActionReachableInTable(page, tableScroll, worktreeCheckbox)
       await expectActionReachableInTable(page, tableScroll, worktreeEye)
       const middleHitTargets = await Promise.all([
@@ -137,7 +153,7 @@ for (const { width, zoom } of layoutScenarios) {
       expect(middleHitTargets[0]!.x + middleHitTargets[0]!.width).toBeLessThanOrEqual(middleHitTargets[1]!.x)
       await shot(page, testInfo.outputPath(`worktrees-middle-${width}-${theme}${zoomSuffix}.png`))
       await tableScroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
-      await expectActionReachableInTable(page, tableScroll, worktreeName)
+      await expectTitleReachableBesideAction(page, tableScroll, worktreeName, worktreeEye)
       await expectActionReachableInTable(page, tableScroll, worktreeCheckbox)
       await expectActionReachableInTable(page, tableScroll, worktreeEye)
       await worktreeCheckbox.check()
