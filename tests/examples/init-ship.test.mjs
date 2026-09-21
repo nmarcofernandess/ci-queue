@@ -1,4 +1,4 @@
-import { spawnSync, execFileSync } from "node:child_process"
+import { spawn, spawnSync, execFileSync } from "node:child_process"
 import {
   chmodSync,
   existsSync,
@@ -21,6 +21,7 @@ const OPERATOR_QUEUE = join(process.env.HOME ?? "", ".local", "state", "local-ci
 const REPO = "acme/app"
 const PR = 12
 const OTHER = "c".repeat(40)
+let buildEnsured = false
 
 const GIT_ENV = (() => {
   const env = {
@@ -59,9 +60,9 @@ function configureRepo(cwd, env) {
 }
 
 function ensureBuild() {
-  if (!existsSync(join(productRoot, "dist", "cli.js"))) {
-    execFileSync("npm", ["run", "build"], { cwd: productRoot, stdio: "pipe" })
-  }
+  if (buildEnsured) return
+  execFileSync("npm", ["run", "build"], { cwd: productRoot, stdio: "pipe" })
+  buildEnsured = true
 }
 
 function parseGhInvocation(argv, stdin) {
@@ -331,6 +332,57 @@ function invoke(args, env, cwd) {
   return { payload, status: result.status ?? 1, stderr: result.stderr }
 }
 
+function invokeAsync(args, env, cwd) {
+  const child = spawn(process.execPath, [cli, ...args, "--json"], {
+    env,
+    cwd,
+    stdio: ["ignore", "pipe", "pipe"],
+  })
+  let stdout = ""
+  let stderr = ""
+  let closed = false
+  const completion = new Promise((resolve) => {
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk
+    })
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk
+    })
+    child.on("close", (status) => {
+      closed = true
+      let payload
+      try {
+        payload = JSON.parse(stdout)
+      } catch {
+        payload = undefined
+      }
+      resolve({ payload, status: status ?? 1, stderr })
+    })
+  })
+  return {
+    child,
+    completion,
+    get closed() {
+      return closed
+    },
+    get stderr() {
+      return stderr
+    },
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function waitFor(predicate, timeoutMs = 2_000) {
+  const deadline = Date.now() + timeoutMs
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error("tempo esgotado aguardando condição")
+    await sleep(10)
+  }
+}
+
 function createFixture(options = {}) {
   ensureBuild()
   const staging = mkdtempSync(join(tmpdir(), "ci-queue-init-ship-"))
@@ -436,24 +488,29 @@ function createFixture(options = {}) {
     })}\n`,
   )
 
-  const enqueue = invoke(["enqueue", "check", "--cwd", clone, "--state", state], env, clone)
-  assert.equal(enqueue.payload.ok, true, JSON.stringify(enqueue.payload))
-  const worker = invoke(["worker", "--state", state], env, clone)
-  assert.equal(worker.payload.ok, true, JSON.stringify(worker.payload))
-  const history = invoke(["history", "--state", state], env, clone)
-  assert.equal(history.payload.ok, true, JSON.stringify(history.payload))
-  const tickets = history.payload.result.jobs
-  assert.equal(tickets.length, 1)
-  const ticket = tickets[0]
-  assert.equal(ticket.status, "passed", JSON.stringify(ticket))
-  assert.equal(ticket.exitCode, 0)
-  assert.deepEqual(ticket.argv, ["node", "./check.mjs"])
-  assert.equal(ticket.headSha, headSha)
-  assert.equal(ticket.preflight?.headSha, headSha)
-  assert.equal(ticket.preflight?.baseSha, baseSha)
-  assert.equal(ticket.preflight?.statusShort, "")
-  assert.equal(ticket.postflight?.headSha, headSha)
-  assert.equal(ticket.postflight?.baseSha, baseSha)
+  let ticket
+  if (options.enqueueInitial !== false) {
+    const enqueue = invoke(["enqueue", "check", "--cwd", clone, "--state", state], env, clone)
+    assert.equal(enqueue.payload.ok, true, JSON.stringify(enqueue.payload))
+    if (options.runWorker !== false) {
+      const worker = invoke(["worker", "--state", state], env, clone)
+      assert.equal(worker.payload.ok, true, JSON.stringify(worker.payload))
+      const history = invoke(["history", "--state", state], env, clone)
+      assert.equal(history.payload.ok, true, JSON.stringify(history.payload))
+      const tickets = history.payload.result.jobs
+      assert.equal(tickets.length, 1)
+      ticket = tickets[0]
+      assert.equal(ticket.status, "passed", JSON.stringify(ticket))
+      assert.equal(ticket.exitCode, 0)
+      assert.deepEqual(ticket.argv, ["node", "./check.mjs"])
+      assert.equal(ticket.headSha, headSha)
+      assert.equal(ticket.preflight?.headSha, headSha)
+      assert.equal(ticket.preflight?.baseSha, baseSha)
+      assert.equal(ticket.preflight?.statusShort, "")
+      assert.equal(ticket.postflight?.headSha, headSha)
+      assert.equal(ticket.postflight?.baseSha, baseSha)
+    }
+  }
   assert.notEqual(state, OPERATOR_QUEUE)
   assert.equal(state.startsWith(staging), true)
 
@@ -490,6 +547,64 @@ test("init-to-dry-run reuses the ticket the compiled worker actually wrote", { t
     assert.equal(records.some((item) => item.method === "PUT" && item.path.endsWith("/merge")), false)
     assert.equal(records.some((item) => item.argv.includes("pr")), false)
   } finally {
+    rmSync(fixture.staging, { recursive: true, force: true })
+  }
+})
+
+test("ship keeps its real CLI process alive while waiting for the check it enqueues", { timeout: 60_000 }, async () => {
+  const fixture = createFixture({ enqueueInitial: false, runWorker: false })
+  const ship = invokeAsync(
+    ["ship", "--cwd", fixture.clone, "--state", fixture.state, "--repo", REPO, "--pr", String(PR), "--timeout-ms", "15000", "--no-remote"],
+    fixture.env,
+    fixture.clone,
+  )
+  try {
+    await waitFor(() => ship.stderr.includes("[ship] modo=skipped"))
+    await waitFor(() => {
+      const queued = invoke(["status", "--state", fixture.state], fixture.env, fixture.clone)
+      return queued.payload.ok === true && queued.payload.result.queued.length === 1
+    })
+    await sleep(100)
+    assert.equal(ship.closed, false, `ship encerrou enquanto aguardava o ticket: ${ship.stderr}`)
+
+    const worker = invoke(["worker", "--state", fixture.state], fixture.env, fixture.clone)
+    assert.equal(worker.payload.ok, true, JSON.stringify(worker.payload))
+
+    const completed = await ship.completion
+    assert.equal(completed.status, 0, `ship não aguardou o ticket: ${completed.stderr}`)
+    assert.equal(completed.payload?.ok, true, JSON.stringify(completed.payload))
+  } finally {
+    if (!ship.closed) ship.child.kill("SIGTERM")
+    await ship.completion
+    rmSync(fixture.staging, { recursive: true, force: true })
+  }
+})
+
+test("ship reports WAIT_TIMEOUT from its real CLI process without cancelling the queued check", { timeout: 60_000 }, async () => {
+  const fixture = createFixture({ enqueueInitial: false, runWorker: false })
+  const ship = invokeAsync(
+    ["ship", "--cwd", fixture.clone, "--state", fixture.state, "--repo", REPO, "--pr", String(PR), "--timeout-ms", "2000", "--no-remote"],
+    fixture.env,
+    fixture.clone,
+  )
+  try {
+    await waitFor(() => ship.stderr.includes("[ship] modo=skipped"))
+    await waitFor(() => {
+      const status = invoke(["status", "--state", fixture.state], fixture.env, fixture.clone)
+      return status.payload.ok === true && status.payload.result.queued.length === 1
+    })
+    const completed = await ship.completion
+    assert.equal(completed.status, 1, `ship retornou status inesperado: ${completed.stderr}`)
+    assert.equal(completed.payload?.ok, false, JSON.stringify(completed.payload))
+    assert.equal(completed.payload?.error?.code, "WAIT_TIMEOUT", JSON.stringify(completed.payload))
+
+    const status = invoke(["status", "--state", fixture.state], fixture.env, fixture.clone)
+    assert.equal(status.payload.ok, true, JSON.stringify(status.payload))
+    assert.equal(status.payload.result.running, null)
+    assert.equal(status.payload.result.queued.length, 1, JSON.stringify(status.payload.result))
+  } finally {
+    if (!ship.closed) ship.child.kill("SIGTERM")
+    await ship.completion
     rmSync(fixture.staging, { recursive: true, force: true })
   }
 })

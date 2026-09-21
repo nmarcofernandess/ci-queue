@@ -397,7 +397,6 @@ async function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
       signal.removeEventListener("abort", onAbort)
       resolveSleep()
     }, ms)
-    timer.unref?.()
     const onAbort = () => {
       clearTimeout(timer)
       reject(abortError())
