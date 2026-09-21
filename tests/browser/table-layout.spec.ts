@@ -24,7 +24,10 @@ const layoutScenarios = [
   { width: 820, zoom: 1 },
   { width: 640, zoom: 1 },
   { width: 390, zoom: 1 },
+  { width: 1600, zoom: 2 },
   { width: 1440, zoom: 2 },
+  { width: 820, zoom: 2 },
+  { width: 640, zoom: 2 },
 ] as const
 
 for (const { width, zoom } of layoutScenarios) {
