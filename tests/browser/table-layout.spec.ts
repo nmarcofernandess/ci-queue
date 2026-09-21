@@ -4,7 +4,7 @@ import { fixtureJob, fixtureTerminals, fixtureTrees, installConsistencyFixtures 
 const capture = process.env.CI_QUEUE_CAPTURE_TABLE_LAYOUT === '1'
 
 async function shot(page: Page, path: string) {
-  if (capture) await page.screenshot({ path, animations: 'disabled' })
+  if (capture) await page.screenshot({ path, animations: 'disabled', scale: 'device' })
 }
 
 async function columnAlignment(table: Locator) {
@@ -45,10 +45,26 @@ const layoutScenarios = [
 ] as const
 
 for (const { width, zoom } of layoutScenarios) {
+  const cssViewport = { width: Math.round(width / zoom), height: Math.round(900 / zoom) }
+  test.describe(`${width}px physical at ${zoom * 100}%`, () => {
+    test.use({ viewport: cssViewport, deviceScaleFactor: zoom })
   for (const theme of ['light', 'dark'] as const) {
     test(`tables keep content and actions usable at ${width}px and ${zoom * 100}% in ${theme}`, async ({ page }, testInfo) => {
       test.setTimeout(30_000)
-      await page.setViewportSize({ width, height: 900 })
+      const viewport = await page.evaluate(() => ({
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio,
+      }))
+      expect(viewport).toEqual({
+        innerWidth: cssViewport.width,
+        innerHeight: cssViewport.height,
+        devicePixelRatio: zoom,
+      })
+      await testInfo.attach(`viewport-${width}-${theme}-zoom-${zoom * 100}.json`, {
+        body: JSON.stringify({ physicalViewport: { width, height: 900 }, zoomPercent: zoom * 100, ...viewport }, null, 2),
+        contentType: 'application/json',
+      })
       const longBranch = 'feature/a-long-branch-name-that-stays-readable-until-the-column-is-full'
       const longWorktree = 'a-worktree-directory-name-that-needs-more-than-eleven-rem'
       await installConsistencyFixtures(page, {
@@ -64,7 +80,6 @@ for (const { width, zoom } of layoutScenarios) {
       })
 
       await page.goto('/#status')
-      if (zoom > 1) await page.evaluate((value) => { document.documentElement.style.zoom = String(value) }, zoom)
       const history = page.getByRole('table', { name: 'Execuções' }).last()
       await expect(history.getByRole('button', { name: 'smoketest', exact: true })).toBeVisible()
       const flaky = history.getByRole('row').filter({ has: page.getByRole('button', { name: 'smoketest', exact: true }) })
@@ -89,12 +104,11 @@ for (const { width, zoom } of layoutScenarios) {
       await historyScroll.scrollIntoViewIfNeeded()
       await historyScroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
       await expectActionReachableInTable(page, historyScroll, eye)
-      if (width < 820) expect(await historyScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
+      if (cssViewport.width < 820) expect(await historyScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
       await shot(page, testInfo.outputPath(`history-${width}-${theme}${zoomSuffix}.png`))
 
       await page.goto('/#worktrees')
-      if (zoom > 1) await page.evaluate((value) => { document.documentElement.style.zoom = String(value) }, zoom)
       const worktrees = page.getByRole('table', { name: 'Worktrees' })
       const row = worktrees.getByRole('row').filter({ has: page.getByRole('button', { name: longWorktree, exact: true }) })
       const tableScroll = worktrees.locator('..')
@@ -128,7 +142,7 @@ for (const { width, zoom } of layoutScenarios) {
       await expectActionReachableInTable(page, tableScroll, worktreeEye)
       await worktreeCheckbox.check()
       await expect(row).toHaveAttribute('data-state', 'selected')
-      if (width < 820) expect(await tableScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
+      if (cssViewport.width < 820) expect(await tableScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
       await shot(page, testInfo.outputPath(`worktrees-${width}-${theme}${zoomSuffix}.png`))
       await worktreeEye.focus()
@@ -139,6 +153,7 @@ for (const { width, zoom } of layoutScenarios) {
       await expect(page.getByRole('dialog')).toHaveCount(0)
     })
   }
+  })
 }
 
 test('all projects keeps the recipe readable alongside project and variant badges', async ({ page }, testInfo) => {
