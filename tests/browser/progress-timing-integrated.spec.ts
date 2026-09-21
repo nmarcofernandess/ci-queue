@@ -1,8 +1,17 @@
 import { expect, test } from "@playwright/test"
-import { spawn, type ChildProcess } from "node:child_process"
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_process"
+import { createHash } from "node:crypto"
+import { once } from "node:events"
+import { createServer, request as httpRequest, type Server } from "node:http"
+import { closeSync, constants, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, relative, resolve, sep } from "node:path"
+
+import { enqueueExplicitTicket } from "../../src/core/enqueue.js"
+import { runCli } from "../../src/cli.js"
+import { cancelQueuedOrRunningTicket } from "../../src/core/runner.js"
+import { progressPath, listHistoryJobs } from "../../src/core/state.js"
+import { runWorker } from "../../src/core/worker.js"
 
 const ROOT = join(import.meta.dirname, "../..")
 /** Same origin Vite proxies to by default (see ui/vite.config.ts). */
@@ -128,6 +137,222 @@ async function startCandidateApi(running?: { job: Record<string, unknown>; progr
   }
 }
 
+function sha256(bytes: string | Buffer) {
+  return createHash("sha256").update(bytes).digest("hex")
+}
+
+function directorySha256(root: string, label: string): string {
+  if (!existsSync(root)) throw new Error(`${label} não existe`)
+  const hash = createHash("sha256")
+  const visit = (directory: string) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) visit(path)
+      if (entry.isFile()) {
+        hash.update(relative(root, path))
+        hash.update(readFileSync(path))
+      }
+    }
+  }
+  visit(root)
+  return hash.digest("hex")
+}
+
+function compiledUiHash(root: string): string {
+  return directorySha256(root, "bundle compilado da UI")
+}
+
+function compileCandidateUi(output: string): string {
+  const result = spawnSync("npm", ["--prefix", join(ROOT, "ui"), "run", "build", "--", "--outDir", output, "--emptyOutDir"], {
+    cwd: ROOT,
+    encoding: "utf8",
+    timeout: 120_000,
+  })
+  if (result.status !== 0) {
+    throw new Error(`build da UI candidata falhou: ${result.stderr || result.stdout}`)
+  }
+  return compiledUiHash(output)
+}
+
+async function waitFor(predicate: () => boolean, label: string, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (predicate()) return
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  throw new Error(`tempo esgotado aguardando ${label}`)
+}
+
+async function settleWithin<T>(promise: Promise<T>, label: string, timeoutMs: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`tempo esgotado aguardando ${label}`)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+function releaseGate(gate: string): boolean {
+  try {
+    const fd = openSync(gate, constants.O_WRONLY | constants.O_NONBLOCK)
+    try {
+      writeSync(fd, "release\n")
+    } finally {
+      closeSync(fd)
+    }
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENXIO") return false
+    throw error
+  }
+}
+
+async function listen(server: Server): Promise<number> {
+  const listening = once(server, "listening")
+  server.listen(0, "127.0.0.1")
+  await listening
+  const address = server.address()
+  if (!address || typeof address === "string") throw new Error("porta temporária indisponível")
+  return address.port
+}
+
+async function closeServer(server: Server): Promise<void> {
+  if (!server.listening) return
+  const closed = once(server, "close")
+  server.close()
+  await closed
+}
+
+async function reservePort(): Promise<number> {
+  const server = createServer()
+  const port = await listen(server)
+  await closeServer(server)
+  return port
+}
+
+async function waitForChildExit(child: ChildProcess, label: string, timeoutMs: number): Promise<void> {
+  if (child.exitCode !== null) return
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.removeListener("exit", done)
+      reject(new Error(`tempo esgotado aguardando ${label}`))
+    }, timeoutMs)
+    const done = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    child.once("exit", done)
+    if (child.exitCode !== null) {
+      child.removeListener("exit", done)
+      clearTimeout(timer)
+      resolve()
+    }
+  })
+}
+
+async function stopChild(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null) return
+  if (!child.kill("SIGTERM") && child.exitCode === null) {
+    throw new Error("SIGTERM recusado pela API C03")
+  }
+  try {
+    await waitForChildExit(child, "API C03 após SIGTERM", 3_000)
+    return
+  } catch (termError) {
+    if (child.exitCode !== null) return
+    if (!child.kill("SIGKILL") && child.exitCode === null) {
+      throw new Error(`API C03 não encerrou após SIGTERM e recusou SIGKILL: ${termError instanceof Error ? termError.message : String(termError)}`)
+    }
+    try {
+      await waitForChildExit(child, "API C03 após SIGKILL", 3_000)
+    } catch (killError) {
+      throw new Error(`API C03 permanece ativa após SIGKILL: ${killError instanceof Error ? killError.message : String(killError)}`)
+    }
+  }
+}
+
+async function startApiForState(state: string, port: number) {
+  const env = { ...process.env }
+  delete env.CI_QUEUE_STATE_DIR
+  const child: ChildProcess = spawn(
+    "python3",
+    ["-m", "ci_queue_api.server", "--state", state, "--host", "127.0.0.1", "--port", String(port)],
+    {
+      cwd: ROOT,
+      env: { ...env, PYTHONPATH: join(ROOT, "backend"), CI_QUEUE_STATE_DIR: state },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  )
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("API candidata não iniciou")), 8_000)
+      const ready = (chunk: Buffer) => {
+        if (chunk.toString().includes("CI Queue API")) {
+          clearTimeout(timer)
+          resolve()
+        }
+      }
+      child.stdout?.on("data", ready)
+      child.stderr?.on("data", ready)
+      child.on("exit", (code) => {
+        clearTimeout(timer)
+        reject(new Error(`API candidata saiu com ${code}`))
+      })
+    })
+  } catch (error) {
+    await stopChild(child)
+    throw error
+  }
+  return {
+    url: `http://127.0.0.1:${port}`,
+    stop: () => stopChild(child),
+  }
+}
+
+function contentType(path: string): string {
+  if (path.endsWith(".js")) return "text/javascript"
+  if (path.endsWith(".css")) return "text/css"
+  if (path.endsWith(".svg")) return "image/svg+xml"
+  if (path.endsWith(".json")) return "application/json"
+  return "text/html; charset=utf-8"
+}
+
+async function startCompiledUi(bundleRoot: string, apiOrigin: string) {
+  const server = createServer((request, response) => {
+    const requestUrl = request.url ?? "/"
+    const pathname = new URL(requestUrl, "http://127.0.0.1").pathname
+    if (pathname === "/health" || pathname.startsWith("/api/")) {
+      const target = new URL(requestUrl, apiOrigin)
+      const upstream = httpRequest(target, { method: request.method, headers: { ...request.headers, host: target.host } }, (upstreamResponse) => {
+        response.writeHead(upstreamResponse.statusCode ?? 502, upstreamResponse.headers)
+        upstreamResponse.pipe(response)
+      })
+      upstream.on("error", (error) => {
+        response.writeHead(502, { "content-type": "text/plain; charset=utf-8" })
+        response.end(error.message)
+      })
+      request.pipe(upstream)
+      return
+    }
+    const candidate = resolve(bundleRoot, `.${pathname}`)
+    const path = candidate.startsWith(`${bundleRoot}${sep}`) && existsSync(candidate) && statSync(candidate).isFile()
+      ? candidate
+      : join(bundleRoot, "index.html")
+    response.writeHead(200, { "content-type": contentType(path) })
+    response.end(readFileSync(path))
+  })
+  const port = await listen(server)
+  return {
+    url: `http://127.0.0.1:${port}`,
+    stop: () => closeServer(server),
+  }
+}
+
 test.describe.configure({ mode: "serial" })
 
 test("Q2/Q3 real API+UI shows the planned Playwright 0/7 while Next runs", async ({ page }) => {
@@ -186,5 +411,497 @@ test("R06 real API+UI shows emitter, collector approx, and legacy em dash", asyn
     await expect(drawer.getByText("—", { exact: true }).first()).toBeVisible()
   } finally {
     api.stop()
+  }
+})
+
+test("C03 same ticket keeps global B occupancy, drawer B, and focal variant under filter A in compiled UI", async ({ page }, testInfo) => {
+  const dedicatedRunner = process.env.C03_DEDICATED === "1"
+  const producerRoot = process.env.C03_DIETFLOW_ROOT
+  const expectedProducerHead = process.env.C03_DIETFLOW_HEAD
+  const expectedConsumerHead = process.env.C03_CI_QUEUE_HEAD
+  test.skip(!dedicatedRunner, "C03 só executa pelo runner dedicado")
+  if (!dedicatedRunner) return
+  if (!producerRoot || !expectedProducerHead || !expectedConsumerHead) {
+    throw new Error("runner C03 dedicado exige C03_DIETFLOW_ROOT, C03_DIETFLOW_HEAD e C03_CI_QUEUE_HEAD")
+  }
+
+  const consumerHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim()
+  expect(consumerHead).toBe(expectedConsumerHead)
+
+  const temporaryRoot = mkdtempSync(join(tmpdir(), "ci-queue-c03-project-filter-"))
+  const state = join(temporaryRoot, "state")
+  const bundle = join(temporaryRoot, "compiled-ui")
+  const filterProjectId = "project-a"
+  const runningProjectId = "project-b"
+  const runningTicketId = "c03-project-b-running"
+  let api: Awaited<ReturnType<typeof startApiForState>> | undefined
+  let ui: Awaited<ReturnType<typeof startCompiledUi>> | undefined
+  let apiStopped = false
+  let testBodyFailed = false
+
+  try {
+    mkdirSync(join(state, "state"), { recursive: true })
+    mkdirSync(join(state, "progress"), { recursive: true })
+    writeFileSync(
+      join(state, "state", "projects.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        revision: 1,
+        bootstrapProjectId: filterProjectId,
+        projects: {
+          [filterProjectId]: {
+            id: filterProjectId,
+            displayName: "Projeto A",
+            repositoryPath: null,
+            gitCommonDir: null,
+            configPath: null,
+            archivedAt: null,
+            revision: 1,
+            createdAt: "2026-09-21T19:10:00Z",
+            updatedAt: "2026-09-21T19:10:00Z",
+          },
+          [runningProjectId]: {
+            id: runningProjectId,
+            displayName: "Projeto B",
+            repositoryPath: null,
+            gitCommonDir: null,
+            configPath: null,
+            archivedAt: null,
+            revision: 1,
+            createdAt: "2026-09-21T19:10:00Z",
+            updatedAt: "2026-09-21T19:10:00Z",
+          },
+        },
+      }),
+    )
+    writeFileSync(
+      join(state, "running.json"),
+      JSON.stringify({
+        id: runningTicketId,
+        projectId: runningProjectId,
+        projectName: "Projeto B",
+        preset: "e2e",
+        status: "running",
+        createdAt: "2026-09-21T19:10:00Z",
+        startedAt: "2026-09-21T19:10:01Z",
+        branch: "candidate-b",
+        headSha: "b".repeat(40),
+        cwd: ROOT,
+        command: "npx playwright test",
+        flags: { progressEnabled: true },
+        runVariant: "custom",
+      }),
+    )
+    writeFileSync(
+      join(state, "progress", `${runningTicketId}.json`),
+      JSON.stringify({
+        schema: 1,
+        updatedAt: "2026-09-21T19:10:02Z",
+        runVariant: "focal",
+        nodes: [{ id: "playwright", label: "Playwright", kind: "stage", status: "running" }],
+      }),
+    )
+
+    api = await startApiForState(state, await reservePort())
+    const bundleSha256 = compileCandidateUi(bundle)
+    ui = await startCompiledUi(bundle, api.url)
+
+    const statusResponse = await page.request.get(`${api.url}/api/status?projectId=${filterProjectId}&view=live`)
+    expect(statusResponse.status()).toBe(200)
+    const status = await statusResponse.json() as {
+      globalOccupancy?: boolean
+      otherProjectOccupancy?: boolean
+      context?: { kind?: string; projectId?: string }
+      running?: { id?: string; projectId?: string; runVariant?: string }
+    }
+    expect(status).toMatchObject({
+      globalOccupancy: true,
+      otherProjectOccupancy: true,
+      context: { kind: "project", projectId: filterProjectId },
+      running: { id: runningTicketId, projectId: runningProjectId, runVariant: "focal" },
+    })
+
+    const cliStatus = await runCli(["status", "--state", state, "--json"])
+    expect(cliStatus.ok).toBe(true)
+    if (!cliStatus.ok) throw new Error(`CLI C03 status falhou: ${cliStatus.error.message}`)
+    const cliRunning = (cliStatus.result as { running?: { id?: string; projectId?: string; runVariant?: string } }).running
+    expect(cliRunning).toMatchObject({
+      id: runningTicketId,
+      projectId: runningProjectId,
+      runVariant: "focal",
+    })
+
+    const receiptPath = testInfo.outputPath("c03-project-filter-receipt.json")
+    const receipt = {
+      testExecuted: true,
+      mode: "focal-api-compiled-ui-cli",
+      state: "temporary",
+      consumer: { root: ROOT, headSha: consumerHead, compiledBundleSha256: bundleSha256 },
+      filter: { projectId: filterProjectId },
+      running: {
+        ticketId: runningTicketId,
+        projectId: runningProjectId,
+        rawRunVariant: "custom",
+        effectiveRunVariant: status.running?.runVariant ?? null,
+      },
+      api: {
+        globalOccupancy: status.globalOccupancy ?? null,
+        otherProjectOccupancy: status.otherProjectOccupancy ?? null,
+        context: status.context ?? null,
+      },
+      cli: { effectiveRunVariant: cliRunning?.runVariant ?? null },
+      drawer: "pending-verification",
+    }
+    writeFileSync(receiptPath, JSON.stringify(receipt, null, 2))
+    expect(JSON.parse(readFileSync(receiptPath, "utf8"))).toMatchObject({
+      testExecuted: true,
+      mode: "focal-api-compiled-ui-cli",
+      api: { globalOccupancy: true, otherProjectOccupancy: true },
+      running: { effectiveRunVariant: "focal" },
+      cli: { effectiveRunVariant: "focal" },
+    })
+
+    await page.addInitScript(() => localStorage.setItem("ci-queue.lastProjectId", "project-a"))
+    await page.goto(`${ui.url}/?projectId=${filterProjectId}#status`)
+    const current = page.locator("[data-slot=entity-identity][data-presentation=current]")
+    await expect(current.getByRole("button", { name: "e2e", exact: true })).toBeVisible({ timeout: 10_000 })
+    await expect(current.getByText("Projeto B", { exact: true })).toBeVisible()
+    await expect(current.getByText("Focal", { exact: true })).toBeVisible()
+    await expect(new URL(page.url()).searchParams.get("projectId")).toBe(filterProjectId)
+    expect(new URL(page.url()).searchParams.get("context")).toBeNull()
+
+    await current.getByRole("button", { name: "e2e", exact: true }).click()
+    const drawer = page.getByRole("dialog")
+    await expect(drawer).toBeVisible()
+    await expect(drawer.locator("[data-slot=drawer-title]")).toHaveText("e2e")
+    await expect(drawer.getByText("Projeto B", { exact: true })).toBeVisible()
+    await expect(drawer.getByText("Focal", { exact: true })).toBeVisible()
+    await expect(new URL(page.url()).searchParams.get("projectId")).toBe(filterProjectId)
+    expect(new URL(page.url()).searchParams.get("context")).toBeNull()
+
+    writeFileSync(receiptPath, JSON.stringify({ ...receipt, drawer: "verified" }, null, 2))
+    await testInfo.attach("c03-project-filter-receipt.json", {
+      path: receiptPath,
+      contentType: "application/json",
+    })
+  } catch (error) {
+    testBodyFailed = true
+    throw error
+  } finally {
+    const cleanupErrors: Error[] = []
+    const rememberCleanupError = (step: string, error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      cleanupErrors.push(new Error(`${step}: ${message}`))
+    }
+    if (ui) {
+      try {
+        await ui.stop()
+      } catch (error) {
+        rememberCleanupError("encerramento da UI de filtro C03", error)
+      }
+    }
+    if (api) {
+      try {
+        await api.stop()
+        apiStopped = true
+      } catch (error) {
+        rememberCleanupError("encerramento da API de filtro C03", error)
+      }
+    }
+    if (!api || apiStopped) {
+      try {
+        rmSync(temporaryRoot, { recursive: true, force: true })
+      } catch (error) {
+        rememberCleanupError("remoção do estado temporário de filtro C03", error)
+      }
+    } else {
+      cleanupErrors.push(new Error(`API de filtro C03 permanece ativa; estado temporário preservado em ${temporaryRoot}`))
+    }
+    if (cleanupErrors.length > 0 && !testBodyFailed) {
+      throw new AggregateError(cleanupErrors, "cleanup do filtro C03 incompleto")
+    }
+  }
+})
+
+test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 durable history in compiled UI", async ({ page }, testInfo) => {
+  const dedicatedRunner = process.env.C03_DEDICATED === "1"
+  const producerRoot = process.env.C03_DIETFLOW_ROOT
+  const expectedProducerHead = process.env.C03_DIETFLOW_HEAD
+  const expectedConsumerHead = process.env.C03_CI_QUEUE_HEAD
+  test.skip(!dedicatedRunner, "C03 só executa pelo runner dedicado")
+  if (!dedicatedRunner) return
+  if (!producerRoot || !expectedProducerHead || !expectedConsumerHead) {
+    throw new Error("runner C03 dedicado exige C03_DIETFLOW_ROOT, C03_DIETFLOW_HEAD e C03_CI_QUEUE_HEAD")
+  }
+
+  const producer = join(producerRoot, "scripts/__tests__/fixtures/pw-observe/c03-producer.sh")
+  expect(existsSync(producer)).toBe(true)
+  const producerHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: producerRoot, encoding: "utf8" }).trim()
+  const consumerHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim()
+  expect(producerHead).toBe(expectedProducerHead)
+  expect(consumerHead).toBe(expectedConsumerHead)
+
+  const temporaryRoot = mkdtempSync(join(tmpdir(), "ci-queue-c03-same-ticket-"))
+  const state = join(temporaryRoot, "state")
+  const gate = join(temporaryRoot, "release.fifo")
+  const ready = join(temporaryRoot, "producer-ready")
+  const artifacts = join(temporaryRoot, "playwright-output")
+  const bundle = join(temporaryRoot, "compiled-ui")
+  const previousGate = process.env.C03_GATE_PATH
+  const previousReady = process.env.C03_READY_PATH
+  const previousArtifacts = process.env.C03_ARTIFACT_DIR
+  let api: Awaited<ReturnType<typeof startApiForState>> | undefined
+  let ui: Awaited<ReturnType<typeof startCompiledUi>> | undefined
+  let worker: Promise<Awaited<ReturnType<typeof runWorker>>> | undefined
+  let workerSettled = false
+  let apiStopped = false
+  let gateReleased = false
+  let ticket: ReturnType<typeof enqueueExplicitTicket> | undefined
+  const timeline: Record<string, string> = { createdAt: new Date().toISOString() }
+  let testBodyFailed = false
+
+  try {
+    execFileSync("mkfifo", [gate])
+    mkdirSync(join(state, "state"), { recursive: true })
+    writeFileSync(
+      join(state, "state", "projects.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        revision: 1,
+        bootstrapProjectId: "dietflow-c03",
+        projects: {
+          "dietflow-c03": {
+            id: "dietflow-c03",
+            displayName: "DietFlow C03 producer",
+            repositoryPath: producerRoot,
+            gitCommonDir: null,
+            configPath: null,
+            archivedAt: null,
+            revision: 1,
+            createdAt: timeline.createdAt,
+            updatedAt: timeline.createdAt,
+          },
+        },
+      }),
+    )
+    process.env.C03_GATE_PATH = gate
+    process.env.C03_READY_PATH = ready
+    process.env.C03_ARTIFACT_DIR = artifacts
+
+    const c03Ticket = enqueueExplicitTicket({
+      recipe: "c03-q2q3",
+      argv: ["/bin/bash", producer],
+      projectId: "dietflow-c03",
+      projectName: "DietFlow C03 producer",
+      cwd: producerRoot,
+      stateRoot: state,
+      flags: { progressEnabled: true },
+      requestedBy: "c03-browser-proof",
+    })
+    ticket = c03Ticket
+    timeline.enqueuedAt = new Date().toISOString()
+    worker = runWorker(state).finally(() => { workerSettled = true })
+
+    await waitFor(() => existsSync(ready), "discovery do produtor")
+    timeline.discoveryReadyAt = statSync(ready).mtime.toISOString()
+    const manifest = `${ready}.discovery.json`
+    const discovery = JSON.parse(readFileSync(manifest, "utf8")) as { caseIds?: unknown[] }
+    expect(discovery.caseIds).toHaveLength(7)
+
+    api = await startApiForState(state, await reservePort())
+    const bundleSha256 = compileCandidateUi(bundle)
+    ui = await startCompiledUi(bundle, api.url)
+
+    const liveResponse = await page.request.get(`${api.url}/api/status?context=all&view=live`)
+    expect(liveResponse.status()).toBe(200)
+    const live = await liveResponse.json() as {
+      running?: { id?: string; progressSummary?: { planned?: Array<Record<string, unknown>> } }
+    }
+    expect(live.running?.id).toBe(c03Ticket.id)
+    expect(live.running?.progressSummary?.planned).toMatchObject([
+      { rootId: "e2e", id: "playwright", detail: { completed: 0, total: 7, pending: 7 } },
+    ])
+
+    await page.addInitScript(() => localStorage.setItem("ci-queue.lastProjectId", "dietflow-c03"))
+    await page.goto(`${ui.url}/?projectId=dietflow-c03`)
+    await expect(page.getByText(/0 de 7/).first()).toBeVisible({ timeout: 10_000 })
+    await page.getByRole("button", { name: "c03-q2q3", exact: true }).click()
+    await expect(page.getByRole("dialog").getByText("0 de 7", { exact: true })).toBeVisible()
+
+    await waitFor(() => releaseGate(gate), "leitor da barreira FIFO", 1_000)
+    gateReleased = true
+    timeline.releasedAt = new Date().toISOString()
+    await expect(worker).resolves.toMatchObject({ processed: [c03Ticket.id], busy: false })
+    timeline.terminalAt = new Date().toISOString()
+
+    const history = listHistoryJobs(state).find((job) => job.id === c03Ticket.id)
+    expect(history).toMatchObject({ id: c03Ticket.id, status: "passed", exitCode: 0 })
+    const playwright = history?.progress?.nodes?.find((node) => node.id === "playwright")
+    expect(playwright?.detail).toMatchObject({ completed: 7, total: 7, passed: 7, failed: 0, pending: 0 })
+    expect(existsSync(progressPath(state, c03Ticket.id))).toBe(false)
+    const terminalHistory = {
+      status: history?.status ?? null,
+      exitCode: history?.exitCode ?? null,
+      progress: history?.progress ?? null,
+    }
+    expect(terminalHistory).toMatchObject({
+      status: "passed",
+      exitCode: 0,
+      progress: { nodes: expect.any(Array) },
+    })
+
+    // Persiste a cadeia já observada antes da última asserção visual, para que
+    // uma falha de navegação no drawer não apague o ticket/worker/timeline reais.
+    const partialReceiptPath = testInfo.outputPath("c03-same-ticket-receipt.json")
+    writeFileSync(partialReceiptPath, JSON.stringify({
+      ticketId: c03Ticket.id,
+      producer: {
+        root: producerRoot,
+        headSha: producerHead,
+        fixtureSha256: directorySha256(join(producerRoot, "scripts/__tests__/fixtures/pw-observe"), "fixture do produtor"),
+        manifestSha256: sha256(readFileSync(manifest)),
+      },
+      consumer: {
+        root: ROOT,
+        headSha: consumerHead,
+        compiledBundleSha256: bundleSha256,
+      },
+      state: "temporary",
+      testExecuted: true,
+      terminalUi: "pending-verification",
+      terminalHistory,
+      runtime: {
+        source: "inner temporary CI Queue worker history",
+        observed: history?.runtime ?? "unconfigured",
+      },
+      command: c03Ticket.argv,
+      timeline,
+    }, null, 2))
+    expect(JSON.parse(readFileSync(partialReceiptPath, "utf8"))).toMatchObject({
+      ticketId: c03Ticket.id,
+      testExecuted: true,
+      terminalHistory: {
+        status: "passed",
+        exitCode: 0,
+        progress: { nodes: expect.any(Array) },
+      },
+      runtime: {
+        source: "inner temporary CI Queue worker history",
+        observed: {
+          capability: "node-runtime-guard-v1",
+          coverage: "unconfigured",
+          state: "unconfigured",
+          observations: expect.any(Array),
+        },
+      },
+    })
+    await testInfo.attach("c03-same-ticket-receipt.json", {
+      path: partialReceiptPath,
+      contentType: "application/json",
+    })
+
+    await page.reload()
+    await page.getByRole("button", { name: "c03-q2q3", exact: true }).click()
+    const expandE2e = page.getByRole("button", { name: "Expandir E2E", exact: true })
+    await expect(expandE2e).toBeVisible()
+    await expandE2e.click()
+    await expect(page.getByText("Playwright", { exact: true })).toBeVisible()
+    await expect(page.getByRole("dialog").getByText("7 de 7", { exact: true })).toBeVisible()
+    const terminalUiPath = testInfo.outputPath("c03-terminal-ui.json")
+    writeFileSync(terminalUiPath, JSON.stringify({
+      ticketId: c03Ticket.id,
+      testExecuted: true,
+      terminalUi: "verified",
+      terminalHistory,
+      runtime: {
+        source: "inner temporary CI Queue worker history",
+        observed: history?.runtime ?? "unconfigured",
+      },
+      timeline,
+    }, null, 2))
+    expect(JSON.parse(readFileSync(terminalUiPath, "utf8"))).toMatchObject({
+      ticketId: c03Ticket.id,
+      testExecuted: true,
+      terminalUi: "verified",
+      terminalHistory: {
+        status: "passed",
+        exitCode: 0,
+        progress: { nodes: expect.any(Array) },
+      },
+    })
+    await testInfo.attach("c03-terminal-ui.json", {
+      path: terminalUiPath,
+      contentType: "application/json",
+    })
+  } catch (error) {
+    testBodyFailed = true
+    throw error
+  } finally {
+    const cleanupErrors: Error[] = []
+    const rememberCleanupError = (step: string, error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      cleanupErrors.push(new Error(`${step}: ${message}`))
+    }
+
+    if (worker && !workerSettled) {
+      if (!gateReleased) {
+        try {
+          await waitFor(() => workerSettled || releaseGate(gate), "leitor da barreira FIFO no cleanup", 1_000)
+          gateReleased = !workerSettled
+        } catch (error) {
+          rememberCleanupError("liberação da barreira FIFO", error)
+        }
+      }
+      try {
+        await settleWithin(worker, "término do worker C03", 10_000)
+      } catch (error) {
+        rememberCleanupError("término inicial do worker C03", error)
+        if (ticket) {
+          try {
+            await cancelQueuedOrRunningTicket(state, ticket.id)
+          } catch (cancelError) {
+            rememberCleanupError("cancelamento do worker C03", cancelError)
+          }
+        }
+        try {
+          await settleWithin(worker, "término cancelado do worker C03", 10_000)
+        } catch (settleError) {
+          rememberCleanupError("término cancelado do worker C03", settleError)
+        }
+      }
+    }
+    if (ui) {
+      try {
+        await ui.stop()
+      } catch (error) {
+        rememberCleanupError("encerramento da UI C03", error)
+      }
+    }
+    if (api) {
+      try {
+        await api.stop()
+        apiStopped = true
+      } catch (error) {
+        rememberCleanupError("encerramento da API C03", error)
+      }
+    }
+    if (previousGate === undefined) delete process.env.C03_GATE_PATH
+    else process.env.C03_GATE_PATH = previousGate
+    if (previousReady === undefined) delete process.env.C03_READY_PATH
+    else process.env.C03_READY_PATH = previousReady
+    if (previousArtifacts === undefined) delete process.env.C03_ARTIFACT_DIR
+    else process.env.C03_ARTIFACT_DIR = previousArtifacts
+    if ((!worker || workerSettled) && (!api || apiStopped)) {
+      try {
+        rmSync(temporaryRoot, { recursive: true, force: true })
+      } catch (error) {
+        rememberCleanupError("remoção do estado temporário C03", error)
+      }
+    } else {
+      cleanupErrors.push(new Error(`processo C03 permanece ativo; estado temporário preservado em ${temporaryRoot}`))
+    }
+    if (cleanupErrors.length > 0 && !testBodyFailed) {
+      throw new AggregateError(cleanupErrors, "cleanup C03 incompleto")
+    }
   }
 })
