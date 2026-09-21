@@ -385,6 +385,7 @@ export function RunTable({
   filterProjectId,
 }: RunTableProps) {
   const data = jobs ?? EMPTY
+  const hasLoadedRows = data.length > 0
   if (kind === "queue" && !loading && !error && !data.length) {
     return (
       <Card size="sm">
@@ -438,10 +439,12 @@ export function RunTable({
           </div>
         ) : null}
         {!loading && error ? (
-          <ErrorState
-            title={`Não foi possível carregar ${title.toLowerCase()}`}
-            error={error}
-          />
+          <div role="alert">
+            <ErrorState
+              title={`${hasLoadedRows ? "Não foi possível atualizar" : "Não foi possível carregar"} ${title.toLowerCase()}`}
+              error={error}
+            />
+          </div>
         ) : null}
         {!loading && !error && !data.length ? (
           <div className="overflow-hidden">
@@ -452,7 +455,7 @@ export function RunTable({
             />
           </div>
         ) : null}
-        {!loading && !error && data.length ? (
+        {!loading && hasLoadedRows ? (
           <RunDataTable
             jobs={data}
             onOpenJob={onOpenJob}

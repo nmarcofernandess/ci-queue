@@ -154,6 +154,183 @@ for (const width of [390, 820, 1440]) {
   })
 }
 
+test('history keeps the loaded query, its next page and an accessible refresh error', async ({ page }) => {
+  await page.clock.install()
+  const firstPage = Array.from({ length: 50 }, (_, index) => ({
+    ...baseJob,
+    id: `history-a-${index + 1}`,
+    preset: `history-a-${index + 1}`,
+    status: 'passed',
+    finishedAt: new Date().toISOString(),
+    durationMs: 62_000,
+  }))
+  const nextPage = {
+    ...baseJob,
+    id: 'history-a-page-two',
+    preset: 'history-a-page-two',
+    status: 'passed',
+    finishedAt: new Date().toISOString(),
+    durationMs: 62_000,
+  }
+  const recoveredFirstPage = Array.from({ length: 50 }, (_, index) => ({
+    ...baseJob,
+    id: `history-recovered-${index + 1}`,
+    preset: `history-recovered-${index + 1}`,
+    status: 'passed',
+    finishedAt: new Date().toISOString(),
+    durationMs: 62_000,
+  }))
+  let rejectRefresh = false
+  let generation: 'a' | 'b' = 'a'
+
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/api/executions') {
+      if (url.searchParams.get('q') === 'history-b') {
+        await route.fulfill({ status: 503, json: { error: 'History B unavailable' } })
+        return
+      }
+      if (url.searchParams.get('cursor') === 'page-two') {
+        await route.fulfill({
+          json: {
+            jobs: [nextPage],
+            hasMore: false,
+            snapshotBefore: 'fixture-snapshot',
+            nextCursor: null,
+            coverage: { unattributedRecords: 0 },
+          },
+        })
+        return
+      }
+      if (rejectRefresh) {
+        await route.fulfill({ status: 503, json: { error: 'History refresh unavailable' } })
+        return
+      }
+      const activeFirstPage = generation === 'a' ? firstPage : recoveredFirstPage
+      await route.fulfill({
+        json: {
+          jobs: activeFirstPage,
+          hasMore: generation === 'a',
+          snapshotBefore: `fixture-snapshot-${generation}`,
+          nextCursor: generation === 'a' ? 'page-two' : null,
+          coverage: { unattributedRecords: 0 },
+        },
+      })
+      return
+    }
+
+    const data: Record<string, unknown> = {
+      '/api/status': {
+        project: { id: 'example', name: 'Example' },
+        running: null,
+        queued: [],
+        history: generation === 'a' ? firstPage : recoveredFirstPage,
+        historyRevision: `history-${generation}`,
+        globalOccupancy: false,
+      },
+      '/api/session': { csrfToken: 'fixture', canReveal: false },
+      '/api/dashboard-state': { revision: 0, presets: ['smoke'], meta: null, pending: [] },
+      '/api/machine': {},
+      '/api/job': firstPage[0],
+    }
+    if (url.pathname === '/api/projects') {
+      await route.fulfill({ json: fixtureProjects })
+      return
+    }
+    await route.fulfill({ json: data[url.pathname] ?? {} })
+  })
+
+  await page.goto('/#status')
+  const history = page.getByRole('table', { name: 'Execuções' }).last()
+  await expect(history.getByRole('button', { name: 'history-a-50', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Carregar mais', exact: true }).click()
+  await expect(history.getByRole('button', { name: 'history-a-page-two', exact: true })).toBeVisible()
+
+  rejectRefresh = true
+  await page.clock.fastForward(10_000)
+  const refreshError = page.getByRole('alert')
+  await expect(refreshError).toContainText('History refresh unavailable')
+  await expect(history.getByRole('button', { name: 'history-a-50', exact: true })).toBeVisible()
+  await expect(history.getByRole('button', { name: 'history-a-page-two', exact: true })).toBeVisible()
+
+  rejectRefresh = false
+  generation = 'b'
+  await page.clock.fastForward(10_000)
+  await page.clock.fastForward(10_000)
+  await expect(refreshError).toHaveCount(0)
+  await expect(history.getByRole('button', { name: 'history-recovered-50', exact: true })).toBeVisible()
+  await expect(history.getByRole('button', { name: 'history-a-50', exact: true })).toHaveCount(0)
+  await expect(history.getByRole('button', { name: 'history-a-page-two', exact: true })).toHaveCount(0)
+
+  await page.getByRole('textbox', { name: 'Buscar por preset, branch, SHA ou ticket' }).fill('history-b')
+  await expect(page.getByText('History B unavailable', { exact: true })).toBeVisible()
+  await expect(history.getByRole('button', { name: 'history-a-50', exact: true })).toHaveCount(0)
+})
+
+test('history drops project A rows before a failed project B query', async ({ page }, testInfo) => {
+  testInfo.setTimeout(10_000)
+  const projects = {
+    ...fixtureProjects,
+    projects: [
+      ...fixtureProjects.projects,
+      {
+        ...fixtureProjects.projects[0],
+        id: 'other',
+        displayName: 'Other',
+        repositoryPath: '/other',
+        resolvedRepositoryPath: '/other',
+      },
+    ],
+  }
+  const projectAJob = {
+    ...baseJob,
+    id: 'history-project-a',
+    preset: 'history-project-a',
+    status: 'passed',
+    finishedAt: new Date().toISOString(),
+    durationMs: 62_000,
+  }
+
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/api/executions') {
+      if (url.searchParams.get('projectId') === 'other') {
+        await route.fulfill({ status: 503, json: { error: 'Other history unavailable' } })
+        return
+      }
+      await route.fulfill({
+        json: {
+          jobs: [projectAJob],
+          hasMore: false,
+          nextCursor: null,
+          coverage: { unattributedRecords: 0 },
+        },
+      })
+      return
+    }
+    if (url.pathname === '/api/projects') {
+      await route.fulfill({ json: projects })
+      return
+    }
+    const data: Record<string, unknown> = {
+      '/api/status': { project: { id: 'example', name: 'Example' }, running: null, queued: [], history: [projectAJob], globalOccupancy: false },
+      '/api/session': { csrfToken: 'fixture', canReveal: false },
+      '/api/dashboard-state': { revision: 0, presets: ['smoke'], meta: null, pending: [] },
+      '/api/machine': {},
+      '/api/job': projectAJob,
+    }
+    await route.fulfill({ json: data[url.pathname] ?? {} })
+  })
+
+  await page.goto('/#status')
+  const history = page.getByRole('table', { name: 'Execuções' }).last()
+  await expect(history.getByRole('button', { name: 'history-project-a', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Example', exact: true }).click()
+  await page.getByRole('button', { name: 'Other /other', exact: true }).click()
+  await expect(page.getByText('Other history unavailable', { exact: true })).toBeVisible()
+  await expect(history.getByRole('button', { name: 'history-project-a', exact: true })).toHaveCount(0)
+})
+
 test('worktree selection persists and copy menu exposes only the two formats', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   const trees = ['one', 'two'].map((id, index) => ({ id, path: `/example/${id}`, branch: `branch-${id}`, headSha: 'abcdef12', dirty: index === 0, changedEntries: index === 0 ? 1 : 0, ahead: 0, behind: 0, locked: false, size: { bytes: 1073741824, state: 'ready', observedAt: new Date().toISOString(), error: null } }))

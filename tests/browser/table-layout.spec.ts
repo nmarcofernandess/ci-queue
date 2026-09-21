@@ -1,10 +1,15 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
+import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test'
 import { fixtureJob, fixtureTerminals, fixtureTrees, installConsistencyFixtures } from './fixtures/ui-consistency'
 
 const capture = process.env.CI_QUEUE_CAPTURE_TABLE_LAYOUT === '1'
 
 async function shot(page: Page, path: string) {
-  if (capture) await page.screenshot({ path, animations: 'disabled' })
+  if (capture) await page.screenshot({ path, animations: 'disabled', scale: 'device' })
+}
+
+async function recordViewport(testInfo: TestInfo, name: string, sample: Record<string, number>) {
+  await writeFile(testInfo.outputPath(`${name}.json`), JSON.stringify(sample, null, 2))
 }
 
 async function columnAlignment(table: Locator) {
@@ -18,11 +23,71 @@ async function columnAlignment(table: Locator) {
   }
 }
 
-for (const width of [1440, 820, 390]) {
+async function expectActionReachableInTable(page: Page, container: Locator, action: Locator) {
+  const [containerBox, actionBox, viewportHeight] = await Promise.all([
+    container.boundingBox(),
+    action.boundingBox(),
+    page.evaluate(() => window.innerHeight),
+  ])
+
+  expect(containerBox && actionBox).toBeTruthy()
+  expect(actionBox!.x).toBeGreaterThanOrEqual(containerBox!.x)
+  expect(actionBox!.x + actionBox!.width).toBeLessThanOrEqual(containerBox!.x + containerBox!.width)
+  expect(actionBox!.y).toBeGreaterThanOrEqual(0)
+  expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(viewportHeight)
+}
+
+async function expectTitleReachableBesideAction(page: Page, container: Locator, title: Locator, action: Locator) {
+  const [containerBox, titleBox, actionBox, viewportHeight] = await Promise.all([
+    container.boundingBox(),
+    title.boundingBox(),
+    action.boundingBox(),
+    page.evaluate(() => window.innerHeight),
+  ])
+
+  expect(containerBox && titleBox && actionBox).toBeTruthy()
+  const visibleLeft = Math.max(titleBox!.x, containerBox!.x)
+  const visibleRight = Math.min(titleBox!.x + titleBox!.width, actionBox!.x, containerBox!.x + containerBox!.width)
+  expect(visibleRight - visibleLeft).toBeGreaterThanOrEqual(45)
+  expect(titleBox!.y).toBeGreaterThanOrEqual(0)
+  expect(titleBox!.y + titleBox!.height).toBeLessThanOrEqual(viewportHeight)
+}
+
+const layoutScenarios = [
+  { width: 1600, zoom: 1 },
+  { width: 1440, zoom: 1 },
+  { width: 820, zoom: 1 },
+  { width: 640, zoom: 1 },
+  { width: 390, zoom: 1 },
+  { width: 1600, zoom: 2 },
+  { width: 1440, zoom: 2 },
+  { width: 820, zoom: 2 },
+  { width: 640, zoom: 2 },
+] as const
+
+for (const { width, zoom } of layoutScenarios) {
+  const cssViewport = { width: Math.round(width / zoom), height: Math.round(900 / zoom) }
+  test.describe(`${width}px physical at ${zoom * 100}%`, () => {
+    test.use({ viewport: cssViewport, deviceScaleFactor: zoom })
   for (const theme of ['light', 'dark'] as const) {
-    test(`tables keep content and actions usable at ${width}px in ${theme}`, async ({ page }, testInfo) => {
+    test(`tables keep content and actions usable at ${width}px and ${zoom * 100}% in ${theme}`, async ({ page }, testInfo) => {
       test.setTimeout(30_000)
-      await page.setViewportSize({ width, height: 900 })
+      const viewport = await page.evaluate(() => ({
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio,
+      }))
+      expect(viewport).toEqual({
+        innerWidth: cssViewport.width,
+        innerHeight: cssViewport.height,
+        devicePixelRatio: zoom,
+      })
+      await recordViewport(testInfo, `viewport-${width}-${theme}-zoom-${zoom * 100}`, {
+        physicalWidth: width,
+        physicalHeight: 900,
+        zoomPercent: zoom * 100,
+        ...viewport,
+      })
       const longBranch = 'feature/a-long-branch-name-that-stays-readable-until-the-column-is-full'
       const longWorktree = 'a-worktree-directory-name-that-needs-more-than-eleven-rem'
       await installConsistencyFixtures(page, {
@@ -50,41 +115,59 @@ for (const width of [1440, 820, 390]) {
       const revision = flaky.getByRole('cell').nth(4)
       expect((await revision.boundingBox())!.width).toBeGreaterThan(100)
       await columnAlignment(history)
-      await shot(page, testInfo.outputPath(`history-initial-${width}-${theme}.png`))
+      const zoomSuffix = zoom === 1 ? '' : `-zoom-${zoom * 100}`
+      await shot(page, testInfo.outputPath(`history-initial-${width}-${theme}${zoomSuffix}.png`))
       const historyScroll = history.locator('..')
       const eye = flaky.getByRole('button', { name: 'Inspecionar' })
-      if (width === 1440) {
+      if (width === 1440 && zoom === 1) {
         const revisionBox = (await revision.boundingBox())!
         const eyeBox = (await eye.boundingBox())!
         expect(revisionBox.x).toBeLessThan(eyeBox.x - 48)
       }
+      await historyScroll.scrollIntoViewIfNeeded()
       await historyScroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
-      await expect(eye).toBeInViewport()
-      if (width < 820) expect(await historyScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
+      await expectActionReachableInTable(page, historyScroll, eye)
+      if (cssViewport.width < 820) expect(await historyScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
-      await shot(page, testInfo.outputPath(`history-${width}-${theme}.png`))
+      await shot(page, testInfo.outputPath(`history-${width}-${theme}${zoomSuffix}.png`))
 
       await page.goto('/#worktrees')
       const worktrees = page.getByRole('table', { name: 'Worktrees' })
       const row = worktrees.getByRole('row').filter({ has: page.getByRole('button', { name: longWorktree, exact: true }) })
       const tableScroll = worktrees.locator('..')
       await columnAlignment(worktrees)
-      if (width === 1440) {
+      if (width === 1440 && zoom === 1) {
         const branch = (await worktrees.getByRole('columnheader', { name: 'Branch' }).boundingBox())!
         const container = (await tableScroll.boundingBox())!
         expect(branch.x).toBeLessThan(container.x + container.width - 150)
       }
-      await shot(page, testInfo.outputPath(`worktrees-initial-${width}-${theme}.png`))
-      await tableScroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
-      await expect(row.getByRole('button', { name: longWorktree, exact: true })).toBeInViewport()
-      await expect(row.getByRole('checkbox')).toBeInViewport()
+      await shot(page, testInfo.outputPath(`worktrees-initial-${width}-${theme}${zoomSuffix}.png`))
+      await tableScroll.scrollIntoViewIfNeeded()
+      await tableScroll.evaluate(element => {
+        element.scrollLeft = Math.floor((element.scrollWidth - element.clientWidth) / 2)
+      })
+      const worktreeName = row.getByRole('button', { name: longWorktree, exact: true })
+      const worktreeCheckbox = row.getByRole('checkbox')
       const worktreeEye = row.getByRole('button', { name: 'Inspecionar' })
-      await expect(worktreeEye).toBeInViewport()
-      await row.getByRole('checkbox').check()
+      await expectTitleReachableBesideAction(page, tableScroll, worktreeName, worktreeEye)
+      await expectActionReachableInTable(page, tableScroll, worktreeCheckbox)
+      await expectActionReachableInTable(page, tableScroll, worktreeEye)
+      const middleHitTargets = await Promise.all([
+        worktreeCheckbox.boundingBox(),
+        worktreeEye.boundingBox(),
+      ])
+      expect(middleHitTargets.every(Boolean)).toBe(true)
+      expect(middleHitTargets[0]!.x + middleHitTargets[0]!.width).toBeLessThanOrEqual(middleHitTargets[1]!.x)
+      await shot(page, testInfo.outputPath(`worktrees-middle-${width}-${theme}${zoomSuffix}.png`))
+      await tableScroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
+      await expectTitleReachableBesideAction(page, tableScroll, worktreeName, worktreeEye)
+      await expectActionReachableInTable(page, tableScroll, worktreeCheckbox)
+      await expectActionReachableInTable(page, tableScroll, worktreeEye)
+      await worktreeCheckbox.check()
       await expect(row).toHaveAttribute('data-state', 'selected')
-      if (width < 820) expect(await tableScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
+      if (cssViewport.width < 820) expect(await tableScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
-      await shot(page, testInfo.outputPath(`worktrees-${width}-${theme}.png`))
+      await shot(page, testInfo.outputPath(`worktrees-${width}-${theme}${zoomSuffix}.png`))
       await worktreeEye.focus()
       await expect(worktreeEye).toBeFocused()
       await page.keyboard.press('Enter')
@@ -93,6 +176,7 @@ for (const width of [1440, 820, 390]) {
       await expect(page.getByRole('dialog')).toHaveCount(0)
     })
   }
+  })
 }
 
 test('all projects keeps the recipe readable alongside project and variant badges', async ({ page }, testInfo) => {
