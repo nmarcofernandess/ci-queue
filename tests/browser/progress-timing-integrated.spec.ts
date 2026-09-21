@@ -234,18 +234,45 @@ async function reservePort(): Promise<number> {
   return port
 }
 
-async function stopChild(child: ChildProcess): Promise<void> {
+async function waitForChildExit(child: ChildProcess, label: string, timeoutMs: number): Promise<void> {
   if (child.exitCode !== null) return
-  await new Promise<void>((resolve) => {
-    const done = () => resolve()
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.removeListener("exit", done)
+      reject(new Error(`tempo esgotado aguardando ${label}`))
+    }, timeoutMs)
+    const done = () => {
+      clearTimeout(timer)
+      resolve()
+    }
     child.once("exit", done)
     if (child.exitCode !== null) {
       child.removeListener("exit", done)
+      clearTimeout(timer)
       resolve()
-      return
     }
-    child.kill("SIGTERM")
   })
+}
+
+async function stopChild(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null) return
+  if (!child.kill("SIGTERM") && child.exitCode === null) {
+    throw new Error("SIGTERM recusado pela API C03")
+  }
+  try {
+    await waitForChildExit(child, "API C03 após SIGTERM", 3_000)
+    return
+  } catch (termError) {
+    if (child.exitCode !== null) return
+    if (!child.kill("SIGKILL") && child.exitCode === null) {
+      throw new Error(`API C03 não encerrou após SIGTERM e recusou SIGKILL: ${termError instanceof Error ? termError.message : String(termError)}`)
+    }
+    try {
+      await waitForChildExit(child, "API C03 após SIGKILL", 3_000)
+    } catch (killError) {
+      throw new Error(`API C03 permanece ativa após SIGKILL: ${killError instanceof Error ? killError.message : String(killError)}`)
+    }
+  }
 }
 
 async function startApiForState(state: string, port: number) {
@@ -417,6 +444,7 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
   let ui: Awaited<ReturnType<typeof startCompiledUi>> | undefined
   let worker: Promise<Awaited<ReturnType<typeof runWorker>>> | undefined
   let workerSettled = false
+  let apiStopped = false
   let gateReleased = false
   let ticket: ReturnType<typeof enqueueExplicitTicket> | undefined
   const timeline: Record<string, string> = { createdAt: new Date().toISOString() }
@@ -502,10 +530,8 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
     expect(playwright?.detail).toMatchObject({ completed: 7, total: 7, passed: 7, failed: 0, pending: 0 })
     expect(existsSync(progressPath(state, c03Ticket.id))).toBe(false)
 
-    await page.reload()
-    await page.getByRole("button", { name: "c03-q2q3", exact: true }).click()
-    await expect(page.getByRole("dialog").getByText("7 de 7", { exact: true })).toBeVisible()
-
+    // Persiste a cadeia já observada antes da última asserção visual, para que
+    // uma falha de navegação no drawer não apague o ticket/worker/timeline reais.
     await testInfo.attach("c03-same-ticket-receipt.json", {
       body: JSON.stringify({
         ticketId: c03Ticket.id,
@@ -522,8 +548,24 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
         },
         state: "temporary",
         testExecuted: true,
+        terminalUi: "pending-verification",
         runtime: history?.runtime,
         command: c03Ticket.argv,
+        timeline,
+      }, null, 2),
+      contentType: "application/json",
+    })
+
+    await page.reload()
+    await page.getByRole("button", { name: "c03-q2q3", exact: true }).click()
+    const expandE2e = page.getByRole("button", { name: "Expandir E2E", exact: true })
+    if (await expandE2e.isVisible()) await expandE2e.click()
+    await expect(page.getByRole("dialog").getByText("7 de 7", { exact: true })).toBeVisible()
+    await testInfo.attach("c03-terminal-ui.json", {
+      body: JSON.stringify({
+        ticketId: c03Ticket.id,
+        testExecuted: true,
+        terminalUi: "verified",
         timeline,
       }, null, 2),
       contentType: "application/json",
@@ -575,6 +617,7 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
     if (api) {
       try {
         await api.stop()
+        apiStopped = true
       } catch (error) {
         rememberCleanupError("encerramento da API C03", error)
       }
@@ -585,14 +628,14 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
     else process.env.C03_READY_PATH = previousReady
     if (previousArtifacts === undefined) delete process.env.C03_ARTIFACT_DIR
     else process.env.C03_ARTIFACT_DIR = previousArtifacts
-    if (!worker || workerSettled) {
+    if ((!worker || workerSettled) && (!api || apiStopped)) {
       try {
         rmSync(temporaryRoot, { recursive: true, force: true })
       } catch (error) {
         rememberCleanupError("remoção do estado temporário C03", error)
       }
     } else {
-      cleanupErrors.push(new Error(`worker C03 permanece ativo; estado temporário preservado em ${temporaryRoot}`))
+      cleanupErrors.push(new Error(`processo C03 permanece ativo; estado temporário preservado em ${temporaryRoot}`))
     }
     if (cleanupErrors.length > 0 && !testBodyFailed) {
       throw new AggregateError(cleanupErrors, "cleanup C03 incompleto")
