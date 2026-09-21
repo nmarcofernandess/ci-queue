@@ -101,6 +101,6 @@ All of the below is **policy for a future approved cycle**. Nothing below is aut
 
 ## References
 
-- Design: `docs/superpowers/specs/2026-09-20-q2-q3-observe-cut-design.md` (§ Satellite — Q1 inventory)
+- Design: `2026-09-20-q2-q3-observe-cut-design.md` (§ Satellite — Q1 inventory), preservado apenas no resgate local de 21/09/2026; não é arquivo deste repositório.
 - Evidence: `~/Downloads/CI-QUEUE-Q1-Q3-2026-09-20/RELATORIO-Q1-Q3.md` (§1 Q1 populations + § Bloco Q1)
 - Declared bases: CQ `3810101` / DF `a86d66b` cycle (`381010175e4e` / `a86d66b1af25`)
