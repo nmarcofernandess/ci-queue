@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   describeJobState,
+  describeExecutionState,
   describeProgressState,
   elapsedPresentation,
   inspectPresentation,
@@ -28,6 +29,44 @@ describe('presentation preserves published semantics', () => {
     expect(describeProgressState('passed', 'cancelled')).toEqual(describeJobState('passed'))
     expect(describeProgressState('failed', 'cancelled')).toEqual(describeJobState('failed'))
     expect(describeProgressState('running', 'running').animated).toBe(true)
+  })
+  it('uses one indicator for running failure, retry and terminal flaky history', () => {
+    const retry = { id: 'retry', label: 'Retry', status: 'running' as const, retryCount: 1 }
+    const failed = { id: 'failed', label: 'Failed', status: 'failed' as const }
+    const progressSummary = { schemaVersion: 1, available: true, nodes: [retry] }
+    expect(describeExecutionState({ status: 'running' })).toMatchObject({
+      colorClass: 'text-muted-foreground', animated: true, label: 'Em execução',
+    })
+    expect(describeExecutionState({ status: 'running', progressSummary })).toMatchObject({
+      colorClass: 'text-warning', detail: 'Flaky detectado', animated: true,
+    })
+    expect(describeExecutionState({ status: 'running', progressSummary: { ...progressSummary, nodes: [retry, failed] } })).toMatchObject({
+      colorClass: 'text-destructive', detail: 'Etapa com falha · Flaky detectado', animated: true,
+    })
+    expect(describeExecutionState({ status: 'passed', hasRetries: true })).toMatchObject({
+      colorClass: 'text-success', detail: 'Flaky detectado', animated: false,
+    })
+    expect(describeExecutionState({
+      status: 'running',
+      hasRetries: true,
+      progressSummary: {
+        schemaVersion: 1,
+        available: true,
+        nodes: [{
+          id: 'recovered', label: 'Recovered', status: 'passed', retryCount: 1,
+          detail: { kind: 'cases', completed: 1, total: 1, passed: 1, failed: 1, running: 0, pending: 0, skipped: 0 },
+        }],
+      },
+    })).toMatchObject({ colorClass: 'text-warning', detail: 'Flaky detectado' })
+    expect(describeProgressState(retry, 'running')).toMatchObject({
+      colorClass: 'text-warning', detail: 'Flaky detectado', animated: true,
+    })
+    expect(describeProgressState(failed, 'running')).toMatchObject({
+      colorClass: 'text-destructive', animated: false,
+    })
+    expect(describeProgressState(retry, 'cancelled')).toMatchObject({
+      colorClass: 'text-muted-foreground', detail: 'Flaky detectado', animated: false,
+    })
   })
   it('sizes inspect and elapsed by presentation and keeps the inspect label', () => {
     expect(inspectPresentation.current).toBe('icon-lg')

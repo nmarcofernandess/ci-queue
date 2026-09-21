@@ -30,7 +30,7 @@ import {
 } from "./detail-drawer"
 import { FactsTable } from "./facts-table"
 import {
-  describeJobState,
+  describeExecutionState,
   observedProgressCopy,
   progressSurface,
   unconfiguredProgressCopy,
@@ -538,7 +538,7 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
         }
         media={
           job.data
-            ? { kind: "state", descriptor: describeJobState(job.data.status) }
+            ? { kind: "state", descriptor: describeExecutionState(job.data) }
             : undefined
         }
         badge={

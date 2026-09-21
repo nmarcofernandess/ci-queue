@@ -1,5 +1,4 @@
 import { ChevronDownIcon } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Collapsible,
@@ -59,7 +58,7 @@ function ProgressNodeRow({
       </div>
       <ItemMedia data-slot="progress-indicator">
         <StatusIndicator
-          descriptor={describeProgressState(node.status, jobStatus)}
+          descriptor={describeProgressState(node, jobStatus)}
           presentation="stage"
         />
       </ItemMedia>
@@ -76,9 +75,6 @@ function ProgressNodeRow({
             {node.inventoryReplaced && node.detail ? " · " : null}
             {formatProgressDetail(node.detail)}
           </ItemDescription>
-        ) : null}
-        {(node.retryCount ?? 0) > 0 ? (
-          <Badge variant="outline">Flaky detectado</Badge>
         ) : null}
       </ItemContent>
       <ItemActions className="shrink-0 text-sm text-muted-foreground">

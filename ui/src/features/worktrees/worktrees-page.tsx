@@ -510,7 +510,7 @@ function WorktreeDataTable({
                     : header.column.id === "actions"
                       ? "w-14"
                       : header.column.id === "path"
-                        ? "w-96"
+                        ? "w-[clamp(20rem,22vw,26rem)]"
                         : header.column.id === "size" ||
                             header.column.id === "state"
                           ? "w-28"

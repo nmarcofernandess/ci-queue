@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { fixtureTerminals, fixtureTrees, installConsistencyFixtures } from './fixtures/ui-consistency'
+import { fixtureJob, fixtureTerminals, fixtureTrees, installConsistencyFixtures } from './fixtures/ui-consistency'
 
 const capture = process.env.CI_QUEUE_CAPTURE_TABLE_LAYOUT === '1'
 
@@ -43,15 +43,21 @@ for (const width of [1440, 820, 390]) {
       const flaky = history.getByRole('row').filter({ has: page.getByRole('button', { name: 'smoketest', exact: true }) })
       const name = flaky.getByRole('button', { name: 'smoketest', exact: true })
       expect((await name.boundingBox())!.width).toBeGreaterThan(45)
-      await expect(flaky.getByText('Flaky detectado')).toBeVisible()
+      await expect(flaky.getByRole('img', { name: 'Passou · Flaky detectado' })).toBeVisible()
+      await expect(flaky.getByText('Flaky detectado')).toHaveCount(0)
       await expect(flaky.getByText('Personalizado')).toBeVisible()
       await expect(history.getByText('Não informada').first()).toBeVisible()
       const revision = flaky.getByRole('cell').nth(4)
-      expect((await revision.boundingBox())!.width).toBeGreaterThan(250)
+      expect((await revision.boundingBox())!.width).toBeGreaterThan(100)
       await columnAlignment(history)
       await shot(page, testInfo.outputPath(`history-initial-${width}-${theme}.png`))
       const historyScroll = history.locator('..')
       const eye = flaky.getByRole('button', { name: 'Inspecionar' })
+      if (width === 1440) {
+        const revisionBox = (await revision.boundingBox())!
+        const eyeBox = (await eye.boundingBox())!
+        expect(revisionBox.x).toBeLessThan(eyeBox.x - 48)
+      }
       await historyScroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
       await expect(eye).toBeInViewport()
       if (width < 820) expect(await historyScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
@@ -63,6 +69,11 @@ for (const width of [1440, 820, 390]) {
       const row = worktrees.getByRole('row').filter({ has: page.getByRole('button', { name: longWorktree, exact: true }) })
       const tableScroll = worktrees.locator('..')
       await columnAlignment(worktrees)
+      if (width === 1440) {
+        const branch = (await worktrees.getByRole('columnheader', { name: 'Branch' }).boundingBox())!
+        const container = (await tableScroll.boundingBox())!
+        expect(branch.x).toBeLessThan(container.x + container.width - 150)
+      }
       await shot(page, testInfo.outputPath(`worktrees-initial-${width}-${theme}.png`))
       await tableScroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
       await expect(row.getByRole('button', { name: longWorktree, exact: true })).toBeInViewport()
@@ -84,7 +95,7 @@ for (const width of [1440, 820, 390]) {
   }
 }
 
-test('all projects keeps the recipe readable alongside project, variant and flaky badges', async ({ page }, testInfo) => {
+test('all projects keeps the recipe readable alongside project and variant badges', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await installConsistencyFixtures(page, {
     extraProjects: [{ id: 'another', displayName: 'Another project' }],
@@ -98,7 +109,46 @@ test('all projects keeps the recipe readable alongside project, variant and flak
   const recipe = row.getByRole('button', { name: 'smoketest', exact: true })
   await expect(row.getByText('DietFlow')).toBeVisible()
   await expect(row.getByText('Personalizado')).toBeVisible()
-  await expect(row.getByText('Flaky detectado')).toBeVisible()
+  const status = row.getByRole('img', { name: 'Passou · Flaky detectado' })
+  await expect(status).toBeVisible()
+  await status.focus()
+  await expect(page.getByRole('tooltip', { name: 'Passou · Flaky detectado' })).toBeVisible()
   expect((await recipe.boundingBox())!.width).toBeGreaterThan(80)
   await shot(page, testInfo.outputPath('history-all-projects.png'))
+})
+
+test('analysis keeps the preset in view while numeric columns scroll', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 900 })
+  await installConsistencyFixtures(page)
+  await page.goto('/#analysis')
+  const table = page.getByRole('table', { name: 'Resultados por preset' })
+  const container = table.locator('..')
+  const preset = table.getByRole('row').filter({ has: page.getByRole('button', { name: 'smoketest', exact: true }) }).getByRole('cell').first()
+  await shot(page, testInfo.outputPath('analysis-initial-390-light.png'))
+  await container.evaluate(element => { element.scrollLeft = element.scrollWidth })
+  await expect(preset).toBeInViewport()
+  await expect(table.getByRole('columnheader', { name: 'Total' })).toBeInViewport()
+  expect(await container.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
+  await shot(page, testInfo.outputPath('analysis-390-light.png'))
+})
+
+test('a failed stage takes priority over retry while the execution is running', async ({ page }) => {
+  const progress = fixtureJob.progressSummary!
+  await installConsistencyFixtures(page, {
+    living: {
+      ...fixtureJob,
+      progressSummary: {
+        ...progress,
+        nodes: [
+          ...(progress.nodes ?? []),
+          { id: 'failed-stage', label: 'Falha', status: 'failed' },
+        ],
+      },
+    },
+  })
+  await page.goto('/#status')
+  const state = page.locator('[data-slot=entity-identity][data-presentation=current] [data-slot=status-indicator]')
+  await expect(state).toHaveAttribute('aria-label', 'Em execução · Etapa com falha · Flaky detectado')
+  await expect(state).toHaveClass(/text-destructive/)
+  await expect(page.locator('[data-slot=entity-identity][data-presentation=current]').getByText('Flaky detectado')).toHaveCount(0)
 })

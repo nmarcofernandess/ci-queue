@@ -327,7 +327,7 @@ function ResultsChart({
         <DataTableFrame placement="body" label="Resultados por preset">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[40%]">Preset</TableHead>
+              <TableHead className="w-[40%]" data-sticky="start">Preset</TableHead>
               <TableHead className="w-[12%] text-right">Passou</TableHead>
               <TableHead className="w-[12%] text-right">Falhou</TableHead>
               <TableHead className="w-[12%] text-right">Cancelado</TableHead>
@@ -341,7 +341,7 @@ function ResultsChart({
               const label = resultLabel(preset)
               return (
               <TableRow key={identity}>
-                <TableCell className="min-w-0 max-w-0 font-medium">
+                <TableCell className="min-w-0 max-w-0 font-medium" data-sticky="start">
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button

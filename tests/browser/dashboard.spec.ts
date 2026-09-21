@@ -59,7 +59,9 @@ test('live drawer preserves identity, recursive counts, cursor and terminal poll
     await route.fulfill({ json: data[url.pathname] ?? {} })
   })
   await page.goto('/#status')
-  await expect(page.getByText('Flaky detectado')).toBeVisible()
+  const currentState = page.locator('[data-slot=entity-identity][data-presentation=current] [data-slot=status-indicator]')
+  await expect(currentState).toHaveAttribute('aria-label', 'Em execução · Flaky detectado')
+  await expect(currentState).toHaveClass(/text-warning/)
   await expect(page.getByText('Atualizando', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'smoke', exact: true }).click()
   const drawer = page.getByRole('dialog')
@@ -91,7 +93,7 @@ test('live drawer preserves identity, recursive counts, cursor and terminal poll
 
   terminal = true
   await expect(drawer.locator('pre')).toContainText('terminal line', { timeout: 8000 })
-  await expect(drawer.getByLabel('Passou', { exact: true })).toBeVisible()
+  await expect(drawer.getByLabel('Passou · Flaky detectado', { exact: true })).toBeVisible()
   await expect(drawer.locator('.animate-spin')).toHaveCount(0)
   await expect(drawer).toContainText('Duração: 1m 2s')
   const count = offsets.length

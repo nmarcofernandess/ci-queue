@@ -1,7 +1,7 @@
 pattern: ui-composition
 version: 1
 status: active
-updated: 2026-09-15
+updated: 2026-09-21
 foundation:
   registry: radix-nova
   primitives: ui/src/components/ui
@@ -16,6 +16,21 @@ composition:
     source: ui/src/features/shared/entity-identity.tsx
     variants_source: ui/src/features/shared/presentation.ts
     use: "Mesma identidade com apresentações current/drawer/table; passar conteúdo, não estilo."
+  execution_state:
+    descriptor: ui/src/features/shared/presentation.ts
+    indicator: ui/src/features/shared/status-indicator.tsx
+    color: ui/src/features/shared/status-color.ts
+    use: "Um ícone por estado. Rodando neutro; retry amarelo; falha no progresso vermelho. No terminal, cor do resultado e Flaky detectado no tooltip/nome acessível."
+    consumers:
+      - ui/src/features/status/status-page.tsx
+      - ui/src/features/shared/run-table.tsx
+      - ui/src/features/shared/job-drawer.tsx
+      - ui/src/features/shared/progress-tree.tsx
+      - ui/src/features/shared/execution-stages.tsx
+    checks:
+      - tests/ui/presentation.test.ts
+      - tests/browser/dashboard.spec.ts
+      - tests/browser/table-layout.spec.ts
   inspect:
     source: ui/src/features/shared/inspect-button.tsx
     use: "Olho compartilhado; label Inspecionar; tamanho em presentation.inspect; sem data-icon."
@@ -80,7 +95,7 @@ composition:
     use: "Ficha de metadados de detalhe, sem card adicional."
   table:
     source: ui/src/features/shared/data-table-frame.tsx
-    use: "Tabela de lista com placement card/body; não mudar modelo de dados."
+    use: "Tabela de lista com placement card/body e scroll local; consumidor define largura de identidade com limite para expor colunas seguintes. Não mudar modelo de dados."
   progress:
     tree: ui/src/features/shared/progress-tree.tsx
     strip: ui/src/features/shared/execution-stages.tsx

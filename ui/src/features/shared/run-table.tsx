@@ -1,6 +1,6 @@
 import { EntityIdentity } from "./entity-identity"
 import { StatusIndicator } from "./status-indicator"
-import { describeJobState } from "./presentation"
+import { describeExecutionState } from "./presentation"
 import { DataTableFrame } from "./data-table-frame"
 import { InspectButton } from "./inspect-button"
 import { RelativeTime, JobDuration, QueueWait } from "./live-time"
@@ -23,7 +23,6 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/card"
-import { statusColor } from "@/features/shared/status-color"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -50,9 +49,8 @@ import { ErrorState } from "@/features/shared/async-state"
 import {
   formatTimelineDate,
   shortSha,
-  statusLabel,
 } from "@/features/shared/format"
-import type { JobRecord, JobStatus } from "@/lib/types"
+import type { JobRecord } from "@/lib/types"
 
 const features = tableFeatures({})
 export type RunTableJob = Omit<JobRecord, "id" | "progressEnabled"> & {
@@ -68,13 +66,6 @@ export type RunTableJob = Omit<JobRecord, "id" | "progressEnabled"> & {
 const helper = createColumnHelper<typeof features, RunTableJob>()
 const EMPTY: RunTableJob[] = []
 
-export function JobStatusBadge({ status }: { status: JobStatus | undefined }) {
-  return (
-    <Badge variant="outline" className={statusColor(status)}>
-      {statusLabel(status)}
-    </Badge>
-  )
-}
 export type RunTableProps = {
   title: string
   description?: string
@@ -102,11 +93,11 @@ function detailId(job: RunTableJob) {
 }
 
 function columnClass(id: string) {
-  if (id === "status") return "w-20"
-  if (id === "execution") return "w-[32rem]"
+  if (id === "status") return "w-16"
+  if (id === "execution") return "w-[clamp(22rem,26vw,28rem)]"
   if (id === "time") return "w-28"
   if (id === "duration") return "w-24"
-  if (id === "actions") return "w-20 text-right"
+  if (id === "actions") return "w-18 text-right"
   return undefined
 }
 
@@ -114,14 +105,10 @@ function identityBadge(
   job: RunTableJob,
   chip: { always?: boolean; filterProjectId?: string }
 ) {
-  const flaky = Boolean(
-    job.hasRetries ||
-      job.progressSummary?.nodes?.some((node) => (node.retryCount ?? 0) > 0)
-  )
   const chipVisible = projectChipVisible(job, chip)
   const observed = job.recordKind === "observed-execution"
   const variant = <RunVariantBadge runVariant={job.runVariant} />
-  if (!flaky && !chipVisible && !observed && !job.runVariant) {
+  if (!chipVisible && !observed && !job.runVariant) {
     return undefined
   }
   return (
@@ -140,7 +127,6 @@ function identityBadge(
         <ProjectChip name={job.projectName} facts={projectChipFacts(job)} />
       ) : null}
       {variant}
-      {flaky ? <Badge variant="outline">Flaky detectado</Badge> : null}
     </>
   )
 }
@@ -167,7 +153,7 @@ function RunDataTable({
           header: "Estado",
           cell: ({ row }) => (
             <StatusIndicator
-              descriptor={describeJobState(row.original.status)}
+              descriptor={describeExecutionState(row.original)}
               presentation="table"
             />
           ),

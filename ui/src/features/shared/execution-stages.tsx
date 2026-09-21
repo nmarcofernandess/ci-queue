@@ -92,7 +92,7 @@ export function ExecutionStages({
             >
               <div className="flex w-full items-center gap-2">
                 <StatusIndicator
-                  descriptor={describeProgressState(stage.status, jobStatus)}
+                  descriptor={describeProgressState(stage, jobStatus)}
                   presentation="stage"
                 />
                 {index < stages.length - 1 ? (
