@@ -1,7 +1,6 @@
 import { EntityIdentity } from "@/features/shared/entity-identity"
-import { describeJobState } from "@/features/shared/presentation"
+import { describeExecutionState } from "@/features/shared/presentation"
 import { ExecutionStages } from "@/features/shared/execution-stages"
-import { Badge } from "@/components/ui/badge"
 import { ElapsedItem } from "@/features/shared/live-time"
 import { ProjectChip } from "@/features/shared/project-chip"
 import { projectChipFacts } from "@/features/shared/project-chip-model"
@@ -117,11 +116,6 @@ function CurrentExecution({
   const stages = current.progressSummary?.available
     ? (current.progressSummary.roots ?? [])
     : []
-  const flaky = Boolean(
-    current.hasRetries ||
-      current.progressSummary?.nodes?.some((node) => (node.retryCount ?? 0) > 0)
-  )
-
   return (
     <Card size="sm">
       <CardHeader>
@@ -134,7 +128,7 @@ function CurrentExecution({
             title={current.preset || "Preset não informado"}
             media={{
               kind: "state",
-              descriptor: describeJobState(current.status),
+              descriptor: describeExecutionState(current),
             }}
             onOpen={() => onOpenJob(current.id)}
             description={
@@ -144,7 +138,7 @@ function CurrentExecution({
               </>
             }
             badge={
-              current.projectName || flaky || current.runVariant ? (
+              current.projectName || current.runVariant ? (
                 <>
                   {current.projectName ? (
                     <ProjectChip
@@ -153,9 +147,6 @@ function CurrentExecution({
                     />
                   ) : null}
                   <RunVariantBadge runVariant={current.runVariant} />
-                  {flaky ? (
-                    <Badge variant="outline">Flaky detectado</Badge>
-                  ) : null}
                 </>
               ) : undefined
             }

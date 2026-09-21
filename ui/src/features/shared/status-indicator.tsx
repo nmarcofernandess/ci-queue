@@ -19,12 +19,13 @@ export function StatusIndicator({
 }) {
   const size = indicatorPresentation[presentation]
   const { Icon } = descriptor
+  const accessibleLabel = [descriptor.label, descriptor.detail].filter(Boolean).join(" · ")
   const indicator = (
     <span
       data-slot="status-indicator"
       role="img"
-      aria-label={descriptor.label}
-      tabIndex={presentation === "table" ? 0 : undefined}
+      aria-label={accessibleLabel}
+      tabIndex={presentation === "table" || descriptor.detail ? 0 : undefined}
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
         size.area,
@@ -40,10 +41,10 @@ export function StatusIndicator({
       />
     </span>
   )
-  return presentation === "table" ? (
+  return presentation === "table" || descriptor.detail ? (
     <Tooltip>
       <TooltipTrigger asChild>{indicator}</TooltipTrigger>
-      <TooltipContent>{descriptor.label}</TooltipContent>
+      <TooltipContent>{accessibleLabel}</TooltipContent>
     </Tooltip>
   ) : (
     indicator

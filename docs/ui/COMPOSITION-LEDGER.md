@@ -78,8 +78,9 @@ rearranging execution records. This is a product adaptation, not permission to
 turn table rows into buttons or to substitute a handmade table.
 
 Column budgets belong to each table consumer. Compact execution identities keep
-title and status badge on one line, truncate only the flexible title, and retain
-the complete accessible value. Card tables reserve the final action width for
+title and contextual badges on one line, truncate only the flexible title, and retain
+the complete accessible value. Flaky belongs to the shared status indicator's
+tooltip and accessible name. Card tables reserve the final action width for
 the installed icon Button plus both effective paddings. Compact absolute dates
 remain in the cell; relative time remains available through Tooltip.
 

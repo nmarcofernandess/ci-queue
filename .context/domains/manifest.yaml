@@ -14,6 +14,8 @@ system_map:
     related:
       - ui/src/features/shared/run-table.tsx
       - ui/src/features/shared/job-drawer.tsx
+      - ui/src/features/shared/presentation.ts
+      - ui/src/features/shared/status-indicator.tsx
       - ui/src/features/status/status-state-drawer.tsx
       - ui/src/features/status/green-commit-table.tsx
   worktrees:
@@ -54,6 +56,21 @@ system_map:
     entry: ui/src/lib/api.ts
     types: ui/src/lib/types.ts
     rule: "Features consomem os fatos atuais via APIs scoped; composições visuais não fazem fetch."
+  execution_state:
+    entry: ui/src/features/shared/presentation.ts
+    indicator: ui/src/features/shared/status-indicator.tsx
+    color: ui/src/features/shared/status-color.ts
+    consumers:
+      - ui/src/features/status/status-page.tsx
+      - ui/src/features/shared/run-table.tsx
+      - ui/src/features/shared/job-drawer.tsx
+      - ui/src/features/shared/progress-tree.tsx
+      - ui/src/features/shared/execution-stages.tsx
+    checks:
+      - tests/ui/presentation.test.ts
+      - tests/browser/table-layout.spec.ts
+      - tests/browser/dashboard.spec.ts
+    rule: "Rodando neutro; retry amarelo; falha em progresso vermelho; terminal conserva a cor do resultado e anuncia Flaky detectado no indicador."
   integration_documentation:
     entry: docs/CONSUMER-QUICKSTART.md
     tutorial: docs/GUIA-INTEGRACAO-CI-QUEUE.html

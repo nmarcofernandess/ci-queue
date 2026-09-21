@@ -15,6 +15,7 @@ export type IndicatorPresentation = IdentityPresentation | "stage"
 export type StateDescriptor = {
   Icon: LucideIcon
   label: string
+  detail?: string
   colorClass: string
   animated: boolean
 }
@@ -75,10 +76,59 @@ export function describeJobState(
   }
 }
 
+function executionProgressSome(
+  job: Pick<JobRecord, "progressSummary">,
+  predicate: (node: ProgressNode) => boolean
+): boolean {
+  const progress = job.progressSummary
+  return [progress?.nodes, progress?.roots, progress?.active]
+    .some((nodes) => nodes?.some(predicate))
+}
+
+export function executionHasRetries(
+  job: Pick<JobRecord, "hasRetries" | "progressSummary">
+): boolean {
+  return Boolean(
+    job.hasRetries || executionProgressSome(job, (node) => (node.retryCount ?? 0) > 0)
+  )
+}
+
+function progressHasFailure(node: ProgressNode): boolean {
+  return node.status === "failed" ||
+    (node.status === "running" && node.detail != null &&
+      typeof node.detail === "object" && node.detail.failed > 0)
+}
+
+export function describeExecutionState(
+  job: Pick<JobRecord, "status" | "hasRetries" | "progressSummary">
+): StateDescriptor {
+  const base = describeJobState(job.status)
+  const flaky = executionHasRetries(job)
+  if (job.status === "running") {
+    const failed = executionProgressSome(job, progressHasFailure)
+    return {
+      ...base,
+      colorClass: failed
+        ? statusColor("failed")
+        : flaky
+          ? statusColor("retrying")
+          : base.colorClass,
+      detail: [failed ? "Etapa com falha" : null, flaky ? "Flaky detectado" : null]
+        .filter(Boolean)
+        .join(" · ") || undefined,
+    }
+  }
+  return flaky ? { ...base, detail: "Flaky detectado" } : base
+}
+
 export function describeProgressState(
-  nodeStatus: ProgressNode["status"],
+  node: ProgressNode | ProgressNode["status"],
   jobStatus: JobStatus | undefined
 ): StateDescriptor {
+  const nodeStatus = typeof node === "string" ? node : node.status
+  const retryDetail = typeof node !== "string" && (node.retryCount ?? 0) > 0
+    ? "Flaky detectado"
+    : undefined
   const stopped =
     jobStatus !== "running" &&
     (nodeStatus === "running" || nodeStatus === "pending")
@@ -91,6 +141,7 @@ export function describeProgressState(
           : "Execução encerrada; etapa sem conclusão registrada",
       colorClass: statusColor("skipped"),
       animated: false,
+      detail: retryDetail,
     }
   if (nodeStatus === "pending" || nodeStatus === "skipped")
     return {
@@ -98,8 +149,24 @@ export function describeProgressState(
       label: nodeStatus === "pending" ? "Aguardando" : "Ignorada",
       colorClass: statusColor(nodeStatus),
       animated: false,
+      detail: retryDetail,
     }
-  return describeJobState(nodeStatus)
+  const base = describeJobState(nodeStatus)
+  if (typeof node === "string") return base
+  return {
+    ...base,
+    colorClass: nodeStatus === "running"
+      ? progressHasFailure(node)
+        ? statusColor("failed")
+        : (node.retryCount ?? 0) > 0
+          ? statusColor("retrying")
+          : base.colorClass
+      : base.colorClass,
+    detail: [
+      nodeStatus === "running" && progressHasFailure(node) ? "Etapa com falha" : null,
+      retryDetail,
+    ].filter(Boolean).join(" · ") || undefined,
+  }
 }
 
 export type ProgressSurface = "tree" | "unconfigured" | "declared-silent" | "not-collected"

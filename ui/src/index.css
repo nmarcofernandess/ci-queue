@@ -134,3 +134,45 @@
     @apply font-sans;
     }
 }
+
+@layer components {
+  [data-slot="table"] [data-sticky] {
+    position: sticky;
+    z-index: 1;
+    background-color: var(--background);
+  }
+
+  [data-slot="card"] [data-slot="table"] [data-sticky],
+  [data-slot="table"][data-placement="card"] [data-sticky] {
+    background-color: var(--card);
+  }
+
+  [data-slot="table"] thead [data-sticky] {
+    z-index: 2;
+  }
+
+  [data-slot="table"] [data-sticky="start"] {
+    left: 0;
+  }
+
+  [data-slot="table"] [data-sticky="after-selection"] {
+    left: 2.75rem;
+  }
+
+  [data-slot="table"] [data-sticky="end"] {
+    right: 0;
+  }
+
+  [data-slot="table"] tr:hover [data-sticky] {
+    background-color: color-mix(in oklab, var(--muted) 50%, var(--background));
+  }
+
+  [data-slot="card"] [data-slot="table"] tr:hover [data-sticky],
+  [data-slot="table"][data-placement="card"] tr:hover [data-sticky] {
+    background-color: color-mix(in oklab, var(--muted) 50%, var(--card));
+  }
+
+  [data-slot="table"] tr[data-state="selected"] [data-sticky] {
+    background-color: var(--muted);
+  }
+}

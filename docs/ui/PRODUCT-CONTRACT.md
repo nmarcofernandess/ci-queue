@@ -34,10 +34,13 @@ curto e nome acessível com os campos pesquisáveis. Período, Resultado e Orige
 usam `FilterSelect` direto; agrupamento só aparece em Últimos verdes. Os headers da
 tabela usam texto secundário sem faixa de fundo. Não há card dentro de card.
 
-Os indicadores usam cores semânticas consistentes em tabelas, etapas, drawers
-e Resultados da Análise: passou em verde (`success`), falhou em vermelho
-(`destructive`), rodando/interrompido em âmbar (`warning`) e cancelado/aguardando
-em neutro (`muted-foreground`). Ícone e rótulo continuam identificando o estado
+Os indicadores usam cores semânticas consistentes em tabelas, etapas e drawers:
+passou em verde (`success`), falhou em vermelho (`destructive`), rodando normal
+em neutro (`muted-foreground`), retry em andamento em âmbar (`warning`) e
+execução ainda ativa com falha no progresso em vermelho. Falha prevalece sobre
+retry; no terminal prevalece a cor do resultado e o tooltip do mesmo indicador
+registra **Flaky detectado** quando houve retry. Interrompido permanece em
+âmbar; cancelado e aguardando em neutro. Ícone e rótulo continuam identificando o estado
 independentemente da cor. Os tokens têm valores próprios para claro e escuro.
 
 A página tem uma faixa de execução atual acima de um grid com coluna principal fluida e coluna direita finita.
@@ -92,7 +95,7 @@ Execuções oferece período Todo período, Hoje, 48h, Semana ou 15 dias, e resu
 - Tabs Progresso/Log fixas; footer de ações fixo; somente o conteúdo central rola.
 - Progresso não repete estado, preset, início, duração ou saída. A tabela de detalhes contém somente Ticket, Branch, SHA e Diretório.
 - Etapas preservam a árvore recursiva completa; nós com filhos usam `Collapsible` oficial. Cada nó mantém identidade, parentesco, tipo, estado, duração, detalhe e retry quando publicados. Não existe barra temporal.
-- `retryCount > 0` mostra **Flaky detectado** durante a repetição e depois do término.
+- `retryCount > 0` aparece no tooltip e nome acessível do indicador da execução e do nó; não cria badge junto do nome.
 - `failureReason`, quando existe, aparece como `Alert` **Motivo da falha** depois do contexto e antes da árvore. O log continua sendo saída bruta.
 - Log vivo abre acompanhando o final. Enquanto o usuário permanece no fim, novas linhas mantêm o scroll no fim; subir pausa o acompanhamento sem parar a leitura. **Acompanhar** ou **Ir ao fim** retoma conforme o job esteja vivo ou terminal.
 - Diagnóstico abre em Popover no footer e permite copiar/baixar o bundle; nunca vira um card abaixo do log.

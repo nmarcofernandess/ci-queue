@@ -52,7 +52,7 @@ export function fixtureDashboard(): DashboardState {
   }
 }
 export const fixtureAnalysis: AnalysisResponse = { schemaVersion:1,projectId:'example',from:null,to:null,preset:null,total:12,coverage:{unattributedRecords:0},presets:['smoketest','static','full'].map((preset,i)=>({preset,passed:2,failed:1,cancelled:1,interrupted:0,total:4,passRate:50,points:i===2?[]:[{id:'fixture-passed',at:'2026-09-14T12:00:00Z',durationMs:62000},{id:'fixture-failed',at:'2026-09-15T11:00:00Z',durationMs:92000}],duration:{count:i===2?0:2,medianMs:i===2?null:77000,minMs:i===2?null:62000,maxMs:i===2?null:92000},failedDurationMs:92000,failedDurationCount:1,failedDurationMissing:0})) }
-export type FixtureOptions = { empty?: boolean; error?: boolean; saveError?: boolean; theme?:'light'|'dark'|'system'; displayName?: string; living?: JobRecord | null; extraProjects?: Array<{ id: string; displayName: string }>; durationMeanMs?: number; history?: JobRecord[]; resultsPresets?: Array<{ preset: string; projectId?: string; projectName?: string; passed: number; failed: number; cancelled: number; interrupted: number; total: number }>; durationPresets?: Array<{ key: string; label: string; projectId: string; preset: string }> }
+export type FixtureOptions = { empty?: boolean; error?: boolean; saveError?: boolean; theme?:'light'|'dark'|'system'; displayName?: string; living?: JobRecord | null; extraProjects?: Array<{ id: string; displayName: string }>; durationMeanMs?: number; history?: JobRecord[]; worktrees?: WorktreeRecord[]; resultsPresets?: Array<{ preset: string; projectId?: string; projectName?: string; passed: number; failed: number; cancelled: number; interrupted: number; total: number }>; durationPresets?: Array<{ key: string; label: string; projectId: string; preset: string }> }
 
 function echoContext(url: URL) {
   const projectId = url.searchParams.get('projectId')
@@ -104,8 +104,8 @@ export async function installConsistencyFixtures(page: Page, options: FixtureOpt
       '/api/dashboard-state': { ...state, context },
       '/api/machine': {schemaVersion:1,observedAt:fixtureNow.toISOString(),disk:{totalBytes:2000000000,usedBytes:1000000000,freeBytes:1000000000},error:null},
       '/api/job': { ...selected, context },
-      '/api/worktrees': {schemaVersion:1,observedAt:fixtureNow.toISOString(), worktrees: options.empty?[]:fixtureTrees, baseRef: 'main',baseSha:'c'.repeat(40), error: null, context },
-      '/api/worktree-view': fixtureTrees.find(tree => tree.id === url.searchParams.get('id')),
+      '/api/worktrees': {schemaVersion:1,observedAt:fixtureNow.toISOString(), worktrees: options.empty?[]:(options.worktrees ?? fixtureTrees), baseRef: 'main',baseSha:'c'.repeat(40), error: null, context },
+      '/api/worktree-view': (options.worktrees ?? fixtureTrees).find(tree => tree.id === url.searchParams.get('id')),
       '/api/analysis': (() => {
         const requested = url.searchParams.get('preset') || ''
         const split = requested.indexOf(':')

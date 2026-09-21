@@ -258,12 +258,9 @@ test('review regressions keep dense identities and table actions inside their ce
   const flakyRow=history.getByRole('row').filter({has:page.getByRole('button',{name:'passed-run',exact:true})})
   const plainRow=history.getByRole('row').filter({has:page.getByRole('button',{name:'failed-run',exact:true})})
   const longRow=history.getByRole('row').filter({has:page.getByRole('button',{name:'a-very-long-preset-name-for-density',exact:true})})
-  const flakyIdentity=flakyRow.locator('[data-slot=entity-identity]')
-  const titleBox=(await flakyIdentity.getByRole('button',{name:'passed-run',exact:true}).boundingBox())!
-  const badgeBox=(await flakyIdentity.getByText('Flaky detectado',{exact:true}).boundingBox())!
-  expect(Math.abs((titleBox.y+titleBox.height/2)-(badgeBox.y+badgeBox.height/2))).toBeLessThanOrEqual(1)
+  await expect(flakyRow.getByRole('img',{name:'Passou · Flaky detectado'})).toBeVisible()
   expect((await flakyRow.boundingBox())!.height).toBe((await plainRow.boundingBox())!.height)
-  await expect(longRow.getByText('Flaky detectado',{exact:true})).toBeVisible()
+  await expect(longRow.getByRole('img',{name:'Passou · Flaky detectado'})).toBeVisible()
 
   const historyAction=flakyRow.getByRole('button',{name:'Inspecionar',exact:true})
   const actionGeometry=await historyAction.evaluate(button=>{

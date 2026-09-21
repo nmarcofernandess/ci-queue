@@ -44,8 +44,12 @@ cutover, Full execution or changes to product policy.
 
 ## UI: retrieve, select, adapt
 
-Before changing UI, read `DESIGN.md`, locate the surface in
-`.context/domains/manifest.yaml` and open `.context/patterns/ui-composition.yaml`.
+Start at the [domain map](.context/domains/manifest.yaml), then open the
+[UI composition pattern](.context/patterns/ui-composition.yaml) for the shared
+owner, consumers and checks. Read `DESIGN.md` and the product contract before
+changing the selected surface. For execution state, use the shared descriptor
+in `ui/src/features/shared/presentation.ts`; status color, retry and failure
+priority do not belong in individual screens.
 Recover the installed composition and its consumers before JSX. Features pass
 data/actions; shared owners decide geometry/presentation. Family corrections
 must verify all consumers. Types/lint prove mechanical limits; the rendered
