@@ -1,0 +1,86 @@
+{
+  "consulta_data": "2026-09-21",
+  "artefatos_gerados_em_utc": "2026-09-21T14:01:27.504482+00:00",
+  "initial_read": {
+    "ci_queue_dev": "24d6a2b417876db209db4519c3826566ab94a1e7",
+    "dietflow_dev": "147c5ed5df0a53efe1dfb336f28861e99cafadb1"
+  },
+  "final_snapshot": {
+    "ci_queue_dev": "550409a92f359cffc3e75f34712d39133b8ab130",
+    "ci_queue_tree": "d1daba7fd726548cf445d2ae37610b8612027b30",
+    "dietflow_dev": "ffc99748f796d8f7923c9e46161b2a4dc735eef8",
+    "dietflow_tree_note": "Não necessário ao parecer; HEAD e ancestralidade estão registrados. Não inferido."
+  },
+  "ancestry": [
+    {
+      "repo": "nmarcofernandess/ci-queue",
+      "pr": 17,
+      "merge": "24d6a2b417876db209db4519c3826566ab94a1e7",
+      "head": "e410dff80aa7e3423b8dd73b23d813cae6635d90",
+      "merged": true,
+      "proof": "head is parent of merge; final compare merge..550 is ahead6, behind0, merge_base=merge"
+    },
+    {
+      "repo": "dietflowoficial/Dietflow-app",
+      "pr": 1305,
+      "merge": "147c5ed5df0a53efe1dfb336f28861e99cafadb1",
+      "head": "d8048fb4f6c760eb0c607b098038846757ac43a3",
+      "merged": true,
+      "proof": "head is parent of merge; final compare merge..ffc is ahead177, behind0, merge_base=merge"
+    },
+    {
+      "repo": "nmarcofernandess/ci-queue",
+      "pr": 18,
+      "merge": "550409a92f359cffc3e75f34712d39133b8ab130",
+      "head": "17b379a55682489864d5d328ead68b1581d602fc",
+      "merged": true,
+      "merged_at": "2026-09-21T13:40:51Z",
+      "proof": "branch commit parents: 24d6... and 17b..."
+    }
+  ],
+  "original_tsv": {
+    "repo": "dietflowoficial/Dietflow-app",
+    "path": "specs/121-harness-resource-exhaustion/minispecs/06-dashboard-observabilidade-vite/material/CI-QUEUE-VERDADE.tsv",
+    "blob_sha": "18c9f829aec3bfc4c2e9c39da708d0668e93b080",
+    "ids": 72,
+    "historical_keep": 65,
+    "historical_out": 7,
+    "modified": false,
+    "copy_type": "annex paraphrases requirements, original linked per physical row"
+  },
+  "counts": {
+    "NÃO COMPROVADO": 14,
+    "CUMPRE COM PROVA": 37,
+    "SUBSTITUÍDO POR DECISÃO POSTERIOR": 14,
+    "OUT EXPLÍCITO": 7,
+    "REGREDIU": 0
+  },
+  "evidence_scope": {
+    "repo_read_only": true,
+    "product_implementation": false,
+    "suites_rerun": false,
+    "mac_access": false,
+    "installed_state_read": false,
+    "pr_ready_merge_deploy": false,
+    "synthetic_boundary_probes": 2,
+    "probes_origin_revision": "24d6a2b417876db209db4519c3826566ab94a1e7",
+    "probes_origin_note": "Runner unchanged by PR18; probes are excerpts/order demonstrations, not full-module runner tests."
+  },
+  "new_deltas_read": {
+    "ci_queue": "PR18 all changed owners/contracts and test layout; backend/core unchanged",
+    "dietflow": "CI/harness/121 intersection of 147..ffc: research J/K, status, cost docs, setup and Static count; not the clinical implementation of 123"
+  },
+  "reported_checks_not_reexecuted": [
+    "20260921115512-ccc7ede4",
+    "20260921121505-f0a9fe7e",
+    "20260921133518-b846929f"
+  ],
+  "missing": [
+    "raw installed CLI/API/worker provenance",
+    "current visual captures and served build revision for PR18",
+    "current log/history preservation manifest",
+    "exact recent ENOSPC stderr/path/operation",
+    "raw receipts/runtime diagnostics for causal M03 comparisons"
+  ],
+  "citations": "Pinned URLs appear in the census and reports. No connector tokens or guessed sandbox paths are included."
+}

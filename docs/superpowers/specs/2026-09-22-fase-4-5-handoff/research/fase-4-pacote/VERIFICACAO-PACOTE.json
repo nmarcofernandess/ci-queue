@@ -1,0 +1,22 @@
+{
+  "checked_at_utc": "2026-09-21T14:09:42.580690+00:00",
+  "artifact_checks": {
+    "tsv_unique_ids": 72,
+    "source_line_references": [
+      2,
+      73
+    ],
+    "classification_counts": {
+      "NÃO COMPROVADO": 14,
+      "CUMPRE COM PROVA": 37,
+      "SUBSTITUÍDO POR DECISÃO POSTERIOR": 14,
+      "OUT EXPLÍCITO": 7,
+      "REGREDIU": 0
+    },
+    "complete_owner_prompts": 7,
+    "internal_links_missing": [],
+    "hash_archive_test": "CRC e SHA256 de todos os arquivos conferidos; ZIP regenerado após ajustes finais de metadados"
+  },
+  "executed": "two synthetic boundary probes only; no product test or Mac operation",
+  "limitations": "CUMPRE refers to inspected code/tests; no live installation/human acceptance certified"
+}

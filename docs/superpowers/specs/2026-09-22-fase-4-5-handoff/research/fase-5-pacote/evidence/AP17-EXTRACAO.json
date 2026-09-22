@@ -1,0 +1,138 @@
+{
+  "kind": "audit-extraction-not-original-receipt",
+  "note": "Transcrição estruturada dos campos explicitamente lidos via GitHub. Não é o queue-ticket completo nem recibo de uma nova execução. Hashes Git abaixo identificam os blobs de origem; nenhum SHA-256 do arquivo original foi calculado nesta auditoria.",
+  "queriedAtUtc": "2026-09-21T14:54:38.302208+00:00",
+  "ticketId": "20260919075127-addfb8a5",
+  "executionId": "20260919075132-3fe53416-06a",
+  "headSha": "008cab050649c7d11255aef1e3a5f574581f02c1",
+  "baseSha": "3d411dab21554040f9337d6564c3bce620e5129a",
+  "branch": "codex/ap17-full-fixes",
+  "cwd": "/Users/marcoantonio/dietflow-ap17-full-fixes",
+  "argv": [
+    "npm",
+    "run",
+    "ci:local:full",
+    "--",
+    "--with-flowui"
+  ],
+  "status": "passed",
+  "exitCode": 0,
+  "cleanup": "confirmed (execution-receipt)",
+  "runtime": {
+    "node": "24.20.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "coverage": "guarded-node-processes",
+    "state": "verified"
+  },
+  "times": {
+    "createdAt": "2026-09-19T07:51:27.616Z",
+    "queueStartedAt": "2026-09-19T07:51:27.976Z",
+    "receiptStartedAt": "2026-09-19T07:51:32.407Z",
+    "receiptFinishedAt": "2026-09-19T09:46:53.236Z",
+    "queueFinishedAt": "2026-09-19T09:46:56.016Z"
+  },
+  "rootStagesEmitterMs": {
+    "static": 805000,
+    "jest": 2247000,
+    "e2e": 3544000,
+    "flowui": 322000
+  },
+  "e2eChildrenCollectorMs": {
+    "e2e-bootstrap": 3832,
+    "e2e-supabase": 100811,
+    "e2e-next": 762211,
+    "e2e-playwright": 2674085
+  },
+  "playwrightCounts": {
+    "completed": 177,
+    "total": 177,
+    "passed": 163,
+    "failed": 0,
+    "skipped": 14,
+    "running": 0,
+    "pending": 0
+  },
+  "reportedOnly": {
+    "jestSuites": 1926,
+    "jestCases": 16188,
+    "playwrightRetries": 0,
+    "careDownloads": 7,
+    "source": "https://github.com/dietflowoficial/Dietflow-app/blob/ffc99748f796d8f7923c9e46161b2a4dc735eef8/specs/125-full-ap17-fixes/progress.md",
+    "limit": "Contagens Jest, zero retries e 7/7 Care são declarações do registro; relatórios completos de runners/manifests não foram lidos nesta auditoria."
+  },
+  "unknown": [
+    "cache pre-run/cold/warm comparável",
+    "pico de RSS/heap/swap durante o job",
+    "versões instaladas completas e imagens do banco no momento",
+    "runtime revision do produto CI Queue",
+    "full log e relatório Playwright integral",
+    "subtempos de FlowUI e publicação posterior do pack"
+  ],
+  "calculated": {
+    "waitMs": 360,
+    "queueRecordedDurationMs": 6928041,
+    "queueDurationFromTimestampsMs": 6928040,
+    "receiptDurationMs": 6920829,
+    "beforeReceiptMs": 4431,
+    "afterReceiptMs": 2780,
+    "queueMinusReceiptMs": 7212,
+    "sumRootStageMs": 6918000,
+    "unallocatedInsideReceiptMs": 2829,
+    "sumE2EChildrenMs": 3540939,
+    "e2eUnallocatedMs": 3061,
+    "sum54GateMs": 803829,
+    "staticGroupMs": 804311,
+    "copyArtifactsMs": 931
+  },
+  "sources": [
+    {
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/ffc99748f796d8f7923c9e46161b2a4dc735eef8/specs/115-caminho-para-main/harness/evidence/ap17-full/20260919075127-addfb8a5/queue-ticket.json",
+      "gitBlobSha": "1059f13aaacdceda3ad2c80127adf6581588a886",
+      "readRanges": [
+        [
+          1,
+          175
+        ],
+        [
+          12500,
+          12700
+        ],
+        [
+          13700,
+          13880
+        ],
+        [
+          14000,
+          14240
+        ],
+        [
+          14230,
+          14490
+        ],
+        [
+          14490,
+          14780
+        ],
+        [
+          15000,
+          15300
+        ],
+        [
+          15590,
+          15760
+        ]
+      ],
+      "note": "Faixa 15000–15300 teve resposta truncada; não usada para alegar população completa de casos."
+    },
+    {
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/ffc99748f796d8f7923c9e46161b2a4dc735eef8/specs/115-caminho-para-main/harness/evidence/ap17-full/20260919075127-addfb8a5/execution-receipt.json",
+      "gitBlobSha": "568123e5515559a32d907dd76a30b02db1b3d096",
+      "read": "complete"
+    },
+    {
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/008cab050649c7d11255aef1e3a5f574581f02c1/scripts/ci/full-local.sh#L150-L225",
+      "purpose": "Verificar que o nó FlowUI inclui aggregate-care-downloads antes do progress_finish."
+    }
+  ]
+}
