@@ -7,6 +7,7 @@ import type { RuntimeReceipt } from "./runtime.js"
 
 export const API_VERSION = 1 as const
 export const TICKET_SCHEMA_VERSION = 3 as const
+export const RECIPE_ARTIFACTS_CAPABILITY = "recipe-artifacts-v1" as const
 
 export const TERMINAL_STATUSES = ["passed", "failed", "cancelled", "interrupted"] as const
 export const JOB_STATUSES = ["queued", "running", ...TERMINAL_STATUSES] as const
@@ -251,6 +252,7 @@ export type QueueTicket = {
 
 export type ProjectPreset = TicketFlags & {
   argv: string[]
+  artifacts?: string[]
   note?: string
   /** Project-local declaration; persisted as flags.progressEnabled on the ticket. */
   progress?: boolean

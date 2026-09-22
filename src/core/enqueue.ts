@@ -1,7 +1,7 @@
 import { existsSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { readQueueConfig, type ResolvedQueueConfig } from "../contracts/config.js"
+import { readQueueConfig, resolveRecipeArtifacts, type ResolvedQueueConfig } from "../contracts/config.js"
 import {
   TICKET_SCHEMA_VERSION,
   normalizeTicketFlags,
@@ -56,6 +56,7 @@ export function buildTicket(input: EnqueueInput, resolved?: ResolvedQueueConfig)
   const git = readGitInfo(configuration.executionCwd, preset.fetchBase ?? configuration.config.repository?.baseRef)
   const extraArgs = input.extraArgs ?? []
   const argv = extraArgs.length ? [...preset.argv, "--", ...extraArgs] : [...preset.argv]
+  const artifacts = resolveRecipeArtifacts(configuration.config.artifacts, preset.artifacts)
   return {
     id,
     createdAt: now.toISOString(),
@@ -81,7 +82,7 @@ export function buildTicket(input: EnqueueInput, resolved?: ResolvedQueueConfig)
       ...(preset.progress !== undefined ? { progressEnabled: preset.progress } : {}),
     },
     ...(preset.fetchBase || configuration.config.repository?.baseRef ? { baseRef: preset.fetchBase ?? configuration.config.repository?.baseRef } : {}),
-    ...(configuration.config.artifacts ? { artifacts: configuration.config.artifacts } : {}),
+    ...(configuration.config.artifacts !== undefined || preset.artifacts !== undefined ? { artifacts } : {}),
     projectId: configuration.config.project.id,
     projectName: configuration.config.project.name,
     ...(input.requestContext ? { requestContext: input.requestContext } : {}),
