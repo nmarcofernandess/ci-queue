@@ -1,6 +1,6 @@
 # Fechamento F4/F5 — entrada da campanha
 
-**Leia [SPEC.md](SPEC.md) e depois [PLAN.md](PLAN.md).** São o contrato e a execução futura do corte final de lifecycle aprovado para planejamento por Marco. Ambos moram no CI Queue e governam mudanças nos dois repositórios. Esta entrega é documental: não implementa, instala ou mergeia o produto.
+**Leia [SPEC.md](SPEC.md) e depois [PLAN.md](PLAN.md).** São o contrato e o plano do corte final de lifecycle aprovado para planejamento por Marco. Ambos moram no CI Queue e governam mudanças nos dois repositórios. O checkpoint inicial era documental; a execução candidata e seus limites estão registrados em [CLOSURE.md](CLOSURE.md). Os PRs de código continuam em Draft, sem merge ou instalação.
 
 ## O que será entregue
 
