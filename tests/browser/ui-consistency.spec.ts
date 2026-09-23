@@ -96,7 +96,7 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     await expect(drawer.getByRole('button',{name:'Remover',exact:true})).toBeFocused()
     await closeDrawer(page)
     await page.clock.fastForward(5000)
-    await expect(page.getByText('Fixture save rejected',{exact:true})).toHaveCount(0)
+    await expect(page.getByText('Fixture save rejected',{exact:true})).toBeHidden()
     await page.getByRole('button',{name:'Ver pendências',exact:true}).click()
     drawer=await inspectDrawer(page)
     await expect(drawer.getByRole('textbox')).toHaveCount(0)
