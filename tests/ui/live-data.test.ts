@@ -11,6 +11,9 @@ describe("live facts", () => {
     expect(jobDuration({ ...job, status: "passed", durationMs: 2000 }, now + 61000)).toBe("2s")
     expect(jobDuration({ status: "cancelled", durationMs: 0 }, now)).toBe("Não iniciada")
     expect(jobDuration({ status: "running" }, now)).toBe("Sem duração")
+    expect(jobDuration({ status: "running" }, now, true)).toBe("—")
+    expect(jobDuration({ status: "cancelled", durationMs: 0 }, now, true)).toBe("—")
+    expect(jobDuration({ status: "passed", durationMs: 0 }, now, true)).toBe("0 ms")
   })
   it("updates relative units without a network request", () => {
     const value = "2026-09-15T00:00:00Z", start = Date.parse(value)

@@ -9,7 +9,14 @@ async function shot(page: Page, path: string) {
 }
 
 async function recordViewport(testInfo: TestInfo, name: string, sample: Record<string, number>) {
-  await writeFile(testInfo.outputPath(`${name}.json`), JSON.stringify(sample, null, 2))
+  await writeFile(testInfo.outputPath(`${name}.json`), JSON.stringify({
+    ...sample,
+    candidateHead: process.env.CI_QUEUE_T6_CANDIDATE_HEAD ?? null,
+    sourceDiffSha256: process.env.CI_QUEUE_T6_SOURCE_DIFF_SHA256 ?? null,
+    fixtureOwner: 'tests/browser/table-layout.spec.ts',
+    scaleMode: sample.zoomPercent === 200 ? 'deviceScaleFactor' : 'browser-default',
+    nativeBrowserZoomObserved: false,
+  }, null, 2))
 }
 
 async function columnAlignment(table: Locator) {
@@ -95,6 +102,7 @@ for (const { width, zoom } of layoutScenarios) {
         history: [
           { ...fixtureTerminals[0], id: 'flaky', preset: 'smoketest', branch: longBranch, projectName: 'DietFlow', runVariant: 'custom' },
           { ...fixtureTerminals[1], id: 'no-name', preset: '', branch: longBranch },
+          { ...fixtureTerminals[2], id: 'no-duration', preset: 'cancelled-run' },
         ],
         worktrees: [
           { ...fixtureTrees[0], path: `/example/projects/${longWorktree}`, branch: longBranch },
@@ -112,6 +120,9 @@ for (const { width, zoom } of layoutScenarios) {
       await expect(flaky.getByText('Flaky detectado')).toHaveCount(0)
       await expect(flaky.getByText('Personalizado')).toBeVisible()
       await expect(history.getByText('Não informada').first()).toBeVisible()
+      const noDuration = history.getByRole('row').filter({ has: page.getByRole('button', { name: 'cancelled-run', exact: true }) }).getByRole('cell').nth(3)
+      await expect(noDuration).toHaveText('—')
+      expect(await noDuration.evaluate(cell => cell.scrollWidth <= cell.clientWidth)).toBe(true)
       const revision = flaky.getByRole('cell').nth(4)
       expect((await revision.boundingBox())!.width).toBeGreaterThan(100)
       await columnAlignment(history)
@@ -135,23 +146,30 @@ for (const { width, zoom } of layoutScenarios) {
       const worktrees = page.getByRole('table', { name: 'Worktrees' })
       const row = worktrees.getByRole('row').filter({ has: page.getByRole('button', { name: longWorktree, exact: true }) })
       const tableScroll = worktrees.locator('..')
+      const worktreeName = row.getByRole('button', { name: longWorktree, exact: true })
+      const worktreeCheckbox = row.getByRole('checkbox')
+      const worktreeEye = row.getByRole('button', { name: 'Inspecionar' })
       await columnAlignment(worktrees)
       if (width === 1440 && zoom === 1) {
         const branch = (await worktrees.getByRole('columnheader', { name: 'Branch' }).boundingBox())!
         const container = (await tableScroll.boundingBox())!
         expect(branch.x).toBeLessThan(container.x + container.width - 150)
       }
+      expect(await tableScroll.evaluate(element => element.scrollLeft)).toBe(0)
+      await expectTitleReachableBesideAction(page, tableScroll, worktreeName, worktreeEye)
+      await expectActionReachableInTable(page, tableScroll, worktreeEye)
+      await worktreeName.click({ trial: true })
+      await worktreeEye.click({ trial: true })
       await shot(page, testInfo.outputPath(`worktrees-initial-${width}-${theme}${zoomSuffix}.png`))
       await tableScroll.scrollIntoViewIfNeeded()
       await tableScroll.evaluate(element => {
         element.scrollLeft = Math.floor((element.scrollWidth - element.clientWidth) / 2)
       })
-      const worktreeName = row.getByRole('button', { name: longWorktree, exact: true })
-      const worktreeCheckbox = row.getByRole('checkbox')
-      const worktreeEye = row.getByRole('button', { name: 'Inspecionar' })
       await expectTitleReachableBesideAction(page, tableScroll, worktreeName, worktreeEye)
       await expectActionReachableInTable(page, tableScroll, worktreeCheckbox)
       await expectActionReachableInTable(page, tableScroll, worktreeEye)
+      await worktreeName.click({ trial: true })
+      await worktreeEye.click({ trial: true })
       const middleHitTargets = await Promise.all([
         worktreeCheckbox.boundingBox(),
         worktreeEye.boundingBox(),
@@ -163,6 +181,8 @@ for (const { width, zoom } of layoutScenarios) {
       await expectTitleReachableBesideAction(page, tableScroll, worktreeName, worktreeEye)
       await expectActionReachableInTable(page, tableScroll, worktreeCheckbox)
       await expectActionReachableInTable(page, tableScroll, worktreeEye)
+      await worktreeName.click({ trial: true })
+      await worktreeEye.click({ trial: true })
       await worktreeCheckbox.check()
       await expect(row).toHaveAttribute('data-state', 'selected')
       if (cssViewport.width < 820) expect(await tableScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)

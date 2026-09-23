@@ -10,6 +10,7 @@ import {
   normalizeTicketFlags,
   parseRequestContext,
   parseRunVariant,
+  RECIPE_ARTIFACTS_CAPABILITY,
   type CliFailure,
   type CliResult,
   type CliSuccess,
@@ -163,7 +164,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, RECIPE_ARTIFACTS_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
       }
       case "observe": {

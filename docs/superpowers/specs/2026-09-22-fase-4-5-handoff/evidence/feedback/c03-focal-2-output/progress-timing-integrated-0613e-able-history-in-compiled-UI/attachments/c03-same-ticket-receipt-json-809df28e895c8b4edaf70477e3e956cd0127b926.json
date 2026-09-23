@@ -1,0 +1,166 @@
+{
+  "ticketId": "20260923081033-6d5e698e",
+  "producer": {
+    "root": "/Users/marcoantonio/dietflow-fase4-5-feedback",
+    "headSha": "9efb74b1504cb3b60309aec1a108d60c280a1684",
+    "fixtureSha256": "d4590d09facecbb4e5b8d6a02a1e89e65fa75b7a53d8da07973dc60c04cb8f62",
+    "manifestSha256": "716f550c14791f1344c468c5f18f562b2d87910bb495787db29af9fbdc93242b"
+  },
+  "consumer": {
+    "root": "/Users/marcoantonio/ci-queue-fase4-5-handoff",
+    "headSha": "5bff6a270442a6961b33c9d06fe53bae3814c4f8",
+    "compiledBundleSha256": "dafb28833d28e53b6391d58b3d8478429a523f3457d95b2d3feb7a0a79ee6abf"
+  },
+  "state": "temporary",
+  "testExecuted": true,
+  "terminalUi": "pending-verification",
+  "terminalHistory": {
+    "status": "passed",
+    "exitCode": 0,
+    "progress": {
+      "schema": 1,
+      "updatedAt": "2026-09-23T08:10:38.807Z",
+      "nodes": [
+        {
+          "id": "e2e",
+          "parentId": null,
+          "kind": "stage",
+          "status": "passed",
+          "label": "E2E",
+          "durationMs": 5184,
+          "durationSource": "collector"
+        },
+        {
+          "id": "playwright",
+          "parentId": "e2e",
+          "kind": "stage",
+          "status": "passed",
+          "label": "Playwright",
+          "detail": {
+            "kind": "cases",
+            "completed": 7,
+            "total": 7,
+            "passed": 7,
+            "failed": 0,
+            "running": 0,
+            "pending": 0,
+            "skipped": 0
+          },
+          "durationMs": 1138,
+          "durationSource": "collector"
+        },
+        {
+          "id": "pw:0343e96950c75cad45a5",
+          "parentId": "c03-pw",
+          "kind": "case",
+          "status": "passed",
+          "label": "pw-observe › cases.spec.ts › case-0",
+          "durationMs": 371,
+          "durationSource": "emitter"
+        },
+        {
+          "id": "pw:a65ce06710930988fc73",
+          "parentId": "c03-pw",
+          "kind": "case",
+          "status": "passed",
+          "label": "pw-observe › cases.spec.ts › case-1",
+          "durationMs": 0,
+          "durationSource": "emitter"
+        },
+        {
+          "id": "pw:e8e9c4b4364412390854",
+          "parentId": "c03-pw",
+          "kind": "case",
+          "status": "passed",
+          "label": "pw-observe › cases.spec.ts › case-2",
+          "durationMs": 0,
+          "durationSource": "emitter"
+        },
+        {
+          "id": "pw:5da33b1824db35059254",
+          "parentId": "c03-pw",
+          "kind": "case",
+          "status": "passed",
+          "label": "pw-observe › cases.spec.ts › case-3",
+          "durationMs": 0,
+          "durationSource": "emitter"
+        },
+        {
+          "id": "pw:7030d7ba4a8abc5a8ec0",
+          "parentId": "c03-pw",
+          "kind": "case",
+          "status": "passed",
+          "label": "pw-observe › cases.spec.ts › case-4",
+          "durationMs": 0,
+          "durationSource": "emitter"
+        },
+        {
+          "id": "pw:37edfb35f19db9aaad10",
+          "parentId": "c03-pw",
+          "kind": "case",
+          "status": "passed",
+          "label": "pw-observe › cases.spec.ts › case-5",
+          "durationMs": 0,
+          "durationSource": "emitter"
+        },
+        {
+          "id": "pw:f90f777e9bf728b66c1c",
+          "parentId": "c03-pw",
+          "kind": "case",
+          "status": "passed",
+          "label": "pw-observe › cases.spec.ts › case-6",
+          "durationMs": 0,
+          "durationSource": "emitter"
+        },
+        {
+          "id": "c03-pw",
+          "parentId": "playwright",
+          "kind": "stage",
+          "status": "passed",
+          "label": "pw-observe",
+          "detail": {
+            "kind": "cases",
+            "completed": 7,
+            "total": 7,
+            "passed": 7,
+            "failed": 0,
+            "running": 0,
+            "pending": 0,
+            "skipped": 0
+          },
+          "durationMs": 1131,
+          "durationSource": "collector"
+        },
+        {
+          "id": "artifacts",
+          "parentId": null,
+          "kind": "artifact",
+          "status": "skipped",
+          "label": "Artefatos",
+          "durationUnavailableReason": "missing-start"
+        }
+      ]
+    }
+  },
+  "runtime": {
+    "source": "inner temporary CI Queue worker history",
+    "observed": {
+      "capability": "node-runtime-guard-v1",
+      "coverage": "unconfigured",
+      "state": "unconfigured",
+      "observations": []
+    }
+  },
+  "command": [
+    "/bin/bash",
+    "/Users/marcoantonio/dietflow-fase4-5-feedback/scripts/__tests__/fixtures/pw-observe/c03-producer.sh"
+  ],
+  "timeline": {
+    "createdAt": "2026-09-23T08:10:33.019Z",
+    "enqueuedAt": "2026-09-23T08:10:33.464Z",
+    "discoveryReadyAt": "2026-09-23T08:10:34.489Z",
+    "releasedAt": "2026-09-23T08:10:37.657Z",
+    "firstCaseRunningAt": "2026-09-23T08:10:38.371Z",
+    "terminalAt": "2026-09-23T08:10:38.808Z"
+  }
+}

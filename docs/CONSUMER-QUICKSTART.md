@@ -2,6 +2,10 @@
 
 Esta é a entrada genérica. Leia o **[manual HTML autocontido](GUIA-INTEGRACAO-CI-QUEUE.html)** para o passeio completo e o exemplo Static + Jest. O HTML abre offline, sem CDN; o GitHub exibe seu fonte. Contratos formais: [CONTRACTS](CONTRACTS.md). Instalação: [INSTALL](INSTALL.md).
 
+Para decidir entre um reteste rápido e uma prova, siga o [método de feedback e
+prova](TESTING-METHOD.md). Ele explica como adotar os
+[templates](../templates/adoption/) sem inventar comandos para o consumidor.
+
 ## 1. Separe máquina, projeto e estado
 
 A máquina precisa de uma release verificada, Node compatível, CLI/worker e das dependências reais das receitas. API Python e UI compilada são a observabilidade; Vite de desenvolvimento não precisa rodar na instalação. `gh` é necessário para ship GitHub, não para todo teste standalone.
@@ -26,6 +30,14 @@ ci-queue init --cwd "$PWD" --name "Meu projeto" --base-ref origin/dev \
 ## 3. Atualize as instruções do consumidor
 
 Antes do commit de adoção, atualizar **AGENTS.md ou seu alvo se symlink** e a **skill/instrução operacional versionada**. Registrar: entrada canônica; comando standalone; fila e state conferido; receitas aceitas; autorização de ship; progresso como aviso; fonte de diagnóstico. Evitar cópias paralelas. Se uma skill só existir fora do Git, entregar delta aplicável e caminho, sem alegar aplicação local.
+
+Use `templates/adoption/AGENTS.fragment.md` como ponteiro e adapte
+`templates/adoption/ci.yaml` para `.context/patterns/ci.yaml`. Mantenha
+`feedback.available: false` até existir uma receita real no catálogo; então
+aponte `method` para o procedimento do consumidor e registre seus comandos e
+perfil. O mapa é navegação para humanos/agentes, não é lido pelo runtime. O
+catálogo `ci-queue.json` continua sendo a autoridade de receitas, flags e
+artefatos. A skill curta de adoção está em `templates/adoption/SKILL.md`.
 
 ## 4. Enfileire no state correto
 

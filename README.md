@@ -8,6 +8,7 @@ Executor local de CI com fila, supervisão de processos, registros, API, dashboa
 
 - [Índice e donos da documentação](docs/README.md)
 - [Contratos de catálogo, ticket, progresso e ship](docs/CONTRACTS.md)
+- [Método de feedback e prova](docs/TESTING-METHOD.md)
 - [Instalação de uma release e verificação local](docs/INSTALL.md)
 - [Pin opt-in de Node e seus limites](docs/RUNTIME-ISOLATION.md)
 - [Consumidor exemplo isolado](examples/local-project/README.md)
@@ -19,3 +20,11 @@ O código atual desta integração é a branch **dev**. Uma revisão de document
 Leia [AGENTS.md](AGENTS.md), [DESIGN.md](DESIGN.md) e o [contrato da UI](docs/ui/PRODUCT-CONTRACT.md). Rode os testes relevantes antes dos agregados. `npm run check` testa o produto no checkout; só seu enqueue cria um job na fila escolhida. Testes de produto usam state isolado e nunca escrevem na fila do operador.
 
 O pacote é privado: não presumir distribuição npm pública. Consuma uma release verificada ou siga o processo de build/instalação documentado. O DietFlow mantém seu próprio `npm run ship`; a existência de ship genérico não constitui cutover.
+
+## Retestar ou produzir prova
+
+O consumidor escolhe uma receita real pelo próprio mapa e catálogo. Use feedback
+somente quando o mapa declarar uma receita adotada; uma tentativa focal e quente
+serve para iterar, não para autorizar ship. Leia o [método de feedback e
+prova](docs/TESTING-METHOD.md) antes de copiar o
+[quickstart](docs/CONSUMER-QUICKSTART.md) para outro projeto.

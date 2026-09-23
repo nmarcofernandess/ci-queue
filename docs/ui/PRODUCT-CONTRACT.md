@@ -65,9 +65,11 @@ A página tem uma faixa de execução atual acima de um grid com coluna principa
 
 ### Fila e histórico
 
-Últimos verdes, Meta e Pendências existem só com um projeto selecionado. Em Todos ou sem projeto esses cards/modos não misturam: Últimos verdes fica desabilitado com tooltip **escolha um projeto**.
+Últimos verdes exige um projeto selecionado; em Todos ou sem projeto, o modo fica desabilitado com tooltip **escolha um projeto**. Os cards **Metas** e **Pendências** permanecem visíveis em todos os filtros, sem misturar dados de projetos.
 
 A fila e o histórico compartilham a composição DataTable do Dashboard 01. Cada execução ocupa uma única linha: **Estado** por ícone, **Execução**, **Término/Entrada**, **Duração/Espera**, **Revisão** com SHA curto e branch e **Ações**. Preset e a ação ocular final abrem o drawer; a linha e os demais fatos são inertes.
+
+Nas colunas compactas de Duração/Espera, o valor ausente aparece como `—`, sem fabricar duração zero. O contexto detalhado conserva a explicação por extenso quando pertinente.
 
 A fila contém apenas tickets `queued` **da máquina**, na ordem da fila, e não possui busca ou filtros. O filtro de projeto não esconde a fila. Chip de projeto aparece quando o filtro não identifica o dono sozinho. Seu vazio usa o `Empty` oficial com o título **Fila livre** e sem repetir a última execução.
 
@@ -85,8 +87,8 @@ Execuções oferece período Todo período, Hoje, 48h, Semana ou 15 dias, e resu
 ### Coluna direita
 
 - **Máquina:** somente disco livre atual. Não exibe ação, estado “normal”, memória, idade da leitura ou refresh por card.
-- **Meta para main:** só com um projeto selecionado. Uma única meta, formada por nome, descrição e presets acompanhados. O usuário não digita SHA. Cada requisito lê o último verde canônico da receita atual; o título de um requisito atendido abre esse ticket. O progresso `x de y` é a quantidade real de presets com verde canônico. Só existe `candidateSha` quando todos os requisitos estão verdes na mesma revisão; verdes em revisões diferentes são mostrados como tal e não fabricam um candidato. A meta pode ser criada, editada e removida e nunca bloqueia CI ou merge. Não existe CTA de ship/merge no dashboard; integração é só `ci-queue ship` na CLI.
-- **Pendências:** só com um projeto selecionado. Recomendações automáticas e não bloqueantes de validação, emitidas de forma idempotente por um consumidor para um preset declarado. Cada item preserva preset, motivo, revisão, data e PR quando houver, além da tentativa posterior mais recente. Não existem nota livre, título manual, tags, vínculo com arquivo, `progressNodeId`, botão **Nova pendência** nem edição no dashboard. Um verde canônico posterior da máquina ou de um slot Git verificado, cuja revisão contém a revisão recomendada, resolve o item automaticamente. Falha ao registrar ou publicar a recomendação permanece observável e nunca bloqueia o fluxo. O vazio é **Nenhuma pendência**.
+- **Metas:** título fixo, sem nome da branch. Em Todos e no histórico sem projeto, o card mostra **Selecione um projeto** e a ação desabilitada com tooltip **escolha um projeto**. Com um projeto selecionado, há uma única meta, formada por nome, descrição e presets acompanhados. O usuário não digita SHA. Cada requisito lê o último verde canônico da receita atual; o título de um requisito atendido abre esse ticket. O progresso `x de y` fica no corpo e é a quantidade real de presets com verde canônico. Só existe `candidateSha` quando todos os requisitos estão verdes na mesma revisão; verdes em revisões diferentes são mostrados como tal e não fabricam um candidato. A meta pode ser criada, editada e removida e nunca bloqueia CI ou merge. Não existe CTA de ship/merge no dashboard; integração é só `ci-queue ship` na CLI.
+- **Pendências:** título fixo, sem contador. Em Todos e no histórico sem projeto, o card mostra **Selecione um projeto** e a ação desabilitada com tooltip **escolha um projeto**. Com um projeto selecionado, mostra recomendações automáticas e não bloqueantes de validação, emitidas de forma idempotente por um consumidor para um preset declarado. Cada item preserva preset, motivo, revisão, data e PR quando houver, além da tentativa posterior mais recente. Não existem nota livre, título manual, tags, vínculo com arquivo, `progressNodeId`, botão **Nova pendência** nem edição no dashboard. Um verde canônico posterior da máquina ou de um slot Git verificado, cuja revisão contém a revisão recomendada, resolve o item automaticamente. Falha ao registrar ou publicar a recomendação permanece observável e nunca bloqueia o fluxo. O vazio de um projeto é **Nenhuma pendência**.
 
 ## Drawer de execução
 
@@ -94,7 +96,7 @@ Execuções oferece período Todo período, Hoje, 48h, Semana ou 15 dias, e resu
 - Header fixo: estado, preset, chip do projeto dono, data/hora, tempo relativo e duração. O drawer é o ticket, não o filtro: abrir um job alheio não troca o seletor.
 - Tabs Progresso/Log fixas; footer de ações fixo; somente o conteúdo central rola.
 - Progresso não repete estado, preset, início, duração ou saída. A tabela de detalhes contém somente Ticket, Branch, SHA e Diretório.
-- Etapas preservam a árvore recursiva completa; nós com filhos usam `Collapsible` oficial. Cada nó mantém identidade, parentesco, tipo, estado, duração, detalhe e retry quando publicados. Não existe barra temporal.
+- Etapas preservam a árvore recursiva completa; nós com filhos usam `Collapsible` oficial. Tanto o chevron quanto o título do nó abrem e fecham os filhos, inclusive pelo teclado. Cada nó mantém identidade, parentesco, tipo, estado, duração, detalhe e retry quando publicados. Não existe barra temporal.
 - `retryCount > 0` aparece no tooltip e nome acessível do indicador da execução e do nó; não cria badge junto do nome.
 - `failureReason`, quando existe, aparece como `Alert` **Motivo da falha** depois do contexto e antes da árvore. O log continua sendo saída bruta.
 - Log vivo abre acompanhando o final. Enquanto o usuário permanece no fim, novas linhas mantêm o scroll no fim; subir pausa o acompanhamento sem parar a leitura. **Acompanhar** ou **Ir ao fim** retoma conforme o job esteja vivo ou terminal.

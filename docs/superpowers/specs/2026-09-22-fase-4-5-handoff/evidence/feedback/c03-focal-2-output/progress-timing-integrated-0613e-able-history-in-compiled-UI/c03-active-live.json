@@ -1,0 +1,211 @@
+{
+  "ticketId": "20260923081033-6d5e698e",
+  "candidateHead": "5bff6a270442a6961b33c9d06fe53bae3814c4f8",
+  "consumerHead": "9efb74b1504cb3b60309aec1a108d60c280a1684",
+  "sourceDiffSha256": "83b2e9e7a2c001eb542a13fa284fd456c797461edf117267b45f5fa7083a0aa6",
+  "api": {
+    "live": {
+      "schemaVersion": 1,
+      "available": true,
+      "roots": [
+        {
+          "id": "e2e",
+          "label": "E2E",
+          "status": "running",
+          "kind": "stage"
+        }
+      ],
+      "active": [
+        {
+          "id": "e2e",
+          "label": "E2E",
+          "status": "running",
+          "kind": "stage"
+        },
+        {
+          "id": "playwright",
+          "label": "Playwright",
+          "status": "running",
+          "parentId": "e2e",
+          "kind": "stage",
+          "detail": {
+            "kind": "cases",
+            "completed": 0,
+            "total": 7,
+            "passed": 0,
+            "failed": 0,
+            "running": 1,
+            "pending": 6,
+            "skipped": 0
+          }
+        },
+        {
+          "id": "c03-pw",
+          "label": "pw-observe",
+          "status": "running",
+          "parentId": "playwright",
+          "kind": "stage",
+          "detail": {
+            "kind": "cases",
+            "completed": 0,
+            "total": 7,
+            "passed": 0,
+            "failed": 0,
+            "running": 1,
+            "pending": 6,
+            "skipped": 0
+          }
+        }
+      ],
+      "planned": []
+    },
+    "detail": {
+      "schemaVersion": 1,
+      "available": true,
+      "nodes": [
+        {
+          "id": "e2e",
+          "label": "E2E",
+          "status": "running",
+          "kind": "stage"
+        },
+        {
+          "id": "playwright",
+          "label": "Playwright",
+          "status": "running",
+          "parentId": "e2e",
+          "kind": "stage",
+          "detail": {
+            "kind": "cases",
+            "completed": 0,
+            "total": 7,
+            "passed": 0,
+            "failed": 0,
+            "running": 1,
+            "pending": 6,
+            "skipped": 0
+          }
+        },
+        {
+          "id": "pw:0343e96950c75cad45a5",
+          "label": "pw-observe › cases.spec.ts › case-0",
+          "status": "running",
+          "parentId": "c03-pw",
+          "kind": "case"
+        },
+        {
+          "id": "pw:a65ce06710930988fc73",
+          "label": "pw-observe › cases.spec.ts › case-1",
+          "status": "pending",
+          "parentId": "c03-pw",
+          "kind": "case"
+        },
+        {
+          "id": "pw:e8e9c4b4364412390854",
+          "label": "pw-observe › cases.spec.ts › case-2",
+          "status": "pending",
+          "parentId": "c03-pw",
+          "kind": "case"
+        },
+        {
+          "id": "pw:5da33b1824db35059254",
+          "label": "pw-observe › cases.spec.ts › case-3",
+          "status": "pending",
+          "parentId": "c03-pw",
+          "kind": "case"
+        },
+        {
+          "id": "pw:7030d7ba4a8abc5a8ec0",
+          "label": "pw-observe › cases.spec.ts › case-4",
+          "status": "pending",
+          "parentId": "c03-pw",
+          "kind": "case"
+        },
+        {
+          "id": "pw:37edfb35f19db9aaad10",
+          "label": "pw-observe › cases.spec.ts › case-5",
+          "status": "pending",
+          "parentId": "c03-pw",
+          "kind": "case"
+        },
+        {
+          "id": "pw:f90f777e9bf728b66c1c",
+          "label": "pw-observe › cases.spec.ts › case-6",
+          "status": "pending",
+          "parentId": "c03-pw",
+          "kind": "case"
+        },
+        {
+          "id": "c03-pw",
+          "label": "pw-observe",
+          "status": "running",
+          "parentId": "playwright",
+          "kind": "stage",
+          "detail": {
+            "kind": "cases",
+            "completed": 0,
+            "total": 7,
+            "passed": 0,
+            "failed": 0,
+            "running": 1,
+            "pending": 6,
+            "skipped": 0
+          }
+        }
+      ],
+      "roots": [
+        {
+          "id": "e2e",
+          "label": "E2E",
+          "status": "running",
+          "kind": "stage"
+        }
+      ],
+      "active": [
+        {
+          "id": "e2e",
+          "label": "E2E",
+          "status": "running",
+          "kind": "stage"
+        },
+        {
+          "id": "playwright",
+          "label": "Playwright",
+          "status": "running",
+          "parentId": "e2e",
+          "kind": "stage",
+          "detail": {
+            "kind": "cases",
+            "completed": 0,
+            "total": 7,
+            "passed": 0,
+            "failed": 0,
+            "running": 1,
+            "pending": 6,
+            "skipped": 0
+          }
+        },
+        {
+          "id": "c03-pw",
+          "label": "pw-observe",
+          "status": "running",
+          "parentId": "playwright",
+          "kind": "stage",
+          "detail": {
+            "kind": "cases",
+            "completed": 0,
+            "total": 7,
+            "passed": 0,
+            "failed": 0,
+            "running": 1,
+            "pending": 6,
+            "skipped": 0
+          }
+        }
+      ],
+      "planned": []
+    }
+  },
+  "observedAt": "2026-09-23T08:10:38.371Z",
+  "drawer": "playwright active · 0 de 7 · first case running"
+}
