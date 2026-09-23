@@ -94,9 +94,10 @@ function detailId(job: RunTableJob) {
 
 function columnClass(id: string) {
   if (id === "status") return "w-16"
-  if (id === "execution") return "w-[clamp(22rem,26vw,28rem)]"
+  if (id === "execution") return "w-[28rem]"
   if (id === "time") return "w-28"
   if (id === "duration") return "w-24"
+  if (id === "revision") return "w-[24rem]"
   if (id === "actions") return "w-18 text-right"
   return undefined
 }
@@ -165,15 +166,17 @@ function RunDataTable({
             const job = row.original
             const id = detailId(job)
             return (
-              <EntityIdentity
-                presentation="table"
-                title={job.preset || "Não informada"}
-                onOpen={id && job.preset ? () => onOpenJob(id) : undefined}
-                badge={identityBadge(job, {
-                  always: showProjectChip,
-                  filterProjectId,
-                })}
-              />
+              <div className="max-w-[28rem]">
+                <EntityIdentity
+                  presentation="table"
+                  title={job.preset || "Não informada"}
+                  onOpen={id && job.preset ? () => onOpenJob(id) : undefined}
+                  badge={identityBadge(job, {
+                    always: showProjectChip,
+                    filterProjectId,
+                  })}
+                />
+              </div>
             )
           },
         }),
@@ -231,7 +234,7 @@ function RunDataTable({
             return (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="block truncate font-mono text-xs" title={label}>
+                  <span className="block max-w-[24rem] truncate font-mono text-xs" title={label}>
                     {label}
                   </span>
                 </TooltipTrigger>
@@ -267,7 +270,7 @@ function RunDataTable({
       row.rowKey ?? row.id ?? row.ticketId ?? `${row.preset}-${row.finishedAt}`,
   })
   return (
-    <DataTableFrame placement="card" label="Execuções" width="wide">
+    <DataTableFrame placement="card" label="Execuções" width="scroll">
       <TableHeader>
         {table.getHeaderGroups().map((group) => (
           <TableRow key={group.id}>
@@ -324,7 +327,7 @@ function EmptyTable({
   kind: "queue" | "terminal"
 }) {
   return (
-    <DataTableFrame placement="card" label="Execuções" width="wide">
+    <DataTableFrame placement="card" label="Execuções" width="scroll">
       <TableHeader>
         <TableRow>
           {headers(kind).map((header, index) => (
@@ -416,7 +419,7 @@ export function RunTable({
       <CardContent className="px-0">
         {loading ? (
           <div className="overflow-hidden">
-            <DataTableFrame placement="card" label="Carregando execuções" width="wide">
+            <DataTableFrame placement="card" label="Carregando execuções" width="scroll">
               <TableHeader>
                 <TableRow>
                   {headers(kind).map((h, i) => (

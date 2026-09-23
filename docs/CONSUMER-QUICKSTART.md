@@ -16,6 +16,8 @@ O projeto precisa de Git, comando de teste verdadeiro, dependências e catálogo
 
 O teste continua executável fora da fila. `npm run check` direto não cria prova queue por si só. Para exigir duas verificações, faça um agregador que execute ambas e preserve falhas. `acceptedPresets: ["lint","test"]` significa **OR**, não AND.
 
+Mantenha o teste como uma única receita. Um teste avulso pode continuar mesmo que a base avance; não configure `fetchBase` ou `abortOnStaleBase` só para transformá-lo em prova. Se o repositório possui um ship próprio, esse processo pode aplicar flags estritas no enqueue da mesma receita, validar o ticket e revalidar HEAD/base antes do merge. O ship genérico atual lê as flags do catálogo e exige que as receitas aceitas já sejam ship-bound. O consumidor decide se um teste isolado é cancelável. O CI Queue executa as flags recebidas; não deduz intenção de ship pelo nome da receita ou pelo diff.
+
 ```bash
 git remote -v
 git branch --show-current
@@ -98,7 +100,7 @@ ci-queue ship --cwd "$PWD" --config "$PWD/ci-queue.json" \
   --state "$STATE" --no-remote --json
 ```
 
-O ship reusa uma receita elegível de `ship.acceptedPresets`; se nenhuma existir, enfileira a **primeira**. Não há AND entre os nomes. O worker nunca mergeia e `passed` sozinho não dispara ship. A UI não tem botão de merge.
+O ship reusa uma receita elegível de `ship.acceptedPresets`; se nenhuma existir, enfileira a **primeira**. Não há AND entre os nomes. Ele confere HEAD/base e PR antes da prova, valida preflight/postflight do ticket, revalida antes do merge e inspeciona o resultado. Base movida, prova inválida ou veredito remoto negativo encerram o fluxo sem promover a mudança. `abortOnStaleBase` pode encerrar o job durante a execução quando o worker comprova base obsoleta; o consumidor deve exigir a capability instalada se essa interrupção fizer parte de sua política de ship. O worker nunca mergeia e `passed` sozinho não dispara ship. A UI não tem botão de merge. O repositório pode implementar esse mesmo ciclo no seu próprio comando de entrega, sem depender do dashboard nem do controller genérico.
 
 ## 6. Remoto opcional e limites
 
