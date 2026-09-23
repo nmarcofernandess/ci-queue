@@ -1,10 +1,11 @@
 # Documentação: entradas e responsáveis
 
-Reconciliado em 19/09/2026 a partir de `dev` em `5a9268e41e27644362dfd9e5cd4e163813f5e1a1`. Branches são móveis; exemplos de código no manual apontam para a revisão observada.
+Reconciliado em 19/09/2026 a partir de `dev` em `5a9268e41e27644362dfd9e5cd4e163813f5e1a1`; a navegação do método de feedback/prova foi atualizada em 23/09/2026. Branches são móveis; exemplos de código no manual apontam para a revisão observada.
 
 | Assunto | Fonte editável | Papel |
 |---|---|---|
 | Adoção por um projeto | [CONSUMER-QUICKSTART](CONSUMER-QUICKSTART.md) | Entrada genérica e sequência mínima |
+| Método de feedback e prova | [TESTING-METHOD](TESTING-METHOD.md) | Escolha, retomada, evidência e templates de adoção |
 | Ensino completo offline | [GUIA-INTEGRACAO-CI-QUEUE.html](GUIA-INTEGRACAO-CI-QUEUE.html) | Onze capítulos, diagramas e exemplos copiáveis |
 | Formatos e invariantes | [CONTRACTS](CONTRACTS.md) | Referência técnica, não outro tutorial |
 | Release, ativação e recuperação | [INSTALL](INSTALL.md) | Operação da máquina e limites de verificação |

@@ -9,7 +9,8 @@ tests. A consuming project owns its recipes, preparation and test harness.
 The generic entry is `docs/CONSUMER-QUICKSTART.md`; the complete offline teaching
 manual is `docs/GUIA-INTEGRACAO-CI-QUEUE.html`. Owners and navigation are in
 `docs/README.md`. Formats belong to `docs/CONTRACTS.md`; release operations to
-`docs/INSTALL.md`; Node binding limits to `docs/RUNTIME-ISOLATION.md`.
+`docs/INSTALL.md`; the feedback/proof choice and adoption templates to
+`docs/TESTING-METHOD.md`; Node binding limits to `docs/RUNTIME-ISOLATION.md`.
 Read live code/tests on the requested branch before reconciling prose. Historical
 specs/plans are context, not current operational policy. Do not rewrite their
 phases as part of a docs reconciliation.

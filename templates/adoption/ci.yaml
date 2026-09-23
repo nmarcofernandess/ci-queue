@@ -1,0 +1,10 @@
+schema: ci-method-v1
+runtime_contract: ci-queue.json
+method: docs/ci/TESTING-METHOD.md
+feedback:
+  available: false
+  reason: Defina uma receita real do consumidor antes de ativar este perfil.
+proof:
+  authority: ship.acceptedPresets no catálogo
+resume:
+  inspect: [host, cwd, installed_revision, state_root, session, ticket]

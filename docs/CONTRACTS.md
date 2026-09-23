@@ -38,6 +38,16 @@ Uma receita aceita por ship precisa de `requireCleanTree=true`, `requireGitStabi
 
 `ci-queue enqueue <preset> --config /projeto/ci-queue.json --state /estado` congela o pedido. O worker é dono do claim e executa argv/cwd do ticket, não relê internals de DietFlow. Estados: queued, running, passed, failed, cancelled, interrupted. Exit code, runtime e verificações Git podem determinar falha; progress não fabrica sucesso.
 
+## Método de teste adotado pelo consumidor
+
+O método de feedback/prova e seus templates de adoção estão em
+[TESTING-METHOD](TESTING-METHOD.md). O mapa do consumidor é apenas navegação;
+`ci-queue.json` continua sendo a autoridade executável de receitas, flags e
+artefatos. `feedback.available: false` significa que não existe receita de
+feedback adotada. Feedback não é prova final nem entra em ship por progresso;
+`ship.acceptedPresets` continua definindo as receitas aceitas, com semântica
+OR.
+
 State: `jobs/`, `running.json`, `history/`, `logs/`, `artifacts/`, `progress/`, `observations/`. Registro terminal em history é autoritativo para tickets de fila. Sidecar progress é consolidado no ticket ao fim e removido. Logs/artefatos usam caminhos do ticket. Ausência de log é indisponibilidade, não conteúdo vazio bem-sucedido.
 
 O state explícito/ambiente deve ser o mesmo da API/worker. Sem override, o caminho compatível `~/.local/state/local-ci/queue`, se presente, é preservado; não criar outra fila ao copiar um comando de instalação nova. O launcher instalado exporta `CI_QUEUE_STATE_DIR` para o state registrado; CLI, worker e API leem o mesmo root.
