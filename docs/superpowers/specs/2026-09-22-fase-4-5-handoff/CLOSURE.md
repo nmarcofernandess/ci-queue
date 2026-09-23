@@ -54,6 +54,69 @@ Fonte dos limites A1–A10: `SPEC.md` §9 e `PLAN.md` T1–T8 definem o comporta
 | P06 | Feedback quente, outputs e comparação de envelopes pendentes; smoke anterior não cobriu E2E/FlowUI. |
 | P07 | **OPERADOR/RC115 PENDENTE**; Full exact-HEAD/base não executado por esta task. |
 
-## Limites do checkpoint
+## Limites do checkpoint inicial (22/09)
 
 Não há RED/GREEN do novo comportamento, bundle candidato, PR de código, instalação ou aceite do Marco neste checkpoint. `CLOSURE.md` será atualizado somente com ticket, SHA, teste e alcance identificados; ausência permanece ausência.
+
+## Observação da candidata após T6 (23/09/2026)
+
+Esta seção acrescenta evidência posterior sem reescrever a fotografia inicial nem o censo histórico.
+
+| Lane | Identidade observada | Alterações T6 | Provenance do teste/captura |
+|---|---|---|---|
+| CI Queue | `/Users/marcoantonio/ci-queue-fase4-5-handoff`, `codex/fase4-5-handoff`, base `5bff6a270442a6961b33c9d06fe53bae3814c4f8` | `tests/browser/progress-timing-integrated.spec.ts`, `tests/browser/table-layout.spec.ts`; saídas persistentes sob `docs/superpowers/specs/2026-09-22-fase-4-5-handoff/evidence/feedback/` | Diff de fontes no fechamento: `35415916c6b23b6d0bc99ee3804affa7d09902acd2f043a536fb119254e0914d`. Browser receipts incluem HEAD e este hash. |
+| DietFlow | `/Users/marcoantonio/dietflow-fase4-5-feedback`, `codex/fase4-5-feedback`, base `9efb74b1504cb3b60309aec1a108d60c280a1684`; `AGENTS.md` aponta para `.claude/CLAUDE.md` | `scripts/ci/jest-scope.ts`, `scripts/ci/__tests__/jest-scope.test.ts`, `scripts/ci/__tests__/e2e-feedback.test.ts`, fixtures `pw-observe` | Diff de fontes no fechamento: `b0ea5d3410bb55c2c5d821e3daecd41247cfd109534b3d4e7b0a9e97f04674a4`. |
+
+Os únicos testes de host/browser desta fase foram submetidos à fila oficial. Os números abaixo apontam para os logs sob `/Users/marcoantonio/.local/state/local-ci/queue/logs/`; cwd, argv, receita e `artifacts: []` ficam registrados nos relatórios T1–T6 e nos próprios logs.
+
+| Gate | Disposição atual | Provenance | Alcance e limite |
+|---|---|---|---|
+| A1 — método e adoção | `PROVADO_DOCUMENTAL` | T5: bundle/adoption `20260923063130-6cf127ff`, 1/1; discovery independente em `task-5-report.md` | Método genérico e ponteiros do consumidor encontráveis. O doctor DF `20260923062652-7092dc28` ficou limitado por `.env` ausente; não foi provisionado ambiente. |
+| A2 — ciclo quente | `PROVADO_COM_FIXTURE_DE_FILA` | `20260923073421-2e9ebcc2`, terminal passed, 21/21 | Três tickets na sessão `896f7fe2-7cf6-46db-85ba-140401e5e105`: falha 1/1; alteração apenas da aplicação servida, sucesso 1/1 com o mesmo hash de teste; alteração apenas do teste, sucesso 1/1 com o mesmo hash de aplicação. Uma inicialização; `databaseResetSeedOrBuild=false`. Sequência completa na linha 6 do log oficial. |
+| A3–A5 — sessão/identidade/concorrência | `PROVADO_COM_TESTES_DE_OWNER` | Owner T2 `20260923020833-d4a8ae6a`, 3 suítes/21 testes; T3 e2e integrado `20260923050659-cbe2a9c0`, 20/20 | Cobre posse, listener/fingerprint, claim/stop e isolamento da sessão em estados temporários. Os tickets T2/T3 estão detalhados em seus relatórios. |
+| A6 — artifacts por receita | `PROVADO_COM_TESTES_DE_OWNER` | T1 CQ `20260922233648-4f3b32aa`, 49/49; T3 material/ship `20260923050324-66bb0d20`, 2 suítes/146; T3 owners `20260923050532-bb3c2b84`, 3 suítes/30 | Override ausente/herdado/`[]`, capability e elegibilidade de prova foram cobertos; feedback segue fora de `ship.acceptedPresets`. |
+| A7 — retenção | `PROVADO_COM_TESTES_DE_OWNER` | T4 oversize GREEN `20260923055436-b2b5fdab`, 8/8; owner `20260923054032-900b2277`, 4 suítes/159; integração `20260923055524-ca2afde5`, 20/20 | Evidência do modo feedback e rotação conforme contrato. Sem varredura ou poda global do host. |
+| A8 — progresso/ciclo integrado | `PROVADO_NO_ESCOPO_C03` | T3/T4 receipts acima; C03 produtor real `20260923080332-b5cdc2ed`, 1/1 | Teste C03 envia producer real do DF por ticket/worker/API/UI compilada CQ. Um fixture de sete casos ficou ativo em `0/7`, com um caso `running` e seis `pending`, e terminou `7/7` em histórico/UI. O fixture interno de browser da própria suíte não é tratado como execução real de produto. |
+| A9 — regressões C03/C06/V01 e compatibilidade | `PROVADO_NA_CANDIDATA` | C06 final `20260923073023-db80e7ca`, 6/6 novos casos; owner DF `20260923075754-a2494e65`, 5 suítes/124; browser final `20260923081250-17e11114`, 20/20 | C03/C06/V01/C04/R06 no alcance desta candidata; os subitens estão discriminados abaixo. Não equivale a Full, instalação ou release. |
+| A10 — comparação de envelopes | **T7/PENDENTE** | — | A janela de performance e a comparação não foram executadas nem inferidas a partir do tempo destes testes. |
+
+### C03, C06 e V01/C04/R06
+
+| Corte | Prova e observação | Limite explícito |
+|---|---|---|
+| C03 producer → ticket → worker → API/UI | Ticket de browser `20260923080332-b5cdc2ed`, terminal passed, 1/1. O receipt interno do ticket fixture `20260923081033-6d5e698e` registra candidato CQ `5bff6a2`, consumidor DF `9efb74b`, hash de diff `83b2e9e7a2c001eb542a13fa284fd456c797461edf117267b45f5fa7083a0aa6`, execução de sete casos, API `running 1/pending 6`, UI drawer `0 de 7`, depois histórico `passed 7/7` e drawer terminal `7 de 7`. | A população observada é a fixture de sete casos. Os contratos protocol-level adicionais de retry, repeatEach, múltiplas invocações, mismatch, cap e filtro são cobertos pelos owners sintéticos relatados em T3/T4; este receipt não os converte em E2E clínico/Full. |
+| C06 selector/filesystem | Ticket focal `20260923073023-db80e7ca`, 6/6 novos casos com os 89 testes anteriores filtrados; owner matrix `20260923075754-a2494e65`, 5 suítes/124. | Contratos owner `.sh` são forced-only; paths `.ts` selecionáveis preservam `relatedPaths` e também forçam o owner que lê o filesystem. Não deduplicar um caminho relacionado selecionável. |
+| C04 histórico | Incluído em `20260923081250-17e11114`: falha acessível de refresh com consulta e página carregada preservadas. | Prova somente o comportamento exercitado no teste `history keeps the loaded query, its next page and an accessible refresh error`; não atesta toda combinação histórica de filtro/URL. |
+| R06 duração | Incluído em `20260923081250-17e11114`: duração zero do emitter, collector e unavailable foram exercitados via API; zero e fonte foram exibidos no drawer. | Sem alegação sobre tempos de runtime do produto; são estados de contrato. |
+| V01 tabela | Incluído em `20260923081250-17e11114`: 18 casos geométricos em 1600/1440/820/640/390, claro/escuro e escalas configuradas; rolagem início/meio/fim, título/olho alcançáveis, hit targets separados, seleção e teclado. | Os casos marcados 200% usaram `deviceScaleFactor`; `nativeBrowserZoomObserved=false`. Logo não há prova de zoom nativo 200%. Capturas não constituem aceite visual humano. |
+
+O primeiro C03 browser enqueue `20260923074253-d367009a` parou antes de executar testes porque faltavam dependências da UI na worktree. O coordenador fez `npm ci` reversível em `ui/` (559 pacotes, exit 0, sem alteração rastreada de fonte/lock): preparo local de dependências para compilar a candidata, **não** instalação/cutover do CI Queue. Depois, `20260923075320-9cd26466` encontrou a observação de caso ativo ausente por consultar a projeção live sem nós; `20260923080053-4a42c107` identificou duas ocorrências legítimas de `0 de 7`. Os locators foram ajustados para consultar detalhe e verificar ambos os nós; o GREEN final é `20260923080332-b5cdc2ed`. As tentativas com falha permanecem no evidence index para preservar a causalidade.
+
+### Reconciliação dos 14 IDs do censo
+
+`02-CENSO-72.tsv` mantém 72 IDs únicos e as classificações históricas. A tabela abaixo atualiza somente disposição atual de cada um dos 14 IDs antes marcados `NÃO COMPROVADO`; não reescreve evidência de 15/09 nem afirma aprovação retroativa.
+
+| ID | Disposição atual | Evidência e residual |
+|---|---|---|
+| `CTRL-001` | `RECONCILIADO_NO_CORTE` | Este fechamento preserva o checkpoint e separa evidência atual de limites. Não certifica a auditoria/aceite humano de 15/09. |
+| `CTRL-002` | `RECONCILIADO_NO_CORTE` | `task-5-report.md` registra owners editáveis, pointers e descoberta sem transcript; T6 adiciona tickets e capturas reproduzíveis. Não substitui a fotografia histórica da 121. |
+| `JEST-RELATED-001` | `PROVADO_NO_CORTE` | C06 `20260923073023-db80e7ca` (6/6) e owner matrix `20260923075754-a2494e65` (124 testes). `.sh` usa forced-only; `.ts` selecionável retém `relatedPaths` e owner forçado. |
+| `LOGS-LEGACY-001` | `OPERADOR_PENDENTE` | Há logs e evidência dos tickets atuais, mas nenhum inventário/hash completo dos logs legados no host. Não inferir preservação física total. |
+| `DOC-DESTINATION-001` | `PROVADO_NO_CORTE` | T5 introduz `docs/TESTING-METHOD.md`, ponteiros no CQ e `docs/ci/FEEDBACK-LOOP.md` como owner DF; teste de bundle/adoption `20260923063130-6cf127ff` passou. O doctor ambiental permanece limitado pelo `.env` ausente. |
+| `HISTORY-001` | `PROVADO_PARCIAL_C04` | `20260923081250-17e11114` exercitou query carregada, próxima página e erro de refresh acessível. Combinações adicionais de filtro/URL não estão certificadas por este caso. |
+| `FULL-ADVISORY-001` | `COMPORTAMENTO_ATUAL_PROVADO; DOCUMENTO_LEGADO_A_CORRIGIR` | `.context/onboarding.yaml:333-337`, `scripts/ship/ship.ts`/testes e `ci-queue.json#ship.acceptedPresets` mostram recomendação informativa e ausência de enqueue automático. `.agents/skills/dietflow-ci/SKILL.md:168-170` ainda conflita ao dizer que o ship pede Full e depois smoke; não editado no escopo T6. |
+| `ERROR-001` | `PROVADO_PARCIAL_C04` | O mesmo teste C04 cobre erro de refresh após dados bons e preservação da consulta carregada. Não generalizar para todos os estados de erro/contexto do painel. |
+| `DOC-M06-PRD-001` | `OWNER_ATUAL_IDENTIFICADO; HISTÓRICO_PRESERVADO` | T5 aponta método de feedback para o owner vivo (`docs/TESTING-METHOD.md` no CQ e `docs/ci/FEEDBACK-LOOP.md` no DF). A narrativa histórica M06/PRD não foi reescrita nem apresentada como manual operacional atual. |
+| `NATIVE-OPEN-001` | `OPERADOR_PENDENTE` | Nenhuma ação Finder/reveal instalada foi acionada/observada neste T6. Testes de API não são recibo de operação nativa do host. |
+| `UI-TESTS-001` | `PROVADO_NO_ESCOPO_CANDIDATO` | C03 `20260923080332-b5cdc2ed` e browser V01/C04/R06 `20260923081250-17e11114`, 20/20. A cobertura é focada nos contratos listados, não teste Full da UI inteira. |
+| `VISUAL-ACCEPTANCE-001` | `OPERADOR_PENDENTE` | Capturas identificadas e receipts em `evidence/feedback/` estão disponíveis para inspeção. O teste automatizado e a inspeção técnica não equivalem a aceite humano nem a screenshot da instalação ativa. |
+| `STATE-HYGIENE-001` | `OPERADOR_PENDENTE` | Fixtures do C03 usam state temporário e encerram seus processos próprios. Nenhum scan global ou prova de ausência de resíduos no state do operador foi feito. |
+| `INSTALL-PROVENANCE-001` | `OPERADOR_PENDENTE` | Não houve instalação, cutover nem coleta atual de `version`, `build.json`, `installation.json` ou `launchctl`. `npm ci` foi dependência local de build da candidata, não instalação do produto. |
+
+### Limites atuais e handoff
+
+- C02/Spec 121: somente os cortes documentais comprovados por T5 e as reconciliações acima foram registrados. O fechamento global da 121 não foi declarado.
+- C05/Q1: causa do ENOSPC histórico continua `INCONCLUSIVO_NÃO_BLOQUEANTE`; nenhum arquivo ou log legado foi podado.
+- M03/SIGSEGV: sem atribuir causa nova ou estabilidade ao runtime pelo conjunto de provas T6.
+- T7 mantém dono de P05/P06 e A10; RC115/P07 permanece `OPERADOR/RC115 PENDENTE`.
+- Sem commit, push, PR, merge, Full, instalação/cutover ou aceite humano nesta observação. O teste de browser valida a candidata identificada pela worktree, não a release ativa.

@@ -1,0 +1,31 @@
+{
+  "testExecuted": true,
+  "mode": "focal-api-compiled-ui-cli",
+  "state": "temporary",
+  "consumer": {
+    "root": "/Users/marcoantonio/ci-queue-fase4-5-handoff",
+    "headSha": "5bff6a270442a6961b33c9d06fe53bae3814c4f8",
+    "compiledBundleSha256": "dafb28833d28e53b6391d58b3d8478429a523f3457d95b2d3feb7a0a79ee6abf"
+  },
+  "filter": {
+    "projectId": "project-a"
+  },
+  "running": {
+    "ticketId": "c03-project-b-running",
+    "projectId": "project-b",
+    "rawRunVariant": "custom",
+    "effectiveRunVariant": "focal"
+  },
+  "api": {
+    "globalOccupancy": true,
+    "otherProjectOccupancy": true,
+    "context": {
+      "kind": "project",
+      "projectId": "project-a"
+    }
+  },
+  "cli": {
+    "effectiveRunVariant": "focal"
+  },
+  "drawer": "verified"
+}

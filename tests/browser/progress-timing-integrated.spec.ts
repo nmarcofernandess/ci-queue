@@ -83,6 +83,14 @@ async function startCandidateApi(running?: { job: Record<string, unknown>; progr
             durationSource: "collector",
           },
           {
+            id: "zero",
+            label: "Zero",
+            kind: "stage",
+            status: "passed",
+            durationMs: 0,
+            durationSource: "emitter",
+          },
+          {
             id: "miss",
             label: "Sem início",
             kind: "stage",
@@ -384,7 +392,7 @@ test("Q2/Q3 real API+UI shows the planned Playwright 0/7 while Next runs", async
   }
 })
 
-test("R06 real API+UI shows emitter, collector approx, and legacy em dash", async ({ page }) => {
+test("R06 real API+UI shows emitter, collector approx, zero, and unavailable durations", async ({ page }) => {
   // No page.route / route.fulfill on proof endpoints — Vite proxies to candidata API.
   const api = await startCandidateApi()
   try {
@@ -396,6 +404,7 @@ test("R06 real API+UI shows emitter, collector approx, and legacy em dash", asyn
     )
     expect(byId.static).toMatchObject({ durationMs: 120000, durationSource: "emitter" })
     expect(byId.jest).toMatchObject({ durationMs: 1500, durationSource: "collector" })
+    expect(byId.zero).toMatchObject({ durationMs: 0, durationSource: "emitter" })
     expect(byId.miss).toMatchObject({ durationUnavailableReason: "missing-start" })
     expect(byId.legacy.durationMs).toBeUndefined()
 
@@ -408,6 +417,7 @@ test("R06 real API+UI shows emitter, collector approx, and legacy em dash", asyn
     const drawer = page.getByRole("dialog")
     await expect(drawer).toBeVisible({ timeout: 10_000 })
     await expect(drawer.locator('[data-duration-source="collector"]').first()).toContainText("≈")
+    await expect(drawer.locator('[data-node-id="zero"] [data-duration-source="emitter"]')).toHaveText("0 ms")
     await expect(drawer.getByText("—", { exact: true }).first()).toBeVisible()
   } finally {
     api.stop()
@@ -645,11 +655,15 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
   const state = join(temporaryRoot, "state")
   const gate = join(temporaryRoot, "release.fifo")
   const ready = join(temporaryRoot, "producer-ready")
+  const activeReady = join(temporaryRoot, "case-active-ready")
+  const activeRelease = join(temporaryRoot, "case-active-release")
   const artifacts = join(temporaryRoot, "playwright-output")
   const bundle = join(temporaryRoot, "compiled-ui")
   const previousGate = process.env.C03_GATE_PATH
   const previousReady = process.env.C03_READY_PATH
   const previousArtifacts = process.env.C03_ARTIFACT_DIR
+  const previousActiveReady = process.env.C03_ACTIVE_READY_PATH
+  const previousActiveRelease = process.env.C03_ACTIVE_RELEASE_PATH
   let api: Awaited<ReturnType<typeof startApiForState>> | undefined
   let ui: Awaited<ReturnType<typeof startCompiledUi>> | undefined
   let worker: Promise<Awaited<ReturnType<typeof runWorker>>> | undefined
@@ -687,6 +701,8 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
     process.env.C03_GATE_PATH = gate
     process.env.C03_READY_PATH = ready
     process.env.C03_ARTIFACT_DIR = artifacts
+    process.env.C03_ACTIVE_READY_PATH = activeReady
+    process.env.C03_ACTIVE_RELEASE_PATH = activeRelease
 
     const c03Ticket = enqueueExplicitTicket({
       recipe: "c03-q2q3",
@@ -731,6 +747,68 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
     await waitFor(() => releaseGate(gate), "leitor da barreira FIFO", 1_000)
     gateReleased = true
     timeline.releasedAt = new Date().toISOString()
+
+    await waitFor(() => {
+      if (!existsSync(activeReady) || !ticket) return false
+      try {
+        const progress = JSON.parse(readFileSync(progressPath(state, ticket.id), "utf8")) as {
+          nodes?: Array<{ id?: string; kind?: string; status?: string }>
+        }
+        return progress.nodes?.some((node) => node.kind === "case" && node.status === "running") ?? false
+      } catch {
+        return false
+      }
+    }, "primeiro caso Playwright ativo")
+    timeline.firstCaseRunningAt = statSync(activeReady).mtime.toISOString()
+    const activeResponse = await page.request.get(`${api.url}/api/status?context=all&view=live`)
+    expect(activeResponse.status()).toBe(200)
+    const activeSnapshot = await activeResponse.json() as {
+      running?: { id?: string; progressSummary?: { active?: Array<Record<string, unknown>> } }
+    }
+    expect(activeSnapshot.running?.id).toBe(c03Ticket.id)
+    expect(activeSnapshot.running?.progressSummary?.active).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "playwright", status: "running" }),
+    ]))
+    expect(activeSnapshot.running?.progressSummary).not.toHaveProperty("nodes")
+
+    const activeDetailResponse = await page.request.get(`${api.url}/api/job?jobId=${encodeURIComponent(c03Ticket.id)}`)
+    expect(activeDetailResponse.status()).toBe(200)
+    const activeDetail = await activeDetailResponse.json() as {
+      progressSummary?: { nodes?: Array<{ id?: string; kind?: string; status?: string }> }
+    }
+    const activeCase = activeDetail.progressSummary?.nodes?.find(
+      (node) => node.kind === "case" && node.status === "running",
+    )
+    expect(activeCase?.id).toEqual(expect.any(String))
+    const activeCaseId = activeCase?.id ?? ""
+
+    await page.reload()
+    await page.getByRole("button", { name: "c03-q2q3", exact: true }).click()
+    const activeDrawer = page.getByRole("dialog")
+    await expect(activeDrawer.locator('[data-node-id="playwright"] [role="img"]')).toHaveAttribute("aria-label", /Em execução/i)
+    await expect(activeDrawer.locator(`[data-node-id="${activeCaseId}"] [role="img"]`)).toHaveAttribute("aria-label", /Em execução/i)
+    await expect(activeDrawer.getByText("0 de 7", { exact: true })).toHaveCount(2)
+    await expect(activeDrawer.locator('[data-node-id="playwright"]').getByText("0 de 7", { exact: true })).toBeVisible()
+    await expect(activeDrawer.locator('[data-node-id="c03-pw"]').getByText("0 de 7", { exact: true })).toBeVisible()
+    const activeScreenshotPath = testInfo.outputPath("c03-active-live.png")
+    await page.screenshot({ path: activeScreenshotPath, animations: "disabled" })
+    await testInfo.attach("c03-active-live.png", { path: activeScreenshotPath, contentType: "image/png" })
+    const activeReceiptPath = testInfo.outputPath("c03-active-live.json")
+    writeFileSync(activeReceiptPath, JSON.stringify({
+      ticketId: c03Ticket.id,
+      candidateHead: process.env.C03_CI_QUEUE_HEAD ?? null,
+      consumerHead: process.env.C03_DIETFLOW_HEAD ?? null,
+      sourceDiffSha256: process.env.CI_QUEUE_T6_SOURCE_DIFF_SHA256 ?? null,
+      api: {
+        live: activeSnapshot.running?.progressSummary ?? null,
+        detail: activeDetail.progressSummary ?? null,
+      },
+      observedAt: timeline.firstCaseRunningAt,
+      drawer: "playwright active · 0 de 7 · first case running",
+    }, null, 2))
+    await testInfo.attach("c03-active-live.json", { path: activeReceiptPath, contentType: "application/json" })
+
+    writeFileSync(activeRelease, "release\n")
     await expect(worker).resolves.toMatchObject({ processed: [c03Ticket.id], busy: false })
     timeline.terminalAt = new Date().toISOString()
 
@@ -844,6 +922,11 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
     }
 
     if (worker && !workerSettled) {
+      try {
+        writeFileSync(activeRelease, "release\n")
+      } catch (error) {
+        rememberCleanupError("liberação do primeiro caso C03", error)
+      }
       if (!gateReleased) {
         try {
           await waitFor(() => workerSettled || releaseGate(gate), "leitor da barreira FIFO no cleanup", 1_000)
@@ -891,6 +974,10 @@ test("C03 same ticket carries the real DietFlow producer from 0/7 live to 7/7 du
     else process.env.C03_READY_PATH = previousReady
     if (previousArtifacts === undefined) delete process.env.C03_ARTIFACT_DIR
     else process.env.C03_ARTIFACT_DIR = previousArtifacts
+    if (previousActiveReady === undefined) delete process.env.C03_ACTIVE_READY_PATH
+    else process.env.C03_ACTIVE_READY_PATH = previousActiveReady
+    if (previousActiveRelease === undefined) delete process.env.C03_ACTIVE_RELEASE_PATH
+    else process.env.C03_ACTIVE_RELEASE_PATH = previousActiveRelease
     if ((!worker || workerSettled) && (!api || apiStopped)) {
       try {
         rmSync(temporaryRoot, { recursive: true, force: true })
