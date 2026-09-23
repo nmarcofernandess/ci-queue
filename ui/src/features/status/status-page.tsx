@@ -29,7 +29,6 @@ import type {
 import { Button } from "@/components/ui/button"
 import {
   Empty,
-  EmptyDescription,
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty"
@@ -219,14 +218,16 @@ function MachineCard() {
 
 function StatusStateCards({
   dashboard,
+  projectScoped,
   onOpen,
   onOpenJob,
 }: {
   dashboard: ApiQuery<DashboardState>
+  projectScoped: boolean
   onOpen: (surface: "meta" | "pending") => void
   onOpenJob: (jobId: string) => void
 }) {
-  if (dashboard.loading || dashboard.error || !dashboard.data) {
+  if (projectScoped && (dashboard.loading || dashboard.error || !dashboard.data)) {
     return (
       <>
         {["Metas", "Pendências"].map((title) => (
@@ -249,7 +250,9 @@ function StatusStateCards({
     )
   }
 
-  const { meta, pending, pendingError } = dashboard.data
+  const meta = dashboard.data?.meta
+  const pending = dashboard.data?.pending ?? []
+  const pendingError = dashboard.data?.pendingError
   const observed =
     meta?.checks.filter((check) => check.status === "passed").length ?? 0
   const total = meta?.checks.length ?? 0
@@ -261,7 +264,13 @@ function StatusStateCards({
           <CardTitle>Metas</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          {meta ? (
+          {!projectScoped ? (
+            <Empty className="border-0 p-0">
+              <EmptyHeader>
+                <EmptyTitle>Selecione um projeto</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
+          ) : meta ? (
             <>
               <p className="font-medium">{meta.name}</p>
               {meta.description ? (
@@ -340,9 +349,11 @@ function StatusStateCards({
           )}
         </CardContent>
         <CardFooter className="border-0 bg-transparent pt-0">
-          <Button type="button" variant="ghost" onClick={() => onOpen("meta")}>
-            Abrir meta
-          </Button>
+          <StatusCardAction
+            label="Abrir meta"
+            disabled={!projectScoped}
+            onClick={() => onOpen("meta")}
+          />
         </CardFooter>
       </Card>
       <Card>
@@ -350,7 +361,13 @@ function StatusStateCards({
           <CardTitle>Pendências</CardTitle>
         </CardHeader>
         <CardContent>
-          {pendingError ? (
+          {!projectScoped ? (
+            <Empty className="border-0 p-0">
+              <EmptyHeader>
+                <EmptyTitle>Selecione um projeto</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
+          ) : pendingError ? (
             <p className="text-sm text-destructive">{pendingError}</p>
           ) : pending.length ? (
             <ItemGroup>
@@ -389,54 +406,39 @@ function StatusStateCards({
           )}
         </CardContent>
         <CardFooter className="border-0 bg-transparent pt-0">
-          <Button
-            type="button"
-            variant="ghost"
+          <StatusCardAction
+            label="Ver pendências"
+            disabled={!projectScoped}
             onClick={() => onOpen("pending")}
-          >
-            Ver pendências
-          </Button>
+          />
         </CardFooter>
       </Card>
     </>
   )
 }
 
-function ProjectRequiredCard({
-  title,
-  description,
-  action,
+function StatusCardAction({
+  label,
+  disabled,
+  onClick,
 }: {
-  title: string
-  description: string
-  action: string
+  label: string
+  disabled: boolean
+  onClick: () => void
 }) {
+  const button = (
+    <Button type="button" variant="ghost" disabled={disabled} onClick={onClick}>
+      {label}
+    </Button>
+  )
+  if (!disabled) return button
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Empty className="gap-2 border-0 p-0">
-          <EmptyHeader>
-            <EmptyTitle>Selecione um projeto</EmptyTitle>
-            <EmptyDescription>{description}</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      </CardContent>
-      <CardFooter className="border-0 bg-transparent pt-0">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex">
-              <Button type="button" variant="ghost" disabled>
-                {action}
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>escolha um projeto</TooltipContent>
-        </Tooltip>
-      </CardFooter>
-    </Card>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex">{button}</span>
+      </TooltipTrigger>
+      <TooltipContent>escolha um projeto</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -1446,26 +1448,12 @@ export function StatusPage() {
         </div>
         <aside className="flex flex-col gap-4">
           <MachineCard />
-          {projectScoped ? (
-            <StatusStateCards
-              dashboard={dashboard}
-              onOpen={openStatusState}
-              onOpenJob={setSelectedJobId}
-            />
-          ) : (
-            <>
-              <ProjectRequiredCard
-                title="Metas"
-                description="Para ver ou criar metas."
-                action="Abrir meta"
-              />
-              <ProjectRequiredCard
-                title="Pendências"
-                description="Para ver as recomendações de validação."
-                action="Ver pendências"
-              />
-            </>
-          )}
+          <StatusStateCards
+            dashboard={dashboard}
+            projectScoped={projectScoped}
+            onOpen={openStatusState}
+            onOpenJob={setSelectedJobId}
+          />
         </aside>
       </div>
       {selectedJobId ? (

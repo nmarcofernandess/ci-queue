@@ -75,8 +75,9 @@ interno. SHA e caminhos permanecem completos e quebráveis, não truncados.
 ## Progresso
 
 `ExecutionStages` apresenta raízes na faixa horizontal; `ProgressTree` apresenta
-a árvore recursiva. Toda linha reserva uma coluna para expansão, mas folhas
-não recebem botão falso. Indentação pertence ao grupo de filhos. Indicadores
+a árvore recursiva. Cada nó ocupa uma linha; título e seta formam um único
+controle de expansão, e folhas não recebem botão falso. Indentação pertence
+ao grupo de filhos, sem traço conector. Indicadores
 compartilham descritores; nós concluídos não perdem seu resultado quando o job
 é cancelado. Tempos são somente os publicados. Não inferir percentual, ETA,
 conclusão nem duração ausente. A faixa preserva follow e pausa manual.

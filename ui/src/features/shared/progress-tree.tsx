@@ -9,7 +9,6 @@ import {
   Item,
   ItemActions,
   ItemContent,
-  ItemDescription,
   ItemGroup,
   ItemMedia,
   ItemTitle,
@@ -35,27 +34,18 @@ function ProgressNodeRow({
   jobStatus: JobStatus | undefined
 }) {
   const children = childrenByParent.get(node.id) ?? []
+  const detail = formatProgressDetail(node.detail)
+  const fullTitle = [
+    node.label,
+    detail,
+    node.inventoryReplaced ? "Inventário atualizado na execução" : null,
+  ].filter(Boolean).join(" · ")
   const row = (
     <Item
       data-slot="progress-row"
       data-node-id={node.id}
-      className="min-h-9 min-w-0 flex-nowrap gap-2 border-0 px-0 py-1"
+      className="h-9 min-w-0 flex-nowrap gap-2 border-0 px-0 py-0"
     >
-      <div className="flex size-7 shrink-0 items-center justify-center">
-        {children.length ? (
-          <CollapsibleTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Expandir ${node.label}`}
-              className="group/stage-toggle"
-            >
-              <ChevronDownIcon className="transition-transform group-data-[state=closed]/stage-toggle:-rotate-90" />
-            </Button>
-          </CollapsibleTrigger>
-        ) : null}
-      </div>
       <ItemMedia data-slot="progress-indicator">
         <StatusIndicator
           descriptor={describeProgressState(node, jobStatus)}
@@ -63,31 +53,29 @@ function ProgressNodeRow({
         />
       </ItemMedia>
       <ItemContent className="min-w-0">
-        <ItemTitle
-          data-slot="progress-label"
-          className="line-clamp-none min-w-0 text-sm leading-5 font-medium [overflow-wrap:anywhere] break-words"
-        >
+        <ItemTitle data-slot="progress-label" className="w-full min-w-0">
           {children.length ? (
             <CollapsibleTrigger asChild>
               <Button
                 type="button"
-                variant="link"
-                className="h-auto min-w-0 max-w-full shrink justify-start whitespace-normal p-0 text-left leading-5 [overflow-wrap:anywhere] break-words"
+                variant="ghost"
+                size="sm"
+                title={fullTitle}
+                className="group/stage-toggle w-full min-w-0 justify-start gap-2 px-1"
               >
-                {node.label}
+                <ChevronDownIcon className="shrink-0 transition-transform group-data-[state=closed]/stage-toggle:-rotate-90" />
+                <span className="min-w-0 truncate">{node.label}</span>
+                {detail ? <span className="shrink-0 text-muted-foreground">{detail}</span> : null}
               </Button>
             </CollapsibleTrigger>
           ) : (
-            node.label
+            <span className="flex min-w-0 items-center gap-2 px-1" title={fullTitle}>
+              <span className="size-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 truncate">{node.label}</span>
+              {detail ? <span className="shrink-0 text-muted-foreground">{detail}</span> : null}
+            </span>
           )}
         </ItemTitle>
-        {node.detail || node.inventoryReplaced ? (
-          <ItemDescription className="line-clamp-none text-xs [overflow-wrap:anywhere]">
-            {node.inventoryReplaced ? "Inventário atualizado na execução" : null}
-            {node.inventoryReplaced && node.detail ? " · " : null}
-            {formatProgressDetail(node.detail)}
-          </ItemDescription>
-        ) : null}
       </ItemContent>
       <ItemActions className="shrink-0 text-sm text-muted-foreground">
         <ProgressDuration node={node} jobStatus={jobStatus} />
@@ -100,7 +88,7 @@ function ProgressNodeRow({
       defaultOpen={node.status === "running" || node.status === "failed"}
     >
       {row}
-      <CollapsibleContent className="ml-3.5 border-l border-border pl-3.5">
+      <CollapsibleContent className="ml-4">
         {children.map((child) => (
           <ProgressNodeRow
             key={child.id}
