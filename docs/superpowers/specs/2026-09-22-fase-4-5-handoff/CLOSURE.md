@@ -50,7 +50,7 @@ Fonte dos limites A1–A10: `SPEC.md` §9 e `PLAN.md` T1–T8 definem o comporta
 | P02 | **HIPÓTESE_RECUSADA**: typechecks não equivalentes; não repetir. |
 | P03 | Dedup por perfil integrado em DF `scripts/ci/jest-scope.ts`; ganho em minutos não creditado. |
 | P04 | Build único integrado em CQ `scripts/ci/check-with-progress.sh`; `tests/core/check-composition.test.ts` prova composição. Ganho em minutos não creditado. |
-| P05 | Suíte `green-progress.test.ts` 143,08 s é pista histórica, sem causa. Perfil limitado T7 pendente. |
+| P05 | Medição limitada T7 capturou setup, subprocessos Git, `executeGreenProgress` e cleanup; disposição `INCONCLUSIVO_NÃO_BLOQUEANTE`, sem otimização causal aplicada. |
 | P06 | Feedback quente, outputs e comparação de envelopes pendentes; smoke anterior não cobriu E2E/FlowUI. |
 | P07 | **OPERADOR/RC115 PENDENTE**; Full exact-HEAD/base não executado por esta task. |
 
@@ -78,7 +78,7 @@ Os únicos testes de host/browser desta fase foram submetidos à fila oficial. O
 | A7 — retenção | `PROVADO_COM_TESTES_DE_OWNER` | T4 oversize GREEN `20260923055436-b2b5fdab`, 8/8; owner `20260923054032-900b2277`, 4 suítes/159; integração `20260923055524-ca2afde5`, 20/20 | Evidência do modo feedback e rotação conforme contrato. Sem varredura ou poda global do host. |
 | A8 — progresso/ciclo integrado | `PROVADO_NO_ESCOPO_C03` | T3/T4 receipts acima; C03 produtor real `20260923080332-b5cdc2ed`, 1/1 | Teste C03 envia producer real do DF por ticket/worker/API/UI compilada CQ. Um fixture de sete casos ficou ativo em `0/7`, com um caso `running` e seis `pending`, e terminou `7/7` em histórico/UI. O fixture interno de browser da própria suíte não é tratado como execução real de produto. |
 | A9 — regressões C03/C06/V01 e compatibilidade | `PROVADO_NA_CANDIDATA` | C06 final `20260923073023-db80e7ca`, 6/6 novos casos; owner DF `20260923075754-a2494e65`, 5 suítes/124; browser final `20260923081250-17e11114`, 20/20 | C03/C06/V01/C04/R06 no alcance desta candidata; os subitens estão discriminados abaixo. Não equivale a Full, instalação ou release. |
-| A10 — comparação de envelopes | **T7/PENDENTE** | — | A janela de performance e a comparação não foram executadas nem inferidas a partir do tempo destes testes. |
+| A10 — comparação de envelopes | **PARCIAL; NÃO ACEITO (T7 INCOMPLETO)** | Baseline focal `20260923084134-fac32de7`; perfil medido `20260923160345-bc5a18e4`; sequência de fixture T6 `20260923073421-2e9ebcc2`; `evidence/performance/T7-P05-P06-A10.md` | T7 mede fila, runner e publicação do seu artifact; faltam validação/reuso da sessão e tempos/bytes por tentativa P06, além de três retestes quentes contra o primeiro preparo. A sequência de três tickets, por si, não fecha A10 nem prova economia. |
 
 ### C03, C06 e V01/C04/R06
 
@@ -113,10 +113,28 @@ O primeiro C03 browser enqueue `20260923074253-d367009a` parou antes de executar
 | `STATE-HYGIENE-001` | `OPERADOR_PENDENTE` | Fixtures do C03 usam state temporário e encerram seus processos próprios. Nenhum scan global ou prova de ausência de resíduos no state do operador foi feito. |
 | `INSTALL-PROVENANCE-001` | `OPERADOR_PENDENTE` | Não houve instalação, cutover nem coleta atual de `version`, `build.json`, `installation.json` ou `launchctl`. `npm ci` foi dependência local de build da candidata, não instalação do produto. |
 
+### Medição T7 — P05/P06/A10 (23/09/2026)
+
+O baseline não instrumentado foi executado uma vez pela fila oficial: ticket `20260923084134-fac32de7`, HEAD DietFlow `6b307a35c46fbdf2f3e2c2069512353e2ce9c312`, tree `cd2e46ec53ec36bc0e27c774e9059760e71d9185`, receita `feedback-contract-review`, 42/42. A suíte durou 137,497 s e a invocação Jest 137,891 s. O run externo foi 139,990 s; espera da fila 125,072 s. A observação instrumentada `20260923160345-bc5a18e4` também passou 42/42, com o mesmo HEAD/argv/runtime e apenas o arquivo de teste sujo: Jest 143,365 s, suíte 142,918 s, runner externo 146,072 s, espera 492,544 s e publicação do artifact em 2 ms. São perfis distintos; não se declara diferença causal nem ganho. A tentativa `20260923154909-e5251823` passou sem produzir telemetria porque `jest.setup.js` remove a alias usada na primeira versão do perfil; a versão temporária usada no terceiro ticket foi corrigida para ler `CI_QUEUE_JOB_ID` e não conta como amostra instrumentada sem spans. Os 143,08/150,95 s históricos seguem como pista não comparável por diferirem HEAD, receita e população.
+
+O patch de instrumentação foi temporário, identificado pelo hash no relatório de evidência, e foi revertido depois que o artifact oficial foi conferido. No fechamento desta tarefa a worktree DF está limpa em `6b307a35c46fbdf2f3e2c2069512353e2ce9c312`; não permanece mudança de fonte T7.
+
+| Corte | Disposição T7 | Limite | Evidência |
+|---|---|---|---|
+| P05 | `INCONCLUSIVO_NÃO_BLOQUEANTE` | Uma amostra P01 mediu hooks, subprocessos Git diretos, `executeGreenProgress`, cleanup e bytes. Não prova equivalência semântica/redundância em fixtures Git mutáveis; owner sem alteração. O patch de perfil foi temporário e já voltou ao HEAD. | Baseline `20260923084134-fac32de7`; perfil/artifact `20260923160345-bc5a18e4`; 2.712 spans/4.285.585 B JSONL, hash `45349053eb3dfc0d0eeb9cd383068ebde3ea726b34402cc6036b90aaeba1bb69`. |
+| P06 | `PARCIAL; CRITÉRIO NÃO CUMPRIDO` | T6 reutilizou o preparo em três tickets de fixture: um inicial falhou e só dois foram retestes. Ainda não há três retestes quentes com a primeira preparação nem spans/bytes por ticket de uma prova canônica de módulo/RC. | T6 `20260923073421-2e9ebcc2`, `T6_WARM_FEEDBACK_SEQUENCE`, uma sessão, `serverLaunches:1`, `databaseResetSeedOrBuild:false`; ticket receipt traz cinco arquivos sujos. O diff SHA registrado no fechamento T6 é `b0ea5d3410bb55c2c5d821e3daecd41247cfd109534b3d4e7b0a9e97f04674a4`. |
+| A10 | `PARCIAL; NÃO ACEITO` | O runner e a cópia de artifacts foram medidos no ticket P05, mas isso não mede validação/reuso da sessão, publicação/bytes por tentativa P06 nem três retestes quentes. O caso interno T6 de 13,275 s cobre a sequência e não deve ser somado ao run externo. | Histories/logs oficiais T7/T6 e relatório `evidence/performance/T7-P05-P06-A10.md`. |
+| P03 | `CONTADOR FUNCIONAL; SEM CRÉDITO TEMPORAL` | Uma sobreposição de mesmo perfil sai de `forcedTests` e permanece uma vez em `jest:related`; asserção mede o plano de invocação, não runtime. | `jest-scope.test.ts`, teste de sobreposição, ticket owner `20260923075754-a2494e65` (5 suítes/124). |
+| P04 | `CONTADOR FUNCIONAL; SEM CRÉDITO TEMPORAL` | Cada fixture observa uma chamada `build` em `check` e em `test fresh`; não há par temporal compatível. | `tests/core/check-composition.test.ts`, arrays de chamadas do check agregado e `test fresh`. |
+
+No T6, o preflight registrou modificados `scripts/__tests__/fixtures/pw-observe/c03-producer.sh`, `scripts/__tests__/fixtures/pw-observe/cases.spec.ts`, `scripts/ci/__tests__/e2e-feedback.test.ts`, `scripts/ci/__tests__/jest-scope.test.ts` e `scripts/ci/jest-scope.ts`; `baseSha` estava vazio. O JSON do ticket não retém diff SHA. O fechamento T6 preserva o fingerprint `b0ea5d3410bb55c2c5d821e3daecd41247cfd109534b3d4e7b0a9e97f04674a4`, confirmado pela reconstrução atual do diff entre HEADs. Portanto, o HEAD `9efb74b` isolado não é identidade suficiente do estado testado.
+
+O detalhe de comandos, tempos, população, runtime, cache, workers, subprocessos, bytes, fontes e limitações está em [`evidence/performance/T7-P05-P06-A10.md`](evidence/performance/T7-P05-P06-A10.md). P05 foi medido e encerra inconclusivo não bloqueante. Não há prova canônica de módulo/RC com três retestes quentes já necessária indicada no PLAN T8; T7 não deve ordenar execução extra apenas para obter um gráfico.
+
 ### Limites atuais e handoff
 
 - C02/Spec 121: somente os cortes documentais comprovados por T5 e as reconciliações acima foram registrados. O fechamento global da 121 não foi declarado.
 - C05/Q1: causa do ENOSPC histórico continua `INCONCLUSIVO_NÃO_BLOQUEANTE`; nenhum arquivo ou log legado foi podado.
 - M03/SIGSEGV: sem atribuir causa nova ou estabilidade ao runtime pelo conjunto de provas T6.
-- T7 mantém dono de P05/P06 e A10; RC115/P07 permanece `OPERADOR/RC115 PENDENTE`.
+- T7 permanece incompleto: P05 encerrou `INCONCLUSIVO_NÃO_BLOQUEANTE`; P06/A10 seguem pendentes por falta de prova canônica naturalmente necessária com três retestes quentes e spans/bytes por ticket, ou decisão explícita de contrato sobre essa lacuna. RC115/P07 permanece `OPERADOR/RC115 PENDENTE`.
 - Sem commit, push, PR, merge, Full, instalação/cutover ou aceite humano nesta observação. O teste de browser valida a candidata identificada pela worktree, não a release ativa.
