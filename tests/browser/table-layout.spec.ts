@@ -102,6 +102,7 @@ for (const { width, zoom } of layoutScenarios) {
         history: [
           { ...fixtureTerminals[0], id: 'flaky', preset: 'smoketest', branch: longBranch, projectName: 'DietFlow', runVariant: 'custom' },
           { ...fixtureTerminals[1], id: 'no-name', preset: '', branch: longBranch },
+          { ...fixtureTerminals[2], id: 'no-duration', preset: 'cancelled-run' },
         ],
         worktrees: [
           { ...fixtureTrees[0], path: `/example/projects/${longWorktree}`, branch: longBranch },
@@ -119,6 +120,9 @@ for (const { width, zoom } of layoutScenarios) {
       await expect(flaky.getByText('Flaky detectado')).toHaveCount(0)
       await expect(flaky.getByText('Personalizado')).toBeVisible()
       await expect(history.getByText('Não informada').first()).toBeVisible()
+      const noDuration = history.getByRole('row').filter({ has: page.getByRole('button', { name: 'cancelled-run', exact: true }) }).getByRole('cell').nth(3)
+      await expect(noDuration).toHaveText('—')
+      expect(await noDuration.evaluate(cell => cell.scrollWidth <= cell.clientWidth)).toBe(true)
       const revision = flaky.getByRole('cell').nth(4)
       expect((await revision.boundingBox())!.width).toBeGreaterThan(100)
       await columnAlignment(history)

@@ -276,7 +276,7 @@ export function GreenCommitDrawer({
                       {formatTimelineDate(row.finishedAt)}
                     </TableCell>
                     <TableCell className={commitRunColumnClass("duration")}>
-                      {formatDuration(row.durationMs)}
+                      {formatDuration(row.durationMs, "—")}
                     </TableCell>
                     <TableCell className={commitRunColumnClass("actions")}>
                       {id ? (

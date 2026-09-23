@@ -49,10 +49,12 @@ export function RelativeTime({ value }: { value?: string | null }) {
 }
 export function JobDuration({
   job,
+  compact = false,
 }: {
   job: Pick<JobRecord, "status" | "startedAt" | "durationMs">
+  compact?: boolean
 }) {
-  return jobDuration(job, useLocalClock())
+  return jobDuration(job, useLocalClock(), compact)
 }
 
 export function JobTimeline({ job }: { job: JobRecord }) {
@@ -121,10 +123,17 @@ export function ElapsedItem({
   )
 }
 
-export function QueueWait({ value }: { value?: string | null }) {
+export function QueueWait({
+  value,
+  compact = false,
+}: {
+  value?: string | null
+  compact?: boolean
+}) {
   const clock = useLocalClock()
   const start = value ? Date.parse(value) : NaN
   return formatDuration(
-    Number.isFinite(start) ? Math.max(0, clock - start) : undefined
+    Number.isFinite(start) ? Math.max(0, clock - start) : undefined,
+    compact ? "—" : "Sem duração",
   )
 }

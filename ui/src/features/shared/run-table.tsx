@@ -209,9 +209,9 @@ function RunDataTable({
           cell: ({ row }) => (
             <span className="block truncate whitespace-nowrap">
               {row.original.status === "queued" ? (
-                <QueueWait value={row.original.createdAt} />
+                <QueueWait value={row.original.createdAt} compact />
               ) : (
-                <JobDuration job={row.original} />
+                <JobDuration job={row.original} compact />
               )}
             </span>
           ),

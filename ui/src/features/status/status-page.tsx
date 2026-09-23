@@ -28,6 +28,12 @@ import type {
 } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import {
   Card,
   CardContent,
   CardDescription,
@@ -220,25 +226,26 @@ function StatusStateCards({
   onOpen: (surface: "meta" | "pending") => void
   onOpenJob: (jobId: string) => void
 }) {
-  if (dashboard.loading) {
+  if (dashboard.loading || dashboard.error || !dashboard.data) {
     return (
-      <Card>
-        <CardContent>
-          <Skeleton className="h-32 w-full" />
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (dashboard.error || !dashboard.data) {
-    return (
-      <Card>
-        <CardContent>
-          <p className="text-sm text-destructive">
-            {dashboard.error?.message || "Meta e pendências indisponíveis."}
-          </p>
-        </CardContent>
-      </Card>
+      <>
+        {["Metas", "Pendências"].map((title) => (
+          <Card key={title}>
+            <CardHeader>
+              <CardTitle>{title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dashboard.loading ? (
+                <Skeleton className="h-32 w-full" />
+              ) : (
+                <p className="text-sm text-destructive">
+                  {dashboard.error?.message || "Dados indisponíveis."}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </>
     )
   }
 
@@ -251,7 +258,7 @@ function StatusStateCards({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Meta para main</CardTitle>
+          <CardTitle>Metas</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {meta ? (
@@ -340,7 +347,7 @@ function StatusStateCards({
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Pendências · {pending.length}</CardTitle>
+          <CardTitle>Pendências</CardTitle>
         </CardHeader>
         <CardContent>
           {pendingError ? (
@@ -392,6 +399,44 @@ function StatusStateCards({
         </CardFooter>
       </Card>
     </>
+  )
+}
+
+function ProjectRequiredCard({
+  title,
+  description,
+  action,
+}: {
+  title: string
+  description: string
+  action: string
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Empty className="gap-2 border-0 p-0">
+          <EmptyHeader>
+            <EmptyTitle>Selecione um projeto</EmptyTitle>
+            <EmptyDescription>{description}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      </CardContent>
+      <CardFooter className="border-0 bg-transparent pt-0">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <Button type="button" variant="ghost" disabled>
+                {action}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>escolha um projeto</TooltipContent>
+        </Tooltip>
+      </CardFooter>
+    </Card>
   )
 }
 
@@ -1407,7 +1452,20 @@ export function StatusPage() {
               onOpen={openStatusState}
               onOpenJob={setSelectedJobId}
             />
-          ) : null}
+          ) : (
+            <>
+              <ProjectRequiredCard
+                title="Metas"
+                description="Para ver ou criar metas."
+                action="Abrir meta"
+              />
+              <ProjectRequiredCard
+                title="Pendências"
+                description="Para ver as recomendações de validação."
+                action="Ver pendências"
+              />
+            </>
+          )}
         </aside>
       </div>
       {selectedJobId ? (

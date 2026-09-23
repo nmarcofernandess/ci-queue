@@ -112,6 +112,15 @@ test("status keeps living when the filter is Todos or unassigned", async ({
   await expect(greensAll).toBeDisabled()
   await page.locator("[data-slot=toggle-group] [data-slot=tooltip-trigger]").hover()
   await expect(page.getByRole("tooltip", { name: "escolha um projeto" })).toBeVisible()
+  for (const [title, action] of [["Metas", "Abrir meta"], ["Pendências", "Ver pendências"]] as const) {
+    const card = page.locator("[data-slot=card]").filter({ has: page.getByText(title, { exact: true }) })
+    await expect(card).toBeVisible()
+    await expect(card.getByText("Selecione um projeto", { exact: true })).toBeVisible()
+    await expect(card.getByRole("button", { name: action })).toBeDisabled()
+    await card.locator("[data-slot=tooltip-trigger]").hover()
+    await expect(page.getByRole("tooltip", { name: "escolha um projeto" })).toBeVisible()
+  }
+  await expect(page.locator("[data-slot=card]").filter({ hasText: "Máquina" })).toBeVisible()
   await page.goto("/?context=unassigned#status")
   await expect(page.getByRole("button", { name: "Histórico sem projeto" })).toBeVisible()
   await expect(
@@ -122,6 +131,10 @@ test("status keeps living when the filter is Todos or unassigned", async ({
       .getByRole("button", { name: "full", exact: true })
   ).toBeVisible()
   await expect(page.getByText("Há trabalho de outro projeto")).toHaveCount(0)
+  for (const title of ["Metas", "Pendências"]) {
+    const card = page.locator("[data-slot=card]").filter({ has: page.getByText(title, { exact: true }) })
+    await expect(card.getByText("Selecione um projeto", { exact: true })).toBeVisible()
+  }
 })
 
 test("analysis in Todos keeps homonymous presets apart", async ({ page }) => {

@@ -67,7 +67,19 @@ function ProgressNodeRow({
           data-slot="progress-label"
           className="line-clamp-none min-w-0 text-sm leading-5 font-medium [overflow-wrap:anywhere] break-words"
         >
-          {node.label}
+          {children.length ? (
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto min-w-0 max-w-full shrink justify-start whitespace-normal p-0 text-left leading-5 [overflow-wrap:anywhere] break-words"
+              >
+                {node.label}
+              </Button>
+            </CollapsibleTrigger>
+          ) : (
+            node.label
+          )}
         </ItemTitle>
         {node.detail || node.inventoryReplaced ? (
           <ItemDescription className="line-clamp-none text-xs [overflow-wrap:anywhere]">

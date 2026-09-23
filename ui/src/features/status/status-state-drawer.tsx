@@ -537,7 +537,7 @@ export function StatusStateDrawer({
       <DetailDrawerHeader
         title={
           surface === "meta"
-            ? state.meta?.name || "Meta para main"
+            ? state.meta?.name || "Metas"
             : "Pendências"
         }
         description={
