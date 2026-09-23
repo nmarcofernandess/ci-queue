@@ -1,0 +1,386 @@
+{
+  "kind": "audit-extraction",
+  "source": "https://github.com/dietflowoficial/Dietflow-app/blob/ffc99748f796d8f7923c9e46161b2a4dc735eef8/specs/115-caminho-para-main/harness/evidence/ap17-full/20260919075127-addfb8a5/queue-ticket.json",
+  "gitBlobSha": "1059f13aaacdceda3ad2c80127adf6581588a886",
+  "gates": [
+    {
+      "id": "gate-1",
+      "label": "prisma generate",
+      "durationMs": 6990,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-2",
+      "label": "fumadocs .source",
+      "durationMs": 1400,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-3",
+      "label": "check:use-server",
+      "durationMs": 7053,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-4",
+      "label": "check:policy-write-boundaries",
+      "durationMs": 1471,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-5",
+      "label": "check:admin-relation-authority",
+      "durationMs": 3812,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-6",
+      "label": "check:zod-schema-sync",
+      "durationMs": 487,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-7",
+      "label": "check:architecture",
+      "durationMs": 2179,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-8",
+      "label": "check:golden-product-shape",
+      "durationMs": 1303,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-9",
+      "label": "check:golden-fresh",
+      "durationMs": 1573,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-10",
+      "label": "check:clinical-item-header",
+      "durationMs": 2674,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-11",
+      "label": "check:unit-favorite-writers",
+      "durationMs": 9260,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-12",
+      "label": "check:record-date-derivation",
+      "durationMs": 1314,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-13",
+      "label": "check:module-help-docs",
+      "durationMs": 947,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-14",
+      "label": "check:favorites-kinds",
+      "durationMs": 807,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-15",
+      "label": "check:import-surfaces",
+      "durationMs": 795,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-16",
+      "label": "check:field-adornment-contract",
+      "durationMs": 933,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-17",
+      "label": "check:numeric-input-ratchet",
+      "durationMs": 1410,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-18",
+      "label": "check:field-identity-ratchet",
+      "durationMs": 104836,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-19",
+      "label": "check:context-yaml",
+      "durationMs": 836,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-20",
+      "label": "check:e2e-trigger",
+      "durationMs": 12440,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-21",
+      "label": "check:fixtures",
+      "durationMs": 197537,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-22",
+      "label": "check:showcase",
+      "durationMs": 826,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-23",
+      "label": "check:autofill-policy",
+      "durationMs": 3032,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-24",
+      "label": "check:patient-proof-routes",
+      "durationMs": 1710,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-25",
+      "label": "check:proof-index-fresh",
+      "durationMs": 822,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-26",
+      "label": "check:clinical-readonly-proof-atlas",
+      "durationMs": 629,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-27",
+      "label": "check:clinical-readonly-preview-boundary",
+      "durationMs": 5515,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-28",
+      "label": "check:snapshot-sync",
+      "durationMs": 923,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-29",
+      "label": "check:snapshot-runtime",
+      "durationMs": 496,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-30",
+      "label": "check:catalog-changes",
+      "durationMs": 2711,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-31",
+      "label": "check:seed-tag",
+      "durationMs": 2524,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-32",
+      "label": "check:flowid-contract",
+      "durationMs": 660,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-33",
+      "label": "check:e2e-target-contract",
+      "durationMs": 622,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-34",
+      "label": "check:regression-verdict-provenance",
+      "durationMs": 7472,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-35",
+      "label": "check:vercel-branch-policy",
+      "durationMs": 676,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-36",
+      "label": "check:a4-css-sync",
+      "durationMs": 746,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-37",
+      "label": "check:a4-contract",
+      "durationMs": 1300,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-38",
+      "label": "check:no-inline-search-input",
+      "durationMs": 948,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-39",
+      "label": "check:single-favorite-toast",
+      "durationMs": 5315,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-40",
+      "label": "check:content-visibility",
+      "durationMs": 995,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-41",
+      "label": "check:hard-domain-writers",
+      "durationMs": 979,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-42",
+      "label": "check:lifecycle-consumers",
+      "durationMs": 6716,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-43",
+      "label": "check:lifecycle-modal-derivation",
+      "durationMs": 5898,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-44",
+      "label": "check:in-document-removal",
+      "durationMs": 4377,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-45",
+      "label": "check:dirty-source-ownership",
+      "durationMs": 4046,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-46",
+      "label": "check:patient-visibility",
+      "durationMs": 1027,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-47",
+      "label": "check:location-visibility",
+      "durationMs": 1069,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-48",
+      "label": "check:plano-visibility",
+      "durationMs": 1073,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-49",
+      "label": "check:recipe-visibility",
+      "durationMs": 999,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-50",
+      "label": "check:substance-visibility",
+      "durationMs": 922,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-51",
+      "label": "check:exam-visibility",
+      "durationMs": 991,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-52",
+      "label": "lint ratchet (origin/dev)",
+      "durationMs": 103517,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-53",
+      "label": "typecheck",
+      "durationMs": 241226,
+      "durationSource": "collector",
+      "status": "passed"
+    },
+    {
+      "id": "gate-54",
+      "label": "typecheck:storybook",
+      "durationMs": 33010,
+      "durationSource": "collector",
+      "status": "passed"
+    }
+  ],
+  "sumDurationMs": 803829
+}

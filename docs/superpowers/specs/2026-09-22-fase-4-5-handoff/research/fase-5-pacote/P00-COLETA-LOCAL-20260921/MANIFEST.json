@@ -1,0 +1,77 @@
+[
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/history/20260919075127-addfb8a5.json",
+    "sha256": "56035b7bfe42f9420ba19fc963b9186291683b684afd20596aeb80d358d17ecf",
+    "bytes": 533382
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/logs/20260919075127-addfb8a5.log",
+    "sha256": "883441c47777f635aacde44f57e767618f09a74ce70c9494f21224d0717d1b49",
+    "bytes": 1010665
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/history/20260915122336-527ad689.json",
+    "sha256": "0dd18f298c12dff6bba629caa244909b0f0338ea5e01d39b7878d41fd77fefb9",
+    "bytes": 13120
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/history/20260914140623-ae35471d.json",
+    "sha256": "790eaa6e6eec2bbca37cef01d508d2f3d7c202d28759408ee181e2b2e7650ea8",
+    "bytes": 13164
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/history/20260921115955-6e890b30.json",
+    "sha256": "5a448e3a3fee765add56359d12f2d6bbd0cd5d4ad7e5af6a9ff6624146c08553",
+    "bytes": 115963
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/logs/20260921115955-6e890b30.log",
+    "sha256": "475c2e8e53770980cb0f78a483db1759e65fa289b7fc1c4bff51d94064918a21",
+    "bytes": 18239
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/history/20260921121505-f0a9fe7e.json",
+    "sha256": "13e9e9c1898bc177158ca81e8ad819b46060b7b6b2d880766777552b64129a73",
+    "bytes": 179023
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/logs/20260921121505-f0a9fe7e.log",
+    "sha256": "91755c36cbda658ce8b7eb81dc8c1c0c0e7fccdeae05587e82c2f55849cde5df",
+    "bytes": 28743
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/history/20260921115512-ccc7ede4.json",
+    "sha256": "a692aeaf3c943690ef31f36094cfe649b58858fb20aca213c4c709471aac7df4",
+    "bytes": 3910
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/logs/20260921115512-ccc7ede4.log",
+    "sha256": "27fde407cea8a5a8a6f7c3b82dc8440571b8e7cc6f58310ca4b475491f2962dc",
+    "bytes": 30944
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/history/20260921133518-b846929f.json",
+    "sha256": "645adf6221d77eb86ccfcaa839c82d222c74234b9ab0802387468c3cbd27d9a1",
+    "bytes": 3917
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/logs/20260921133518-b846929f.log",
+    "sha256": "8a4f43a81ea8b39b8628b802cb35af7105cdcaf3740ff235d32851ad5d3f8a7f",
+    "bytes": 32819
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/history/20260919055151-8c2dd256.json",
+    "sha256": "0d14a43eb36d4f0faee5d16724c9926a458955e4c0cb039dd03229759a2649bb",
+    "bytes": 449903
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/logs/20260919055151-8c2dd256.log",
+    "sha256": "eb8b46a8f62c6ae67ea728254ff4bb485b081381aee306e4ce272ae4738c162d",
+    "bytes": 704995
+  },
+  {
+    "path": "/Users/marcoantonio/.local/state/local-ci/queue/history/20260917222022-34ef8b6a.json",
+    "sha256": "aec31cbc5f52231d27b7547ebdf91399c867e57715bf8858c6979e4664dab284",
+    "bytes": 2365
+  }
+]

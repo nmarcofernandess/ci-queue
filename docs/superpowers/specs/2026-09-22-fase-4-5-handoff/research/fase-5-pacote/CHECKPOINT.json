@@ -1,0 +1,52 @@
+{
+  "kind": "external-review-no-execution",
+  "date": "2026-09-21",
+  "firstLocalClockUtc": "2026-09-21T14:38:19Z",
+  "generatedAtUtc": "2026-09-21T14:54:38.303435+00:00",
+  "repositories": {
+    "nmarcofernandess/ci-queue": {
+      "dev": "550409a92f359cffc3e75f34712d39133b8ab130",
+      "tree": "d1daba7fd726548cf445d2ae37610b8612027b30",
+      "verifiedMerges": [
+        {
+          "pr": 17,
+          "head": "e410dff80aa7e3423b8dd73b23d813cae6635d90",
+          "merge": "24d6a2b417876db209db4519c3826566ab94a1e7",
+          "ancestry": "merge é primeiro parent do dev; compare ahead=6 behind=0"
+        },
+        {
+          "pr": 18,
+          "head": "17b379a55682489864d5d328ead68b1581d602fc",
+          "merge": "550409a92f359cffc3e75f34712d39133b8ab130",
+          "ancestry": "merge é dev; head é segundo parent"
+        }
+      ]
+    },
+    "dietflowoficial/Dietflow-app": {
+      "dev": "ffc99748f796d8f7923c9e46161b2a4dc735eef8",
+      "tree": "e5cba1c0c10af54194dba787a5e6d91ea9e6c659",
+      "verifiedMerges": [
+        {
+          "pr": 1305,
+          "head": "d8048fb4f6c760eb0c607b098038846757ac43a3",
+          "merge": "147c5ed5df0a53efe1dfb336f28861e99cafadb1",
+          "ancestry": "dev -> primeiro parent 45768012a31c3f2a86a9ca4817b6100a709b0d62 -> primeiro parent 147c5ed5...; metadados de PR confirmam merge"
+        }
+      ]
+    }
+  },
+  "phase4": "Auditoria anexa lida, não confundida com implementação integrada. As duas fronteiras do runner permanecem no blob 22d59a03f33cc3121eff7f62d54f7d920595d154.",
+  "notPerformed": [
+    "execução de testes",
+    "Full",
+    "instalação",
+    "modificação dos repositórios",
+    "PR/merge",
+    "leitura direta do Mac",
+    "limpeza de state",
+    "promoção de release"
+  ],
+  "installedMac": "NÃO COMPROVADO",
+  "finalRefsRecheckedAtUtc": "2026-09-21T15:06:15.588867+00:00",
+  "finalRefsUnchanged": true
+}

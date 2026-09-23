@@ -1,0 +1,372 @@
+{
+  "schema": 1,
+  "observedAt": "2026-09-21T21:10:54.065285+00:00",
+  "queueRoot": "/Users/marcoantonio/.local/state/local-ci/queue",
+  "selected": [
+    {
+      "id": "20260919075127-addfb8a5",
+      "projectName": "DietFlow",
+      "preset": "full",
+      "status": "passed",
+      "createdAt": "2026-09-19T07:51:27.616Z",
+      "startedAt": "2026-09-19T07:51:27.976Z",
+      "finishedAt": "2026-09-19T09:46:56.016Z",
+      "durationMs": 6928041,
+      "exitCode": 0,
+      "headSha": "008cab050649c7d11255aef1e3a5f574581f02c1",
+      "failureReason": null,
+      "baseSha": "3d411dab21554040f9337d6564c3bce620e5129a",
+      "preflightClean": true,
+      "postflightClean": true,
+      "logPresent": true
+    },
+    {
+      "id": "20260915122336-527ad689",
+      "projectName": "DietFlow",
+      "preset": "smoketest",
+      "status": "passed",
+      "createdAt": "2026-09-15T12:23:36.551Z",
+      "startedAt": "2026-09-15T12:23:37.053Z",
+      "finishedAt": "2026-09-15T12:54:45.882Z",
+      "durationMs": 1868829,
+      "exitCode": 0,
+      "headSha": "66bdc555b96308bfcfb5857a149cb74fa2ae7885",
+      "failureReason": null,
+      "baseSha": "9d2aac87435bf91e8e654c0f797aa0a2f8bd6a9d",
+      "preflightClean": true,
+      "postflightClean": true,
+      "logPresent": false
+    },
+    {
+      "id": "20260914140623-ae35471d",
+      "projectName": "DietFlow",
+      "preset": "smoketest",
+      "status": "passed",
+      "createdAt": "2026-09-14T14:06:23.024Z",
+      "startedAt": "2026-09-14T14:06:23.449Z",
+      "finishedAt": "2026-09-14T14:49:45.783Z",
+      "durationMs": 2602334,
+      "exitCode": 0,
+      "headSha": "3f1dea64b8487a357785b379af88237403576208",
+      "failureReason": null,
+      "baseSha": "3f1dea64b8487a357785b379af88237403576208",
+      "preflightClean": true,
+      "postflightClean": true,
+      "logPresent": false
+    },
+    {
+      "id": "20260921115955-6e890b30",
+      "projectName": "DietFlow",
+      "preset": "static",
+      "status": "passed",
+      "createdAt": "2026-09-21T11:59:55.394Z",
+      "startedAt": "2026-09-21T12:02:58.585Z",
+      "finishedAt": "2026-09-21T12:05:59.234Z",
+      "durationMs": 180649,
+      "exitCode": 0,
+      "headSha": "675b08f46127db576785c135b25df0e264623b69",
+      "failureReason": null,
+      "baseSha": "",
+      "preflightClean": true,
+      "postflightClean": false,
+      "logPresent": true
+    },
+    {
+      "id": "20260921121505-f0a9fe7e",
+      "projectName": "DietFlow",
+      "preset": "smoketest",
+      "status": "passed",
+      "createdAt": "2026-09-21T12:15:05.374Z",
+      "startedAt": "2026-09-21T12:15:05.985Z",
+      "finishedAt": "2026-09-21T12:18:27.789Z",
+      "durationMs": 201804,
+      "exitCode": 0,
+      "headSha": "d8048fb4f6c760eb0c607b098038846757ac43a3",
+      "failureReason": null,
+      "baseSha": "98f58eb3cc328bfa5c84ddfa7fc3a02bcad0fea4",
+      "preflightClean": true,
+      "postflightClean": true,
+      "logPresent": true
+    },
+    {
+      "id": "20260921115512-ccc7ede4",
+      "projectName": "CI Queue",
+      "preset": "check",
+      "status": "passed",
+      "createdAt": "2026-09-21T11:55:12.472Z",
+      "startedAt": "2026-09-21T11:55:13.200Z",
+      "finishedAt": "2026-09-21T11:59:36.696Z",
+      "durationMs": 263496,
+      "exitCode": 0,
+      "headSha": "e410dff80aa7e3423b8dd73b23d813cae6635d90",
+      "failureReason": null,
+      "baseSha": "28fdde9f6427a7cfad64dd0b6bb2901b1db9f081",
+      "preflightClean": true,
+      "postflightClean": true,
+      "logPresent": true
+    },
+    {
+      "id": "20260921133518-b846929f",
+      "projectName": "CI Queue",
+      "preset": "check",
+      "status": "passed",
+      "createdAt": "2026-09-21T13:35:18.505Z",
+      "startedAt": "2026-09-21T13:35:18.835Z",
+      "finishedAt": "2026-09-21T13:40:09.419Z",
+      "durationMs": 290584,
+      "exitCode": 0,
+      "headSha": "17b379a55682489864d5d328ead68b1581d602fc",
+      "failureReason": null,
+      "baseSha": "24d6a2b417876db209db4519c3826566ab94a1e7",
+      "preflightClean": true,
+      "postflightClean": true,
+      "logPresent": true
+    },
+    {
+      "id": "20260919055151-8c2dd256",
+      "projectName": "DietFlow",
+      "preset": "full",
+      "status": "failed",
+      "createdAt": "2026-09-19T05:51:51.402Z",
+      "startedAt": "2026-09-19T05:51:51.835Z",
+      "finishedAt": "2026-09-19T06:41:00.116Z",
+      "durationMs": 2948281,
+      "exitCode": 139,
+      "headSha": "bd792f2b1ef53fa4b0a9db857daab809bc44454c",
+      "failureReason": "processo terminou com código 139",
+      "baseSha": "3d411dab21554040f9337d6564c3bce620e5129a",
+      "preflightClean": true,
+      "postflightClean": false,
+      "logPresent": true
+    },
+    {
+      "id": "20260917222022-34ef8b6a",
+      "projectName": "DietFlow",
+      "preset": "receitas-medidas",
+      "status": "interrupted",
+      "createdAt": "2026-09-17T22:20:22.532Z",
+      "startedAt": "2026-09-17T22:20:22.952Z",
+      "finishedAt": "2026-09-17T22:31:20.070Z",
+      "durationMs": null,
+      "exitCode": null,
+      "headSha": "afcfbf9c50d66b5fc7248737b6134204a3155721",
+      "failureReason": "worker interrompido; processo filho encerrado durante a recuperação",
+      "baseSha": "",
+      "preflightClean": true,
+      "postflightClean": false,
+      "logPresent": false
+    }
+  ],
+  "recentTerminalByProjectPreset": {
+    "DietFlow/static": [
+      {
+        "id": "20260921191404-8629c20e",
+        "status": "passed",
+        "durationMs": 196045,
+        "headSha": "ba0699d23ce68f1f944352be0c534a3962a36bef",
+        "baseSha": "",
+        "createdAt": "2026-09-21T19:14:04.661Z"
+      },
+      {
+        "id": "20260921185819-bed4e798",
+        "status": "passed",
+        "durationMs": 238323,
+        "headSha": "6262a41d6b97e04cb00d06d57cf4785045de7c21",
+        "baseSha": "",
+        "createdAt": "2026-09-21T18:58:19.466Z"
+      },
+      {
+        "id": "20260921183104-3e3c4e6d",
+        "status": "passed",
+        "durationMs": 195899,
+        "headSha": "cca640c741db3c97e774d7d61e345009fc9f896b",
+        "baseSha": "",
+        "createdAt": "2026-09-21T18:31:04.265Z"
+      },
+      {
+        "id": "20260921180340-d9f287b5",
+        "status": "passed",
+        "durationMs": 203393,
+        "headSha": "106899a9f242b643aad49d874e7f62c3729e4b9c",
+        "baseSha": "",
+        "createdAt": "2026-09-21T18:03:40.482Z"
+      },
+      {
+        "id": "20260921173534-2d8d6668",
+        "status": "passed",
+        "durationMs": 211309,
+        "headSha": "7fadc7227cd85810027ad12fbfdd15dd11d9a501",
+        "baseSha": "",
+        "createdAt": "2026-09-21T17:35:34.125Z"
+      }
+    ],
+    "CI Queue/check": [
+      {
+        "id": "20260921210532-8c7145eb",
+        "status": "cancelled",
+        "durationMs": 195459,
+        "headSha": "1377b5da9805e6f69be9bb1f3be30d6021fb539b",
+        "baseSha": "550409a92f359cffc3e75f34712d39133b8ab130",
+        "createdAt": "2026-09-21T21:05:32.860Z"
+      },
+      {
+        "id": "20260921180245-a04c738b",
+        "status": "passed",
+        "durationMs": 298062,
+        "headSha": "1377b5da9805e6f69be9bb1f3be30d6021fb539b",
+        "baseSha": "550409a92f359cffc3e75f34712d39133b8ab130",
+        "createdAt": "2026-09-21T18:02:45.640Z"
+      },
+      {
+        "id": "20260921175107-ae082c79",
+        "status": "failed",
+        "durationMs": 44910,
+        "headSha": "1377b5da9805e6f69be9bb1f3be30d6021fb539b",
+        "baseSha": "550409a92f359cffc3e75f34712d39133b8ab130",
+        "createdAt": "2026-09-21T17:51:07.178Z"
+      },
+      {
+        "id": "20260921133518-b846929f",
+        "status": "passed",
+        "durationMs": 290584,
+        "headSha": "17b379a55682489864d5d328ead68b1581d602fc",
+        "baseSha": "24d6a2b417876db209db4519c3826566ab94a1e7",
+        "createdAt": "2026-09-21T13:35:18.505Z"
+      },
+      {
+        "id": "20260921132848-ce7d38af",
+        "status": "passed",
+        "durationMs": 290501,
+        "headSha": "07132c0b0b4a7fb3ec47b4906f7c98d867762a4a",
+        "baseSha": "24d6a2b417876db209db4519c3826566ab94a1e7",
+        "createdAt": "2026-09-21T13:28:48.355Z"
+      }
+    ],
+    "DietFlow/full": [
+      {
+        "id": "20260919075127-addfb8a5",
+        "status": "passed",
+        "durationMs": 6928041,
+        "headSha": "008cab050649c7d11255aef1e3a5f574581f02c1",
+        "baseSha": "3d411dab21554040f9337d6564c3bce620e5129a",
+        "createdAt": "2026-09-19T07:51:27.616Z"
+      },
+      {
+        "id": "20260919065043-5b72d8dc",
+        "status": "failed",
+        "durationMs": 3505058,
+        "headSha": "dc3701a314f6b5ef0262a8098ac9e461f4ab0407",
+        "baseSha": "3d411dab21554040f9337d6564c3bce620e5129a",
+        "createdAt": "2026-09-19T06:50:43.876Z"
+      },
+      {
+        "id": "20260919055151-8c2dd256",
+        "status": "failed",
+        "durationMs": 2948281,
+        "headSha": "bd792f2b1ef53fa4b0a9db857daab809bc44454c",
+        "baseSha": "3d411dab21554040f9337d6564c3bce620e5129a",
+        "createdAt": "2026-09-19T05:51:51.402Z"
+      },
+      {
+        "id": "20260919055036-4d9715c0",
+        "status": "failed",
+        "durationMs": null,
+        "headSha": "282d115b92f1fbd09bdf6f764dd565f7f2000505",
+        "baseSha": null,
+        "createdAt": "2026-09-19T05:50:36.541Z"
+      },
+      {
+        "id": "20260919004115-ea005756",
+        "status": "interrupted",
+        "durationMs": 4643590,
+        "headSha": "fb39bbe59b54f1aa4bcd40244c805d834153d0d2",
+        "baseSha": "1a6e0fe459a39ee60092fa15ec21c5542120b3a2",
+        "createdAt": "2026-09-19T00:41:15.770Z"
+      }
+    ],
+    "DietFlow/smoketest": [
+      {
+        "id": "20260921125425-db2c37b8",
+        "status": "passed",
+        "durationMs": 985568,
+        "headSha": "ac1426e04883f1bed1151728e43335dc1486c10b",
+        "baseSha": "147c5ed5df0a53efe1dfb336f28861e99cafadb1",
+        "createdAt": "2026-09-21T12:54:25.177Z"
+      },
+      {
+        "id": "20260921123738-dd7f39f0",
+        "status": "failed",
+        "durationMs": 896372,
+        "headSha": "3c5415e09ee698e0579916a4bb70b5a5a17e4f61",
+        "baseSha": "147c5ed5df0a53efe1dfb336f28861e99cafadb1",
+        "createdAt": "2026-09-21T12:37:38.194Z"
+      },
+      {
+        "id": "20260921122447-129ef903",
+        "status": "failed",
+        "durationMs": 191064,
+        "headSha": "3c5415e09ee698e0579916a4bb70b5a5a17e4f61",
+        "baseSha": "147c5ed5df0a53efe1dfb336f28861e99cafadb1",
+        "createdAt": "2026-09-21T12:24:47.103Z"
+      },
+      {
+        "id": "20260921121505-f0a9fe7e",
+        "status": "passed",
+        "durationMs": 201804,
+        "headSha": "d8048fb4f6c760eb0c607b098038846757ac43a3",
+        "baseSha": "98f58eb3cc328bfa5c84ddfa7fc3a02bcad0fea4",
+        "createdAt": "2026-09-21T12:15:05.374Z"
+      },
+      {
+        "id": "20260921121029-bebb878c",
+        "status": "failed",
+        "durationMs": 215440,
+        "headSha": "0ac8b5bf0e97dcc3fd6adae61f12ab09ccfade09",
+        "baseSha": "98f58eb3cc328bfa5c84ddfa7fc3a02bcad0fea4",
+        "createdAt": "2026-09-21T12:10:29.681Z"
+      }
+    ]
+  },
+  "installed": {
+    "version": "0.1.0",
+    "revision": "550409a92f359cffc3e75f34712d39133b8ab130",
+    "source": "ci-queue version --json; checked 2026-09-21"
+  },
+  "limits": [
+    "Histórico local; não prova comparabilidade de cache, carga e população.",
+    "Logs não foram copiados nem promovidos a receipts.",
+    "Nenhum job novo foi iniciado para P00."
+  ],
+  "repoHeads": {
+    "DietFlow": "ffc99748f796d8f7923c9e46161b2a4dc735eef8",
+    "CI Queue": "550409a92f359cffc3e75f34712d39133b8ab130"
+  },
+  "ap17StageMs": {
+    "static": 805000,
+    "jest": 2247000,
+    "e2e": 3544000,
+    "flowui": 322000
+  },
+  "ap17TopStaticGates": [
+    {
+      "label": "typecheck",
+      "durationMs": 241226
+    },
+    {
+      "label": "check:fixtures",
+      "durationMs": 197537
+    },
+    {
+      "label": "check:field-identity-ratchet",
+      "durationMs": 104836
+    },
+    {
+      "label": "lint ratchet (origin/dev)",
+      "durationMs": 103517
+    },
+    {
+      "label": "typecheck:storybook",
+      "durationMs": 33010
+    }
+  ]
+}
