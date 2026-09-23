@@ -17,6 +17,7 @@ function fixture() {
     "bin/ci-queue.mjs",
     "dist/cli.js",
     "backend/ci_queue_api/__main__.py",
+    "backend/ci_queue_api/__pycache__/__main__.cpython-314.pyc",
     "ui/dist/index.html",
     "examples/local-project/ci-queue.json",
     "scripts/install.mjs",
@@ -28,6 +29,9 @@ function fixture() {
     "scripts/progress-emit.sh",
     "templates/github/ci-queue-verdict.yml",
     "docs/INSTALL.md",
+    "docs/CONSUMER-QUICKSTART.md",
+    "docs/GUIA-INTEGRACAO-CI-QUEUE.html",
+    "docs/superpowers/specs/2026-09-22-fase-4-5-handoff/PLAN.md",
   ]) {
     const target = join(root, path)
     mkdirSync(dirname(target), { recursive: true })
@@ -35,6 +39,30 @@ function fixture() {
   }
   return root
 }
+
+test("release bundles omit Python caches and historical specs while retaining product docs and templates", () => {
+  const root = fixture()
+  try {
+    const { destination, manifest } = buildRelease({
+      root,
+      outputDir: join(root, "releases"),
+      revision: "b".repeat(40),
+      now: new Date("2026-09-23T12:00:00.000Z"),
+    })
+    const paths = manifest.files.map((entry) => entry.path)
+
+    assert.equal(paths.some((path) => path.split("/").includes("__pycache__")), false)
+    assert.equal(paths.some((path) => path.endsWith(".pyc") || path.endsWith(".pyo")), false)
+    assert.equal(paths.some((path) => path.startsWith("docs/superpowers/specs/")), false)
+    assert.equal(paths.includes("docs/CONSUMER-QUICKSTART.md"), true)
+    assert.equal(paths.includes("docs/GUIA-INTEGRACAO-CI-QUEUE.html"), true)
+    assert.equal(paths.includes("docs/INSTALL.md"), true)
+    assert.equal(paths.includes("templates/github/ci-queue-verdict.yml"), true)
+    assert.equal(verifyRelease(destination).revision, "b".repeat(40))
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
 
 test("builds a self-contained manifest and detects tampering", () => {
   const root = fixture()
