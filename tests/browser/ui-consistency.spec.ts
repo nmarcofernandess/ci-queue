@@ -68,7 +68,7 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     await expect(toggle).toHaveCount(1)
     const rowHeight=await drawer.locator('[data-slot=progress-row][data-node-id=static]').evaluate(el=>el.getBoundingClientRect().height)
     expect(rowHeight).toBeLessThanOrEqual(40)
-    await expect(drawer.locator('[data-slot=collapsible-content]').first()).toHaveCSS('border-left-style','none')
+    await expect(drawer.locator('[data-slot=collapsible-content]').first()).toHaveCSS('border-left-width','0px')
     await toggle.click()
     await expect(toggle).toHaveAttribute('data-state','closed')
     await shot(page,`${prefix}-execution-collapsed`)
