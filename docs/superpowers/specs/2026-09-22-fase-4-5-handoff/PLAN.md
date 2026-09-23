@@ -223,7 +223,7 @@ export function runFeedback(input: {
 `package.json`: `test:e2e:feedback = tsx scripts/ci/e2e-feedback.ts`. Não modificar acceptedPresets nem defaults do preset e2e. Incluir a nova receita no reconhecimento Q2/Q3 do queue-client.
 
 - [ ] Parser exige `--session ID`, permite `--pw-project` com os três valores acima e preserva seletores/flags restantes. Rejeitar ausência de seleção, override de target/config/porta/output/reporter que contorne o contrato. Não implementar outro parser de grep: deixar Playwright interpretar sua seleção e reusar os helpers Q2/Q3 para variante.
-- [ ] Implementar `guard → sessão → claim de uso → receipt → parents progress → Playwright → validação final → finish receipt → release do uso`. Falha do filho preserva exit/sinal. Sessão perdida/input frio modificado no fim retorna não-zero e motivo explícito, nunca passed íntegro.
+- [ ] Implementar `guard → sessão → claim de uso → receipt → parents progress → Playwright → validação final → release do uso → finish receipt`. Falha do filho preserva exit/sinal. Sessão perdida/input frio modificado ou falha ao liberar uso no fim retorna não-zero e motivo explícito, nunca passed íntegro.
 - [ ] Resolver origin da sessão nomeada **no worker**. Sobrescrever PORT/E2E_BASE_URL conflitantes pelo valor da sessão depois de validar o pedido, sem aceitar valores arbitrários do terminal que enfileirou. Somente variáveis necessárias são materializadas; segredos continuam pelo loader local existente.
 
 ```ts
