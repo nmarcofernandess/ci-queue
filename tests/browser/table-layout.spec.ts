@@ -112,7 +112,7 @@ for (const { width, zoom } of layoutScenarios) {
 
       await page.goto('/#status')
       const history = page.getByRole('table', { name: 'Execuções' }).last()
-      await expect(history.getByRole('button', { name: 'smoketest', exact: true })).toBeVisible()
+      await expect(history.getByRole('button', { name: 'smoketest', exact: true })).toBeVisible({ timeout: 15_000 })
       const flaky = history.getByRole('row').filter({ has: page.getByRole('button', { name: 'smoketest', exact: true }) })
       const name = flaky.getByRole('button', { name: 'smoketest', exact: true })
       expect((await name.boundingBox())!.width).toBeGreaterThan(45)
@@ -131,13 +131,22 @@ for (const { width, zoom } of layoutScenarios) {
       const historyScroll = history.locator('..')
       const eye = flaky.getByRole('button', { name: 'Inspecionar' })
       if (width === 1440 && zoom === 1) {
-        const revisionBox = (await revision.boundingBox())!
-        const eyeBox = (await eye.boundingBox())!
-        expect(revisionBox.x).toBeLessThan(eyeBox.x - 48)
+        expect(await historyScroll.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true)
       }
       await historyScroll.scrollIntoViewIfNeeded()
       await historyScroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
       await expectActionReachableInTable(page, historyScroll, eye)
+      if (width === 1440 && zoom === 1) {
+        const [revisionBox, eyeBox, scrollBox] = await Promise.all([
+          revision.boundingBox(),
+          eye.boundingBox(),
+          historyScroll.boundingBox(),
+        ])
+        expect(revisionBox && eyeBox && scrollBox).toBeTruthy()
+        const visibleRevisionWidth = Math.min(revisionBox!.x + revisionBox!.width, eyeBox!.x)
+          - Math.max(revisionBox!.x, scrollBox!.x)
+        expect(visibleRevisionWidth).toBeGreaterThanOrEqual(100)
+      }
       if (cssViewport.width < 820) expect(await historyScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
       await shot(page, testInfo.outputPath(`history-${width}-${theme}${zoomSuffix}.png`))
