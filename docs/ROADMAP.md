@@ -54,6 +54,20 @@ Conta, OAuth, colaboração hospedada, telemetria, licenciamento, execução
 remota e políticas de equipe não estão decididos nem autorizados. Não criar
 placeholders de UI para essas possibilidades.
 
+## Backlog pausado — ExecutionPack (23/09/2026)
+
+A [spec viva de ExecutionPack](../specs/execution-packs/README.md) preserva a
+proposta de lote durável de tickets e a análise de custo/benefício. **Não
+implementar neste fechamento.** O estado e as condições de retomada estão em
+[status.md](../specs/execution-packs/status.md); o
+[handbook](../specs/execution-packs/handbook.md) resume a decisão.
+
+O método atual prioriza sessão do consumidor, tentativas pela fila e receita
+agregadora quando uma prova composta basta. Pack não é pré-condição de F4/F5,
+feedback, release ou ship. Só reconsiderar com necessidade demonstrada de
+membros independentes ou continuidade autônoma do conjunto. Seleção por diff e
+ship multiprova são possibilidades separadas, não entregas prometidas.
+
 ## Inspiração documentada
 
 As referências abaixo informam recortes deste produto. Não são contrato de
