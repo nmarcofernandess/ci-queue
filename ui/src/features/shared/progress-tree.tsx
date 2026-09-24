@@ -44,7 +44,7 @@ function ProgressNodeRow({
     <Item
       data-slot="progress-row"
       data-node-id={node.id}
-      className="h-9 min-w-0 flex-nowrap gap-2 border-0 px-0 py-0"
+      className="min-h-9 min-w-0 flex-nowrap gap-2 border-0 px-0 py-1"
     >
       <ItemMedia data-slot="progress-indicator">
         <StatusIndicator
@@ -53,25 +53,25 @@ function ProgressNodeRow({
         />
       </ItemMedia>
       <ItemContent className="min-w-0">
-        <ItemTitle data-slot="progress-label" className="w-full min-w-0">
+        <ItemTitle data-slot="progress-label" className="w-full min-w-0 line-clamp-none">
           {children.length ? (
             <CollapsibleTrigger asChild>
               <Button
                 type="button"
-                variant="ghost"
+                variant="link"
                 size="sm"
                 title={fullTitle}
-                className="group/stage-toggle w-full min-w-0 justify-start gap-2 px-1"
+                className="group/stage-toggle h-auto min-h-7 w-full min-w-0 justify-start gap-2 rounded-none border-b border-transparent px-1 text-left text-foreground no-underline hover:border-b-current hover:text-foreground hover:no-underline focus-visible:border-b-current"
               >
                 <ChevronDownIcon className="shrink-0 transition-transform group-data-[state=closed]/stage-toggle:-rotate-90" />
-                <span className="min-w-0 truncate">{node.label}</span>
+                <span className="min-w-0 flex-1 truncate">{node.label}</span>
                 {detail ? <span className="shrink-0 text-muted-foreground">{detail}</span> : null}
               </Button>
             </CollapsibleTrigger>
           ) : (
-            <span className="flex min-w-0 items-center gap-2 px-1" title={fullTitle}>
+            <span className="flex min-w-0 items-start gap-2 px-1" title={fullTitle}>
               <span className="size-4 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 truncate">{node.label}</span>
+              <span className="min-w-0 break-words whitespace-normal">{node.label}</span>
               {detail ? <span className="shrink-0 text-muted-foreground">{detail}</span> : null}
             </span>
           )}

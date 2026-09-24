@@ -120,7 +120,12 @@ CSS grid when an API name differs.
 
 ## Validation
 
-Run the smallest relevant tests first. Before release/cutover, execute the
+During UI iteration, render and review the candidate before running a queue
+ticket. A Draft PR, visual adjustment, commit or push does not by itself call
+for `check` or `review`. Use the smallest focal check for a concrete behavior or
+contract risk; a failed broad run calls for causal diagnosis before another
+canonical run. Once the candidate is ready for integration, run the documented
+minimum check for that destination. Before release/cutover, execute the
 product's documented contract, integration, UI and installation checks. A
 consumer smoketest does not prove the queue engine; an isolated queue fixture
 does not prove a consumer Full run.

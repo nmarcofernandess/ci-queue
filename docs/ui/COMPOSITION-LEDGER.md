@@ -143,8 +143,10 @@ complete `EntityIdentity` composition. Executable values live only in code;
 `DESIGN.md` explains their roles. DetailDrawer owns all five detail surfaces,
 FactsTable owns their metadata sheets, DataTableFrame owns list gutters, and
 ProgressTree/ExecutionStages share StatusIndicator descriptors. ProgressTree uses
-one shadcn CollapsibleTrigger per expandable row, with its chevron and title in
-one line; nested content is indented without a connector line. These compose
+one shadcn CollapsibleTrigger per expandable row, with its chevron, title and
+count on one line; the hover/focus underline spans the entire trigger. The
+title truncates only at a fixed content boundary while the count stays visible;
+leaf labels may wrap. Nested content is indented without a connector line. These compose
 installed Nova primitives; they add no backend or data model.
 
 This candidate is subject to human review. Prior approvals do not approve this

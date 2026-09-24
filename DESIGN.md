@@ -39,7 +39,7 @@ Olho da família é `InspectButton` (label **Inspecionar**, tamanho em
 Em `current` e `drawer`, texto longo quebra sem aumentar a mídia nem comprimir a
 tipografia; a mídia alinha ao topo e a badge pode quebrar sem deslocar o X. Em
 `table`, título e badge dividem uma única linha: a badge preserva sua largura e
-o título usa ellipsis dentro da área flexível, mantendo o nome completo no nome
+o título usa ellipsis apenas no limite fixo da coluna, independente de sidebar ou viewport, mantendo o nome completo no nome
 acessível e no atributo `title`. Ícone de ação pertence ao Button; ícone de
 identidade pertence a StatusIndicator. Em tabela o estado permanece em sua
 célula: não reunir todas as colunas num card.
@@ -75,8 +75,10 @@ interno. SHA e caminhos permanecem completos e quebráveis, não truncados.
 ## Progresso
 
 `ExecutionStages` apresenta raízes na faixa horizontal; `ProgressTree` apresenta
-a árvore recursiva. Cada nó ocupa uma linha; título e seta formam um único
-controle de expansão, e folhas não recebem botão falso. Indentação pertence
+a árvore recursiva. Cada cabeçalho expansível ocupa uma linha: seta, título e
+contagem formam um único controle com sublinhado integral no hover/foco. Título
+longo abrevia na largura restante, preservando a contagem; folhas podem quebrar
+linha para mostrar o nome completo e não recebem botão falso. Indentação pertence
 ao grupo de filhos, sem traço conector. Indicadores
 compartilham descritores; nós concluídos não perdem seu resultado quando o job
 é cancelado. Tempos são somente os publicados. Não inferir percentual, ETA,
@@ -88,8 +90,8 @@ conclusão nem duração ausente. A faixa preserva follow e pausa manual.
 | --- | --- |
 | default | Salvar ou declarar Meta, ação principal de formulário. |
 | outline | Copiar, Abrir pasta, Editar e Cancelar quando pertinentes. |
-| ghost | Olho, X e expansão. |
-| link | Título que abre detalhe, via EntityIdentity. |
+| ghost | Olho e X. |
+| link | Título que abre detalhe, via EntityIdentity; expansão da árvore. |
 | destructive | Remoção com confirmação existente. |
 
 Em botão com texto, usar `data-icon="inline-start"` ou `inline-end`. Em olho e X,

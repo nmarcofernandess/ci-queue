@@ -422,29 +422,31 @@ function WorktreeDataTable({
         worktreeColumnHelper.accessor("path", {
           header: "Worktree",
           cell: ({ row }) => (
-            <EntityIdentity
-              presentation="table"
-              title={worktreeName(row.original.path)}
-              onOpen={() => onOpen(worktreeRowId(row.original))}
-              badge={
-                showProjectChip && row.original.projectName ? (
-                  <ProjectChip
-                    name={row.original.projectName}
-                    facts={projectChipFacts({
-                      branch: row.original.branch,
-                      headSha: row.original.headSha,
-                    })}
-                  />
-                ) : undefined
-              }
-            />
+            <div className="max-w-[26rem]">
+              <EntityIdentity
+                presentation="table"
+                title={worktreeName(row.original.path)}
+                onOpen={() => onOpen(worktreeRowId(row.original))}
+                badge={
+                  showProjectChip && row.original.projectName ? (
+                    <ProjectChip
+                      name={row.original.projectName}
+                      facts={projectChipFacts({
+                        branch: row.original.branch,
+                        headSha: row.original.headSha,
+                      })}
+                    />
+                  ) : undefined
+                }
+              />
+            </div>
           ),
         }),
         worktreeColumnHelper.accessor("branch", {
           header: "Branch",
           cell: ({ getValue }) => (
             <span
-              className="block truncate font-mono text-xs"
+              className="block max-w-[24rem] truncate font-mono text-xs"
               title={getValue()}
             >
               {getValue()}
@@ -496,7 +498,7 @@ function WorktreeDataTable({
   })
 
   return (
-    <DataTableFrame placement="body" label="Worktrees" width="wide">
+    <DataTableFrame placement="body" label="Worktrees" width="scroll">
       <TableHeader>
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow key={headerGroup.id}>
@@ -510,7 +512,9 @@ function WorktreeDataTable({
                     : header.column.id === "actions"
                       ? "w-14"
                       : header.column.id === "path"
-                        ? "w-[clamp(20rem,22vw,26rem)]"
+                        ? "w-[26rem]"
+                        : header.column.id === "branch"
+                          ? "w-[24rem]"
                         : header.column.id === "size" ||
                             header.column.id === "state"
                           ? "w-28"

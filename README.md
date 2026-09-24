@@ -1,6 +1,6 @@
 # CI Queue
 
-Executor local de CI com fila, supervisão de processos, registros, API, dashboard e ship genérico. O projeto consumidor continua dono dos testes, da preparação e da política de entrega. O worker não mergeia.
+Executor local de CI com fila, supervisão de processos, registros, API, dashboard e ship genérico. Ele amplia as capacidades do repositório consumidor; a interface apenas mostra e opera os registros. O projeto continua dono dos testes, da preparação e da política de entrega. Pode adotar o ship genérico ou manter seu próprio processo de entrega. O worker não mergeia.
 
 ## Comece aqui
 
