@@ -127,7 +127,7 @@ to the right edge resumes following. The job drawer retains its recursive vertic
 tree. Browser regression uses twelve isolated stages and checks manual scroll,
 automatic following and narrow viewport overflow.
 
-The current preset uses the prominent title size with a two-line-height status
+The current preset uses the drawer title size with a two-line-height status
 indicator. Identity is preset + project chip + `branch · sha`. Elapsed time and
 the inspect eye live in an `Item` at the end of `CardContent`, not in a tinted
 `CardFooter`. Collapsible chevrons point down while open and right while closed. Drawer content permits

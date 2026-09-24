@@ -22,7 +22,7 @@ export type StateDescriptor = {
 
 export const identityPresentation = {
   current: {
-    title: "text-xl leading-6 font-semibold",
+    title: "text-base leading-5 font-medium",
     description: "text-xs leading-4 text-muted-foreground",
     media: "size-10",
   },

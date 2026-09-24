@@ -59,7 +59,6 @@ function ProgressNodeRow({
               <Button
                 type="button"
                 variant="link"
-                size="sm"
                 title={fullTitle}
                 className="group/stage-toggle h-auto min-h-7 w-full min-w-0 justify-start gap-2 rounded-none border-b border-transparent px-1 text-left text-foreground no-underline hover:border-b-current hover:text-foreground hover:no-underline focus-visible:border-b-current"
               >

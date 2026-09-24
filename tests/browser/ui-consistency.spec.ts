@@ -54,7 +54,7 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     // Values must receive the remaining space, not an accidental equal split.
     expect(valueWidth).toBeGreaterThan(labelWidth)
     const drawerFont=await drawer.locator('[data-slot=drawer-title]').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))
-    expect(currentFont).toBeGreaterThan(drawerFont)
+    expect(currentFont).toBe(drawerFont)
     expect(drawerFont).toBeGreaterThan(tableFont)
     const executionHeader=await drawer.locator('[data-slot=drawer-header]').boundingBox()
     const executionTitle=await drawer.locator('[data-slot=drawer-title]').boundingBox()
@@ -63,6 +63,9 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     expect(Math.abs(staticBox!.x-jestBox!.x)).toBeLessThanOrEqual(1)
     const leaf=drawer.locator('[data-slot=progress-row][data-node-id=jest]')
     await expect(leaf.getByRole('button')).toHaveCount(0)
+    const expandedTitleFont=await drawer.locator('[data-slot=progress-row][data-node-id=static] [data-slot=collapsible-trigger]').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))
+    const leafTitleFont=await leaf.locator('[data-slot=progress-label] span').last().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))
+    expect(expandedTitleFont).toBe(leafTitleFont)
     await shot(page,`${prefix}-execution-progress`)
     const toggle=drawer.locator('[data-slot=progress-row][data-node-id=static] [data-slot=collapsible-trigger]')
     await expect(toggle).toHaveCount(1)
