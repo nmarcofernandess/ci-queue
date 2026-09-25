@@ -1,7 +1,7 @@
 ## Testes e CI
-Antes de executar testes, leia `.context/patterns/ci.yaml` e siga o perfil ali
-indicado para este host e esta tarefa. Feedback não é prova final: reutilize
-somente ambiente compatível e submeta a tentativa pelo executor configurado.
-Ao retomar, confira cwd, sessão e ticket existentes antes de iniciar outro.
-Não execute o lifecycle de prova a cada edição nem substitua um ticket por
-observação posterior. Encerre os recursos próprios pelo comando documentado.
+Leia `.context/patterns/ci.yaml` para saber quais receitas o projeto escolheu
+expor ao CI Queue. Os comandos do projeto permanecem executáveis diretamente;
+Queue é uma opção de agendamento, supervisão, logs, histórico e cancelamento.
+Feedback é focal e não representa prova final. Ao retomar uma execução
+enfileirada, confira seu ticket antes de criar outro. Encerre os recursos próprios
+pelo comando documentado pelo projeto.

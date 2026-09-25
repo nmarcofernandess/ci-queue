@@ -30,9 +30,9 @@ A prova de adoção do bundle usa um consumidor Node/Git temporário e um servid
 HTTP fake em loopback. Ela verifica o caminho genérico de ticket e não substitui
 o E2E nem a prova final do produto consumidor.
 
-## Retomar feedback com identidade verificada
+## Retomar uma tentativa Queue existente
 
-Antes de iniciar ou reutilizar uma sessão, confira os valores que o mapa nomeia:
+Quando for retomar uma tentativa enfileirada, confira os valores que o mapa nomeia:
 
 - host e caminho absoluto do checkout;
 - revisão e manifest da CLI/worker instalados;
@@ -47,12 +47,11 @@ projeto que atende nela. Se a sessão ou ownership não puder ser verificada,
 pare o reuso e siga o caminho de recuperação do consumidor; não sinalize
 processos por nome nem inicie outro worker no mesmo state.
 
-Submeta cada tentativa pelo executor configurado. Leia o status, log e resumo do
-ticket retornado. Um enqueue que apenas foi observado ou uma execução direta no
-terminal não substitui o ticket. Ao retomar, inspecione o ticket anterior em
-vez de criar outro por causa de um waiter encerrado. O executor e o ciclo de
-vida da sessão pertencem a owners distintos: o produto consumidor documenta
-como preparar, validar e encerrar seus recursos.
+Se a tentativa foi enfileirada, leia status, log e resumo do ticket retornado.
+Uma execução direta é válida para iterar e não cria ticket de Queue. Ao retomar,
+inspecione o ticket anterior em vez de criar outro por causa de um waiter
+encerrado. O executor e o ciclo de vida da sessão pertencem a owners distintos:
+o produto consumidor documenta como preparar, validar e encerrar seus recursos.
 
 ## Limite da evidência
 

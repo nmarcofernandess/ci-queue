@@ -109,6 +109,13 @@ function runCheck(f: ReturnType<typeof fixture>) {
   return spawnSync("bash", [wrapper], { cwd: f.root, encoding: "utf8", env: envFor(f) })
 }
 
+function runCheckDirectly(f: ReturnType<typeof fixture>) {
+  const env = envFor(f)
+  delete env.CI_QUEUE_JOB_ID
+  delete env.CI_QUEUE_STATE_DIR
+  return spawnSync("bash", [wrapper], { cwd: f.root, encoding: "utf8", env })
+}
+
 function calls(f: ReturnType<typeof fixture>) {
   return readFileSync(f.calls, "utf8").trim().split("\n").filter(Boolean)
 }
@@ -134,6 +141,26 @@ it("uses one fresh build in check while its prepared test body runs the runtime 
   expect(readFileSync(f.runners, "utf8")).toBe("runtime-runner\n")
   expect(readFileSync(f.dist, "utf8")).toBe("source-v2")
   expect(`${result.stdout}\\n${result.stderr}`).not.toContain("nested-runtime-fixture")
+})
+
+it("runs the product check directly without queue state or ticket identity", () => {
+  const f = fixture()
+  const result = runCheckDirectly(f)
+
+  expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0)
+  expect(calls(f)).toEqual([
+    "build",
+    "test:prepared",
+    "test:core",
+    "test:runtime:prepared",
+    "test:ui",
+    "test:backend",
+    "test:examples",
+    "test:release",
+    "test:install",
+    "check:ui",
+    "test:browser",
+  ])
 })
 
 it("keeps the standalone test entry fresh before it runs the same runtime runner", () => {

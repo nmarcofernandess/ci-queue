@@ -4,7 +4,7 @@ Referência reconciliada com `dev` em `5a9268e41e27644362dfd9e5cd4e163813f5e1a1`
 
 ## Fronteiras
 
-O consumidor declara preparação, receitas, test runners e política. CI Queue executa argv no cwd, supervisiona processos, conserva registros e projeta observabilidade. O worker/runner nunca importa `src/ship` nem mergeia. O ship genérico é um controller separado; `passed` não o dispara. Dashboard não tem botão de merge.
+O consumidor declara preparação, receitas, test runners e política. Seus comandos permanecem executáveis sem CI Queue; ao ser escolhida, a Queue executa argv no cwd, supervisiona processos, conserva registros e projeta observabilidade. O worker/runner nunca importa `src/ship` nem mergeia. O ship genérico é um controller separado; `passed` não o dispara. Dashboard não tem botão de merge.
 
 Fonte do formato: `src/contracts/schema.ts` e `config.ts`. Tickets v1/v2/v3 continuam legíveis segundo o parser; tickets novos usam schemaVersion 3. API pública/CLI: apiVersion 1. Catálogo: schemaVersion 1. Versão do protocolo progress é outro eixo: 1.
 
@@ -30,9 +30,9 @@ Fonte do formato: `src/contracts/schema.ts` e `config.ts`. Tickets v1/v2/v3 cont
 | `ship.attestationContext` | Contexto remoto da atestação do ship genérico. Não é nome de teste. |
 | `ship.remoteVerdict` | Workflow/job esperados quando policy=wait. Não configura teste clínico nem classificador por diff. |
 
-Uma receita aceita por ship precisa de `requireCleanTree=true`, `requireGitStability=true`, `pinHeadSha=true` e `fetchBase` não vazio. Para exigir A **e** B, criar agregador no consumidor e aceitar esse agregador. Não ensinar `[lint,test]` como AND. O bloco `execution.queue` do DietFlow é extensão do adaptador consumidor, não política lida pelo parser genérico.
+Uma receita aceita por ship precisa de `requireCleanTree=true`, `requireGitStability=true`, `pinHeadSha=true` e `fetchBase` não vazio. Para exigir A **e** B, criar agregador no consumidor e aceitar esse agregador. Não ensinar `[lint,test]` como AND. CI Queue não exige que receitas importem helpers, consultem tickets ou publiquem observações para concluir com sucesso.
 
-Avançar a base remota não recusa automaticamente uma receita sem `fetchBase`; o consumidor escolhe sua política de cancelamento. Ship é uma decisão separada: o controller genérico lê as flags ship-bound do catálogo; um ship próprio do repositório pode aplicar essas flags no enqueue da mesma receita sem duplicá-la no catálogo, validar o ticket e revalidar HEAD/base. A interface não participa da elegibilidade. Se o consumidor exige interrupção durante a prova quando a base avança, precisa enviar `abortOnStaleBase` e conferir `spend-abort-v1` na instalação; preflight/postflight e revalidação de ship continuam necessários.
+Avançar a base remota não recusa automaticamente uma receita sem `fetchBase`; o consumidor escolhe sua política de cancelamento. Ship é uma decisão separada e fica fora da fila que ele supervisiona: o controller genérico lê as flags ship-bound do catálogo; um ship próprio pode enfileirar a mesma receita, validar o ticket e revalidar HEAD/base. Não cadastre o próprio controller como job na fila que ele aguarda. A interface não participa da elegibilidade. Se o consumidor exige interrupção durante a prova quando a base avança, precisa enviar `abortOnStaleBase` e conferir `spend-abort-v1` na instalação; preflight/postflight e revalidação de ship continuam necessários.
 
 `init` preserva ou cria a identidade e resolve receita/base; não inicializa Git, não instala dependências, não instrumenta scripts e não escreve o cadastro local do dashboard. `init --workflow` copia workflow/verificador de attestation, não suíte remota. Catálogo e política devem estar em H para ship.
 
@@ -56,7 +56,7 @@ O state explícito/ambiente deve ser o mesmo da API/worker. Sem override, o cami
 
 `--wait` e seu timeout não cancelam o job. `cancel` é explícito e segue ownership do processo. Um worker por state. Worker on-demand ausente enquanto a fila está vazia pode ser saudável. Não apagar locks ou sinalizar PID sem identidade para forçar recuperação.
 
-CLI JSON usa `{apiVersion, ok, result}` ou `{apiVersion, ok:false, error}`. Comandos reais vivem em `src/cli.ts`: config, enqueue, worker, status, history, observe, preset-history, logs, cancel, runtime, advisory, init, guard e ship. Não inventar `ci-queue doctor` ou `logs --follow`; o wrapper DietFlow oferece seu próprio follow.
+CLI JSON usa `{apiVersion, ok, result}` ou `{apiVersion, ok:false, error}`. Comandos reais vivem em `src/cli.ts`: version, config, init, enqueue, worker, status, history, observe, preset-history, logs, cancel, runtime, advisory, guard e ship. `guard` é opcional e só impõe admissão quando o consumidor decide invocá-lo; não é requisito das receitas nem da adoção. Não inventar `ci-queue doctor` ou `logs --follow`; o wrapper DietFlow oferece seu próprio follow.
 
 ### Observações de execução directa (`execution-observe-v1`)
 

@@ -15,9 +15,12 @@ para diagnóstico humano. A forma é uma destas:
 }
 ```
 
-Comandos atuais: `version`, `enqueue <preset>`, `worker`, `status`,
-`history`, `preset-history [--preset <nome>]`, `advisory upsert`,
-`advisory list`, `logs [latest|<jobId>]` e `cancel <jobId>`. O projeto declara receitas em `ci-queue.json`.
+Comandos atuais incluem `version`, `init`, `config`, `enqueue`, `worker`, `status`,
+`history`, `observe`, `preset-history`, `advisory`, `logs`, `cancel`, `runtime`,
+`guard` e `ship`; consulte a ajuda emitida pela CLI para as formas aceitas. O
+projeto declara receitas em `ci-queue.json`. Seus comandos continuam executáveis
+sem a CLI. `guard` é uma opção do consumidor para impor admissão Queue em um
+comando específico, não um requisito de adoção.
 
 `advisory upsert --preset <nome> --head-sha <sha-completo> --reason <texto>
 [--pr <numero>]` registra uma recomendação de validação. A chave é
