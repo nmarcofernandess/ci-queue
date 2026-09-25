@@ -155,10 +155,6 @@
     left: 0;
   }
 
-  [data-slot="table"] [data-sticky="after-selection"] {
-    left: 2.75rem;
-  }
-
   [data-slot="table"] [data-sticky="end"] {
     right: 0;
   }

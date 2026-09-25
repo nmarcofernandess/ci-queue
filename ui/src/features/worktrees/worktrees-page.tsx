@@ -93,8 +93,6 @@ function worktreeRowId(worktree: WorktreeRecord) {
 
 function stickyColumn(id: string) {
   if (id === "selection") return "start"
-  if (id === "path") return "after-selection"
-  if (id === "actions") return "end"
   return undefined
 }
 
