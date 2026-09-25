@@ -8,13 +8,13 @@ prova](TESTING-METHOD.md). Ele explica como adotar os
 
 ## 1. Separe máquina, projeto e estado
 
-A máquina precisa de uma release verificada, Node compatível, CLI/worker e das dependências reais das receitas. API Python e UI compilada são a observabilidade; Vite de desenvolvimento não precisa rodar na instalação. `gh` é necessário para ship GitHub, não para todo teste standalone.
+Para usar CI Queue, a máquina precisa de uma release verificada, Node compatível e CLI/worker. As receitas precisam das dependências que seus comandos já usam. API Python e UI compilada são opcionais para o dashboard; Vite de desenvolvimento não precisa rodar na instalação. `gh` é necessário para ship GitHub, não para teste standalone. Sem CI Queue, o consumidor executa seus próprios comandos normalmente.
 
-O projeto precisa de Git, comando de teste verdadeiro, dependências e catálogo. O state pertence à máquina. Confirme `installation.json`; não troque `~/.local/state/local-ci/queue` por uma fila vazia em `~/.local/state/ci-queue` sem intenção. Use o mesmo state na CLI, worker e API.
+O projeto precisa do comando de teste verdadeiro e das dependências que ele usa. Para adotar CI Queue, acrescente o catálogo. O consumidor continua executando seus comandos sem a instalação ou o state da fila. O state pertence à máquina; ao usar Queue, confirme `installation.json` e use o mesmo state na CLI, worker e API.
 
-## 2. Prepare o comando antes do catálogo
+## 2. Mantenha o comando independente; aponte a Queue se desejado
 
-O teste continua executável fora da fila. `npm run check` direto não cria prova queue por si só. Para exigir duas verificações, faça um agregador que execute ambas e preserve falhas. `acceptedPresets: ["lint","test"]` significa **OR**, não AND.
+O catálogo aponta para comandos que já funcionam no projeto; CI Queue os executa com supervisão, fila e registros. Rodar o comando diretamente continua válido e não cria ticket nem prova reutilizável pelo ship genérico. Para exigir duas verificações, faça um agregador que execute ambas e preserve falhas. `acceptedPresets: ["lint","test"]` significa **OR**, não AND.
 
 Mantenha o teste como uma única receita. Um teste avulso pode continuar mesmo que a base avance; não configure `fetchBase` ou `abortOnStaleBase` só para transformá-lo em prova. Se o repositório possui um ship próprio, esse processo pode aplicar flags estritas no enqueue da mesma receita, validar o ticket e revalidar HEAD/base antes do merge. O ship genérico atual lê as flags do catálogo e exige que as receitas aceitas já sejam ship-bound. O consumidor decide se um teste isolado é cancelável. O CI Queue executa as flags recebidas; não deduz intenção de ship pelo nome da receita ou pelo diff.
 
@@ -55,9 +55,9 @@ ci-queue logs TICKET_ID --state "$STATE" --json
 
 Use o ID real retornado. Não execute um segundo `worker` após enqueue: na instalação macOS ele é on-demand. Fila vazia sem processo worker pode ser saudável. `--wait` e seu timeout não cancelam o job. Cancelamento explícito: `ci-queue cancel TICKET_ID --state "$STATE" --json`.
 
-### 4.1 Admissão quando `execution.executor=queue`
+### 4.1 Guard opcional de entrada
 
-Se o catálogo declara `execution.executor=queue`, os scripts de entrada do consumidor devem chamar a CLI instalada **antes** do build/teste:
+O consumidor pode usar o guard para um comando que, por decisão própria, deva aceitar somente uma execução Queue válida. Isso é uma política explícita do consumidor; não é requisito para adotar CI Queue nem para executar suas receitas normalmente:
 
 ```bash
 # humano (stderr): diagnóstico legível
@@ -65,13 +65,13 @@ ci-queue guard --cwd "$PROJECT" --config "$PROJECT/ci-queue.json" --state "$STAT
 # máquina: acrescente --json (envelope em stdout)
 ```
 
-Exige capability `execution-entry-guard-v1` (`ci-queue version --json`). CLI antiga sem essa capability **não** autoriza bypass: falhe fechado e atualize a instalação. Fora da fila (e fora de Actions reconhecido), o exit é não-zero com `QUEUE_REQUIRED` e o comando sugerido `enqueue <preset>` (não hardcode `check`). Não enfileirar automaticamente a partir do guard. O worker injeta `CI_QUEUE_JOB_ID` / aliases; isso, mais o ticket `running` coerente, libera a admissão.
+O comando `guard` valida a associação com um ticket em execução e pode retornar `QUEUE_REQUIRED` fora desse contexto. Não enfileira automaticamente. O worker injeta `CI_QUEUE_JOB_ID` / aliases. Scripts que não adotam essa política não precisam chamar o guard.
 
 No Project Manager, confira e registre pasta/catálogo para inventário e histórico filtrado. Running e fila permanecem globais. Binding Node em `runtimes.json` é separado do cadastro; ver [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md).
 
-### 4.2 Publicar observação terminal (sem enfileirar)
+### 4.2 Observação terminal opcional (sem enfileirar)
 
-Quando uma receita roda **fora** da fila e o consumidor quer que o Histórico mostre o fato, publique metadados na CLI instalada. Exige capability `execution-observe-v1`. Isso **não** executa trabalho, **não** cria ticket e **não** autoriza ship:
+Quando um comando roda diretamente e o consumidor quer que o Histórico mostre esse fato, ele pode publicar metadados na CLI instalada. Exige capability `execution-observe-v1`. Isso **não** executa trabalho, **não** cria ticket e **não** autoriza ship:
 
 ```bash
 # observation.json: schema execution-observation-v1 (kind, projectId, executionId,
