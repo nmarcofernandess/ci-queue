@@ -212,6 +212,90 @@ class ProjectScopeHttpTests(unittest.TestCase):
             }, headers)
         self.assertEqual(stale.exception.code, 409)
 
+    def test_dashboard_state_all_aggregates_active_projects_and_excludes_archived(self):
+        config_c = _config(_init_repo(self.root / "repo-c"), "gamma", "Gamma")
+        preview = probe_project(self.state, {"repositoryPath": str(config_c.parent)})
+        mutate_registry(self.state, {
+            "action": "register",
+            "expectedRevision": read_registry(self.state)["revision"],
+            "identitySource": "config",
+            "repositoryPath": str(config_c.parent),
+            "signature": preview["signature"],
+        })
+        mutate_registry(self.state, {
+            "action": "archive",
+            "expectedRevision": read_registry(self.state)["revision"],
+            "projectId": "gamma",
+        })
+        (self.state / "state" / "dashboard.json").write_text(json.dumps({
+            "schemaVersion": 1,
+            "projects": {
+                "alpha": {"revision": 1, "meta": {
+                    "name": "Alpha goal", "description": "", "presets": ["smoke"],
+                }},
+                "beta": {"revision": 2, "meta": {
+                    "name": "Beta goal", "description": "", "presets": ["smoke"],
+                }},
+                "gamma": {"revision": 3, "meta": {
+                    "name": "Archived goal", "description": "", "presets": ["smoke"],
+                }},
+            },
+        }), encoding="utf-8")
+        (self.state / "state" / "validation-plan.json").write_text(json.dumps({
+            "schemaVersion": 1,
+            "pending": [
+                {"projectId": "alpha", "preset": "smoke", "requirements": [{
+                    "sha": "a" * 40, "reason": "Alpha pending", "createdAt": "2026-09-10T00:00:00Z",
+                }]},
+                {"projectId": "beta", "preset": "smoke", "requirements": [{
+                    "sha": "b" * 40, "reason": "Beta pending", "createdAt": "2026-09-11T00:00:00Z",
+                }]},
+                {"projectId": "gamma", "preset": "smoke", "requirements": [{
+                    "sha": "c" * 40, "reason": "Archived pending", "createdAt": "2026-09-12T00:00:00Z",
+                }]},
+            ],
+        }), encoding="utf-8")
+
+        with self._get("/api/dashboard-state?context=all") as response:
+            payload = json.loads(response.read())
+
+        self.assertEqual(payload["context"], {"kind": "all"})
+        self.assertEqual({item["projectId"] for item in payload["projects"]}, {"alpha", "beta"})
+        self.assertEqual({item["projectName"] for item in payload["projects"]}, {"Alpha", "Beta"})
+        by_project = {item["projectId"]: item for item in payload["projects"]}
+        self.assertEqual(by_project["alpha"]["meta"]["name"], "Alpha goal")
+        self.assertEqual(by_project["beta"]["meta"]["name"], "Beta goal")
+        self.assertEqual(by_project["alpha"]["pending"][0]["reason"], "Alpha pending")
+        self.assertEqual(by_project["beta"]["pending"][0]["reason"], "Beta pending")
+
+    def test_dashboard_state_all_keeps_linked_project_when_another_catalog_is_unavailable(self):
+        mutate_registry(self.state, {
+            "action": "unlink-config",
+            "expectedRevision": read_registry(self.state)["revision"],
+            "projectId": "beta",
+        })
+        (self.state / "state" / "dashboard.json").write_text(json.dumps({
+            "schemaVersion": 1,
+            "projects": {
+                "alpha": {"revision": 1, "meta": {
+                    "name": "Alpha goal", "description": "", "presets": ["smoke"],
+                }},
+                "beta": {"revision": 2, "meta": {
+                    "name": "Beta goal", "description": "", "presets": ["smoke"],
+                }},
+            },
+        }), encoding="utf-8")
+
+        with self._get("/api/dashboard-state?context=all") as response:
+            payload = json.loads(response.read())
+
+        by_project = {item["projectId"]: item for item in payload["projects"]}
+        self.assertEqual(set(by_project), {"alpha", "beta"})
+        self.assertEqual(by_project["alpha"]["meta"]["checks"][0]["status"], "pending")
+        self.assertEqual(by_project["beta"]["catalog"], "unlinked")
+        self.assertIsNone(by_project["beta"]["meta"]["checks"])
+        self.assertEqual(payload["projectErrors"], [])
+
     def test_diagnostic_is_readable_without_catalog(self):
         mutate_registry(self.state, {
             "action": "unlink-config",

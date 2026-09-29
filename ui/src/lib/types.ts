@@ -362,12 +362,15 @@ export type DashboardCheck = {
   finishedAt: string | null
 }
 
+export type ProjectCatalogState = "linked" | "unlinked" | "invalid" | "missing"
+
 export type DashboardMeta = {
   name: string
   description: string
   presets: string[]
-  checks: DashboardCheck[]
+  checks: DashboardCheck[] | null
   candidateSha: string | null
+  catalog?: ProjectCatalogState
 }
 
 export type DashboardPending = {
@@ -388,6 +391,29 @@ export type DashboardState = {
   meta: DashboardMeta | null
   pending: DashboardPending[]
   pendingError: string | null
+  context: { kind: "project"; projectId: string }
+}
+
+export type DashboardProjectState = {
+  projectId: string
+  projectName: string
+  revision: number
+  presets: string[]
+  catalog: ProjectCatalogState
+  meta: DashboardMeta | null
+  pending: DashboardPending[]
+  pendingError: string | null
+}
+
+export type DashboardAllState = {
+  schemaVersion: 2
+  projects: DashboardProjectState[]
+  projectErrors: Array<{
+    projectId: string
+    projectName: string
+    error: string
+  }>
+  context: { kind: "all" }
 }
 
 export type DashboardSession = {

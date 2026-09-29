@@ -347,7 +347,7 @@ def _canonical_git_green(slot, config, local_ticket_ids):
     }, None
 
 
-def read_remote_slots(path, config, state_root=None):
+def read_remote_slots(path, config, state_root=None, *, local_ticket_ids=None):
     """Read and normalize a local Git-slot mirror without fetching Git.
 
     The source format is the `SlotReadReport` emitted by the canonical
@@ -426,7 +426,8 @@ def read_remote_slots(path, config, state_root=None):
         if preset in declared:
             by_preset.setdefault(preset, []).append(slot)
 
-    local_ticket_ids = _local_ticket_ids(state_root, config.project_id)
+    if local_ticket_ids is None:
+        local_ticket_ids = _local_ticket_ids(state_root, config.project_id)
     greens = []
     without_tag = []
     for preset in sorted(declared):

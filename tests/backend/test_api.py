@@ -8,6 +8,7 @@ import tempfile
 import threading
 import unittest
 from dataclasses import replace
+from types import SimpleNamespace
 from unittest import mock
 from pathlib import Path
 from urllib.error import HTTPError
@@ -18,7 +19,12 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from ci_queue_api.analysis import read_analysis
 from ci_queue_api.config import ConfigError, load_project_config
-from ci_queue_api.dashboard_state import RevisionConflict, read_dashboard_state, write_dashboard_state
+from ci_queue_api.dashboard_state import (
+    RevisionConflict,
+    read_dashboard_state,
+    read_dashboard_state_all,
+    write_dashboard_state,
+)
 from ci_queue_api.diagnostics import MAX_EXPORT_BYTES, read_diagnostic, read_log_export, read_log_slice
 from ci_queue_api.history import build_preset_history, read_remote_slots
 from ci_queue_api.records import (
@@ -493,6 +499,41 @@ class RemoteGreensTests(Fixture):
 
 
 class StateAndDiagnosticTests(Fixture):
+    def test_dashboard_all_reads_shared_snapshots_once_including_remote_ticket_lookup(self):
+        alpha_mirror = self.root / "remote-alpha.json"
+        alpha_mirror.write_text(json.dumps(self.remote_report(
+            [], catalog={"resolved": True, "declaredCount": 2, "projectId": "example"},
+        )), encoding="utf-8")
+        beta_mirror = self.root / "remote-beta.json"
+        beta_mirror.write_text(json.dumps(self.remote_report(
+            [], catalog={"resolved": True, "declaredCount": 2, "projectId": "beta"},
+        )), encoding="utf-8")
+        alpha = replace(self.config, remote_slots_path=alpha_mirror)
+        beta = replace(self.config, project_id="beta", project_name="Beta",
+                       remote_slots_path=beta_mirror)
+        projects = [
+            SimpleNamespace(project_id="example", display_name="Example", config=alpha,
+                            binding_state="linked"),
+            SimpleNamespace(project_id="beta", display_name="Beta", config=beta,
+                            binding_state="linked"),
+        ]
+        from ci_queue_api import dashboard_state, history
+
+        with mock.patch("ci_queue_api.dashboard_state._read", wraps=dashboard_state._read) as dashboard_reads:
+            with mock.patch("ci_queue_api.dashboard_state.read_validation_plan",
+                            wraps=dashboard_state.read_validation_plan) as plan_reads:
+                with mock.patch("ci_queue_api.dashboard_state.read_history",
+                                wraps=dashboard_state.read_history) as history_reads:
+                    with mock.patch("ci_queue_api.history.read_history",
+                                    wraps=history.read_history) as remote_history_reads:
+                        result = read_dashboard_state_all(self.state, projects)
+
+        self.assertEqual({item["projectId"] for item in result["projects"]}, {"example", "beta"})
+        self.assertEqual(dashboard_reads.call_count, 1)
+        self.assertEqual(plan_reads.call_count, 1)
+        self.assertEqual(history_reads.call_count, 1)
+        self.assertEqual(remote_history_reads.call_count, 0)
+
     def test_meta_uses_latest_greens_and_pending_is_read_only(self):
         state = write_dashboard_state(self.state, self.config, {
             "revision": 0, "action": "save-meta",

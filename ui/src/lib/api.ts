@@ -4,6 +4,7 @@ import type { ProjectScope, ReadScope } from "@/features/projects/scope"
 import { matchesScope, scopeQuery } from "@/features/projects/scope"
 import type {
   AnalysisResponse,
+  DashboardAllState,
   DashboardSession,
   DashboardState,
   DashboardStateMutation,
@@ -226,8 +227,16 @@ export function getWorktrees(scope: Extract<ReadScope, { kind: "project" | "all"
   return requestScoped<WorktreesResponse>(scope, "/api/worktrees", scopeQuery(scope), signal)
 }
 
-export function getDashboardState(scope: ProjectScope, signal?: AbortSignal) {
-  return requestScoped<DashboardState>(
+export function getDashboardState(scope: ProjectScope, signal?: AbortSignal): Promise<DashboardState>
+export function getDashboardState(
+  scope: Extract<ReadScope, { kind: "all" }>,
+  signal?: AbortSignal
+): Promise<DashboardAllState>
+export function getDashboardState(
+  scope: ProjectScope | Extract<ReadScope, { kind: "all" }>,
+  signal?: AbortSignal
+): Promise<DashboardState | DashboardAllState> {
+  return requestScoped<DashboardState | DashboardAllState>(
     scope,
     "/api/dashboard-state",
     scopeQuery(scope),

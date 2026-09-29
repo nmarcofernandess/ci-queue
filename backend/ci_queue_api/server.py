@@ -14,7 +14,12 @@ from urllib.parse import parse_qs, urlparse
 
 from .analysis import read_analysis, read_duration_all, read_results_all
 from .config import ConfigError, load_project_config
-from .dashboard_state import RevisionConflict as DashboardConflict, read_dashboard_state, write_dashboard_state
+from .dashboard_state import (
+    RevisionConflict as DashboardConflict,
+    read_dashboard_state,
+    read_dashboard_state_all,
+    write_dashboard_state,
+)
 from .diagnostics import read_log_export, read_log_slice, read_diagnostic
 from .history import build_preset_history, read_remote_slots
 from .machine import read_machine
@@ -448,6 +453,35 @@ def create_handler(context):
         def _serve_all(self, path, query, scope):
             if self._serve_ticket(path, query, scope):
                 return
+            if path == "/api/dashboard-state":
+                registry = load_registry(self.api_context.state_root)
+                entries = [
+                    entry for entry in (registry.get("projects") or {}).values()
+                    if isinstance(entry, dict) and not entry.get("archivedAt")
+                ]
+                entries.sort(key=lambda entry: (
+                    str(entry.get("displayName") or "").casefold(),
+                    str(entry.get("id") or ""),
+                ))
+                projects = []
+                project_errors = []
+                for entry in entries:
+                    project_id = entry.get("id")
+                    project_name = entry.get("displayName") or project_id
+                    if not isinstance(project_id, str) or not project_id:
+                        continue
+                    try:
+                        projects.append(resolve_project(project_id, registry))
+                    except Exception as error:
+                        project_errors.append({
+                            "projectId": project_id,
+                            "projectName": project_name,
+                            "error": str(error),
+                        })
+                payload = read_dashboard_state_all(self.api_context.state_root, projects)
+                payload["projectErrors"] = project_errors + payload["projectErrors"]
+                self.send_payload(200, with_context(payload, scope))
+                return
             if path == "/api/status":
                 self.send_payload(200, with_context(status_snapshot_all(
                     self.api_context.state_root, query.get("view", ["default"])[0]), scope))
@@ -497,7 +531,7 @@ def create_handler(context):
                     raise ValueError("metric inválida")
                 self.send_payload(200, with_context(payload, scope))
                 return
-            if path in {"/api/preset-history", "/api/remote-slots", "/api/dashboard-state", "/api/config"}:
+            if path in {"/api/preset-history", "/api/remote-slots", "/api/config"}:
                 raise CapabilityDenied("esta view exige um projeto", "PROJECT_REQUIRED")
             if path.startswith("/api/"):
                 self.error(404, "endpoint não encontrado")
