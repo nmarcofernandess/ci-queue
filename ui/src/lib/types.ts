@@ -445,6 +445,10 @@ export type DashboardAllState = {
   context: { kind: "all" }
 }
 
+export type ProjectTarget =
+  | { kind: "all" }
+  | { kind: "project"; projectId: string }
+
 export type DashboardSession = {
   csrfToken: string
   canReveal: boolean

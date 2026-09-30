@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  ChevronDownIcon,
   CheckCircle2Icon,
   CircleAlertIcon,
   CircleDotIcon,
@@ -56,20 +57,26 @@ import {
   ItemTitle,
 } from "@/components/ui/item"
 import { Progress } from "@/components/ui/progress"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
 import { formatDateTime, shortSha } from "@/features/shared/format"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
 import { restoreScopedDraft } from "@/features/projects/drafts"
-import { useProjectContext, useRequiredProject } from "@/features/projects/project-context"
+import { useProjectContext } from "@/features/projects/project-context"
+import { ProjectSelectionPanel } from "@/features/projects/project-selection-panel"
+import { ProjectChip } from "@/features/shared/project-chip"
+import { pendingPreviewRows } from "@/features/status/status-state-model"
 import { writeDashboardState } from "@/lib/api"
 import type {
+  DashboardAllState,
   DashboardMeta,
   DashboardPending,
   DashboardState,
   DashboardStateMutation,
   JobStatus,
+  ProjectTarget,
 } from "@/lib/types"
 
 type MetaForm = {
@@ -108,8 +115,10 @@ function MetaEditor({
   const { saveDraft, takeDraft } = useProjectContext()
   const [form, setForm] = React.useState<MetaForm>(
     () =>
-      restoreScopedDraft<MetaForm>(takeDraft(state.projectId), state.revision) ??
-      metaToForm(state.meta)
+      restoreScopedDraft<MetaForm>(
+        takeDraft(state.projectId),
+        state.revision
+      ) ?? metaToForm(state.meta)
   )
   const [futurePreset, setFuturePreset] = React.useState("")
   const availablePresets = [...new Set([...state.presets, ...form.presets])]
@@ -315,7 +324,11 @@ function MetaRead({
   const passed =
     meta.checks?.filter((check) => check.status === "passed").length ?? null
   const allPassedOnDifferentRevisions =
-    total !== null && passed !== null && total > 0 && passed === total && !meta.candidateSha
+    total !== null &&
+    passed !== null &&
+    total > 0 &&
+    passed === total &&
+    !meta.candidateSha
 
   return (
     <div className="flex flex-col gap-5">
@@ -335,7 +348,8 @@ function MetaRead({
       ) : null}
       {meta.checks === null ? (
         <p className="text-sm text-muted-foreground">
-          Checks indisponíveis: não há catálogo utilizável para calcular o progresso.
+          Checks indisponíveis: não há catálogo utilizável para calcular o
+          progresso.
         </p>
       ) : null}
       {meta.description ||
@@ -410,11 +424,24 @@ function statusLabel(status: JobStatus | null) {
   return "Sem tentativa posterior"
 }
 
+function DrawerProjectIdentity({ name }: { name: string }) {
+  return (
+    <ScrollArea className="w-full max-w-full min-w-0">
+      <div className="w-max pb-3" tabIndex={0}>
+        <ProjectChip mode="inline" name={name} />
+      </div>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
+  )
+}
+
 function PendingItem({
   item,
+  projectName,
   onOpenJob,
 }: {
   item: DashboardPending
+  projectName?: string
   onOpenJob: (jobId: string) => void
 }) {
   return (
@@ -422,7 +449,8 @@ function PendingItem({
       <ItemMedia variant="icon">
         <CircleAlertIcon />
       </ItemMedia>
-      <ItemContent>
+      <ItemContent className="min-w-0">
+        {projectName ? <DrawerProjectIdentity name={projectName} /> : null}
         <ItemTitle>
           {item.latestTicketId ? (
             <Button
@@ -484,13 +512,15 @@ function PendingSurface({
   )
 }
 
-export function StatusStateDrawer({
+function ProjectStateDrawer({
   state,
   surface,
   onClose,
   onSaved,
   onOpenJob,
+  selection,
 }: {
+  selection?: React.ReactNode
   state: DashboardState
   surface: "meta" | "pending"
   onClose: () => void
@@ -498,13 +528,14 @@ export function StatusStateDrawer({
   onOpenJob: (jobId: string) => void
 }) {
   const session = useDashboardSession()
-  const project = useRequiredProject()
+  const project = { kind: "project" as const, projectId: state.projectId }
   const [saving, setSaving] = React.useState(false)
   const [editingMeta, setEditingMeta] = React.useState(false)
   const [metaFormValid, setMetaFormValid] = React.useState(false)
-  const unavailable = Boolean(session.error || !session.data)
+  const unavailable = Boolean(session.error || !session.data || !state.projectId)
   const metaPassed =
-    state.meta?.checks?.filter((check) => check.status === "passed").length ?? null
+    state.meta?.checks?.filter((check) => check.status === "passed").length ??
+    null
   const metaTotal = state.meta?.checks?.length ?? null
   const metaFormId = "dashboard-meta-form"
 
@@ -514,7 +545,7 @@ export function StatusStateDrawer({
   }
 
   const mutate = async (mutation: DashboardStateMutation) => {
-    if (!session.data?.csrfToken || !project) {
+    if (!session.data?.csrfToken || !state.projectId) {
       toast.error("A sessão da bridge não está disponível para salvar.")
       return false
     }
@@ -542,11 +573,7 @@ export function StatusStateDrawer({
   return (
     <DetailDrawer onClose={onClose}>
       <DetailDrawerHeader
-        title={
-          surface === "meta"
-            ? state.meta?.name || "Metas"
-            : "Pendências"
-        }
+        title={surface === "meta" ? state.meta?.name || "Metas" : "Pendências"}
         description={
           surface === "meta"
             ? state.meta
@@ -558,7 +585,11 @@ export function StatusStateDrawer({
         }
         closeLabel="Fechar"
       >
-        {surface === "meta" && state.meta && metaTotal !== null && metaPassed !== null ? (
+        {selection}
+        {surface === "meta" &&
+        state.meta &&
+        metaTotal !== null &&
+        metaPassed !== null ? (
           <Progress
             value={metaTotal > 0 ? (metaPassed / metaTotal) * 100 : 0}
             aria-label={`${metaPassed} de ${metaTotal} requisitos atendidos`}
@@ -569,7 +600,7 @@ export function StatusStateDrawer({
         {surface === "meta" ? (
           editingMeta ? (
             <MetaEditor
-              key={`meta-${state.revision}`}
+              key={`meta-${state.projectId}-${state.revision}`}
               formId={metaFormId}
               state={state}
               saving={saving}
@@ -646,6 +677,180 @@ export function StatusStateDrawer({
           )}
         </DetailDrawerFooter>
       ) : null}
+    </DetailDrawer>
+  )
+}
+
+export function StatusStateDrawer({
+  state,
+  surface,
+  onClose,
+  onSaved,
+  onOpenJob,
+}: {
+  state: DashboardState | DashboardAllState
+  surface: "meta" | "pending"
+  onClose: () => void
+  onSaved: () => void
+  onOpenJob: (jobId: string) => void
+}) {
+  const { projects } = useProjectContext()
+  const [target, setTarget] = React.useState<ProjectTarget>({ kind: "all" })
+  const [selectionOpen, setSelectionOpen] = React.useState(false)
+  if (!("projects" in state)) {
+    return (
+      <ProjectStateDrawer
+        state={state}
+        surface={surface}
+        onClose={onClose}
+        onSaved={onSaved}
+        onOpenJob={onOpenJob}
+      />
+    )
+  }
+  const selected =
+    target.kind === "project"
+      ? state.projects.find((project) => project.projectId === target.projectId)
+      : undefined
+  const label =
+    target.kind === "all"
+      ? "Todos os projetos"
+      : selected?.projectName || "Projeto indisponível"
+  const selection = (
+    <ProjectSelectionPanel
+      open={selectionOpen}
+      onOpenChange={setSelectionOpen}
+      projects={projects.filter((project) =>
+        state.projects.some((item) => item.projectId === project.id)
+      )}
+      target={target}
+      onSelect={(next) => {
+        setTarget(next)
+        setSelectionOpen(false)
+      }}
+      label="Alvo do drawer"
+      trigger={
+        <Button
+          type="button"
+          variant="outline"
+          className="max-w-full min-w-0"
+          title={label}
+        >
+          <span className="truncate">{label}</span>
+          <ChevronDownIcon />
+        </Button>
+      }
+    />
+  )
+  if (selected) {
+    const projectState: DashboardState = {
+      ...selected,
+      context: { kind: "project", projectId: selected.projectId },
+    }
+    return (
+      <ProjectStateDrawer
+        key={selected.projectId}
+        state={projectState}
+        surface={surface}
+        onClose={onClose}
+        onSaved={onSaved}
+        onOpenJob={onOpenJob}
+        selection={selection}
+      />
+    )
+  }
+  const pending = pendingPreviewRows(state, Infinity)
+  return (
+    <DetailDrawer onClose={onClose}>
+      <DetailDrawerHeader
+        title={surface === "meta" ? "Metas" : "Pendências"}
+        description="Todos os projetos ativos."
+        closeLabel="Fechar"
+      >
+        {selection}
+      </DetailDrawerHeader>
+      <DetailDrawerBody>
+        {target.kind === "project" ? (
+          <ErrorState
+            title="Projeto indisponível"
+            error={
+              new Error(
+                "O projeto não está mais disponível nesta leitura. Escolha outro alvo."
+              )
+            }
+          />
+        ) : (
+          <>
+            {state.projectErrors.map((error) => (
+              <ErrorState
+                key={error.projectId}
+                title={error.projectName}
+                error={new Error(error.error)}
+              />
+            ))}
+            {surface === "meta" ? (
+              <ItemGroup>
+                {[...state.projects]
+                  .sort(
+                    (a, b) =>
+                      a.projectName.localeCompare(b.projectName, "pt-BR") ||
+                      a.projectId.localeCompare(b.projectId)
+                  )
+                  .map((project) => (
+                    <Item key={project.projectId} variant="outline">
+                      <ItemContent className="min-w-0">
+                        <DrawerProjectIdentity name={project.projectName} />
+                        {project.meta ? (
+                          <ItemTitle>{project.meta.name}</ItemTitle>
+                        ) : null}
+                        <MetaRead
+                          state={{
+                            ...project,
+                            context: {
+                              kind: "project",
+                              projectId: project.projectId,
+                            },
+                          }}
+                          onOpenJob={onOpenJob}
+                        />
+                      </ItemContent>
+                    </Item>
+                  ))}
+              </ItemGroup>
+            ) : (
+              <>
+                {state.projects
+                  .filter((project) => project.pendingError)
+                  .map((project) => (
+                    <ErrorState
+                      key={project.projectId}
+                      title={project.projectName}
+                      error={new Error(project.pendingError!)}
+                    />
+                  ))}
+                {pending.length ? (
+                  <ItemGroup>
+                    {pending.map((row) => (
+                      <PendingItem
+                        key={`${row.projectId}:${row.item.id}`}
+                        item={row.item}
+                        projectName={row.projectName}
+                        onOpenJob={onOpenJob}
+                      />
+                    ))}
+                  </ItemGroup>
+                ) : !state.projectErrors.length &&
+                  !state.projects.some((project) => project.pendingError) ? (
+                  <EmptyState
+                    title="Nenhuma pendência"
+                    description="Não há recomendação de validação ainda sem um verde posterior."
+                  />
+                ) : null}
+              </>
+            )}
+          </>
+        )}
+      </DetailDrawerBody>
     </DetailDrawer>
   )
 }

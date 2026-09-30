@@ -21,6 +21,7 @@ import {
 } from "@/lib/api"
 import { sharedPageRequest } from "@/lib/query-store"
 import type {
+  DashboardAllState,
   DashboardState,
   PresetHistoryEntry,
   RemoteGreen,
@@ -28,15 +29,9 @@ import type {
 } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import {
-  Empty,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/ui/empty"
-import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -49,12 +44,10 @@ import {
   Item,
   ItemContent,
   ItemDescription,
-  ItemGroup,
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item"
 import { FilterSelect } from "@/features/shared/filter-select"
-import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
@@ -70,6 +63,7 @@ import {
 } from "@/features/shared/format"
 import { JobDrawer } from "@/features/shared/job-drawer"
 import { type RunTableJob, RunTable } from "@/features/shared/run-table"
+import { StatusStateCards } from "@/features/status/status-state-cards"
 import { StatusStateDrawer } from "@/features/status/status-state-drawer"
 import {
   GreenCommitDrawer,
@@ -80,7 +74,6 @@ import {
   type GreenCommitGroup,
 } from "@/features/status/green-commit"
 import {
-  CheckCircle2Icon,
   CircleDotIcon,
   HardDriveIcon,
   SearchIcon,
@@ -214,236 +207,6 @@ function MachineCard() {
         ) : null}
       </CardContent>
     </Card>
-  )
-}
-
-function StatusStateCards({
-  dashboard,
-  projectScoped,
-  onOpen,
-  onOpenJob,
-}: {
-  dashboard: ApiQuery<DashboardState>
-  projectScoped: boolean
-  onOpen: (surface: "meta" | "pending") => void
-  onOpenJob: (jobId: string) => void
-}) {
-  if (projectScoped && (dashboard.loading || dashboard.error || !dashboard.data)) {
-    return (
-      <>
-        {["Metas", "Pendências"].map((title) => (
-          <Card key={title}>
-            <CardHeader>
-              <CardTitle>{title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {dashboard.loading ? (
-                <Skeleton className="h-32 w-full" />
-              ) : (
-                <p className="text-sm text-destructive">
-                  {dashboard.error?.message || "Dados indisponíveis."}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </>
-    )
-  }
-
-  const meta = dashboard.data?.meta
-  const pending = dashboard.data?.pending ?? []
-  const pendingError = dashboard.data?.pendingError
-  const observed =
-    meta?.checks?.filter((check) => check.status === "passed").length ?? null
-  const total = meta?.checks?.length ?? null
-
-  return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Metas</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {!projectScoped ? (
-            <Empty className="border-0 p-0">
-              <EmptyHeader>
-                <EmptyTitle>Selecione um projeto</EmptyTitle>
-              </EmptyHeader>
-            </Empty>
-          ) : meta ? (
-            <>
-              <p className="font-medium">{meta.name}</p>
-              {meta.description ? (
-                <p className="text-sm text-muted-foreground">
-                  {meta.description}
-                </p>
-              ) : null}
-              {meta.checks === null ? (
-                <p className="text-sm text-muted-foreground">
-                  Checks indisponíveis: não há catálogo utilizável para calcular o progresso.
-                </p>
-              ) : total ? (
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm text-muted-foreground">
-                    {observed ?? 0} de {total} requisitos atendidos
-                  </p>
-                  <Progress value={((observed ?? 0) / total) * 100} />
-                  {meta.candidateSha ? (
-                    <p className="text-sm text-muted-foreground">
-                      Candidato{" "}
-                      <span className="font-mono">
-                        {shortSha(meta.candidateSha)}
-                      </span>
-                    </p>
-                  ) : null}
-                  <ItemGroup className="gap-0">
-                    {meta.checks.map((check) => {
-                      const Icon =
-                        check.status === "passed"
-                          ? CheckCircle2Icon
-                          : CircleDotIcon
-                      return (
-                        <Item
-                          key={check.preset}
-                          variant="default"
-                          size="sm"
-                          className="border-transparent px-0 py-1"
-                        >
-                          <ItemMedia variant="icon">
-                            <Icon />
-                          </ItemMedia>
-                          <ItemContent>
-                            <ItemTitle>
-                              {check.status === "passed" && check.ticketId ? (
-                                <Button
-                                  type="button"
-                                  variant="link"
-                                  className="h-auto p-0"
-                                  onClick={() => onOpenJob(check.ticketId!)}
-                                >
-                                  {check.preset}
-                                </Button>
-                              ) : (
-                                check.preset
-                              )}
-                            </ItemTitle>
-                            <ItemDescription>
-                              {check.status === "passed"
-                                ? "Verde elegível"
-                                : check.status === "recipe-missing"
-                                  ? "Receita não declarada"
-                                  : "Sem verde elegível"}
-                            </ItemDescription>
-                          </ItemContent>
-                        </Item>
-                      )
-                    })}
-                  </ItemGroup>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Sem requisitos definidos.
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Nenhuma meta declarada.
-            </p>
-          )}
-        </CardContent>
-        <CardFooter className="border-0 bg-transparent pt-0">
-          <StatusCardAction
-            label="Abrir meta"
-            disabled={!projectScoped}
-            onClick={() => onOpen("meta")}
-          />
-        </CardFooter>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Pendências</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!projectScoped ? (
-            <Empty className="border-0 p-0">
-              <EmptyHeader>
-                <EmptyTitle>Selecione um projeto</EmptyTitle>
-              </EmptyHeader>
-            </Empty>
-          ) : pendingError ? (
-            <p className="text-sm text-destructive">{pendingError}</p>
-          ) : pending.length ? (
-            <ItemGroup>
-              {pending.slice(0, 3).map((item) => (
-                <Item
-                  key={item.id}
-                  variant="default"
-                  size="sm"
-                  className="border-transparent px-0 py-0"
-                >
-                  <ItemContent>
-                    <ItemTitle>
-                      {item.latestTicketId ? (
-                        <Button
-                          type="button"
-                          variant="link"
-                          className="h-auto px-0 py-0"
-                          onClick={() => onOpenJob(item.latestTicketId!)}
-                        >
-                          {item.preset}
-                        </Button>
-                      ) : (
-                        item.preset
-                      )}
-                    </ItemTitle>
-                    <ItemDescription>
-                      {item.pr ? `PR #${item.pr} · ` : ""}
-                      {shortSha(item.headSha)}
-                    </ItemDescription>
-                  </ItemContent>
-                </Item>
-              ))}
-            </ItemGroup>
-          ) : (
-            <p className="text-sm text-muted-foreground">Nenhuma pendência.</p>
-          )}
-        </CardContent>
-        <CardFooter className="border-0 bg-transparent pt-0">
-          <StatusCardAction
-            label="Ver pendências"
-            disabled={!projectScoped}
-            onClick={() => onOpen("pending")}
-          />
-        </CardFooter>
-      </Card>
-    </>
-  )
-}
-
-function StatusCardAction({
-  label,
-  disabled,
-  onClick,
-}: {
-  label: string
-  disabled: boolean
-  onClick: () => void
-}) {
-  const button = (
-    <Button type="button" variant="ghost" disabled={disabled} onClick={onClick}>
-      {label}
-    </Button>
-  )
-  if (!disabled) return button
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex">{button}</span>
-      </TooltipTrigger>
-      <TooltipContent>escolha um projeto</TooltipContent>
-    </Tooltip>
   )
 }
 
@@ -1361,21 +1124,18 @@ export function StatusPage() {
     pollMs: 10_000,
     enabled: Boolean(scope),
   })
-  const projectScope = scope?.kind === "project" ? scope : null
+  const dashboardScope = scope && scope.kind !== "unassigned" ? scope : null
   const dashboardRequest = React.useCallback(
-    (signal?: AbortSignal) =>
-      projectScope
-        ? getDashboardState(projectScope, signal)
+    (signal?: AbortSignal): Promise<DashboardState | DashboardAllState> =>
+      dashboardScope
+        ? getDashboardState(dashboardScope, signal)
         : Promise.reject(new Error("Meta exige um projeto")),
-    [projectScope]
+    [dashboardScope]
   )
   const dashboard = useApiQuery(
-    `dashboard-state:${projectScope ? scopeKey(projectScope) : "none"}`,
+    `dashboard-state:${dashboardScope ? scopeKey(dashboardScope) : "none"}`,
     dashboardRequest,
-    {
-      pollMs: 10_000,
-      enabled: Boolean(projectScope),
-    }
+    { pollMs: 10_000, enabled: Boolean(dashboardScope) }
   )
   const [selectedJobId, setSelectedJobId] = React.useState<string>()
   const [stateDrawerOpen, setStateDrawerOpen] = React.useState(false)
@@ -1427,8 +1187,6 @@ export function StatusPage() {
     )
   }
 
-  const projectScoped = scope.kind === "project"
-
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 lg:p-6">
       <CurrentExecution snapshot={status.data} onOpenJob={setSelectedJobId} />
@@ -1451,11 +1209,11 @@ export function StatusPage() {
             historyRevision={status.data.historyRevision ?? status.data.history?.[0]?.id ?? ""}
           />
         </div>
-        <aside className="flex flex-col gap-4">
+        <aside className="flex min-w-0 flex-col gap-4">
           <MachineCard />
           <StatusStateCards
             dashboard={dashboard}
-            projectScoped={projectScoped}
+            readable={scope.kind !== "unassigned"}
             onOpen={openStatusState}
             onOpenJob={setSelectedJobId}
           />

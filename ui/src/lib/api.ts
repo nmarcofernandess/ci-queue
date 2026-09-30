@@ -245,6 +245,10 @@ export function getDashboardState(
 export function getDashboardState(
   scope: ProjectScope | Extract<ReadScope, { kind: "all" }>,
   signal?: AbortSignal
+): Promise<DashboardState | DashboardAllState>
+export function getDashboardState(
+  scope: ProjectScope | Extract<ReadScope, { kind: "all" }>,
+  signal?: AbortSignal
 ): Promise<DashboardState | DashboardAllState> {
   return requestScoped<DashboardState | DashboardAllState>(
     scope,
