@@ -374,6 +374,22 @@ class ProjectScopeHttpTests(unittest.TestCase):
         self.assertEqual([job["id"] for job in payload["jobs"]], ["job-a"])
         self.assertNotIn("job-none", [job["id"] for job in payload["jobs"]])
 
+    def test_project_history_rejects_internal_all_scope_with_filters_and_pagination(self):
+        for suffix in ("", "&q=smoke&result=passed&offset=1",
+                       "&from=2026-09-01T00:00:00Z&to=2026-10-01T00:00:00Z"):
+            with self.subTest(suffix=suffix):
+                with self.assertRaises(HTTPError) as denied:
+                    self._get("/api/executions?projectId=alpha&scope=all" + suffix)
+                self.assertEqual(denied.exception.code, 400)
+        with self._get("/api/executions?context=all&q=smoke&result=passed") as response:
+            aggregated = json.loads(response.read())
+        self.assertEqual(aggregated["context"], {"kind": "all"})
+        self.assertEqual({job["id"] for job in aggregated["jobs"]}, {"job-a", "job-b"})
+        with self._get("/api/executions?projectId=alpha&q=smoke&result=passed") as response:
+            alpha = json.loads(response.read())
+        self.assertEqual(alpha["context"]["projectId"], "alpha")
+        self.assertEqual([job["id"] for job in alpha["jobs"]], ["job-a"])
+
     def test_project_id_and_context_all_are_http_400(self):
         with self.assertRaises(HTTPError) as rejected:
             self._get("/api/status?projectId=alpha&context=all")

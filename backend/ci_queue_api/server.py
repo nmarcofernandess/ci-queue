@@ -578,6 +578,8 @@ def create_handler(context):
                 return
             if path == "/api/executions":
                 reader_scope = query.get("scope", ["terminal"])[0]
+                if reader_scope not in {"terminal", "legacy"}:
+                    raise ValueError("scope inválido para Histórico de projeto")
                 if reader_scope == "legacy":
                     reader_scope = "terminal"
                 payload = read_executions(
