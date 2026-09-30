@@ -44,6 +44,126 @@ const CONTEXT = "team/proof"
 const VERIFIER = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "scripts", "ci", "verify-local-attestation.sh")
 const WORKFLOW_DEST = ".github/workflows/ci-queue-verdict.yml"
 const SCRIPT_DEST = ".github/scripts/verify-local-attestation.sh"
+const PRODUCT_WORKFLOW = readFileSync(join(dirname(VERIFIER), "..", "..", ".github", "workflows", "ci.yml"), "utf8")
+
+function productRevision(field: string, head: string, eventSha: string): string {
+  const expression = PRODUCT_WORKFLOW.match(new RegExp(`^ +${field}: \\$\\{\\{ (.+?) \\}\\}`, "m"))?.[1]
+  if (!expression) throw new Error(`product workflow revision missing: ${field}`)
+  const values: Record<string, string> = { "github.event.pull_request.head.sha": head, "github.sha": eventSha }
+  for (const key of expression.split(" || ")) {
+    if (!(key in values)) throw new Error(`unsupported workflow revision: ${key}`)
+    if (values[key]) return values[key]
+  }
+  throw new Error(`empty workflow revision: ${field}`)
+}
+
+function productStep(name: string): string {
+  const step = PRODUCT_WORKFLOW.split(/^      - name: /m).find((value) => value.startsWith(name + "\n"))
+  if (!step) throw new Error(`product workflow step missing: ${name}`)
+  const script = step.split("        run: |\n")[1]
+  if (!script) throw new Error(`product workflow run missing: ${name}`)
+  return script.split("\n").map((line) => line.replace(/^          /, "")).join("\n")
+}
+
+function productCompleteCheckSelected(docsOnly: boolean, proofValid: boolean): boolean {
+  const step = PRODUCT_WORKFLOW.split(/^      - name: /m).find((value) => value.startsWith("Run complete product check\n"))
+  const condition = step?.match(/^        if: (.+)$/m)?.[1]
+  if (!condition) throw new Error("product complete-check condition missing")
+  const expression = condition.replaceAll("steps.classify.outputs.docs_only", `'${docsOnly}'`)
+    .replaceAll("steps.classify.outputs.local_proof_valid", `'${proofValid}'`)
+  return spawnSync("bash", ["-c", `[[ ${expression} ]]`]).status === 0
+}
+
+function productFixture(material: boolean) {
+  const source = initGitRepo()
+  const base = git(source, ["rev-parse", "HEAD"])
+  git(source, ["branch", "main", base])
+  mkdirSync(join(source, "docs"))
+  if (material) {
+    writeFileSync(join(source, "engine.ts"), "export const material = true\n")
+    git(source, ["add", "engine.ts"])
+    git(source, ["commit", "-m", "material delta"])
+  }
+  writeFileSync(join(source, "docs", "change.md"), "candidate documentation\n")
+  git(source, ["add", "docs/change.md"])
+  git(source, ["commit", "-m", "last commit docs"])
+  const head = git(source, ["rev-parse", "HEAD"])
+  const tree = git(source, ["rev-parse", "HEAD^{tree}"])
+  const merge = git(source, ["commit-tree", tree, "-p", head, "-p", base, "-m", "synthetic PR merge"])
+  git(source, ["update-ref", "refs/pull/42/merge", merge])
+  const cwd = tempDir("ci-queue-product-workflow-")
+  git(cwd, ["init"])
+  git(cwd, ["remote", "add", "origin", source])
+  git(cwd, ["fetch", "origin", "+refs/heads/*:refs/remotes/origin/*", "+refs/tags/*:refs/tags/*"])
+  git(cwd, ["checkout", "--detach", productRevision("ref", head, merge)])
+  const absent = spawnSync("git", ["cat-file", "-e", merge], { cwd, env: GIT_ENV })
+  expect(absent.status).not.toBe(0)
+  expect(git(cwd, ["rev-parse", "HEAD"])).toBe(head)
+  mkdirSync(join(cwd, "scripts", "ci"), { recursive: true })
+  for (const script of ["classify-docs-only.sh", "verify-local-attestation.sh"]) {
+    writeFileSync(join(cwd, "scripts", "ci", script), readFileSync(join(dirname(VERIFIER), script)))
+  }
+  return { cwd, base, head, merge }
+}
+
+describe("product ci.yml checkout and classification", () => {
+  for (const material of [false, true]) {
+    for (const proof of [false, true]) {
+      it(`classifies the complete PR delta material=${material} proof=${proof} without synthetic merge object`, () => {
+        const { cwd, head, base, merge } = productFixture(material)
+        const bin = tempDir("ci-queue-product-gh-")
+        writeFakeGh(bin, { routes: {
+          [`repos/${REPO}/pulls/${PR}`]: { state: "open", draft: false, head: { sha: head }, base: { sha: base } },
+          [`repos/${REPO}/commits/${head}/statuses`]: proof ? [status({
+            context: "local/check", state: "success", description: `base:${base}`, id: 1, updatedAt: "2026-09-30T12:00:00Z",
+          })] : [],
+        } })
+        const output = join(cwd, "outputs")
+        const summary = join(cwd, "summary")
+        const env = { ...GIT_ENV, PATH: `${bin}:${process.env.PATH ?? ""}`,
+          GITHUB_SHA: merge, HEAD_SHA: productRevision("HEAD_SHA", head, merge),
+          H: productRevision("H", head, merge), B0: base, BASE_SHA: base,
+          GITHUB_EVENT_NAME: "pull_request", EVENT_NAME: "pull_request", PR_BASE_REF: "main",
+          EVENT_BEFORE: "", repo: REPO, pr: PR, context: "local/check", GITHUB_OUTPUT: output,
+          GITHUB_STEP_SUMMARY: summary,
+        }
+        const classified = spawnSync("bash", ["-c", productStep("Classify (docs-only + prova local)")], { cwd, env, encoding: "utf8" })
+        expect(classified.status, classified.stderr).toBe(0)
+        expect(readFileSync(output, "utf8")).toBe(`docs_only=${!material}\nlocal_proof_valid=${proof}\n`)
+        expect(productCompleteCheckSelected(!material, proof)).toBe(material && !proof)
+        if (!material) {
+          const whitespace = spawnSync("bash", ["-c", productStep("Documentation whitespace")], { cwd, env, encoding: "utf8" })
+          expect(whitespace.status, whitespace.stderr).toBe(0)
+        }
+        const verdict = spawnSync("bash", ["-c", productStep("Verdict summary")], {
+          cwd, env: { ...env, DOCS_ONLY: String(!material), PROOF_VALID: String(proof), CLASSIFY_OUTCOME: "success" }, encoding: "utf8",
+        })
+        expect(verdict.status, verdict.stderr).toBe(0)
+        expect(verdict.stdout).toContain(!material ? "docs-only" : proof ? "Complete check dispensado por local/check em HEAD+base" : "fallback remoto")
+      })
+    }
+  }
+
+  for (const material of [false, true]) {
+    for (const before of ["base", "zero", "empty"]) {
+      it(`classifies push material=${material} with before=${before}`, () => {
+        const { cwd, base, head } = productFixture(material)
+        const output = join(cwd, "outputs")
+        const env = { ...GIT_ENV, HEAD_SHA: productRevision("HEAD_SHA", "", head), GITHUB_SHA: head,
+          EVENT_NAME: "push", GITHUB_EVENT_NAME: "push", PR_BASE_REF: "",
+          EVENT_BEFORE: before === "base" ? base : before === "zero" ? "0".repeat(40) : "", GITHUB_OUTPUT: output,
+        }
+        const classified = spawnSync("bash", ["-c", productStep("Classify (docs-only + prova local)")], { cwd, env, encoding: "utf8" })
+        expect(classified.status, classified.stderr).toBe(0)
+        const docsOnly = !material || before !== "base"
+        expect(readFileSync(output, "utf8")).toBe(`docs_only=${docsOnly}\nlocal_proof_valid=false\n`)
+        expect(productCompleteCheckSelected(docsOnly, false)).toBe(!docsOnly)
+        const whitespace = spawnSync("bash", ["-c", productStep("Documentation whitespace")], { cwd, env, encoding: "utf8" })
+        expect(whitespace.status, whitespace.stderr).toBe(0)
+      })
+    }
+  }
+})
 
 function git(cwd: string, args: string[]): string {
   return execFileSync("git", args, {
