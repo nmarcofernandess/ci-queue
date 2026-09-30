@@ -39,6 +39,14 @@ class PublicJobProgressEnabled(unittest.TestCase):
         self.assertNotIn("flags", projected)
         self.assertNotIn("argv", projected)
 
+    def test_invalid_source_is_unknown_in_public_and_ticket_projections(self):
+        from ci_queue_api.records import ticket_history_projection
+        for source in ([], {}, 17, True, ""):
+            with self.subTest(source=source):
+                job = {"id": "bad-source", "source": source}
+                self.assertNotIn("executor", public_job(job))
+                self.assertEqual(ticket_history_projection(job)["executor"], "unknown")
+
 
 if __name__ == "__main__":
     unittest.main()

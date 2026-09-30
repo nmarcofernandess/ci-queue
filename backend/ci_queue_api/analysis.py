@@ -5,7 +5,7 @@ import statistics
 
 from .config import PRESET_NAME, PROJECT_ID
 from .history import canonical_green
-from .records import TERMINAL, parse_instant, read_history
+from .records import TERMINAL, parse_instant, read_history_with_coverage
 
 
 def _duration(job):
@@ -24,11 +24,9 @@ def _bounds(from_time, to_time):
 def _project_terminals(state_root, project_id, from_time, to_time, preset=""):
     lower, upper = _bounds(from_time, to_time)
     rows = []
-    unknown = 0
-    for job in read_history(state_root):
+    history, coverage = read_history_with_coverage(state_root)
+    for job in history:
         if job.get("projectId") != project_id:
-            if job.get("projectId") is None:
-                unknown += 1
             continue
         if job.get("status") not in TERMINAL or (preset and job.get("preset") != preset):
             continue
@@ -39,7 +37,7 @@ def _project_terminals(state_root, project_id, from_time, to_time, preset=""):
             continue
         rows.append(job)
     rows.sort(key=lambda job: (str(job.get("finishedAt") or ""), str(job.get("id") or "")), reverse=True)
-    return rows, unknown
+    return rows, coverage
 
 
 def parse_namespaced_preset(value):
@@ -58,7 +56,8 @@ def namespaced_preset_key(project_id, preset):
 def _attributed_terminals(state_root, from_time, to_time):
     lower, upper = _bounds(from_time, to_time)
     rows = []
-    for job in read_history(state_root):
+    history, coverage = read_history_with_coverage(state_root)
+    for job in history:
         if not job.get("projectId") or job.get("status") not in TERMINAL:
             continue
         finished = parse_instant(job.get("finishedAt"))
@@ -67,7 +66,7 @@ def _attributed_terminals(state_root, from_time, to_time):
         if (lower and finished < lower) or (upper and finished >= upper):
             continue
         rows.append(job)
-    return rows
+    return rows, coverage
 
 
 def _registry_analysis_catalog(state_root):
@@ -92,7 +91,7 @@ def _registry_analysis_catalog(state_root):
 
 
 def read_results_all(state_root, from_time="", to_time=""):
-    rows = _attributed_terminals(state_root, from_time, to_time)
+    rows, coverage = _attributed_terminals(state_root, from_time, to_time)
     groups = {}
     observed_names = {}
     for job in rows:
@@ -137,6 +136,7 @@ def read_results_all(state_root, from_time="", to_time=""):
         "presets": presets,
         "sampleCount": sum(item["total"] for item in presets),
         "durationPresets": duration_presets,
+        "coverage": coverage,
     }
 
 
@@ -153,7 +153,7 @@ def read_duration_all(state_root, preset, from_time="", to_time=""):
 
 
 def read_results(state_root, config, from_time="", to_time=""):
-    rows, _unknown = _project_terminals(state_root, config.project_id, from_time, to_time)
+    rows, coverage = _project_terminals(state_root, config.project_id, from_time, to_time)
     groups = {}
     for job in rows:
         name = job.get("preset") or "Não informado"
@@ -176,6 +176,7 @@ def read_results(state_root, config, from_time="", to_time=""):
         "to": to_time or None,
         "presets": presets,
         "sampleCount": sum(item["total"] for item in presets),
+        "coverage": coverage,
     }
 
 
@@ -184,7 +185,7 @@ def read_analysis(state_root, config, from_time="", to_time="", preset="", metri
         return read_results(state_root, config, from_time, to_time)
     if metric not in {"", "duration"}:
         raise ValueError("metric inválida")
-    rows, unknown = _project_terminals(state_root, config.project_id, from_time, to_time, preset)
+    rows, coverage = _project_terminals(state_root, config.project_id, from_time, to_time, preset)
     if preset and preset not in getattr(config, "presets", {}):
         raise ValueError("preset não declarado")
 
@@ -230,5 +231,5 @@ def read_analysis(state_root, config, from_time="", to_time="", preset="", metri
         "preset": preset or None,
         "total": len(rows),
         "presets": presets,
-        "coverage": {"unattributedRecords": unknown},
+        "coverage": coverage,
     }

@@ -390,6 +390,31 @@ class ProjectScopeHttpTests(unittest.TestCase):
         self.assertEqual(alpha["context"]["projectId"], "alpha")
         self.assertEqual([job["id"] for job in alpha["jobs"]], ["job-a"])
 
+    def test_corrupt_foreign_record_does_not_break_scoped_http_reads_or_greens(self):
+        self._write_job("job-a", "alpha", b"", exitCode=0)
+        bad = json.loads((self.state / "history" / "job-b.json").read_text())
+        bad["source"] = {}
+        bad_path = self.state / "history" / "corrupt-beta.json"
+        bad_path.write_text(json.dumps(bad))
+        for endpoint in ("executions", "analysis", "preset-history"):
+            for context in ("projectId=alpha", "context=all"):
+                with self.subTest(endpoint=endpoint, context=context):
+                    query = context + ("&metric=results" if endpoint == "analysis" else "")
+                    with self._get("/api/" + endpoint + "?" + query) as response:
+                        payload = json.loads(response.read())
+                    self.assertEqual(payload["coverage"]["corruptRecords"], 1)
+                    self.assertEqual(payload["context"], {"kind": "all"} if context == "context=all"
+                                     else {"kind": "project", "projectId": "alpha"})
+                    if endpoint == "executions":
+                        expected = {"job-a", "job-b"} if context == "context=all" else {"job-a"}
+                        self.assertEqual({job["id"] for job in payload["jobs"]}, expected)
+                    elif endpoint == "analysis":
+                        self.assertEqual(payload["sampleCount"], 2 if context == "context=all" else 1)
+                    else:
+                        alpha = next(row for row in payload["presets"] if row["projectId"] == "alpha")
+                        self.assertEqual(alpha["lastGreenCanonical"]["ticketId"], "job-a")
+        self.assertEqual(json.loads(bad_path.read_text()), bad)
+
     def test_project_id_and_context_all_are_http_400(self):
         with self.assertRaises(HTTPError) as rejected:
             self._get("/api/status?projectId=alpha&context=all")

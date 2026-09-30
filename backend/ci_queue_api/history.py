@@ -7,9 +7,8 @@ import statistics
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .config import PROJECT_ID
 from .record_store import store_for
-from .records import attribute_legacy, history_key, read_history, read_json
+from .records import history_key, read_history, read_history_with_coverage, read_json
 
 
 REMOTE_SLOT_SCHEMA = 1
@@ -170,7 +169,7 @@ def build_preset_history(state_root, config, *, jobs=None, corrupt_count=None):
     values.sort(key=lambda item: item["preset"])
     values.sort(key=lambda item: (item["lastGreenCanonical"] or {}).get("finishedAt") or "", reverse=True)
     if corrupt_count is None:
-        corrupt_count = len(store_for(Path(state_root) / "history").snapshot().errors)
+        corrupt_count = read_history_with_coverage(state_root)[1]["corruptRecords"]
     return {
         "schemaVersion": 1,
         "catalog": {"resolved": True, "projectId": config.project_id, "declaredCount": len(config.presets)},
@@ -181,22 +180,12 @@ def build_preset_history(state_root, config, *, jobs=None, corrupt_count=None):
 
 
 def _aggregate_history_snapshot(state_root):
-    snapshot = store_for(Path(state_root) / "history").snapshot()
-    ledger = read_json(Path(state_root) / "state" / "legacy-projects.json")
+    jobs, coverage = read_history_with_coverage(state_root)
     grouped = {}
-    corrupt_count = len(snapshot.errors)
-    for row in snapshot.rows:
-        project_id = row.get("projectId")
-        if project_id is not None and (not isinstance(project_id, str) or not PROJECT_ID.fullmatch(project_id)):
-            corrupt_count += 1
-            continue
-        job = attribute_legacy(row, ledger)
+    for job in jobs:
         project_id = job.get("projectId")
-        if project_id is not None and (not isinstance(project_id, str) or not PROJECT_ID.fullmatch(project_id)):
-            corrupt_count += 1
-            continue
         grouped.setdefault(project_id, []).append(job)
-    return grouped, corrupt_count
+    return grouped, coverage["corruptRecords"]
 
 
 def _project_read_error(project, error):

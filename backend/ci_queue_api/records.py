@@ -15,6 +15,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .config import PROJECT_ID
 from .record_store import SnapshotError, clear_stores, store_for
 from .execution_observations import (
     lookup_observed_execution,
@@ -156,9 +157,45 @@ def attribute_legacy(job, ledger):
     return job
 
 
-def read_history(state_root, strict=False):
+def valid_history_identity(job):
+    """Reject malformed grouping/projection fields without attributing legacy rows."""
+    if not isinstance(job, dict):
+        return False
+    project_id = job.get("projectId")
+    if project_id is not None and (not isinstance(project_id, str) or not PROJECT_ID.fullmatch(project_id)):
+        return False
+    for field in ("id", "preset", "status", "source", "projectName"):
+        value = job.get(field)
+        if value is not None and (not isinstance(value, str) or not value):
+            return False
+    return True
+
+
+def read_history_with_coverage(state_root, strict=False):
+    try:
+        snapshot = store_for(Path(state_root) / "history").snapshot()
+    except SnapshotError as error:
+        raise RecordError(str(error)) from error
     ledger = read_json(Path(state_root) / "state" / "legacy-projects.json")
-    return [attribute_legacy(row, ledger) for row in read_json_directory(Path(state_root) / "history", strict=strict, cached=True)]
+    rows = []
+    corrupt = len(snapshot.errors)
+    for row in snapshot.rows:
+        if not valid_history_identity(row):
+            corrupt += 1
+            continue
+        job = attribute_legacy(row, ledger)
+        if not valid_history_identity(job):
+            corrupt += 1
+            continue
+        rows.append(job)
+    if strict and corrupt:
+        raise RecordError("histórico contém registro inválido")
+    return rows, {"unattributedRecords": sum(row.get("projectId") is None for row in rows),
+                  "corruptRecords": corrupt}
+
+
+def read_history(state_root, strict=False):
+    return read_history_with_coverage(state_root, strict=strict)[0]
 
 
 def read_queued(state_root, strict=False):
@@ -287,7 +324,7 @@ def public_job(job):
         pass
     if "executor" not in result and isinstance(job, dict):
         source = job.get("source")
-        if source in {"direct-runtime", "direct-cloud"}:
+        if isinstance(source, str) and source in {"direct-runtime", "direct-cloud"}:
             result["executor"] = "direct"
         elif source == "queue" or source is None:
             if job.get("recordKind") != "observed-execution":
@@ -316,7 +353,7 @@ def ticket_history_projection(job):
     if not isinstance(job, dict):
         return job
     source = job.get("source")
-    if source in {"direct-runtime", "direct-cloud"}:
+    if isinstance(source, str) and source in {"direct-runtime", "direct-cloud"}:
         executor = "direct"
     elif source == "queue" or source is None:
         executor = "queue"
@@ -588,7 +625,8 @@ def read_executions(state_root, project_id, q="", result="all", scope="terminal"
             projected.append(row)
         else:
             projected.append(progress_summary(row))
-    history_corrupt = len(store_for(Path(state_root) / "history").snapshot().errors)
+    _history_rows, history_coverage = read_history_with_coverage(state_root)
+    history_corrupt = history_coverage["corruptRecords"]
     _observed_rows, observed_invalid = read_observed_executions(state_root)
     corrupt_count = history_corrupt + observed_invalid
     return {
