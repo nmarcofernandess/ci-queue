@@ -7,6 +7,7 @@ import statistics
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .config import PROJECT_ID
 from .record_store import store_for
 from .records import attribute_legacy, history_key, read_history, read_json
 
@@ -183,10 +184,19 @@ def _aggregate_history_snapshot(state_root):
     snapshot = store_for(Path(state_root) / "history").snapshot()
     ledger = read_json(Path(state_root) / "state" / "legacy-projects.json")
     grouped = {}
+    corrupt_count = len(snapshot.errors)
     for row in snapshot.rows:
+        project_id = row.get("projectId")
+        if project_id is not None and (not isinstance(project_id, str) or not PROJECT_ID.fullmatch(project_id)):
+            corrupt_count += 1
+            continue
         job = attribute_legacy(row, ledger)
-        grouped.setdefault(job.get("projectId"), []).append(job)
-    return grouped, len(snapshot.errors)
+        project_id = job.get("projectId")
+        if project_id is not None and (not isinstance(project_id, str) or not PROJECT_ID.fullmatch(project_id)):
+            corrupt_count += 1
+            continue
+        grouped.setdefault(project_id, []).append(job)
+    return grouped, corrupt_count
 
 
 def _project_read_error(project, error):

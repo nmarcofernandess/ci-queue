@@ -391,6 +391,31 @@ class HistoryAndAnalysisTests(Fixture):
 
 
 class RemoteGreensTests(Fixture):
+    def test_all_greens_preserve_valid_project_when_history_identity_is_malformed(self):
+        from ci_queue_api import history
+        self.job("remote-ticket")
+        mirror = self.write_remote_mirror(self.remote_report([self.remote_slot()]))
+        config = replace(self.config, remote_slots_path=mirror)
+        project = SimpleNamespace(project_id="example", display_name="Example",
+                                  config=config, binding_state="linked")
+        (self.state / "state").mkdir()
+        (self.state / "state" / "legacy-projects.json").write_text(json.dumps({
+            "schemaVersion": 1,
+            "assignments": {"broken": {"projectId": "example", "evidence": "legacy evidence"}},
+        }))
+        for identity in ([], {}, [1], {"bad": 1}, "", 42, False, "invalid id"):
+            with self.subTest(identity=identity):
+                self.job("broken", projectId=identity)
+                machine = history.build_preset_history_all(self.state, [project])
+                self.assertEqual(machine["totals"]["tickets"], 1)
+                self.assertEqual(machine["coverage"]["corruptRecords"], 1)
+                self.assertEqual(machine["coverage"]["unattributedRecords"], 0)
+                self.assertEqual(machine["presets"][0]["lastGreenCanonical"]["ticketId"], "remote-ticket")
+                remote = history.read_remote_slots_all(self.state, [project])
+                self.assertEqual([(green["projectId"], green["ticketId"], green["jobAvailable"])
+                                  for green in remote["greens"]], [("example", "remote-ticket", True)])
+                self.assertTrue(remote["projects"][0]["source"]["available"])
+
     def test_all_remote_greens_preserve_partial_coverage_and_use_one_snapshot(self):
         from ci_queue_api import history
         self.job("remote-ticket")
