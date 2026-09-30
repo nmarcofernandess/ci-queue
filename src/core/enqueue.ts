@@ -54,6 +54,9 @@ export function buildTicket(input: EnqueueInput, resolved?: ResolvedQueueConfig)
   const now = input.now ?? new Date()
   const id = generateJobId(now)
   const git = readGitInfo(configuration.executionCwd, preset.fetchBase ?? configuration.config.repository?.baseRef)
+  // An isolated recipe observes a base, but must not follow a moving tracking
+  // ref during execution. Ship recipes retain the fetched ref and its checks.
+  const baseRef = preset.fetchBase ?? (git?.baseSha || undefined)
   const extraArgs = input.extraArgs ?? []
   const argv = extraArgs.length ? [...preset.argv, "--", ...extraArgs] : [...preset.argv]
   const artifacts = resolveRecipeArtifacts(configuration.config.artifacts, preset.artifacts)
@@ -81,7 +84,7 @@ export function buildTicket(input: EnqueueInput, resolved?: ResolvedQueueConfig)
       ...(preset.abortOnStaleBase !== undefined ? { abortOnStaleBase: preset.abortOnStaleBase } : {}),
       ...(preset.progress !== undefined ? { progressEnabled: preset.progress } : {}),
     },
-    ...(preset.fetchBase || configuration.config.repository?.baseRef ? { baseRef: preset.fetchBase ?? configuration.config.repository?.baseRef } : {}),
+    ...(baseRef ? { baseRef } : {}),
     ...(configuration.config.artifacts !== undefined || preset.artifacts !== undefined ? { artifacts } : {}),
     projectId: configuration.config.project.id,
     projectName: configuration.config.project.name,
