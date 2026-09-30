@@ -17,6 +17,9 @@ import type {
   MachineResponse,
   PickedHostPath,
   PresetHistoryResponse,
+  PresetHistoryAllResponse,
+  RemoteSlotsResponse,
+  RemoteSlotsAllResponse,
   ProjectProbe,
   ProjectsResponse,
   ResultsResponse,
@@ -180,8 +183,11 @@ export function getExecutions(
   }, signal)
 }
 
-export function getPresetHistory(scope: ProjectScope, signal?: AbortSignal) {
-  return requestScoped<PresetHistoryResponse>(
+export function getPresetHistory(scope: ProjectScope, signal?: AbortSignal): Promise<PresetHistoryResponse>
+export function getPresetHistory(scope: Extract<ReadScope, { kind: "all" }>, signal?: AbortSignal): Promise<PresetHistoryAllResponse>
+export function getPresetHistory(scope: Extract<ReadScope, { kind: "project" | "all" }>, signal?: AbortSignal): Promise<PresetHistoryResponse | PresetHistoryAllResponse>
+export function getPresetHistory(scope: Extract<ReadScope, { kind: "project" | "all" }>, signal?: AbortSignal) {
+  return requestScoped<PresetHistoryResponse | PresetHistoryAllResponse>(
     scope,
     "/api/preset-history",
     scopeQuery(scope),
@@ -189,10 +195,14 @@ export function getPresetHistory(scope: ProjectScope, signal?: AbortSignal) {
   )
 }
 
-export async function getRemoteSlots(scope: ProjectScope, signal?: AbortSignal) {
-  return parseRemoteSlotsResponse(
-    await requestScoped<unknown>(scope, "/api/remote-slots", scopeQuery(scope), signal)
-  )
+export function getRemoteSlots(scope: ProjectScope, signal?: AbortSignal): Promise<RemoteSlotsResponse>
+export function getRemoteSlots(scope: Extract<ReadScope, { kind: "all" }>, signal?: AbortSignal): Promise<RemoteSlotsAllResponse>
+export function getRemoteSlots(scope: Extract<ReadScope, { kind: "project" | "all" }>, signal?: AbortSignal): Promise<RemoteSlotsResponse | RemoteSlotsAllResponse>
+export async function getRemoteSlots(scope: Extract<ReadScope, { kind: "project" | "all" }>, signal?: AbortSignal) {
+  const value = await requestScoped<unknown>(scope, "/api/remote-slots", scopeQuery(scope), signal)
+  return scope.kind === "all"
+    ? parseRemoteSlotsResponse(value, "all")
+    : parseRemoteSlotsResponse(value, "project")
 }
 
 export function getResults(

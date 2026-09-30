@@ -137,6 +137,48 @@ class ProjectScopeHttpTests(unittest.TestCase):
                           headers=headers or {})
         return urlopen(request, timeout=3)
 
+    def test_all_preset_history_keeps_recipes_and_same_sha_project_scoped(self):
+        for path, argv in ((self.config_a, ["node", "alpha"]),
+                           (self.config_b, ["node", "beta"])):
+            config = json.loads(path.read_text())
+            config["presets"] = {"full": {"argv": argv}}
+            path.write_text(json.dumps(config))
+        self._write_job("alpha-full", "alpha", b"", preset="full", exitCode=0,
+                        argv=["node", "alpha"], headSha="a" * 40)
+        self._write_job("beta-wrong", "beta", b"", preset="full", exitCode=0,
+                        argv=["node", "alpha"], headSha="a" * 40)
+        with self._get("/api/preset-history?context=all") as response:
+            payload = json.loads(response.read())
+        rows = {row["projectId"]: row for row in payload["presets"] if row["preset"] == "full"}
+        self.assertEqual(payload["context"], {"kind": "all"})
+        self.assertEqual(rows["alpha"]["lastGreenCanonical"]["ticketId"], "alpha-full")
+        self.assertIsNone(rows["beta"]["lastGreenCanonical"])
+        self._write_job("beta-full", "beta", b"", preset="full", exitCode=0,
+                        argv=["node", "beta"], headSha="a" * 40)
+        with self._get("/api/preset-history?context=all") as response:
+            rows = json.loads(response.read())["presets"]
+        self.assertEqual({(row["projectId"], row["lastGreenCanonical"]["headSha"])
+                          for row in rows if row["preset"] == "full"}, {("alpha", "a" * 40), ("beta", "a" * 40)})
+        self.config_b.write_text("invalid")
+        with self._get("/api/preset-history?context=all") as response:
+            partial = json.loads(response.read())
+        self.assertEqual({row["projectId"] for row in partial["presets"]}, {"alpha"})
+        self.assertEqual(partial["projectErrors"][0]["projectId"], "beta")
+
+    def test_all_greens_reject_unassigned_and_remote_refresh(self):
+        for endpoint in ("preset-history", "remote-slots"):
+            with self.assertRaises(HTTPError) as error:
+                self._get("/api/" + endpoint + "?context=unassigned")
+            self.assertEqual(error.exception.code, 409)
+        with self._get("/api/remote-slots?context=all") as response:
+            payload = json.loads(response.read())
+        self.assertEqual(payload["context"], {"kind": "all"})
+        self.assertEqual({row["projectId"] for row in payload["projects"]}, {"alpha", "beta"})
+        self.assertEqual(payload["greens"], [])
+        with self.assertRaises(HTTPError) as error:
+            self._get("/api/remote-slots?context=all&refresh=1")
+        self.assertEqual(error.exception.code, 400)
+
     def test_parallel_reads_keep_alpha_and_beta_apart(self):
         results = {}
         errors = []

@@ -391,6 +391,47 @@ class HistoryAndAnalysisTests(Fixture):
 
 
 class RemoteGreensTests(Fixture):
+    def test_all_remote_greens_preserve_partial_coverage_and_use_one_snapshot(self):
+        from ci_queue_api import history
+        self.job("remote-ticket")
+        mirror = self.write_remote_mirror(self.remote_report([self.remote_slot()]))
+        alpha = replace(self.config, remote_slots_path=mirror)
+        beta = replace(self.config, project_id="beta", remote_slots_path=self.root / "absent")
+        projects = [SimpleNamespace(project_id=config.project_id,
+                    display_name=config.project_name, config=config, binding_state="linked")
+                    for config in (alpha, beta)]
+        store = history.store_for(self.state / "history")
+        with mock.patch.object(store, "snapshot", wraps=store.snapshot) as snapshots:
+            result = history.read_remote_slots_all(self.state, projects)
+        self.assertEqual(snapshots.call_count, 1)
+        self.assertEqual([(green["projectId"], green["jobAvailable"]) for green in result["greens"]],
+                         [("example", True)])
+        by_project = {row["projectId"]: row for row in result["projects"]}
+        self.assertTrue(by_project["example"]["source"]["available"])
+        self.assertEqual(by_project["beta"]["source"]["reason"]["code"], "mirror-unavailable")
+        beta = replace(beta, remote_slots_path=mirror)
+        projects[1].config = beta
+        result = history.read_remote_slots_all(self.state, projects)
+        self.assertEqual(result["projects"][1]["source"]["reason"]["code"], "project-mismatch")
+        self.assertEqual(len(result["greens"]), 1)
+        projects[1].config = None
+        projects[1].binding_state = "invalid"
+        partial = history.read_remote_slots_all(self.state, projects)
+        self.assertEqual(len(partial["greens"]), 1)
+        self.assertEqual(partial["projectErrors"][0]["projectId"], "beta")
+        self.assertIsNone(partial["projects"][1]["source"])
+        with mock.patch.object(store, "snapshot", wraps=store.snapshot) as snapshots:
+            machine = history.build_preset_history_all(self.state, projects)
+        self.assertEqual(snapshots.call_count, 1)
+        self.assertEqual(machine["presets"][0]["lastGreenCanonical"]["ticketId"], "remote-ticket")
+        self.assertEqual(machine["projectErrors"][0]["projectId"], "beta")
+        mirror.write_text(json.dumps(self.remote_report([self.remote_slot(
+            self.remote_payload(exitCode=1))])))
+        result = history.read_remote_slots_all(self.state, projects)
+        self.assertEqual(result["greens"], [])
+        self.assertEqual(result["projects"][0]["coverage"]["invalidPayloads"][0]["reason"],
+                         "payload-exit-not-green")
+
     def test_normalizes_a_verified_git_green_with_provenance_and_local_drawer_state(self):
         self.job("remote-ticket")
         mirror = self.write_remote_mirror(self.remote_report([self.remote_slot()]))

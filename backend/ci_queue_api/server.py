@@ -21,7 +21,7 @@ from .dashboard_state import (
     write_dashboard_state,
 )
 from .diagnostics import read_log_export, read_log_slice, read_diagnostic
-from .history import build_preset_history, read_remote_slots
+from .history import build_preset_history, build_preset_history_all, read_remote_slots, read_remote_slots_all
 from .machine import read_machine
 from .native_actions import (
     TARGETS,
@@ -453,7 +453,9 @@ def create_handler(context):
         def _serve_all(self, path, query, scope):
             if self._serve_ticket(path, query, scope):
                 return
-            if path == "/api/dashboard-state":
+            if path in {"/api/dashboard-state", "/api/preset-history", "/api/remote-slots"}:
+                if path == "/api/remote-slots" and query.get("refresh", ["0"])[0] not in {"", "0"}:
+                    raise ValueError("esta API não atualiza Git; use a publicação explícita da CLI")
                 registry = load_registry(self.api_context.state_root)
                 entries = [
                     entry for entry in (registry.get("projects") or {}).values()
@@ -478,7 +480,12 @@ def create_handler(context):
                             "projectName": project_name,
                             "error": str(error),
                         })
-                payload = read_dashboard_state_all(self.api_context.state_root, projects)
+                reader = {
+                    "/api/dashboard-state": read_dashboard_state_all,
+                    "/api/preset-history": build_preset_history_all,
+                    "/api/remote-slots": read_remote_slots_all,
+                }[path]
+                payload = reader(self.api_context.state_root, projects)
                 payload["projectErrors"] = project_errors + payload["projectErrors"]
                 self.send_payload(200, with_context(payload, scope))
                 return
@@ -531,7 +538,7 @@ def create_handler(context):
                     raise ValueError("metric inválida")
                 self.send_payload(200, with_context(payload, scope))
                 return
-            if path in {"/api/preset-history", "/api/remote-slots", "/api/config"}:
+            if path == "/api/config":
                 raise CapabilityDenied("esta view exige um projeto", "PROJECT_REQUIRED")
             if path.startswith("/api/"):
                 self.error(404, "endpoint não encontrado")

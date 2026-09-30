@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .record_store import store_for
-from .records import history_key, read_history, read_json
+from .records import attribute_legacy, history_key, read_history, read_json
 
 
 REMOTE_SLOT_SCHEMA = 1
@@ -104,7 +104,7 @@ def duration_reference_for_running(state_root, job):
     return duration_reference_from_samples(samples)
 
 
-def build_preset_history(state_root, config):
+def build_preset_history(state_root, config, *, jobs=None, corrupt_count=None):
     buckets = {}
     for preset, recipe in config.presets.items():
         buckets[preset] = {
@@ -122,7 +122,7 @@ def build_preset_history(state_root, config):
             "_durations": [],
         }
     unattributed = 0
-    for job in read_history(state_root):
+    for job in read_history(state_root) if jobs is None else jobs:
         if job.get("projectId") != config.project_id:
             if job.get("projectId") is None:
                 unattributed += 1
@@ -168,7 +168,8 @@ def build_preset_history(state_root, config):
         values.append(entry)
     values.sort(key=lambda item: item["preset"])
     values.sort(key=lambda item: (item["lastGreenCanonical"] or {}).get("finishedAt") or "", reverse=True)
-    corrupt_count = len(store_for(Path(state_root) / "history").snapshot().errors)
+    if corrupt_count is None:
+        corrupt_count = len(store_for(Path(state_root) / "history").snapshot().errors)
     return {
         "schemaVersion": 1,
         "catalog": {"resolved": True, "projectId": config.project_id, "declaredCount": len(config.presets)},
@@ -176,6 +177,67 @@ def build_preset_history(state_root, config):
         "totals": {"tickets": sum(item["runCount"] for item in values), "presets": len(values)},
         "coverage": {"unattributedRecords": unattributed, "corruptRecords": corrupt_count},
     }
+
+
+def _aggregate_history_snapshot(state_root):
+    snapshot = store_for(Path(state_root) / "history").snapshot()
+    ledger = read_json(Path(state_root) / "state" / "legacy-projects.json")
+    grouped = {}
+    for row in snapshot.rows:
+        job = attribute_legacy(row, ledger)
+        grouped.setdefault(job.get("projectId"), []).append(job)
+    return grouped, len(snapshot.errors)
+
+
+def _project_read_error(project, error):
+    return {"projectId": project.project_id, "projectName": project.display_name,
+            "error": str(error)}
+
+
+def build_preset_history_all(state_root, projects):
+    grouped, corrupt_count = _aggregate_history_snapshot(state_root)
+    presets = []
+    catalogs = []
+    errors = []
+    for project in projects:
+        try:
+            if project.config is None:
+                raise ValueError("catálogo não vinculado: " + project.binding_state)
+            payload = build_preset_history(state_root, project.config,
+                jobs=grouped.get(project.project_id, []), corrupt_count=corrupt_count)
+            presets.extend({**entry, "projectName": project.display_name} for entry in payload["presets"])
+            catalogs.append({**payload["catalog"], "projectName": project.display_name})
+        except (OSError, ValueError) as error:
+            errors.append(_project_read_error(project, error))
+    presets.sort(key=lambda entry: (entry["projectId"], entry["preset"]))
+    presets.sort(key=lambda entry: (entry["lastGreenCanonical"] or {}).get("finishedAt") or "",
+                 reverse=True)
+    return {"schemaVersion": 2, "projects": catalogs, "presets": presets,
+            "projectErrors": errors,
+            "totals": {"tickets": sum(entry["runCount"] for entry in presets), "presets": len(presets)},
+            "coverage": {"unattributedRecords": len(grouped.get(None, [])), "corruptRecords": corrupt_count}}
+
+
+def read_remote_slots_all(state_root, projects):
+    grouped, _ = _aggregate_history_snapshot(state_root)
+    rows = []
+    greens = []
+    errors = []
+    for project in projects:
+        identity = {"projectId": project.project_id, "projectName": project.display_name,
+                    "catalog": project.binding_state}
+        try:
+            if project.config is None:
+                raise ValueError("catálogo não vinculado: " + project.binding_state)
+            ids = {job.get("id") for job in grouped.get(project.project_id, []) if isinstance(job.get("id"), str)}
+            payload = read_remote_slots(project.config.remote_slots_path, project.config,
+                                        state_root, local_ticket_ids=ids)
+            rows.append({**identity, "source": payload["source"], "coverage": payload["coverage"]})
+            greens.extend({**green, "projectName": project.display_name} for green in payload["greens"])
+        except (OSError, ValueError) as error:
+            rows.append({**identity, "source": None, "coverage": None})
+            errors.append(_project_read_error(project, error))
+    return {"schemaVersion": 2, "projects": rows, "greens": greens, "projectErrors": errors}
 
 
 def _remote_reason(code, message):

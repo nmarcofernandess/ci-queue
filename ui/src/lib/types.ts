@@ -143,6 +143,7 @@ export type PresetHistoryEntry = {
 }
 
 export type PresetHistoryResponse = {
+  context: { kind: "project"; projectId: string }
   schemaVersion: number
   catalog: { resolved: boolean; projectId: string; declaredCount: number }
   presets: PresetHistoryEntry[]
@@ -184,6 +185,7 @@ export type RemoteGreen = {
 }
 
 export type RemoteSlotsResponse = {
+  context: { kind: "project"; projectId: string }
   schemaVersion: 2
   source: RemoteSlotsSource
   catalog: { projectId: string; resolved: true; declaredCount: number }
@@ -194,6 +196,32 @@ export type RemoteSlotsResponse = {
     invalidPayloads: Array<{ preset: string | null; reason: string }>
   }
   greens: RemoteGreen[]
+}
+
+export type ProjectReadError = { projectId: string; projectName: string; error: string }
+
+export type PresetHistoryAllResponse = {
+  schemaVersion: 2
+  context: { kind: "all" }
+  projects: Array<PresetHistoryResponse["catalog"] & { projectName: string }>
+  presets: PresetHistoryEntry[]
+  projectErrors: ProjectReadError[]
+  totals: PresetHistoryResponse["totals"]
+  coverage: PresetHistoryResponse["coverage"]
+}
+
+export type RemoteSlotsAllResponse = {
+  schemaVersion: 2
+  context: { kind: "all" }
+  projects: Array<{
+    projectId: string
+    projectName: string
+    catalog: ProjectCatalogState
+    source: RemoteSlotsSource | null
+    coverage: RemoteSlotsResponse["coverage"] | null
+  }>
+  greens: Array<RemoteGreen & { projectName: string }>
+  projectErrors: ProjectReadError[]
 }
 
 export type AnalysisPoint = {
