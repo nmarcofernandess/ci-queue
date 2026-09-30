@@ -18,6 +18,19 @@ O catálogo aponta para comandos que já funcionam no projeto; CI Queue os execu
 
 Mantenha o teste como uma única receita. Um teste avulso pode continuar mesmo que a base avance; não configure `fetchBase` ou `abortOnStaleBase` só para transformá-lo em prova. Se o repositório possui um ship próprio, esse processo pode aplicar flags estritas no enqueue da mesma receita, validar o ticket e revalidar HEAD/base antes do merge. O ship genérico atual lê as flags do catálogo e exige que as receitas aceitas já sejam ship-bound. O consumidor decide se um teste isolado é cancelável. O CI Queue executa as flags recebidas; não deduz intenção de ship pelo nome da receita ou pelo diff.
 
+Sem `fetchBase`, enqueue pelo catálogo congela em SHA a base observada em
+`repository.baseRef`, quando ela existe. HEAD pode estar atrás dessa base.
+Avanço remoto só muda a tracking ref local quando algum processo a atualiza;
+essa atualização durante o job isolado não muda sua base congelada. Branch,
+HEAD e árvore continuam verificados por `requireGitStability`. Uma ref ausente
+permanece observação ausente, sem inventar SHA ou prometer frescor remoto.
+No enqueue explícito, o caller deve omitir `baseRef` ou fornecer o SHA observado
+para isolamento; refs flutuantes permanecem sua escolha. Com `fetchBase`,
+ancestralidade, fetch e verificações estritas de ship são preservados.
+
+`WAIT_TIMEOUT` encerra a espera do cliente, não cancela o job. Consulte o mesmo
+ticket antes de repetir ou cancelar; resultado ausente não significa PASS.
+
 ```bash
 git remote -v
 git branch --show-current

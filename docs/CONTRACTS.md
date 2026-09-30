@@ -15,7 +15,7 @@ Fonte do formato: `src/contracts/schema.ts` e `config.ts`. Tickets v1/v2/v3 cont
 | `project.id` | Identidade estável, não derivada de display name. Enqueue a persiste; ship genérico e leitores scoped a validam. |
 | `project.name` | Apresentação; renomear não cria outra série histórica. |
 | `repository.path` | Localizador relativo ao arquivo de catálogo; define executionCwd. Não é scanner recursivo nem nome da branch principal. |
-| `repository.baseRef` | Referência base do projeto; receita pode declarar `fetchBase`. |
+| `repository.baseRef` | Base observacional: enqueue por catálogo sem `fetchBase` congela o SHA resolvido quando disponível; com `fetchBase`, mantém a ref estrita. |
 | `presets.<nome>.argv` | Vetor não vazio de strings válidas. Não é shell-string. Extras alteram a execução canônica. |
 | `requireCleanTree` | Árvore limpa no preflight. |
 | `requireGitStability` | Verde exige snapshot Git pré/pós estável. |
