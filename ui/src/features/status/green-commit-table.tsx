@@ -1,3 +1,4 @@
+import { ProjectChip } from "@/features/shared/project-chip"
 import { RelativeTime } from "@/features/shared/live-time"
 import { ClipboardIcon, GitCommitIcon } from "lucide-react"
 import { toast } from "sonner"
@@ -71,11 +72,13 @@ function commitRunColumnClass(
 
 export function GreenCommitTable({
   embedded = false,
+  showProjectChip = false,
   groups,
   onOpen,
   emptyDescription,
 }: {
   embedded?: boolean
+  showProjectChip?: boolean
   groups: GreenCommitGroup[]
   onOpen: (group: GreenCommitGroup) => void
   emptyDescription: string
@@ -121,7 +124,7 @@ export function GreenCommitTable({
       </TableHeader>
       <TableBody>
         {groups.map((group) => (
-          <TableRow key={group.sha}>
+          <TableRow key={`${group.projectId ?? ""}:${group.sha}`}>
             <TableCell className={commitColumnClass("status", placement)}>
               <StatusIndicator
                 descriptor={describeJobState("passed")}
@@ -132,6 +135,11 @@ export function GreenCommitTable({
               <EntityIdentity
                 presentation="table"
                 title={shortSha(group.sha)}
+                badge={
+                  showProjectChip && group.projectName ? (
+                    <ProjectChip mode="inline" name={group.projectName} />
+                  ) : undefined
+                }
                 monospaceTitle
                 onOpen={() => onOpen(group)}
               />
@@ -191,6 +199,11 @@ export function GreenCommitDrawer({
     <DetailDrawer onClose={onClose}>
       <DetailDrawerHeader
         title={shortSha(group.sha)}
+        badge={
+          group.projectName ? (
+            <ProjectChip mode="inline" name={group.projectName} />
+          ) : undefined
+        }
         monospaceTitle
         description={
           <>

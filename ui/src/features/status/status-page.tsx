@@ -1,3 +1,9 @@
+import {
+  asMachineGreen,
+  asGitGreen,
+  mergeGreenRows,
+  filterGreens,
+} from "@/features/status/green-rows"
 import { EntityIdentity } from "@/features/shared/entity-identity"
 import { describeExecutionState } from "@/features/shared/presentation"
 import { ExecutionStages } from "@/features/shared/execution-stages"
@@ -23,8 +29,10 @@ import { sharedPageRequest } from "@/lib/query-store"
 import type {
   DashboardAllState,
   DashboardState,
-  PresetHistoryEntry,
-  RemoteGreen,
+  PresetHistoryResponse,
+  PresetHistoryAllResponse,
+  RemoteSlotsResponse,
+  RemoteSlotsAllResponse,
   StatusSnapshot,
 } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -708,133 +716,6 @@ function useExecutionHistory(
   return { ...visibleState, loadMore }
 }
 
-function asMachineGreen(entry: PresetHistoryEntry): RunTableJob | undefined {
-  const reference = entry.lastGreenCanonical
-  if (!reference?.ticketId) {
-    return undefined
-  }
-
-  return {
-    id: reference.ticketId,
-    rowKey: `machine:${reference.ticketId}`,
-    origin: "machine",
-    origins: ["machine"],
-    preset: entry.preset,
-    status: reference.status ?? undefined,
-    branch: reference.branch ?? undefined,
-    headSha: reference.headSha ?? undefined,
-    startedAt: reference.startedAt ?? undefined,
-    createdAt: reference.createdAt ?? undefined,
-    finishedAt: reference.finishedAt ?? undefined,
-    durationMs: reference.durationMs,
-  }
-}
-
-function asGitGreen(green: RemoteGreen): RunTableJob {
-  return {
-    ticketId: green.ticketId,
-    rowKey: `git:${green.ticketId}`,
-    origin: "git",
-    origins: ["git"],
-    detailsJobId: green.jobAvailable ? green.ticketId : undefined,
-    preset: green.preset,
-    status: green.status,
-    branch: green.branch ?? undefined,
-    headSha: green.headSha,
-    finishedAt: green.finishedAt,
-    durationMs: green.durationMs,
-    detailsAvailable: green.jobAvailable,
-  }
-}
-
-function greenIdentity(job: RunTableJob) {
-  const ticket = job.ticketId ?? job.id
-  return ticket
-    ? `${job.preset ?? "preset-indisponível"}\u0000${ticket}`
-    : `${job.preset ?? "preset-indisponível"}\u0000${job.headSha ?? job.rowKey ?? "registro-indisponível"}`
-}
-
-function mergeGreenRows(jobs: RunTableJob[]) {
-  const byIdentity = new Map<string, RunTableJob>()
-  for (const job of jobs) {
-    const key = greenIdentity(job)
-    const existing = byIdentity.get(key)
-    if (!existing) {
-      byIdentity.set(key, job)
-      continue
-    }
-
-    const existingDetails =
-      existing.detailsJobId ??
-      (existing.detailsAvailable !== false ? existing.id : undefined)
-    const nextDetails =
-      job.detailsJobId ?? (job.detailsAvailable !== false ? job.id : undefined)
-    const preferred = existingDetails ? existing : nextDetails ? job : existing
-    const origins = [
-      ...new Set([...(existing.origins ?? []), ...(job.origins ?? [])]),
-    ]
-    byIdentity.set(key, {
-      ...existing,
-      ...job,
-      ...preferred,
-      rowKey: `green:${key}`,
-      origin: undefined,
-      origins,
-      id: preferred.id ?? existing.id ?? job.id,
-      ticketId: preferred.ticketId ?? existing.ticketId ?? job.ticketId,
-      detailsJobId: existingDetails ?? nextDetails,
-      detailsAvailable: Boolean(existingDetails ?? nextDetails),
-    })
-  }
-  return [...byIdentity.values()]
-}
-
-function filterGreens({
-  jobs,
-  search,
-  grouping,
-  period,
-}: {
-  jobs: RunTableJob[]
-  search: string
-  grouping: GreenGrouping
-  period: Period
-}) {
-  const needle = search.trim().toLocaleLowerCase("pt-BR")
-  const from = queryPeriodStart(period)
-  return jobs
-    .filter((job) => {
-      const haystack = [
-        job.ticketId,
-        job.id,
-        job.preset,
-        job.branch,
-        job.headSha,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLocaleLowerCase("pt-BR")
-      return (
-        (!needle || haystack.includes(needle)) &&
-        (!from || (job.finishedAt ?? "") >= from)
-      )
-    })
-    .sort((left, right) => {
-      const primary =
-        grouping === "preset" ? (left.preset ?? "") : (left.headSha ?? "")
-      const secondary =
-        grouping === "preset" ? (right.preset ?? "") : (right.headSha ?? "")
-      const leftTime = left.finishedAt ?? left.startedAt ?? left.createdAt ?? ""
-      const rightTime =
-        right.finishedAt ?? right.startedAt ?? right.createdAt ?? ""
-      return (
-        primary.localeCompare(secondary, "pt-BR") ||
-        (left.preset ?? "").localeCompare(right.preset ?? "", "pt-BR") ||
-        rightTime.localeCompare(leftTime)
-      )
-    })
-}
-
 function sourceFailure<T>(
   query: ApiQuery<T>,
   fallback: string
@@ -861,8 +742,8 @@ function HistoryPanel({
     React.useState<HistoryFilters>(readHistoryFilters)
   const [selectedCommit, setSelectedCommit] = React.useState<GreenCommitGroup>()
   const executions = useExecutionHistory(scope, filters, historyRevision)
-  const projectScope = scope.kind === "project" ? scope : null
-  const greensAvailable = Boolean(projectScope)
+  const greenScope = scope.kind !== "unassigned" ? scope : null
+  const greensAvailable = Boolean(greenScope)
   if (!greensAvailable && filters.mode !== "executions") {
     setFilters((current) =>
       current.mode === "executions" ? current : { ...current, mode: "executions" },
@@ -873,21 +754,21 @@ function HistoryPanel({
   const needsMachine = filters.origin !== "git"
   const needsGit = filters.origin !== "machine"
   const presetRequest = React.useCallback(
-    (signal?: AbortSignal) =>
-      projectScope
-        ? getPresetHistory(projectScope, signal)
+    (signal?: AbortSignal): Promise<PresetHistoryResponse | PresetHistoryAllResponse> =>
+      greenScope
+        ? getPresetHistory(greenScope, signal)
         : Promise.reject(new Error("catálogo exige um projeto")),
-    [projectScope]
+    [greenScope]
   )
   const remoteRequest = React.useCallback(
-    (signal?: AbortSignal) =>
-      projectScope
-        ? getRemoteSlots(projectScope, signal)
+    (signal?: AbortSignal): Promise<RemoteSlotsResponse | RemoteSlotsAllResponse> =>
+      greenScope
+        ? getRemoteSlots(greenScope, signal)
         : Promise.reject(new Error("verdes exigem um projeto")),
-    [projectScope]
+    [greenScope]
   )
   const presetHistory = useApiQuery(
-    `preset-history:${projectScope ? scopeKey(projectScope) : "none"}`,
+    `preset-history:${greenScope ? scopeKey(greenScope) : "none"}`,
     presetRequest,
     {
       enabled: greensMode && needsMachine,
@@ -895,7 +776,7 @@ function HistoryPanel({
     }
   )
   const remote = useApiQuery(
-    `remote-slots:${projectScope ? scopeKey(projectScope) : "none"}`,
+    `remote-slots:${greenScope ? scopeKey(greenScope) : "none"}`,
     remoteRequest,
     {
       enabled: greensMode && needsGit,
@@ -932,6 +813,7 @@ function HistoryPanel({
     }
     if (
       remote.data &&
+      "source" in remote.data &&
       !remote.data.source.available &&
       remote.data.greens.length === 0
     ) {
@@ -962,31 +844,45 @@ function HistoryPanel({
     needsGit,
     needsMachine,
   ])
-  const machineSourceSucceeded = Boolean(presetHistory.data)
-  const gitSourceSucceeded = Boolean(
-    remote.data && (remote.data.source.available || remote.data.greens.length)
-  )
+  const machineProjectErrors = needsMachine && presetHistory.data && "projectErrors" in presetHistory.data
+    ? presetHistory.data.projectErrors : []
+  const gitProjectErrors = needsGit && remote.data && "projectErrors" in remote.data
+    ? remote.data.projectErrors : []
+  const projectNotes = [
+    ...machineProjectErrors.map(project => `Máquina · ${project.projectName}: ${project.error}`),
+    ...gitProjectErrors.map(project => `Git · ${project.projectName}: ${project.error}`),
+  ]
+  const machineSourceSucceeded = Boolean(presetHistory.data && (
+    "catalog" in presetHistory.data || presetHistory.data.projects.length ||
+    !presetHistory.data.projectErrors.length || machineGreens.length
+  ))
+  const gitSourceSucceeded = Boolean(remote.data && (
+    ("source" in remote.data
+      ? remote.data.source.available
+      : remote.data.projects.some(project => project.source?.available) ||
+        (!remote.data.projects.length && !remote.data.projectErrors.length)) ||
+    remote.data.greens.length
+  ))
   const selectedSourceSucceeded =
     (needsMachine && machineSourceSucceeded) || (needsGit && gitSourceSucceeded)
   const greenLoading =
     selectedGreenRows.length === 0 &&
     ((needsMachine && presetHistory.loading) || (needsGit && remote.loading))
-  const greenError =
-    !greenLoading && !selectedSourceSucceeded
-      ? needsMachine && machineFailure
-        ? machineFailure
-        : gitFailure
-      : undefined
+  const greenError = !greenLoading && !selectedSourceSucceeded
+    ? (needsMachine && machineFailure) || (needsGit && gitFailure) ||
+      new Error(projectNotes.join(" · ") || "Nenhuma fonte de últimos verdes disponível.")
+    : undefined
   const sourceNotes = [
     needsMachine && machineFailure && selectedSourceSucceeded
-      ? `Máquina indisponível: ${machineFailure.message}`
-      : null,
-    needsGit && remote.data?.source.reason && selectedSourceSucceeded
-      ? `Git: ${remote.data.source.reason.message}`
-      : null,
+      ? `Máquina indisponível: ${machineFailure.message}` : null,
+    needsGit && remote.data && "source" in remote.data && remote.data.source.reason && selectedSourceSucceeded
+      ? `Git: ${remote.data.source.reason.message}` : null,
     needsGit && remote.error && selectedSourceSucceeded
-      ? `Git indisponível: ${remote.error.message}`
-      : null,
+      ? `Git indisponível: ${remote.error.message}` : null,
+    ...projectNotes,
+    ...(needsGit && remote.data && "projects" in remote.data
+      ? remote.data.projects.flatMap(project => project.source?.reason
+        ? [`Git · ${project.projectName}: ${project.source.reason.message}`] : []) : []),
   ].filter((note): note is string => Boolean(note))
   const greenDescription = [
     filters.grouping === "preset"
@@ -1079,12 +975,19 @@ function HistoryPanel({
             {toolbar}
           </CardHeader>
           <CardContent className="px-0">
-            <GreenCommitTable
-              embedded
-              groups={groupGreenCommits(selectedGreenRows)}
-              onOpen={setSelectedCommit}
-              emptyDescription="Não há execução canônica aprovada para os filtros selecionados."
-            />
+            {greenLoading ? (
+              <Skeleton className="h-28 w-full" />
+            ) : greenError ? (
+              <ErrorState title="Últimos verdes indisponíveis" error={greenError} />
+            ) : (
+              <GreenCommitTable
+                embedded
+                groups={groupGreenCommits(selectedGreenRows)}
+                showProjectChip={scope.kind === "all"}
+                onOpen={setSelectedCommit}
+                emptyDescription="Não há execução canônica aprovada para os filtros selecionados."
+              />
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -1098,6 +1001,7 @@ function HistoryPanel({
           emptyDescription="Não há execução canônica aprovada para os filtros selecionados."
           onOpenJob={onOpenJob}
           showOrigin={filters.origin === "both"}
+          showProjectChip={scope.kind === "all"}
         />
       )}
       {selectedCommit ? (

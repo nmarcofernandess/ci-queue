@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test"
 
 import {
   fixtureJob,
+  fixtureDashboard,
   installConsistencyFixtures,
 } from "./fixtures/ui-consistency"
 
@@ -45,7 +46,7 @@ test("status shows foreign living without changing the project filter", async ({
   await expect(page).not.toHaveURL(/context=all/)
 })
 
-test("últimos verdes only exist for a single project", async ({ page }) => {
+test("últimos verdes preserve the single-project controls", async ({ page }) => {
   await installConsistencyFixtures(page)
   await page.goto("/#status")
   await expect(page.getByRole("button", { name: "Example" })).toBeVisible()
@@ -100,6 +101,9 @@ test("status keeps living when the filter is Todos or unassigned", async ({
       },
     ],
   })
+  await page.route('**/api/dashboard-state?context=all', route =>
+    route.fulfill({ json: { schemaVersion: 2, context: { kind: 'all' }, projectErrors: [], projects: [{ ...fixtureDashboard(), projectId: 'example', projectName: 'Example', catalog: 'linked' }] } })
+  )
   await page.goto("/?context=all#status")
   await expect(page.getByRole("button", { name: "Todos os projetos" })).toBeVisible()
   await expect(
@@ -109,16 +113,12 @@ test("status keeps living when the filter is Todos or unassigned", async ({
   await expect(page.getByText("DietFlow", { exact: true }).first()).toBeVisible()
   await expect(page.getByRole("button", { name: "check", exact: true })).toBeVisible()
   const greensAll = page.getByRole("radio", { name: "Últimos verdes", exact: true })
-  await expect(greensAll).toBeDisabled()
-  await page.locator("[data-slot=toggle-group] [data-slot=tooltip-trigger]").hover()
-  await expect(page.getByRole("tooltip", { name: "escolha um projeto" })).toBeVisible()
-  for (const [title, action] of [["Metas", "Abrir meta"], ["Pendências", "Ver pendências"]] as const) {
+  await expect(greensAll).toBeEnabled()
+  for (const [title, action] of [["Metas", "Abrir metas"], ["Pendências", "Ver pendências"]] as const) {
     const card = page.locator("[data-slot=card]").filter({ has: page.getByText(title, { exact: true }) })
     await expect(card).toBeVisible()
-    await expect(card.getByText("Selecione um projeto", { exact: true })).toBeVisible()
-    await expect(card.getByRole("button", { name: action })).toBeDisabled()
-    await card.locator("[data-slot=tooltip-trigger]").hover()
-    await expect(page.getByRole("tooltip", { name: "escolha um projeto" })).toBeVisible()
+    await expect(card.getByText("Example", { exact: true })).toBeVisible()
+    await expect(card.getByRole("button", { name: action })).toBeEnabled()
   }
   await expect(page.locator("[data-slot=card]").filter({ hasText: "Máquina" })).toBeVisible()
   await page.goto("/?context=unassigned#status")
