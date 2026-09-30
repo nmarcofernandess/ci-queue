@@ -4,6 +4,13 @@ export type JobStatus =
 export type ProgressNodeStatus =
   "pending" | "running" | "passed" | "failed" | "skipped"
 
+export type ProgressDurationSource = "emitter" | "collector"
+export type ProgressDurationUnavailableReason =
+  | "missing-start"
+  | "collector-restarted"
+  | "clock-invalid"
+  | "missing-end"
+
 export type ProgressNode = {
   id: string
   parentId?: string
@@ -11,7 +18,10 @@ export type ProgressNode = {
   label: string
   status: ProgressNodeStatus
   durationMs?: number
+  durationSource?: ProgressDurationSource
+  durationUnavailableReason?: ProgressDurationUnavailableReason
   retryCount?: number
+  inventoryReplaced?: boolean
   detail?:
     | string
     | {
@@ -33,7 +43,10 @@ export type ProgressSummary = {
   nodes?: ProgressNode[]
   roots?: ProgressNode[]
   active?: ProgressNode[]
+  planned?: (ProgressNode & { rootId: string })[]
 }
+
+export type RunVariant = "custom" | "focal"
 
 /** Browser-safe job projection. Process arguments and environment stay private. */
 export type JobRecord = {
@@ -53,30 +66,48 @@ export type JobRecord = {
   failureReason?: string | null
   cleanupBlockedReason?: string | null
   commitSubject?: string
+  /** Observational only — Personalizado / Focal badges; never ship eligibility. */
+  runVariant?: RunVariant
+  progressEnabled: boolean
+  hasRetries?: boolean
   progressSummary?: ProgressSummary
+  /** Absent on legacy tickets; do not invent observed identity from absence. */
+  recordKind?: "queue-ticket" | "observed-execution"
+  executor?: "queue" | "direct" | "unknown"
+  executionId?: string
+  logAvailability?: "not-collected"
+  durationReference?: {
+    medianMs: number
+    meanMs: number
+    sampleCount: number
+    window: string
+  }
 }
 
 export type StatusSnapshot = {
   schemaVersion: number
-  project: { id: string; name: string }
+  project: { id: string; name: string } | null
   serverTime: string
   running: JobRecord | null
   queued: JobRecord[]
-  history: JobRecord[]
-  lastFailed: JobRecord | null
+  projection?: "live"
+  historyRevision?: string
+  history?: JobRecord[]
+  lastFailed?: JobRecord | null
   globalOccupancy: boolean
   otherProjectOccupancy?: boolean
-  context?: { kind: "project" | "unassigned"; projectId?: string }
+  context?: { kind: "project" | "all" | "unassigned"; projectId?: string }
   contextRevision?: number
 }
 
 export type ExecutionsResponse = {
   schemaVersion: number
+  projection?: "summary"
   jobs: JobRecord[]
   hasMore: boolean
   snapshotBefore: string
   nextCursor: string | null
-  coverage: { unattributedRecords: number }
+  coverage: { unattributedRecords: number; corruptRecords?: number }
 }
 
 export type PresetRunReference = {
@@ -112,11 +143,12 @@ export type PresetHistoryEntry = {
 }
 
 export type PresetHistoryResponse = {
+  context: { kind: "project"; projectId: string }
   schemaVersion: number
   catalog: { resolved: boolean; projectId: string; declaredCount: number }
   presets: PresetHistoryEntry[]
   totals: { tickets: number; presets: number }
-  coverage: { unattributedRecords: number }
+  coverage: { unattributedRecords: number; corruptRecords?: number }
 }
 
 export type RemoteSlotsReason = {
@@ -153,6 +185,7 @@ export type RemoteGreen = {
 }
 
 export type RemoteSlotsResponse = {
+  context: { kind: "project"; projectId: string }
   schemaVersion: 2
   source: RemoteSlotsSource
   catalog: { projectId: string; resolved: true; declaredCount: number }
@@ -163,6 +196,32 @@ export type RemoteSlotsResponse = {
     invalidPayloads: Array<{ preset: string | null; reason: string }>
   }
   greens: RemoteGreen[]
+}
+
+export type ProjectReadError = { projectId: string; projectName: string; error: string }
+
+export type PresetHistoryAllResponse = {
+  schemaVersion: 2
+  context: { kind: "all" }
+  projects: Array<PresetHistoryResponse["catalog"] & { projectName: string }>
+  presets: PresetHistoryEntry[]
+  projectErrors: ProjectReadError[]
+  totals: PresetHistoryResponse["totals"]
+  coverage: PresetHistoryResponse["coverage"]
+}
+
+export type RemoteSlotsAllResponse = {
+  schemaVersion: 2
+  context: { kind: "all" }
+  projects: Array<{
+    projectId: string
+    projectName: string
+    catalog: ProjectCatalogState
+    source: RemoteSlotsSource | null
+    coverage: RemoteSlotsResponse["coverage"] | null
+  }>
+  greens: Array<RemoteGreen & { projectName: string }>
+  projectErrors: ProjectReadError[]
 }
 
 export type AnalysisPoint = {
@@ -200,11 +259,13 @@ export type AnalysisResponse = {
   total: number
   presets: AnalysisPreset[]
   coverage: { unattributedRecords: number }
-  context?: { kind: "project" | "unassigned"; projectId?: string }
+  context?: { kind: "project" | "all" | "unassigned"; projectId?: string }
 }
 
 export type ResultCounts = {
   preset: string
+  projectId?: string
+  projectName?: string
   passed: number
   failed: number
   cancelled: number
@@ -212,14 +273,22 @@ export type ResultCounts = {
   total: number
 }
 
+export type DurationPresetOption = {
+  key: string
+  label: string
+  projectId: string
+  preset: string
+}
+
 export type ResultsResponse = {
   schemaVersion: 2
   metric: "results"
-  context: { kind: "project"; projectId: string }
+  context: { kind: "project" | "all"; projectId?: string }
   from: string | null
   to: string | null
   presets: ResultCounts[]
   sampleCount: number
+  durationPresets?: DurationPresetOption[]
 }
 
 export type ProjectSummary = {
@@ -295,6 +364,8 @@ export type WorktreeRecord = {
   gitObservedAt?: string
   size: WorktreeSize
   error?: string | null
+  projectId?: string
+  projectName?: string
 }
 
 export type WorktreesResponse = {
@@ -304,6 +375,11 @@ export type WorktreesResponse = {
   baseSha: string | null
   worktrees: WorktreeRecord[]
   error: string | null
+  projectErrors?: Array<{
+    projectId: string
+    projectName?: string
+    error: string
+  }>
 }
 
 export type DashboardCheck = {
@@ -314,12 +390,15 @@ export type DashboardCheck = {
   finishedAt: string | null
 }
 
+export type ProjectCatalogState = "linked" | "unlinked" | "invalid" | "missing"
+
 export type DashboardMeta = {
   name: string
   description: string
   presets: string[]
-  checks: DashboardCheck[]
+  checks: DashboardCheck[] | null
   candidateSha: string | null
+  catalog?: ProjectCatalogState
 }
 
 export type DashboardPending = {
@@ -336,11 +415,39 @@ export type DashboardPending = {
 export type DashboardState = {
   revision: number
   projectId: string
+  catalog: ProjectCatalogState
   presets: string[]
   meta: DashboardMeta | null
   pending: DashboardPending[]
   pendingError: string | null
+  context: { kind: "project"; projectId: string }
 }
+
+export type DashboardProjectState = {
+  projectId: string
+  projectName: string
+  revision: number
+  presets: string[]
+  catalog: ProjectCatalogState
+  meta: DashboardMeta | null
+  pending: DashboardPending[]
+  pendingError: string | null
+}
+
+export type DashboardAllState = {
+  schemaVersion: 2
+  projects: DashboardProjectState[]
+  projectErrors: Array<{
+    projectId: string
+    projectName: string
+    error: string
+  }>
+  context: { kind: "all" }
+}
+
+export type ProjectTarget =
+  | { kind: "all" }
+  | { kind: "project"; projectId: string }
 
 export type DashboardSession = {
   csrfToken: string

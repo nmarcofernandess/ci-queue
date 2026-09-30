@@ -8,6 +8,7 @@ import tempfile
 import threading
 import unittest
 from dataclasses import replace
+from types import SimpleNamespace
 from unittest import mock
 from pathlib import Path
 from urllib.error import HTTPError
@@ -18,10 +19,23 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from ci_queue_api.analysis import read_analysis
 from ci_queue_api.config import ConfigError, load_project_config
-from ci_queue_api.dashboard_state import RevisionConflict, read_dashboard_state, write_dashboard_state
+from ci_queue_api.dashboard_state import (
+    RevisionConflict,
+    read_dashboard_state,
+    read_dashboard_state_all,
+    write_dashboard_state,
+)
 from ci_queue_api.diagnostics import MAX_EXPORT_BYTES, read_diagnostic, read_log_export, read_log_slice
 from ci_queue_api.history import build_preset_history, read_remote_slots
-from ci_queue_api.records import invalidate_history_cache, lookup_job, read_executions, status_snapshot, progress_summary
+from ci_queue_api.records import (
+    invalidate_history_cache,
+    lookup_job,
+    read_executions,
+    status_snapshot,
+    status_snapshot_all,
+    status_snapshot_unassigned,
+    progress_summary,
+)
 from ci_queue_api.server import ApiContext, create_server
 from ci_queue_api.worktrees import list_worktrees, worktree_view
 
@@ -191,10 +205,95 @@ class HistoryAndAnalysisTests(Fixture):
         (self.state / "running.json").write_text(json.dumps({
             "id": "other-running", "projectId": "other", "preset": "test", "status": "running"
         }), encoding="utf-8")
+        (self.state / "jobs" / "other-queued.json").write_text(json.dumps({
+            "id": "other-queued", "projectId": "other", "preset": "test", "status": "queued"
+        }), encoding="utf-8")
         payload = status_snapshot(self.state, "example", "Example project")
         self.assertTrue(payload["globalOccupancy"])
-        self.assertIsNone(payload["running"])
+        self.assertEqual(payload["running"]["id"], "other-running")
+        self.assertEqual([item["id"] for item in payload["queued"]], ["other-queued"])
         self.assertEqual([item["id"] for item in payload["history"]], ["old"])
+        self.assertNotIn("durationReference", payload["running"])
+
+    def test_unassigned_status_keeps_global_living(self):
+        self.job("owned")
+        self.job("orphan", projectId=None)
+        (self.state / "running.json").write_text(json.dumps({
+            "id": "live", "projectId": "example", "preset": "smoke", "status": "running"
+        }), encoding="utf-8")
+        payload = status_snapshot_unassigned(self.state)
+        self.assertIsNone(payload["project"])
+        self.assertEqual(payload["running"]["id"], "live")
+        self.assertEqual([item["id"] for item in payload["history"]], ["orphan"])
+
+    def test_all_status_excludes_orphans(self):
+        self.job("owned")
+        self.job("orphan", projectId=None)
+        payload = status_snapshot_all(self.state)
+        self.assertIsNone(payload["project"])
+        self.assertIsNone(payload["running"])
+        self.assertEqual([item["id"] for item in payload["history"]], ["owned"])
+
+    def test_running_duration_reference_uses_ticket_catalog(self):
+        (self.state / "state").mkdir(exist_ok=True)
+        (self.state / "state" / "projects.json").write_text(json.dumps({
+            "schemaVersion": 1,
+            "revision": 1,
+            "bootstrapProjectId": "example",
+            "projects": {
+                "example": {
+                    "id": "example",
+                    "displayName": "Example project",
+                    "configPath": str(self.config_path),
+                    "revision": 1,
+                }
+            },
+        }), encoding="utf-8")
+        self.job("green", durationMs=60000)
+        (self.state / "running.json").write_text(json.dumps({
+            "id": "live", "projectId": "example", "preset": "smoke", "status": "running"
+        }), encoding="utf-8")
+        payload = status_snapshot(self.state, "other", "Other")
+        reference = payload["running"]["durationReference"]
+        self.assertEqual(payload["running"]["id"], "live")
+        self.assertEqual(reference["meanMs"], 60000)
+        self.assertEqual(reference["sampleCount"], 1)
+        self.assertEqual(reference["window"], "latest-green-canonical")
+        self.assertEqual([item["id"] for item in payload["history"]], [])
+
+    def test_running_duration_reference_omitted_without_catalog(self):
+        (self.state / "state").mkdir(exist_ok=True)
+        (self.state / "state" / "projects.json").write_text(json.dumps({
+            "schemaVersion": 1,
+            "revision": 1,
+            "bootstrapProjectId": "example",
+            "projects": {
+                "example": {
+                    "id": "example",
+                    "displayName": "Example project",
+                    "configPath": str(self.root / "missing-ci-queue.json"),
+                    "revision": 1,
+                }
+            },
+        }), encoding="utf-8")
+        self.job("green")
+        (self.state / "running.json").write_text(json.dumps({
+            "id": "live", "projectId": "example", "preset": "smoke", "status": "running"
+        }), encoding="utf-8")
+        payload = status_snapshot(self.state, "example", "Example project")
+        self.assertEqual(payload["running"]["id"], "live")
+        self.assertNotIn("durationReference", payload["running"])
+
+    def test_executions_all_excludes_orphans_and_matches_project_name(self):
+        self.job("owned", projectName="Example project")
+        self.job("orphan", projectId=None)
+        self.job("foreign", projectId="other", projectName="Other lane")
+        page = read_executions(self.state, "", scope="all", snapshot_before="2026-09-14T00:00:00Z")
+        self.assertEqual({item["id"] for item in page["jobs"]}, {"owned", "foreign"})
+        named = read_executions(
+            self.state, "", scope="all", q="Example", snapshot_before="2026-09-14T00:00:00Z",
+        )
+        self.assertEqual([item["id"] for item in named["jobs"]], ["owned"])
 
     def test_status_preserves_the_recursive_progress_contract(self):
         (self.state / "running.json").write_text(json.dumps({
@@ -205,12 +304,14 @@ class HistoryAndAnalysisTests(Fixture):
                 {"id": "static", "label": "Static", "status": "passed", "kind": "stage", "durationMs": 1000},
                 {"id": "gates", "parentId": "static", "label": "Gates", "status": "passed", "kind": "group"},
                 {"id": "typecheck", "parentId": "gates", "label": "typecheck", "status": "passed", "retryCount": 1},
-                {"id": "jest", "label": "Jest", "status": "running", "detail": "14 de 20"},
+                {"id": "jest", "label": "Jest", "status": "running", "kind": "stage", "detail": "14 de 20"},
+                {"id": "kindless", "label": "Kindless", "status": "running", "detail": "should stay out"},
             ]
         }), encoding="utf-8")
 
         summary = status_snapshot(self.state, "example", "Example project")["running"]["progressSummary"]
-        self.assertEqual([node["id"] for node in summary["roots"]], ["static", "jest"])
+        self.assertEqual([node["id"] for node in summary["roots"]], ["static", "jest", "kindless"])
+        self.assertEqual([node["id"] for node in summary["active"]], ["jest"])
         self.assertEqual(summary["active"][0]["detail"], "14 de 20")
         child = next(node for node in summary["nodes"] if node["id"] == "typecheck")
         self.assertEqual(child["parentId"], "gates")
@@ -267,8 +368,7 @@ class HistoryAndAnalysisTests(Fixture):
         dietflow = read_executions(self.state, "da61d8ae-19f9-4dce-bafb-02271a6f1601")
         self.assertEqual([job["id"] for job in dietflow["jobs"]], ["dietflow"])
         self.assertEqual(dietflow["coverage"]["unattributedRecords"], 0)
-        self.assertEqual(lookup_job(self.state, "dietflow", project_id="da61d8ae-19f9-4dce-bafb-02271a6f1601")["id"], "dietflow")
-        self.assertIsNone(lookup_job(self.state, "dietflow", unassigned=True))
+        self.assertEqual(lookup_job(self.state, "dietflow")["id"], "dietflow")
         self.assertEqual([job["id"] for job in read_executions(self.state, "other-project")["jobs"]], ["foreign"])
         self.assertEqual((self.state / "history" / "dietflow.json").read_bytes(), original)
 
@@ -291,6 +391,72 @@ class HistoryAndAnalysisTests(Fixture):
 
 
 class RemoteGreensTests(Fixture):
+    def test_all_greens_preserve_valid_project_when_history_identity_is_malformed(self):
+        from ci_queue_api import history
+        self.job("remote-ticket")
+        mirror = self.write_remote_mirror(self.remote_report([self.remote_slot()]))
+        config = replace(self.config, remote_slots_path=mirror)
+        project = SimpleNamespace(project_id="example", display_name="Example",
+                                  config=config, binding_state="linked")
+        (self.state / "state").mkdir()
+        (self.state / "state" / "legacy-projects.json").write_text(json.dumps({
+            "schemaVersion": 1,
+            "assignments": {"broken": {"projectId": "example", "evidence": "legacy evidence"}},
+        }))
+        for identity in ([], {}, [1], {"bad": 1}, "", 42, False, "invalid id"):
+            with self.subTest(identity=identity):
+                self.job("broken", projectId=identity)
+                machine = history.build_preset_history_all(self.state, [project])
+                self.assertEqual(machine["totals"]["tickets"], 1)
+                self.assertEqual(machine["coverage"]["corruptRecords"], 1)
+                self.assertEqual(machine["coverage"]["unattributedRecords"], 0)
+                self.assertEqual(machine["presets"][0]["lastGreenCanonical"]["ticketId"], "remote-ticket")
+                remote = history.read_remote_slots_all(self.state, [project])
+                self.assertEqual([(green["projectId"], green["ticketId"], green["jobAvailable"])
+                                  for green in remote["greens"]], [("example", "remote-ticket", True)])
+                self.assertTrue(remote["projects"][0]["source"]["available"])
+
+    def test_all_remote_greens_preserve_partial_coverage_and_use_one_snapshot(self):
+        from ci_queue_api import history
+        self.job("remote-ticket")
+        mirror = self.write_remote_mirror(self.remote_report([self.remote_slot()]))
+        alpha = replace(self.config, remote_slots_path=mirror)
+        beta = replace(self.config, project_id="beta", remote_slots_path=self.root / "absent")
+        projects = [SimpleNamespace(project_id=config.project_id,
+                    display_name=config.project_name, config=config, binding_state="linked")
+                    for config in (alpha, beta)]
+        store = history.store_for(self.state / "history")
+        with mock.patch.object(store, "snapshot", wraps=store.snapshot) as snapshots:
+            result = history.read_remote_slots_all(self.state, projects)
+        self.assertEqual(snapshots.call_count, 1)
+        self.assertEqual([(green["projectId"], green["jobAvailable"]) for green in result["greens"]],
+                         [("example", True)])
+        by_project = {row["projectId"]: row for row in result["projects"]}
+        self.assertTrue(by_project["example"]["source"]["available"])
+        self.assertEqual(by_project["beta"]["source"]["reason"]["code"], "mirror-unavailable")
+        beta = replace(beta, remote_slots_path=mirror)
+        projects[1].config = beta
+        result = history.read_remote_slots_all(self.state, projects)
+        self.assertEqual(result["projects"][1]["source"]["reason"]["code"], "project-mismatch")
+        self.assertEqual(len(result["greens"]), 1)
+        projects[1].config = None
+        projects[1].binding_state = "invalid"
+        partial = history.read_remote_slots_all(self.state, projects)
+        self.assertEqual(len(partial["greens"]), 1)
+        self.assertEqual(partial["projectErrors"][0]["projectId"], "beta")
+        self.assertIsNone(partial["projects"][1]["source"])
+        with mock.patch.object(store, "snapshot", wraps=store.snapshot) as snapshots:
+            machine = history.build_preset_history_all(self.state, projects)
+        self.assertEqual(snapshots.call_count, 1)
+        self.assertEqual(machine["presets"][0]["lastGreenCanonical"]["ticketId"], "remote-ticket")
+        self.assertEqual(machine["projectErrors"][0]["projectId"], "beta")
+        mirror.write_text(json.dumps(self.remote_report([self.remote_slot(
+            self.remote_payload(exitCode=1))])))
+        result = history.read_remote_slots_all(self.state, projects)
+        self.assertEqual(result["greens"], [])
+        self.assertEqual(result["projects"][0]["coverage"]["invalidPayloads"][0]["reason"],
+                         "payload-exit-not-green")
+
     def test_normalizes_a_verified_git_green_with_provenance_and_local_drawer_state(self):
         self.job("remote-ticket")
         mirror = self.write_remote_mirror(self.remote_report([self.remote_slot()]))
@@ -399,6 +565,41 @@ class RemoteGreensTests(Fixture):
 
 
 class StateAndDiagnosticTests(Fixture):
+    def test_dashboard_all_reads_shared_snapshots_once_including_remote_ticket_lookup(self):
+        alpha_mirror = self.root / "remote-alpha.json"
+        alpha_mirror.write_text(json.dumps(self.remote_report(
+            [], catalog={"resolved": True, "declaredCount": 2, "projectId": "example"},
+        )), encoding="utf-8")
+        beta_mirror = self.root / "remote-beta.json"
+        beta_mirror.write_text(json.dumps(self.remote_report(
+            [], catalog={"resolved": True, "declaredCount": 2, "projectId": "beta"},
+        )), encoding="utf-8")
+        alpha = replace(self.config, remote_slots_path=alpha_mirror)
+        beta = replace(self.config, project_id="beta", project_name="Beta",
+                       remote_slots_path=beta_mirror)
+        projects = [
+            SimpleNamespace(project_id="example", display_name="Example", config=alpha,
+                            binding_state="linked"),
+            SimpleNamespace(project_id="beta", display_name="Beta", config=beta,
+                            binding_state="linked"),
+        ]
+        from ci_queue_api import dashboard_state, history
+
+        with mock.patch("ci_queue_api.dashboard_state._read", wraps=dashboard_state._read) as dashboard_reads:
+            with mock.patch("ci_queue_api.dashboard_state.read_validation_plan",
+                            wraps=dashboard_state.read_validation_plan) as plan_reads:
+                with mock.patch("ci_queue_api.dashboard_state.read_history",
+                                wraps=dashboard_state.read_history) as history_reads:
+                    with mock.patch("ci_queue_api.history.read_history",
+                                    wraps=history.read_history) as remote_history_reads:
+                        result = read_dashboard_state_all(self.state, projects)
+
+        self.assertEqual({item["projectId"] for item in result["projects"]}, {"example", "beta"})
+        self.assertEqual(dashboard_reads.call_count, 1)
+        self.assertEqual(plan_reads.call_count, 1)
+        self.assertEqual(history_reads.call_count, 1)
+        self.assertEqual(remote_history_reads.call_count, 0)
+
     def test_meta_uses_latest_greens_and_pending_is_read_only(self):
         state = write_dashboard_state(self.state, self.config, {
             "revision": 0, "action": "save-meta",
@@ -526,7 +727,10 @@ class StateAndDiagnosticTests(Fixture):
         self.assertNotIn("super-secret", exported["content"])
         self.job("foreign", projectId="other")
         (self.state / "logs" / "foreign.log").write_text("secret=x", encoding="utf-8")
-        self.assertFalse(read_diagnostic(self.state, self.config, "foreign")["available"])
+        self.assertTrue(read_diagnostic(self.state, self.config, "foreign")["available"])
+        exported_foreign = read_log_export(self.state, self.config, "foreign")
+        self.assertIn("[REDACTED]", exported_foreign["content"])
+        self.assertNotIn("secret=x", exported_foreign["content"])
 
     def test_diagnostic_keeps_facts_without_classifying_log_text(self):
         self.job(

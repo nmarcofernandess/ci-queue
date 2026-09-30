@@ -1,123 +1,92 @@
-# Instalação do CI Queue
+# Instalação e verificação local
 
-Cada release é uma pasta autocontida com runtime compilado, backend Python de
-biblioteca padrão, interface estática e `manifest.json`. A instalação nunca
-aponta para checkout de desenvolvimento, symlink ou dependência `file:`.
+Uma release é uma pasta autocontida com JavaScript compilado, backend Python de biblioteca padrão, UI estática e manifest. Não aponta para checkout de desenvolvimento, symlink de lane ou dependência file:. Binários Node/Python do host são fornecidos separadamente. Entrada de adoção: [CONSUMER-QUICKSTART](CONSUMER-QUICKSTART.md); roteiro ilustrado: [manual offline, capítulo 9](GUIA-INTEGRACAO-CI-QUEUE.html#instalacao).
 
-## Produzir e verificar uma release
+## Produzir e verificar
 
-No checkout que será publicado:
+No checkout autorizado para produzir a release:
 
 ```bash
 npm run release:bundle
 node scripts/release.mjs verify --bundle releases/ci-queue-<versão>-<revisão>
 ```
 
-O manifest registra versão, revisão Git e SHA-256 de cada arquivo distribuído.
-Verifique-o antes de instalar uma release recebida.
+Use o bundle efetivamente produzido, não um nome inventado. Manifest registra versão, revisão Git e hashes. Build, cópia, ativação e prova instalada são etapas diferentes. Uma revisão documental não autoriza nenhuma delas.
 
-## Preparar uma instalação
+## State único e preparação
 
-O bundle contém o instalador que o acompanha. Sem `--activate`, o comando apenas
-copia e registra a release; esse modo permite validar uma atualização em
-diretório isolado antes do cutover.
+Prefixo usual: `~/.local/share/ci-queue`. State novo usual: `~/.local/state/ci-queue`; instalação existente pode usar `~/.local/state/local-ci/queue`. Leia `installation.json` e mantenha o state real da máquina, CLI, worker e API. Não criar outra fila por copiar o exemplo.
+
+O launcher escrito em `~/.local/bin/ci-queue` (ou `--command`) exporta `CI_QUEUE_STATE_DIR` para o state passado em `install`/`update` quando a variável ainda não está no ambiente. Assim `observe`, `history`, worker e API usam o mesmo root — inclusive `<state>/observations/` — sem depender do fallback legado.
+
+Sem `--activate`, o instalador copia/registra a release, sem provar serviços carregados:
 
 ```bash
-node /caminho/para/ci-queue-<versão>-<revisão>/scripts/install.mjs install \
-  --bundle /caminho/para/ci-queue-<versão>-<revisão> \
-  --prefix "$HOME/.local/share/ci-queue" \
-  --state "$HOME/.local/state/ci-queue"
+node /bundle/scripts/install.mjs install \
+  --bundle /bundle --prefix "$HOME/.local/share/ci-queue" \
+  --state /caminho/absoluto/do/state
 ```
 
-`--state` contém a fila, histórico, logs e artifacts mutáveis. A instalação
-recusa prosseguir se `running.json` ou `runner.lock` existem: antes de atualizar
-ou remover, recupere ou aguarde o único executor responsável pela fila.
+Antes de ativar/atualizar/remover: fila quieta, ownership conferido e nenhum executor concorrente. O instalador recusa running.json/locks ativos. Não apague locks para ultrapassar essa proteção.
 
-No macOS, passe o catálogo do projeto, os binários reais, o destino do comando e
-`--activate` para gerar e carregar os LaunchAgents da release:
+## macOS: ativação na sessão
 
 ```bash
-node /caminho/para/ci-queue-<versão>-<revisão>/scripts/install.mjs update \
-  --bundle /caminho/para/ci-queue-<versão>-<revisão> \
+node /bundle/scripts/install.mjs update \
+  --bundle /bundle \
   --prefix "$HOME/.local/share/ci-queue" \
-  --state "$HOME/.local/state/ci-queue" \
-  --config /caminho/do/projeto/ci-queue.json \
-  --node "$(command -v node)" \
+  --state /caminho/absoluto/do/state \
+  --config /projeto/ci-queue.json \
+  --node /caminho/absoluto/da/distribuicao/bin/node \
   --python "$(command -v python3)" \
-  --command "$HOME/.local/bin/ci-queue" \
-  --activate
+  --command "$HOME/.local/bin/ci-queue" --activate
 ```
 
-O worker recebido pelo envelope observa somente o state root e executa tickets
-já completos; o dashboard recebe a configuração do projeto explicitamente.
-Nenhum dos dois procura arquivos internos do DietFlow.
+Use `install` na instalação inicial e `update` na atualização conforme o instalador da release. `--node` fixa o **worker**, não automaticamente os jobs. Registre os projectIds que precisam de pin usando `ci-queue runtime register`; [limites do runtime](RUNTIME-ISOLATION.md).
 
-O envelope do dashboard também recebe o `manifest.json` copiado e o SHA-256
-que a instalação registrou. Assim `/build.json` identifica versão, revisão e
-se o manifest ainda corresponde à instalação, sem tentar adivinhar procedência
-a partir de um checkout.
+Worker recebe state e executa tickets completos; dashboard recebe catálogo de bootstrap, UI, manifest e state. A interface instalada é estática servida pela API, não o Vite de desenvolvimento.
 
-## Recuperação e remoção
+## Ignição e login: o que o código garante e o que verificar
+
+O envelope do worker usa QueueDirectories para jobs e executa sob demanda. Fila vazia sem PID de worker pode ser normal. O dashboard tem envelope separado. Não iniciar outro worker porque não há processo idle.
+
+O instalador observado gera envelopes sob a release e chama `launchctl bootstrap` no domínio GUI da sessão. Isso comprova o mecanismo de ativação **no código**, não comprova retorno após logout/login/reboot em uma máquina concreta. Esta reconciliação não observou boot nem state do Mac. Não declarar login automático provado com base em checkout ou receipt antigo.
+
+Roteiro local de verificação:
 
 ```bash
-node "$HOME/.local/share/ci-queue/releases/<versão>-<revisão>/scripts/install.mjs" \
-  uninstall --prefix "$HOME/.local/share/ci-queue"
+ci-queue version --json
+ci-queue status --state /caminho/absoluto/do/state --json
+curl --fail --silent --show-error http://127.0.0.1:8765/health
+curl --fail --silent --show-error http://127.0.0.1:8765/build.json
+launchctl list | grep 'com.nmarcofernandess.ci-queue'
 ```
 
-Isso remove somente a release e seus envelopes registrados, preservando o
-state root para leitura e recuperação. `--purge-state` só deve ser usado depois
-de uma inspeção que prove fila quieta e de uma decisão explícita de descartar
-histórico.
+Conferir CLI, installation.json, manifest/revisão de `/build.json`, paths dos envelopes e o mesmo state. Enfileirar um teste pequeno verdadeiro autorizado, observar resultado e retorno a ocioso. Depois de novo login, repetir a verificação. Se os serviços não voltarem, registrar achado do instalador com os envelopes observados; não criar daemon improvisado no consumidor.
 
-Para remover a release ativa no macOS, descarregue também os serviços que ela
-possui:
+Falha em bootstrap retorna erro e não prova serviço saudável, mesmo quando installation.json já mudou. Verificar os serviços e repetir a operação documentada quando a fila estiver quieta. Preservar bundle anterior para recuperação; não remover histórico, `observations/` ou subir executor concorrente. Rollback/update troca a release ativa; o state (tickets, logs, observações, cadastros) permanece no path registrado.
+
+## Remoção e recuperação
+
+Com autorização e ownership conferidos, o instalador da release remove somente seu envelope/release, preservando state:
 
 ```bash
 node "$HOME/.local/share/ci-queue/releases/<versão>-<revisão>/scripts/install.mjs" \
   uninstall --prefix "$HOME/.local/share/ci-queue" --deactivate
 ```
 
-Antes de ativar, atualizar ou remover, prove que não há job em andamento e que
-nenhum executor legado continuará observando o mesmo state root. O instalador
-recusa `running.json` e locks; o corte operacional é responsável por retirar o
-serviço anterior antes de carregar o novo.
+Não expirar/remover logs para “consertar” UI lenta. Jobs órfãos são reconciliados pelo único executor com verificação da identidade do grupo de processos. Não matar por PID sem identidade nem apagar running/locks manualmente.
 
-Se `launchctl bootstrap` falhar durante uma atualização, a operação retorna
-erro: isso não confirma serviço ativo, mesmo que `installation.json` já
-aponte para a release. Confira `launchctl list` e a fila ociosa; repita o mesmo
-comando de instalação e confirme `/build.json` antes de enfileirar. O unload
-assíncrono do launchd pode causar uma recusa transitória imediata ao reload.
-Persistindo a falha, use o mesmo instalador com o bundle anterior preservado;
-não remova estado ou locks e não inicie um worker concorrente.
+## Históricos sem projectId
 
-## Historical tickets without a project ID
-
-An old ticket is never attributed by its folder name. The migration helper
-checks its recorded commit against the repository explicitly selected by the
-operator. It writes only `state/legacy-projects.json`; original history and logs
-remain unchanged. Existing assignments are preserved. First inspect the counts:
+Não atribuir pela pasta. O helper confere commit no repo escolhido e grava somente `state/legacy-projects.json`, com evidência e digest, preservando os tickets:
 
 ```bash
-node scripts/legacy-projects.mjs --state /path/to/state --repo /path/to/project --project PROJECT_ID
+node scripts/legacy-projects.mjs --state /estado --repo /projeto --project PROJECT_ID
 ```
 
-When the installation is idle, repeat with `--apply`. Each assignment includes
-the observed commit and original ticket digest. Keep this small ledger with state
-backups; removing it reverses the attribution without changing any ticket.
-CLI history, API history, statistics and canonical greens read the same explicit
-ownership. Tickets without sufficient evidence stay available through
-`ci-queue history --legacy --json` and **Histórico sem projeto** in the global
-project selector. They do not contribute to a project's green or statistics.
-This source checkout can start the API without `--config`; the installed LaunchAgent
-command is not rewritten by etapa 1B.
+Primeiro inspecionar sem `--apply`. Aplicação é mutação explícita, com fila quieta e decisão do operador. Registros sem evidência permanecem em Histórico sem projeto. Remover o ledger reverte atribuição, não apaga histórico.
 
-A missing historical log is unavailable, not a successful empty log. The
-installation never reruns a job to reconstruct it and does not expire old logs.
+## Testes isolados não provam a instalação
 
-## Browser regression tests
-
-After `npm ci` and `npm --prefix ui ci`, provision the test browser once with
-`npx playwright install chromium --only-shell`. `npm run test:browser` starts
-its own Vite on port 5191 and uses isolated API fixtures. It never enqueues jobs
-or changes the installed service. The fixtures prove UI behavior; the separate
-backend/core suites and the real installed consumer run prove integration.
+`tests/examples/init-ship.test.mjs` usa Git/HOME/state temporários e GitHub simulado. Browser tests usam API fixture. Nunca escrevem na fila do operador. Um teste do produto no checkout, um ticket real instalado e uma verificação de novo login são evidências diferentes. Não rodar suites longas somente por alteração destas docs.

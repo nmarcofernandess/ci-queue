@@ -19,14 +19,27 @@ produto sobre Nova, não variantes oficiais inventadas.
 ## Composição de identidade
 
 `EntityIdentity` compõe ItemMedia e ItemContent; em drawer mantém DrawerTitle e
-DrawerDescription para acessibilidade. A feature fornece conteúdo e callbacks:
+DrawerDescription para acessibilidade. A feature fornece conteúdo e callbacks.
+Na execução atual o tempo decorrido **não** mora na description: `ElapsedItem`
+fecha o `CardContent`. Chip de projeto é `Badge outline` via `ProjectChip`.
+`ProjectChip` exige modo literal e não aceita `className` do consumidor.
+`inline` conserva a identidade na execução atual, nas tabelas de execuções,
+Worktrees e Últimos verdes, e nos drawers de execução, worktree, commit,
+Meta e Pendências. `compact-context` pertence somente aos previews laterais
+de Metas e Pendências em Todos: `Badge outline` em linha própria acima do
+título, texto visual truncável e Tooltip com nome completo, sem reduzir fonte
+nem provocar rolagem horizontal. O owner decide a geometria dos dois modos.
+
+Olho da família é `InspectButton` (label **Inspecionar**, tamanho em
+`presentation.inspect`).
 
 ```tsx
 <EntityIdentity
   presentation="current"
   title={current.preset || "Preset não informado"}
   media={{ kind: "state", descriptor: describeJobState(current.status) }}
-  description={<JobTimeline job={current} />}
+  description={<>{branch} · {sha}</>}
+  badge={<ProjectChip mode="inline" name={current.projectName} facts={projectChipFacts(current)} />}
   onOpen={() => onOpenJob(current.id)}
 />
 ```
@@ -34,14 +47,20 @@ DrawerDescription para acessibilidade. A feature fornece conteúdo e callbacks:
 Em `current` e `drawer`, texto longo quebra sem aumentar a mídia nem comprimir a
 tipografia; a mídia alinha ao topo e a badge pode quebrar sem deslocar o X. Em
 `table`, título e badge dividem uma única linha: a badge preserva sua largura e
-o título usa ellipsis dentro da área flexível, mantendo o nome completo no nome
+o título usa ellipsis apenas no limite fixo da coluna, independente de sidebar ou viewport, mantendo o nome completo no nome
 acessível e no atributo `title`. Ícone de ação pertence ao Button; ícone de
 identidade pertence a StatusIndicator. Em tabela o estado permanece em sua
 célula: não reunir todas as colunas num card.
 
-O header global carrega o seletor de projeto à direita. O rodapé da sidebar é
+O header global carrega o seletor de projeto à direita: um projeto, Todos os
+projetos ou Histórico sem projeto. O rodapé da sidebar é
 o ambiente local, não um usuário. Menus pesquisáveis usam `SelectionPanel`;
-filtros simples usam `FilterSelect`. Não aninhar Select em Popover para período.
+`ProjectSelectionPanel` é o dono da lista pesquisável de projetos ativos,
+compartilhada pelo `ProjectSwitcher` e pelos drawers de Meta/Pendências.
+O header muda o contexto global; o drawer aberto em Todos muda apenas seu
+alvo local. Ler Todos é permitido; declarar, editar ou remover Meta exige
+um projeto concreto escolhido nesse alvo. Histórico sem projeto conserva
+as ações desabilitadas. Filtros simples usam `FilterSelect`. Não aninhar Select em Popover para período.
 
 ## Drawers
 
@@ -69,8 +88,11 @@ interno. SHA e caminhos permanecem completos e quebráveis, não truncados.
 ## Progresso
 
 `ExecutionStages` apresenta raízes na faixa horizontal; `ProgressTree` apresenta
-a árvore recursiva. Toda linha reserva uma coluna para expansão, mas folhas
-não recebem botão falso. Indentação pertence ao grupo de filhos. Indicadores
+a árvore recursiva. Cada cabeçalho expansível ocupa uma linha: seta, título e
+contagem formam um único controle com sublinhado integral no hover/foco. Título
+longo abrevia na largura restante, preservando a contagem; folhas podem quebrar
+linha para mostrar o nome completo e não recebem botão falso. Indentação pertence
+ao grupo de filhos, sem traço conector. Indicadores
 compartilham descritores; nós concluídos não perdem seu resultado quando o job
 é cancelado. Tempos são somente os publicados. Não inferir percentual, ETA,
 conclusão nem duração ausente. A faixa preserva follow e pausa manual.
@@ -81,8 +103,8 @@ conclusão nem duração ausente. A faixa preserva follow e pausa manual.
 | --- | --- |
 | default | Salvar ou declarar Meta, ação principal de formulário. |
 | outline | Copiar, Abrir pasta, Editar e Cancelar quando pertinentes. |
-| ghost | Olho, X e expansão. |
-| link | Título que abre detalhe, via EntityIdentity. |
+| ghost | Olho e X. |
+| link | Título que abre detalhe, via EntityIdentity; expansão da árvore. |
 | destructive | Remoção com confirmação existente. |
 
 Em botão com texto, usar `data-icon="inline-start"` ou `inline-end`. Em olho e X,
@@ -124,3 +146,5 @@ e `npm run test:browser` durante a integração, e `npm run check` na candidata
 final. Tipos/ESLint testam limites mecânicos; inspeção renderizada confere a
 família. [Índice visual](docs/ui/evidence/etapa-1/README.md) identifica revisão,
 cenários e resultados. Revisão interna não equivale a aprovação de Marco.
+
+Duração de nós de progresso: conteúdo único (`ProgressDuration`); emissor literal, coletor com `≈`, ausência `—`.

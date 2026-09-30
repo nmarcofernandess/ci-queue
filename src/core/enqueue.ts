@@ -1,12 +1,13 @@
 import { existsSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { readQueueConfig, type ResolvedQueueConfig } from "../contracts/config.js"
+import { readQueueConfig, resolveRecipeArtifacts, type ResolvedQueueConfig } from "../contracts/config.js"
 import {
   TICKET_SCHEMA_VERSION,
   normalizeTicketFlags,
   type QueueTicket,
   type RequestContext,
+  type RunVariant,
 } from "../contracts/schema.js"
 import { initialExecutionDeadline } from "./deadline.js"
 import { readGitInfo, validateTicketAdmission } from "./runner.js"
@@ -40,6 +41,7 @@ export type ExplicitEnqueueInput = {
   flags?: QueueTicket["flags"]
   requestedBy?: string
   requestContext?: RequestContext
+  runVariant?: RunVariant
   now?: Date
 }
 
@@ -54,6 +56,7 @@ export function buildTicket(input: EnqueueInput, resolved?: ResolvedQueueConfig)
   const git = readGitInfo(configuration.executionCwd, preset.fetchBase ?? configuration.config.repository?.baseRef)
   const extraArgs = input.extraArgs ?? []
   const argv = extraArgs.length ? [...preset.argv, "--", ...extraArgs] : [...preset.argv]
+  const artifacts = resolveRecipeArtifacts(configuration.config.artifacts, preset.artifacts)
   return {
     id,
     createdAt: now.toISOString(),
@@ -75,10 +78,11 @@ export function buildTicket(input: EnqueueInput, resolved?: ResolvedQueueConfig)
       ...(preset.fetchBase ? { fetchBase: preset.fetchBase } : {}),
       ...(preset.requireGitStability !== undefined ? { requireGitStability: preset.requireGitStability } : {}),
       ...(preset.pinHeadSha !== undefined ? { pinHeadSha: preset.pinHeadSha } : {}),
+      ...(preset.abortOnStaleBase !== undefined ? { abortOnStaleBase: preset.abortOnStaleBase } : {}),
       ...(preset.progress !== undefined ? { progressEnabled: preset.progress } : {}),
     },
     ...(preset.fetchBase || configuration.config.repository?.baseRef ? { baseRef: preset.fetchBase ?? configuration.config.repository?.baseRef } : {}),
-    ...(configuration.config.artifacts ? { artifacts: configuration.config.artifacts } : {}),
+    ...(configuration.config.artifacts !== undefined || preset.artifacts !== undefined ? { artifacts } : {}),
     projectId: configuration.config.project.id,
     projectName: configuration.config.project.name,
     ...(input.requestContext ? { requestContext: input.requestContext } : {}),
@@ -124,6 +128,7 @@ export function enqueueExplicitTicket(input: ExplicitEnqueueInput): QueueTicket 
     projectId: input.projectId,
     projectName: input.projectName,
     ...(input.requestContext ? { requestContext: input.requestContext } : {}),
+    ...(input.runVariant ? { runVariant: input.runVariant } : {}),
   }
   validateTicketAdmission(ticket)
   stageTicketWrite(input.stateRoot, ticket)

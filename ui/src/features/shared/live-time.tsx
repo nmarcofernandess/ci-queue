@@ -1,6 +1,24 @@
 import { useSyncExternalStore } from "react"
-import { formatDuration, formatTimelineDate, formatRelativeTime, jobDuration } from "./format"
+
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+} from "@/components/ui/item"
 import type { JobRecord } from "@/lib/types"
+
+import {
+  formatDuration,
+  formatRelativeTime,
+  formatTimelineDate,
+  jobDuration,
+} from "./format"
+import { InspectButton } from "./inspect-button"
+import {
+  elapsedPresentation,
+  type IdentityPresentation,
+} from "./presentation"
 
 let now = Date.now()
 const listeners = new Set<() => void>()
@@ -31,27 +49,91 @@ export function RelativeTime({ value }: { value?: string | null }) {
 }
 export function JobDuration({
   job,
+  compact = false,
 }: {
   job: Pick<JobRecord, "status" | "startedAt" | "durationMs">
+  compact?: boolean
 }) {
-  return jobDuration(job, useLocalClock())
+  return jobDuration(job, useLocalClock(), compact)
 }
-
 
 export function JobTimeline({ job }: { job: JobRecord }) {
   const running = job.status === "running"
-  const terminal = ["passed", "failed", "cancelled", "interrupted"].includes(job.status ?? "")
-  const timestamp = running ? job.startedAt : job.finishedAt ?? job.createdAt
-  return <>
-    {formatTimelineDate(timestamp)}
-    {running ? <> · Decorrido: <JobDuration job={job} /></> : null}
-    {terminal && job.finishedAt ? <> · <RelativeTime value={job.finishedAt} /></> : null}
-    {terminal && typeof job.durationMs === "number" ? <> · Duração: <JobDuration job={job} /></> : null}
-  </>
+  const terminal = ["passed", "failed", "cancelled", "interrupted"].includes(
+    job.status ?? ""
+  )
+  const timestamp = running ? job.startedAt : (job.finishedAt ?? job.createdAt)
+  return (
+    <>
+      {formatTimelineDate(timestamp)}
+      {running ? (
+        <>
+          {" "}
+          · Decorrido: <JobDuration job={job} />
+        </>
+      ) : null}
+      {terminal && job.finishedAt ? (
+        <>
+          {" "}
+          · <RelativeTime value={job.finishedAt} />
+        </>
+      ) : null}
+      {terminal && typeof job.durationMs === "number" ? (
+        <>
+          {" "}
+          · Duração: <JobDuration job={job} />
+        </>
+      ) : null}
+    </>
+  )
 }
 
-export function QueueWait({ value }: { value?: string | null }) {
-  const now = useLocalClock()
+export function ElapsedItem({
+  job,
+  presentation = "current",
+  onInspect,
+}: {
+  job: Pick<
+    JobRecord,
+    "status" | "startedAt" | "durationMs" | "durationReference"
+  >
+  presentation?: IdentityPresentation
+  onInspect?: () => void
+}) {
+  const elapsed = jobDuration(job, useLocalClock())
+  const meanMs = job.durationReference?.meanMs
+  const mean =
+    typeof meanMs === "number" && Number.isFinite(meanMs)
+      ? formatDuration(meanMs)
+      : null
+  return (
+    <Item variant="default" className="border-transparent px-0 py-0">
+      <ItemContent className="min-w-0 gap-0">
+        <span className={elapsedPresentation[presentation]}>{elapsed}</span>
+        <ItemDescription>
+          {mean ? `decorrido · média ${mean}` : "decorrido"}
+        </ItemDescription>
+      </ItemContent>
+      {onInspect ? (
+        <ItemActions>
+          <InspectButton presentation={presentation} onClick={onInspect} />
+        </ItemActions>
+      ) : null}
+    </Item>
+  )
+}
+
+export function QueueWait({
+  value,
+  compact = false,
+}: {
+  value?: string | null
+  compact?: boolean
+}) {
+  const clock = useLocalClock()
   const start = value ? Date.parse(value) : NaN
-  return formatDuration(Number.isFinite(start) ? Math.max(0, now - start) : undefined)
+  return formatDuration(
+    Number.isFinite(start) ? Math.max(0, clock - start) : undefined,
+    compact ? "—" : "Sem duração",
+  )
 }

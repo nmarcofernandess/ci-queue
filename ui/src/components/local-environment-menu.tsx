@@ -26,7 +26,7 @@ function isThemeMode(value: string): value is ThemeMode {
 
 export function LocalEnvironmentMenu() {
   const { theme, setTheme } = useTheme()
-  const request = React.useCallback(() => getHealth(), [])
+  const request = React.useCallback((signal?: AbortSignal) => getHealth(signal), [])
   const health = useApiQuery("local-environment-health", request, {
     pollMs: 10_000,
   })

@@ -1,5 +1,4 @@
 import { ChevronDownIcon } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Collapsible,
@@ -10,13 +9,13 @@ import {
   Item,
   ItemActions,
   ItemContent,
-  ItemDescription,
   ItemGroup,
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item"
 import type { JobStatus, ProgressNode } from "@/lib/types"
-import { formatDuration } from "./format"
+import { formatProgressDetail } from "./progress-detail"
+import { ProgressDuration } from "./progress-duration"
 import { describeProgressState } from "./presentation"
 import { StatusIndicator } from "./status-indicator"
 
@@ -35,56 +34,51 @@ function ProgressNodeRow({
   jobStatus: JobStatus | undefined
 }) {
   const children = childrenByParent.get(node.id) ?? []
+  const detail = formatProgressDetail(node.detail)
+  const fullTitle = [
+    node.label,
+    detail,
+    node.inventoryReplaced ? "Inventário atualizado na execução" : null,
+  ].filter(Boolean).join(" · ")
   const row = (
     <Item
       data-slot="progress-row"
       data-node-id={node.id}
       className="min-h-9 min-w-0 flex-nowrap gap-2 border-0 px-0 py-1"
     >
-      <div className="flex size-7 shrink-0 items-center justify-center">
-        {children.length ? (
-          <CollapsibleTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Expandir ${node.label}`}
-              className="group/stage-toggle"
-            >
-              <ChevronDownIcon className="transition-transform group-data-[state=closed]/stage-toggle:-rotate-90" />
-            </Button>
-          </CollapsibleTrigger>
-        ) : null}
-      </div>
       <ItemMedia data-slot="progress-indicator">
         <StatusIndicator
-          descriptor={describeProgressState(node.status, jobStatus)}
+          descriptor={describeProgressState(node, jobStatus)}
           presentation="stage"
         />
       </ItemMedia>
       <ItemContent className="min-w-0">
-        <ItemTitle
-          data-slot="progress-label"
-          className="line-clamp-none min-w-0 text-sm leading-5 font-medium [overflow-wrap:anywhere] break-words"
-        >
-          {node.label}
+        <ItemTitle data-slot="progress-label" className="w-full min-w-0 line-clamp-none">
+          {children.length ? (
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="link"
+                title={fullTitle}
+                className="group/stage-toggle h-auto min-h-7 w-full min-w-0 justify-start gap-2 rounded-none border-b border-transparent px-1 text-left text-foreground no-underline hover:border-b-current hover:text-foreground hover:no-underline focus-visible:border-b-current"
+              >
+                <ChevronDownIcon className="shrink-0 transition-transform group-data-[state=closed]/stage-toggle:-rotate-90" />
+                <span className="min-w-0 flex-1 truncate">{node.label}</span>
+                {detail ? <span className="shrink-0 text-muted-foreground">{detail}</span> : null}
+              </Button>
+            </CollapsibleTrigger>
+          ) : (
+            <span className="flex min-w-0 items-start gap-2 px-1" title={fullTitle}>
+              <span className="size-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 break-words whitespace-normal">{node.label}</span>
+              {detail ? <span className="shrink-0 text-muted-foreground">{detail}</span> : null}
+            </span>
+          )}
         </ItemTitle>
-        {node.detail ? (
-          <ItemDescription className="line-clamp-none text-xs [overflow-wrap:anywhere]">
-            {typeof node.detail === "string"
-              ? node.detail
-              : `${node.detail.completed} de ${node.detail.total}`}
-          </ItemDescription>
-        ) : null}
-        {(node.retryCount ?? 0) > 0 ? (
-          <Badge variant="outline">Flaky detectado</Badge>
-        ) : null}
       </ItemContent>
-      {typeof node.durationMs === "number" ? (
-        <ItemActions className="shrink-0 text-sm text-muted-foreground tabular-nums">
-          {formatDuration(node.durationMs)}
-        </ItemActions>
-      ) : null}
+      <ItemActions className="shrink-0 text-sm text-muted-foreground">
+        <ProgressDuration node={node} jobStatus={jobStatus} />
+      </ItemActions>
     </Item>
   )
   if (!children.length) return row
@@ -93,7 +87,7 @@ function ProgressNodeRow({
       defaultOpen={node.status === "running" || node.status === "failed"}
     >
       {row}
-      <CollapsibleContent className="ml-3.5 border-l border-border pl-3.5">
+      <CollapsibleContent className="ml-4">
         {children.map((child) => (
           <ProgressNodeRow
             key={child.id}

@@ -6,6 +6,7 @@ import queue
 import subprocess
 import threading
 import time
+import copy
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,6 +18,11 @@ _pending = set()
 _lock = threading.Lock()
 _requests = queue.Queue()
 _worker = None
+_inventories = {}
+_in_flight_inventories = {}
+_inventory_lock = threading.Lock()
+INVENTORY_CACHE_SECONDS = 60
+MAX_INVENTORIES = 64
 
 
 def _now():
@@ -139,32 +145,161 @@ def schedule_size(path):
     return {**report, "state": "measuring" if pending else report["state"]}
 
 
-def list_worktrees(source):
+def list_worktrees_all(state_root):
+    """Aggregate living worktrees from active registry projects. One failure stays local."""
+    from .project_context import resolve_project
+    from .projects import RegistryError, read_registry
+
+    try:
+        registry = read_registry(state_root)
+    except (RegistryError, OSError):
+        return {
+            "schemaVersion": 1,
+            "observedAt": _now(),
+            "baseRef": "HEAD",
+            "baseSha": None,
+            "worktrees": [],
+            "error": "Cadastro de projetos indisponível.",
+            "projectErrors": [],
+        }
+    entries = [
+        entry
+        for entry in (registry.get("projects") or {}).values()
+        if isinstance(entry, dict) and not entry.get("archivedAt")
+    ]
+    entries.sort(key=lambda item: (str(item.get("displayName") or ""), str(item.get("id") or "")))
+    rows = []
+    project_errors = []
+    for entry in entries:
+        project_id = entry.get("id")
+        project_name = entry.get("displayName") or project_id
+        if not isinstance(project_id, str) or not project_id:
+            continue
+        try:
+            project = resolve_project(project_id, registry)
+            payload = list_worktrees(project)
+        except Exception as error:
+            project_errors.append({
+                "projectId": project_id,
+                "projectName": project_name,
+                "error": str(error),
+            })
+            continue
+        project_error = payload.get("error")
+        if project_error:
+            project_errors.append({
+                "projectId": project_id,
+                "projectName": project.display_name,
+                "error": project_error,
+            })
+        for row in payload.get("worktrees") or []:
+            tagged = {
+                **row,
+                "projectId": project.project_id,
+                "projectName": project.display_name,
+            }
+            if project_error and not tagged.get("error"):
+                tagged["error"] = project_error
+            rows.append(tagged)
+    return {
+        "schemaVersion": 1,
+        "observedAt": _now(),
+        "baseRef": "HEAD",
+        "baseSha": None,
+        "worktrees": rows,
+        "error": None if rows else (project_errors[0]["error"] if project_errors else None),
+        "projectErrors": project_errors,
+    }
+
+
+def _inventory_key(source):
     repository_path, base_ref = _source(source)
-    rows = discover(source)
-    if rows is None:
-        return {"schemaVersion": 1, "observedAt": _now(), "baseRef": base_ref,
-                "baseSha": None, "worktrees": [], "error": "Worktrees indisponíveis para este projeto."}
-    deadline = time.monotonic() + 12
-    base = _git(repository_path, "rev-parse", "--verify", base_ref, timeout=_remaining(deadline))
-    base_sha = base.strip() if base else None
-    for row in rows:
-        status = _git(row["path"], "status", "--porcelain=v1", "-z", "--untracked-files=normal", timeout=_remaining(deadline))
-        changed = _changed_count(status)
-        counts = _git(repository_path, "rev-list", "--left-right", "--count", "%s...%s" % (base_ref, row.get("headSha") or ""), timeout=_remaining(deadline)) if base_sha and row.get("headSha") else None
-        behind = ahead = None
-        if counts:
-            try:
-                behind, ahead = [int(item) for item in counts.split()]
-            except (TypeError, ValueError):
-                pass
-        timed_out = _remaining(deadline) is None
-        row.update({"dirty": bool(changed) if changed is not None else None,
-                    "changedEntries": changed, "ahead": ahead, "behind": behind,
-                    "gitObservedAt": _now(), "size": schedule_size(row["path"]),
-                    "error": "Orçamento de leitura das worktrees esgotado." if timed_out else None})
-    return {"schemaVersion": 1, "observedAt": _now(), "baseRef": base_ref,
-            "baseSha": base_sha, "worktrees": rows, "error": None}
+    common = getattr(source, "git_common_dir", None)
+    revision = getattr(source, "entry_revision", None)
+    return (str(repository_path), str(common), str(base_ref), revision)
+
+
+def list_worktrees(source):
+    cache_key = _inventory_key(source)
+    while True:
+        with _inventory_lock:
+            cached = _inventories.get(cache_key)
+            if cached and time.monotonic() - cached[0] < INVENTORY_CACHE_SECONDS:
+                return copy.deepcopy(cached[1])
+            flight = _in_flight_inventories.get(cache_key)
+            if flight is not None:
+                event, holder = flight
+                is_runner = False
+            else:
+                event = threading.Event()
+                holder = {"result": None, "error": None}
+                _in_flight_inventories[cache_key] = (event, holder)
+                is_runner = True
+
+        if not is_runner:
+            event.wait()
+            if holder["error"] is not None:
+                raise holder["error"]
+            if holder["result"] is not None:
+                return copy.deepcopy(holder["result"])
+            continue
+        break
+
+    try:
+        repository_path, base_ref = _source(source)
+        rows = discover(source)
+        if rows is None:
+            payload = {"schemaVersion": 1, "observedAt": _now(), "baseRef": base_ref,
+                       "baseSha": None, "worktrees": [], "error": "Worktrees indisponíveis para este projeto."}
+        else:
+            deadline = time.monotonic() + 12
+            base = _git(repository_path, "rev-parse", "--verify", base_ref, timeout=_remaining(deadline))
+            base_sha = base.strip() if base else None
+            for row in rows:
+                status = _git(row["path"], "status", "--porcelain=v1", "-z", "--untracked-files=normal", timeout=_remaining(deadline))
+                changed = _changed_count(status)
+                counts = _git(repository_path, "rev-list", "--left-right", "--count", "%s...%s" % (base_ref, row.get("headSha") or ""), timeout=_remaining(deadline)) if base_sha and row.get("headSha") else None
+                behind = ahead = None
+                if counts:
+                    try:
+                        behind, ahead = [int(item) for item in counts.split()]
+                    except (TypeError, ValueError):
+                        pass
+                timed_out = _remaining(deadline) is None
+                row.update({"dirty": bool(changed) if changed is not None else None,
+                            "changedEntries": changed, "ahead": ahead, "behind": behind,
+                            "gitObservedAt": _now(), "size": schedule_size(row["path"]),
+                            "error": "Orçamento de leitura das worktrees esgotado." if timed_out else None})
+            payload = {"schemaVersion": 1, "observedAt": _now(), "baseRef": base_ref,
+                       "baseSha": base_sha, "worktrees": rows, "error": None}
+
+        holder["result"] = payload
+        with _inventory_lock:
+            repo_prefix = cache_key[:3]
+            current_revision = cache_key[3]
+            obsolete = [k for k in _inventories if k[:3] == repo_prefix and k[3] != current_revision]
+            for k in obsolete:
+                _inventories.pop(k, None)
+
+            now = time.monotonic()
+            expired = [k for k, v in _inventories.items() if now - v[0] >= INVENTORY_CACHE_SECONDS * 5]
+            for k in expired:
+                _inventories.pop(k, None)
+
+            if len(_inventories) >= MAX_INVENTORIES:
+                oldest = sorted(_inventories.items(), key=lambda item: item[1][0])
+                for k, _ in oldest[:len(_inventories) - MAX_INVENTORIES + 1]:
+                    _inventories.pop(k, None)
+
+            _inventories[cache_key] = (time.monotonic(), copy.deepcopy(payload))
+        return copy.deepcopy(payload)
+    except Exception as error:
+        holder["error"] = error
+        raise
+    finally:
+        with _inventory_lock:
+            _in_flight_inventories.pop(cache_key, None)
+        event.set()
 
 
 def worktree_view(source, identifier):

@@ -1,0 +1,619 @@
+{
+  "schema_version": "superflow.plan.v1",
+  "status": "complete",
+  "source": {
+    "prd": "PRD.md",
+    "blueprint": "SPEC.md",
+    "spec": "SPEC.md"
+  },
+  "plan": {
+    "feature": "Prova local com progress visivel e ship sem Actions",
+    "workflow_type": "feature",
+    "strategy": "single",
+    "tdd_contract": "assets/references/tdd-contract.md",
+    "preconditions": [
+      "PRD ready; SPEC Recode 11 + GPT R2; R1 review complete; Superflow validator of this package exit 0",
+      "Route analyst_prd; phase_budget deep; execution_strategy single; do not invent architecture",
+      "DietFlow work only in /Users/marcoantonio/dietflow-ci-queue-node-pin on a new branch from origin/dev; never edit ~/dietflow-app",
+      "CI Queue work on this branch spec/prova-local-progress-ship; gh identity nmarcofernandess for this repo",
+      "Worker and runner never import src/ship and never request GitHub merge",
+      "Product tests never write ~/.local/state/local-ci/queue",
+      "One LaunchAgent worker; no second worker",
+      "ci-queue.json sequential hunks: subtask-2-2 owns ship.acceptedPresets; subtask-3-1 owns the 21 test-recipe progress flags",
+      "TDD contract read: observe RED before production code; record red+green in implementation_log.json at Execute"
+    ],
+    "phases": [
+      {
+        "id": "phase-1",
+        "name": "DietFlow ratchet",
+        "description": "Replace the negative stillSilent ratchet with a positive allowlist of recipes that already declare progress, so the 13th flag does not fail Jest. runtime-probe stays off. No catalog flags yet.",
+        "depends_on": [],
+        "subtasks": [
+          {
+            "id": "subtask-1-1",
+            "description": "In /Users/marcoantonio/dietflow-ci-queue-node-pin, replace stillSilent === [] in progress-instrumentation.test.ts with a positive allowlist of the currently instrumented recipes (static, smoketest, full, e2e, e2e-impact, save, receitas-medidas, regression, c1-conformance, c2-conformance, ledger-concurrency, p7-selection-search-lab). Assert runtime-probe.progress is not true. Do not add the 21 flags here.",
+            "behavior": "The DietFlow catalog ratchet allows the current closed set of progress recipes and keeps runtime-probe off that set.",
+            "files_to_modify": [
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/__tests__/progress-instrumentation.test.ts"
+            ],
+            "files_to_create": [],
+            "patterns_from": [
+              "specs/001-prova-local-progress-ship/SPEC.md",
+              "specs/001-prova-local-progress-ship/PRD.md"
+            ],
+            "tdd": {
+              "required": false,
+              "skip_reason": "Harness invert only: today's catalog already matches the current 12, so a new positive allowlist of those names would pass immediately. The old stillSilent assertion is the blocker for later flags, not missing product behavior."
+            },
+            "verification": {
+              "type": "test",
+              "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ci/__tests__/progress-instrumentation.test.ts -t 'catalog progress ratchet is a positive allowlist of currently instrumented recipes' --runInBand",
+              "expected": "PASS"
+            },
+            "acceptance_criteria": [
+              "Quando executar DietFlow extra: ratchet positivo",
+              "Catalog ratchet allows the closed set of test recipes with progress: true (current set, before the 21)",
+              "runtime-probe stays off that set"
+            ],
+            "owner": "main_agent",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": "phase-2",
+        "name": "DietFlow Track A Recode 11",
+        "description": "Predicate and ship-bound resolver first, then one atomic catalog+controller patch. No src/ship import. Full advisory stays informational and separate from the merge ticket.",
+        "depends_on": ["phase-1"],
+        "subtasks": [
+          {
+            "id": "subtask-2-1",
+            "description": "In the DietFlow worktree, change isQueueMaterialProofEligible so a missing recipe argument is not eligible and does not default to smoketest. Resolve material recipe from argv plus ship-bound flags (requireCleanTree, requireGitStability, pinHeadSha true; fetchBase non-empty). Compare the ticket's identity flags to that recipe, not only the catalog shape: with matching preset, argv and git snapshots, the ticket stays ineligible when ticket flags diverge or are missing for fetchBase, requireCleanTree, requireGitStability, pinHeadSha, or executionTimeoutMs. progressEnabled and abortOnStaleBase stay out of that comparison. Keep review tickets ineligible. Do not refuse on projectId or progressEnabled. Keep ProofPreset from being the membership source. Fixture catalogs without pin/fetchBase fail closed as config, not LOCAL_RED. Update the jest-scope no-arg caller so it stays false.",
+            "behavior": "A queue ticket is material proof only when its identity flags match a resolved ship-bound recipe; a helper call without that recipe is not eligible and does not become smoketest.",
+            "files_to_modify": [
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/queue-ticket-contract.ts",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/__tests__/jest-scope.test.ts"
+            ],
+            "files_to_create": [
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/__tests__/queue-material-proof.test.ts"
+            ],
+            "patterns_from": [
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/queue-ticket-contract.ts",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/__tests__/jest-scope.test.ts"
+            ],
+            "tdd": {
+              "required": true,
+              "skip_reason": null,
+              "red": {
+                "test_file": "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/__tests__/queue-material-proof.test.ts",
+                "test_name": "helper without a resolved recipe is not eligible",
+                "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ci/__tests__/queue-material-proof.test.ts -t 'helper without a resolved recipe is not eligible' --runInBand",
+                "expected_failure": "Expected false, received true because isQueueMaterialProofEligible defaults expected.preset to smoketest"
+              },
+              "green": {
+                "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ci/__tests__/queue-material-proof.test.ts --runInBand && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ci/__tests__/jest-scope.test.ts -t 'keeps a successful review ticket outside the material ship-proof contract' --runInBand",
+                "expected": "PASS"
+              },
+              "negatives": [
+                "ticket with matching preset but different argv is not eligible",
+                "ticket with extraArgs is not canonical proof",
+                "ticket with matching preset, argv and git snapshots stays ineligible when fetchBase, requireCleanTree, requireGitStability, pinHeadSha or executionTimeoutMs is missing or differs from the recipe",
+                "progressEnabled false or empty progress tree does not refuse",
+                "abortOnStaleBase mismatch does not refuse",
+                "projectId mismatch does not refuse",
+                "fixture acceptedPreset missing pinHeadSha or fetchBase fail-closes as config",
+                "runtime-probe remains ineligible"
+              ]
+            },
+            "verification": {
+              "type": "test",
+              "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ci/__tests__/queue-material-proof.test.ts --runInBand",
+              "expected": "PASS"
+            },
+            "acceptance_criteria": [
+              "Produto: falta de progresso contínuo não recusa ship",
+              "Helper without a resolved recipe is not eligible and does not default to smoketest",
+              "Ticket identity flags fetchBase, requireCleanTree, requireGitStability, pinHeadSha and executionTimeoutMs must match the recipe; progressEnabled and abortOnStaleBase stay out of that comparison",
+              "Resolver fail-closes before ticket search if an accepted preset is missing, has empty argv, or is not ship-bound",
+              "progressEnabled / empty progress tree does not refuse eligibility",
+              "projectId mismatch does not refuse DietFlow eligibility",
+              "runtime-probe remains ineligible"
+            ],
+            "owner": "main_agent",
+            "status": "pending"
+          },
+          {
+            "id": "subtask-2-2",
+            "description": "Atomic Recode 11 in the DietFlow worktree: set ci-queue.json ship.acceptedPresets to [\"smoketest\",\"full\"] in the same patch that ship.ts reads the catalog. Membership is only that list. Latest canonical attempt per recipe is newest startedAt among terminal tickets (fallback createdAt); queued/running do not shadow. If any latest is eligible, reuse the one with newest finishedAt; else enqueue acceptedPresets[0]. Darwin without persistent queue is LOCAL_RED via ShipOps.platform(), never process.platform in logic. Non-darwin without queue keeps the direct contract using catalog [0]. Full advisory looks up recipe full separately and never receives the merge ticket. Attestation stays local/smoketest. e2e-impact stays report-only. Rewrite the existing hasPersistentQueue:false tests that currently spawn ci:smoketest on any host.",
+            "behavior": "DietFlow ship merges only from catalog-accepted material proof: Darwin without a persistent queue fails LOCAL_RED without spawning ci:smoketest.",
+            "files_to_modify": [
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/ci-queue.json",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ship/ship.ts",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ship/__tests__/ship.test.ts"
+            ],
+            "files_to_create": [],
+            "patterns_from": [
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ship/ship.ts",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ship/__tests__/ship.test.ts"
+            ],
+            "tdd": {
+              "required": true,
+              "skip_reason": null,
+              "red": {
+                "test_file": "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ship/__tests__/ship.test.ts",
+                "test_name": "darwin without persistent queue fails LOCAL_RED without spawning ci:smoketest",
+                "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ship/__tests__/ship.test.ts -t 'darwin without persistent queue fails LOCAL_RED without spawning ci:smoketest' --runInBand",
+                "expected_failure": "Expected LOCAL_RED with no ci:smoketest spawn; current FakeOps with hasPersistentQueue false still merge or spawn smoketest because logic ignores ops.platform()"
+              },
+              "green": {
+                "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ship/__tests__/ship.test.ts --runInBand",
+                "expected": "PASS"
+              },
+              "negatives": [
+                "linux without persistent queue uses catalog default recipe direct",
+                "full 14:00 passed then 15:00 failed uses later smoke 14:30",
+                "older-started full that finishes later does not shadow newer failed full",
+                "queued or running full does not shadow prior terminal passed full",
+                "two eligible latests reuse newest finishedAt",
+                "eligible smoke leaves full advisory pending",
+                "eligible full marks full advisory satisfied without authorizing merge",
+                "merge ticket is not passed into the Full advisory lookup",
+                "no eligible proof enqueues acceptedPresets[0] never full",
+                "eligible proof is reused and not enqueued",
+                "source-less legacy tickets stay in the canonical-attempt set; direct* do not",
+                "after a later commit or rebase, a passed ticket pinned to the previous HEAD is not silently reused",
+                "e2e-impact remains report-only",
+                "attestation context stays local/smoketest when proof preset is full"
+              ]
+            },
+            "verification": {
+              "type": "test",
+              "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ship/__tests__/ship.test.ts --runInBand",
+              "expected": "PASS"
+            },
+            "acceptance_criteria": [
+              "Quando executar: merge via npm run ship; DietFlow Recode 11 (catálogo + predicado + latest-attempt); sem ci:smoketest direto no Mac com contrato de fila",
+              "Catalog acceptedPresets is the only membership source for material proof",
+              "Latest canonical failed/cancelled/interrupted attempt shadows a prior green of the same recipe",
+              "Per-recipe latest attempt is the newest startedAt, not finishedAt",
+              "Newer queued/running attempt does not shadow a prior eligible terminal proof",
+              "Darwin without persistent queue → LOCAL_RED via ops.platform()",
+              "Full advisory is informational and never authorizes or refuses merge",
+              "Regressão / non-goal: gh pr merge avulso e push em origin/dev não contam como ship"
+            ],
+            "owner": "main_agent",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": "phase-3",
+        "name": "DietFlow Track B progress recipes",
+        "description": "Eleven flag-only stack/golden recipes, ten wrappers that emit stable roots, then the docs invariant. Track B does not change the ship predicate.",
+        "depends_on": ["phase-2"],
+        "subtasks": [
+          {
+            "id": "subtask-3-1",
+            "description": "Set progress: true on the eleven flag-only DietFlow presets without changing argv: proof-favoritos-anamnese, proof-favoritos-superficie, proof-modais-import-bulk, proof-colisao-save, proof-prescricao-importacao, proof-identidade-visivel, proof-selection-search-lab, proof-favoritos-conformance, proof-cross-module-conformance, proof-numeric-input, proof-importacao. Extend the positive allowlist to include them. Do not patch wrappers here.",
+            "behavior": "The eleven stack and golden test recipes declare continuous progress without changing argv.",
+            "files_to_modify": [
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/ci-queue.json",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/__tests__/progress-instrumentation.test.ts"
+            ],
+            "files_to_create": [],
+            "patterns_from": [
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/__tests__/progress-instrumentation.test.ts"
+            ],
+            "tdd": {
+              "required": true,
+              "skip_reason": null,
+              "red": {
+                "test_file": "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/__tests__/progress-instrumentation.test.ts",
+                "test_name": "eleven stack and golden test recipes declare progress without changing argv",
+                "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ci/__tests__/progress-instrumentation.test.ts -t 'eleven stack and golden test recipes declare progress without changing argv' --runInBand",
+                "expected_failure": "Expected catalog.presets['proof-favoritos-anamnese'].progress to be true, received undefined"
+              },
+              "green": {
+                "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ci/__tests__/progress-instrumentation.test.ts -t 'eleven stack and golden test recipes declare progress without changing argv' --runInBand",
+                "expected": "PASS"
+              },
+              "negatives": [
+                "argv of each of the eleven stays frozen",
+                "runtime-probe still has no progress flag"
+              ]
+            },
+            "verification": {
+              "type": "test",
+              "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ci/__tests__/progress-instrumentation.test.ts -t 'eleven stack and golden test recipes declare progress without changing argv' --runInBand",
+              "expected": "PASS"
+            },
+            "acceptance_criteria": [
+              "Quando executar DietFlow extra: ratchet positivo; famílias sem stack com os roots da tabela; trilha B não altera o predicado",
+              "Flag-only stack presets keep frozen argv"
+            ],
+            "owner": "main_agent",
+            "status": "pending"
+          },
+          {
+            "id": "subtask-3-2",
+            "description": "Add progress: true plus emitters for the ten wrappers: review (scripts/ci/jest-scope.ts root review), flowui (scripts/ci-flowui.ts root flowui), clinical-readonly and clinical-readonly-live (scripts/ci/clinical-readonly-campaign.sh root clinical-readonly), proof-care (scripts/proof/capture-care-route.ts root care), proof-receitas-medidas (scripts/proof/receitas-medidas-proof.sh root receitas-medidas-proof), admin-relation (scripts/proof/admin-relation-proof.sh root admin-relation), export-atlas (scripts/ci/export-atlas-local.sh root export-atlas), clinical-date-evolution (scripts/proof/clinical-date-evolution-pack.ts root clinical-date), app-atlas (scripts/proof/run-app-atlas-gate.ts root app-atlas). Emit via progress-emitter.sh when LOCAL_CI_PROGRESS_ENABLED=1. Prove the emitter cycle with isolated subprocesses: success publishes running then passed; failure publishes running then failed and preserves the original exit code; without progress env, no markers; instrumentation does not re-run the work. Keep ci-local.sh from inventing flowui/review stages. Extend runWithFakeNpm env allowlist. Do not change ship eligibility.",
+            "behavior": "Wrappers without the e2e stack emit declared root ids and close the emitter cycle: success is running then passed; failure is running then failed with the original exit code.",
+            "files_to_modify": [
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/ci-queue.json",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/jest-scope.ts",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci-flowui.ts",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/clinical-readonly-campaign.sh",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/proof/capture-care-route.ts",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/proof/receitas-medidas-proof.sh",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/proof/admin-relation-proof.sh",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/export-atlas-local.sh",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/proof/clinical-date-evolution-pack.ts",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/proof/run-app-atlas-gate.ts",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/__tests__/progress-instrumentation.test.ts"
+            ],
+            "files_to_create": [],
+            "patterns_from": [
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/__tests__/progress-instrumentation.test.ts",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/progress-emitter.sh"
+            ],
+            "tdd": {
+              "required": true,
+              "skip_reason": null,
+              "red": {
+                "test_file": "/Users/marcoantonio/dietflow-ci-queue-node-pin/scripts/ci/__tests__/progress-instrumentation.test.ts",
+                "test_name": "wrappers without stack emit the declared stable root ids when progress env is on",
+                "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ci/__tests__/progress-instrumentation.test.ts -t 'wrappers without stack emit the declared stable root ids when progress env is on' --runInBand",
+                "expected_failure": "Expected root id review (and the other nine declared roots) in @@local-ci-progress markers; received [] because wrappers do not emit"
+              },
+              "green": {
+                "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ci/__tests__/progress-instrumentation.test.ts --runInBand",
+                "expected": "PASS"
+              },
+              "negatives": [
+                "success publishes running then passed for the declared root",
+                "failure publishes running then failed and preserves the original exit code",
+                "without LOCAL_CI_PROGRESS_ENABLED the wrapper publishes no markers",
+                "instrumentation does not re-run the wrapped work",
+                "ci-local.sh with preset flowui still does not invent flowui stages",
+                "ship predicate tests still pass without reading progress.nodes"
+              ]
+            },
+            "verification": {
+              "type": "test",
+              "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo npx jest --runTestsByPath scripts/ci/__tests__/progress-instrumentation.test.ts --runInBand",
+              "expected": "PASS"
+            },
+            "acceptance_criteria": [
+              "Quando executar DietFlow extra: famílias sem stack com os roots da tabela; trilha B não altera o predicado",
+              "Wrappers without stack emit the declared stable root ids when env is on",
+              "Emitter cycle: success running→passed; failure running→failed preserving exit code; no markers without env; work is not re-executed"
+            ],
+            "owner": "main_agent",
+            "status": "pending"
+          },
+          {
+            "id": "subtask-3-3",
+            "description": "Insert the same infinitive invariant in DietFlow docs, .context, AGENTS.md (fix the sentence that denies spend-abort-v1), and .agents/skills/dietflow-ci/SKILL.md: a new test recipe declares progress: true and emits the queue protocol; forced-env Jest does not close occupancy; missing continuous progress is a warning, not a refusal; ship is the proof+merge pack and the consumer owns recipe names. Do not unify the two remote-verdict files.",
+            "behavior": "DietFlow operator docs state that missing continuous progress warns and never refuses ship.",
+            "files_to_modify": [
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/docs/ci/CI-QUEUE-CONSUMIDOR.md",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/docs/ci/FLUXO-CI-GITHUB-ACTIONS.md",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/docs/ci/CI-QUEUE-OPERACAO.md",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/.context/patterns/ci.yaml",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/.context/patterns/testing.yaml",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/.context/domains/infra.yaml",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/AGENTS.md",
+              "/Users/marcoantonio/dietflow-ci-queue-node-pin/.agents/skills/dietflow-ci/SKILL.md"
+            ],
+            "files_to_create": [],
+            "patterns_from": [
+              "specs/001-prova-local-progress-ship/PRD.md"
+            ],
+            "tdd": {
+              "required": false,
+              "skip_reason": "Docs and .context copy only; no production behavior."
+            },
+            "verification": {
+              "type": "docs",
+              "command": "python3 - <<'PY'\nfrom pathlib import Path\nroot = Path('/Users/marcoantonio/dietflow-ci-queue-node-pin')\nneedle = 'Progresso contínuo ausente é aviso, não recusa'\nfiles = [\n  'docs/ci/CI-QUEUE-CONSUMIDOR.md',\n  'docs/ci/FLUXO-CI-GITHUB-ACTIONS.md',\n  'docs/ci/CI-QUEUE-OPERACAO.md',\n  '.context/patterns/ci.yaml',\n  '.context/patterns/testing.yaml',\n  '.context/domains/infra.yaml',\n  'AGENTS.md',\n  '.agents/skills/dietflow-ci/SKILL.md',\n]\nmissing = [f for f in files if needle not in (root / f).read_text(encoding='utf-8')]\nraise SystemExit(0 if not missing else 'missing invariant in: ' + ', '.join(missing))\nPY",
+              "expected": "exit 0"
+            },
+            "acceptance_criteria": [
+              "Quando executar DietFlow extra: docs/AGENTS/.context",
+              "Dívida restante listada: trilha A Recode 11, trilha B (aviso, ratchet, 21 presets), docs"
+            ],
+            "owner": "main_agent",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": "phase-4",
+        "name": "CI Queue public progress surface",
+        "description": "Derive a browser-safe progressEnabled boolean, then reuse Alert default for recipes that did not declare progress. Do not change evaluateForRecipe.",
+        "depends_on": ["phase-2"],
+        "subtasks": [
+          {
+            "id": "subtask-4-1",
+            "description": "In this CI Queue repo, public_job derives top-level progressEnabled as True only when job.flags.progressEnabled is True; otherwise False. Do not copy flags, argv, or environment. Adding the name to PUBLIC_JOB_FIELDS alone is not enough because public_job only copies top-level keys. Mirror the derived field on JobRecord.",
+            "behavior": "The public job includes a derived top-level progressEnabled boolean and never publishes flags.",
+            "files_to_modify": [
+              "backend/ci_queue_api/records.py",
+              "ui/src/lib/types.ts"
+            ],
+            "files_to_create": [
+              "tests/backend/test_public_job.py"
+            ],
+            "patterns_from": [
+              "backend/ci_queue_api/records.py",
+              "tests/backend/test_api.py",
+              "ui/src/lib/types.ts"
+            ],
+            "tdd": {
+              "required": true,
+              "skip_reason": null,
+              "red": {
+                "test_file": "tests/backend/test_public_job.py",
+                "test_name": "test_derives_progress_enabled_and_hides_flags",
+                "command": "cd /Users/marcoantonio/ci-queue && python3 -m unittest discover -s tests/backend -p 'test_public_job.py'",
+                "expected_failure": "AssertionError or KeyError: public_job has no progressEnabled while flags stay absent from the projection"
+              },
+              "green": {
+                "command": "cd /Users/marcoantonio/ci-queue && python3 -m unittest discover -s tests/backend -p 'test_public_job.py'",
+                "expected": "PASS"
+              },
+              "negatives": [
+                "flags.progressEnabled False yields public progressEnabled False",
+                "missing flags yields public progressEnabled False",
+                "argv and flags keys stay out of the projection"
+              ]
+            },
+            "verification": {
+              "type": "test",
+              "command": "cd /Users/marcoantonio/ci-queue && python3 -m unittest discover -s tests/backend -p 'test_public_job.py'",
+              "expected": "PASS"
+            },
+            "acceptance_criteria": [
+              "Public job includes a derived top-level progressEnabled boolean from flags.progressEnabled === true; flags stay unpublished",
+              "Passed check without progress remains ship-eligible",
+              "Passed check with stages remains ship-eligible"
+            ],
+            "owner": "main_agent",
+            "status": "pending"
+          },
+          {
+            "id": "subtask-4-2",
+            "description": "Extract a small helper (presentation.ts) that returns tree | unconfigured | declared-silent from JobRecord.progressEnabled and progressSummary. Job drawer: tree renders ProgressTree; unconfigured renders Alert default (not destructive) with title 'Progresso contínuo não configurado' and description 'Esta receita não declara progresso contínuo. Os estágios da execução não aparecem.'; declared-silent keeps Empty 'Progresso não registrado'. Do not mark the job failed. Do not change evaluateForRecipe. Vitest only; no RTL.",
+            "behavior": "A recipe that did not declare continuous progress shows the invariant default Alert and does not mark the job failed.",
+            "files_to_modify": [
+              "ui/src/features/shared/presentation.ts",
+              "ui/src/features/shared/job-drawer.tsx",
+              "tests/ui/presentation.test.ts"
+            ],
+            "files_to_create": [],
+            "patterns_from": [
+              "ui/src/features/shared/job-drawer.tsx",
+              "ui/src/features/shared/presentation.ts",
+              "ui/src/components/ui/alert.tsx",
+              "tests/ui/presentation.test.ts"
+            ],
+            "tdd": {
+              "required": true,
+              "skip_reason": null,
+              "red": {
+                "test_file": "tests/ui/presentation.test.ts",
+                "test_name": "unconfigured progress uses default alert copy and does not mark the job failed",
+                "command": "cd /Users/marcoantonio/ci-queue && npx vitest run tests/ui/presentation.test.ts",
+                "expected_failure": "Cannot find progressSurface/unconfiguredProgressCopy, or assertion fails because the unconfigured case still shares Empty 'Progresso não registrado' / destructive failure Alert"
+              },
+              "green": {
+                "command": "cd /Users/marcoantonio/ci-queue && npx vitest run tests/ui/presentation.test.ts",
+                "expected": "PASS"
+              },
+              "negatives": [
+                "declared-but-silent still uses non-failure empty copy",
+                "failureReason Alert remains destructive and separate",
+                "warning does not change job.status"
+              ]
+            },
+            "verification": {
+              "type": "test",
+              "command": "cd /Users/marcoantonio/ci-queue && npx vitest run tests/ui/presentation.test.ts",
+              "expected": "PASS"
+            },
+            "acceptance_criteria": [
+              "Quando executar: receita sem progresso contínuo mostra o aviso do DoD; ship não recusa por isso",
+              "Recipe without declaration shows the invariant Alert (not destructive)",
+              "Warning does not mark the job failed",
+              "Declared-but-silent run still uses non-failure empty copy",
+              "Produto: falta de progresso contínuo não recusa ship nem pinta o job de falha"
+            ],
+            "owner": "main_agent",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": "phase-5",
+        "name": "Review, release, observe, then ship",
+        "description": "Code review and accepted-finding proof happen before operational observation and before any merge. Then version the delivery docs (never ignore specs/), activate the existing CI Queue release onto the installed dashboard, observe Vite with distinct instrumented vs undeclared surfaces, then ship each repository separately with verified identity and a frozen proof HEAD. Product tests still must not write the live queue. Operational evidence is not a product gate.",
+        "depends_on": ["phase-3", "phase-4"],
+        "subtasks": [
+          {
+            "id": "subtask-5-1",
+            "description": "After GREEN of code tasks and before any install, enqueue, or ship: run Superflow code review (R2) against the DietFlow Recode 11 diff and the CI Queue public_job/Alert diff. Write findings with verdicts into review_log.json. Accepted blockers get a fix and a new RED/GREEN (or operational re-check) before 5-2. Do not observe the installed Vite and do not merge until this task is closed.",
+            "behavior": "Code review records verdicts for Recode 11 and the derived progress surface before release activation, Vite observation, or ship.",
+            "files_to_modify": [
+              "specs/001-prova-local-progress-ship/review_log.json"
+            ],
+            "files_to_create": [],
+            "patterns_from": [
+              "specs/001-prova-local-progress-ship/review_log.json"
+            ],
+            "tdd": {
+              "required": false,
+              "skip_reason": "Review phase after GREEN writes review_log.json; it is not a product test."
+            },
+            "verification": {
+              "type": "review",
+              "command": "python3 /Users/marcoantonio/.cursor/plugins/cache/superflow/superflow/9fcc181208ce1f85abc5e18d6784ab6c0104abc4/scripts/validate_superflow.py /Users/marcoantonio/ci-queue/specs/001-prova-local-progress-ship",
+              "expected": "exit 0 with review_log.json R2 findings and verdicts; accepted blockers re-verified"
+            },
+            "acceptance_criteria": [
+              "Each completed tdd.required subtask has red+green evidence in implementation_log.json",
+              "Accepted review findings are re-verified before operational observation and before ship"
+            ],
+            "owner": "reviewer",
+            "status": "pending"
+          },
+          {
+            "id": "subtask-5-2",
+            "description": "After 5-1 is closed: commit remaining delivery files in both repos, including specs/ and docs. Never gitignore or skip specs/ to fake a clean tree. Trees must be actually clean. Publish draft PRs against each repo's dev. Record git rev-parse HEAD in each repo as the frozen proof HEAD. Later commit or rebase requires a new proof ticket; the previous HEAD ticket is not reused.",
+            "behavior": "Delivery documents are versioned, trees are clean, PRs exist, and each repo has a frozen proof HEAD.",
+            "files_to_modify": [],
+            "files_to_create": [],
+            "patterns_from": [
+              "specs/001-prova-local-progress-ship/PRD.md"
+            ],
+            "tdd": {
+              "required": false,
+              "skip_reason": "Versioning and PR publication; no product behavior."
+            },
+            "verification": {
+              "type": "manual",
+              "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && git status --porcelain && git rev-parse HEAD && cd /Users/marcoantonio/ci-queue && git status --porcelain && git rev-parse HEAD",
+              "expected": "both working trees empty; specs/ tracked; HEAD SHAs recorded; draft PRs against dev exist"
+            },
+            "acceptance_criteria": [
+              "Delivery docs are versioned; specs/ is not ignored to satisfy requireCleanTree",
+              "Proof HEAD is frozen; later commit/rebase does not silently reuse the previous HEAD ticket"
+            ],
+            "owner": "main_agent",
+            "status": "pending"
+          },
+          {
+            "id": "subtask-5-3",
+            "description": "Before observing the installed Vite: produce and verify a CI Queue release from the frozen HEAD (npm run release:bundle; node scripts/release.mjs verify --bundle releases/ci-queue-<version>-<revision>). Activate with the existing installer only: scripts/install.mjs update --bundle <release> --prefix \"$HOME/.local/share/ci-queue\" --state \"$HOME/.local/state/local-ci/queue\" --activate, plus the already-installed --config/--node/--python/--command. Wait until the queue is idle (no running.json / runner.lock). Preserve state and history. One LaunchAgent worker; no second dashboard; no new installer. Confirm GET /build.json on the installed dashboard matches the bundle revision and manifest SHA. Do not enqueue until /build.json matches.",
+            "behavior": "The installed dashboard serves the verified release that contains the public_job and Alert changes, identified by /build.json.",
+            "files_to_modify": [],
+            "files_to_create": [],
+            "patterns_from": [
+              "docs/INSTALL.md"
+            ],
+            "tdd": {
+              "required": false,
+              "skip_reason": "Existing release/install activation. Not a product-suite gate. Checkout edits do not update the LaunchAgent dashboard."
+            },
+            "verification": {
+              "type": "manual",
+              "command": "npm run release:bundle && node scripts/release.mjs verify --bundle releases/ci-queue-0.1.0-$(git rev-parse --short=12 HEAD) && python3 -c 'import json,urllib.request; print(json.load(urllib.request.urlopen(\"http://127.0.0.1:8765/build.json\")))'",
+              "expected": "verify exit 0; installation.json revision equals frozen HEAD; /build.json revision and manifest SHA match the activated bundle; one worker; state root unchanged"
+            },
+            "acceptance_criteria": [
+              "Installed Vite observation uses the activated release, not the development checkout",
+              "State, history, and single-worker principle are preserved"
+            ],
+            "owner": "main_agent",
+            "status": "pending"
+          },
+          {
+            "id": "subtask-5-4",
+            "description": "After 5-3 /build.json matches: enqueue CI Queue check and DietFlow catalog default smoketest with absolute --config/--cwd/--state into ~/.local/state/local-ci/queue. Both recipes already declare progress; the Progress tab must show the expected stages. An Alert on those tickets is a failed observation, not an equivalent pass. Separately open a historical ticket that did not declare progress (including a run that only has the Artefatos node) and confirm the approved default Alert. Do not create another merge-proof ticket for the Alert case. Checkout npm run check / tmp suite green does not close. Product tests must not write the live queue. Occupancy running is visibility; merge still needs passed at the frozen HEAD/base.",
+            "behavior": "On the activated dashboard, instrumented proof tickets show their expected stages; an undeclared-progress ticket shows the approved Alert.",
+            "files_to_modify": [],
+            "files_to_create": [],
+            "patterns_from": [
+              "specs/001-prova-local-progress-ship/PRD.md"
+            ],
+            "tdd": {
+              "required": false,
+              "skip_reason": "Operational DoD on the installed queue. Product tests must not write ~/.local/state/local-ci/queue. Not a ticket/ship gate."
+            },
+            "verification": {
+              "type": "manual",
+              "command": "ci-queue enqueue check --config /Users/marcoantonio/ci-queue/ci-queue.json --cwd /Users/marcoantonio/ci-queue --state \"$HOME/.local/state/local-ci/queue\" --json",
+              "expected": "instrumented check and DietFlow smoketest show expected progress stages (Alert on those tickets fails this task); a historical undeclared ticket shows Alert 'Progresso contínuo não configurado' even if only Artefatos exists"
+            },
+            "acceptance_criteria": [
+              "Andaime / DoD de plano: Vite instalado mostra estágios nas receitas instrumentadas e o aviso na receita não declarada. Suíte tmp verde não conta.",
+              "Quando executar: ticket DietFlow da receita de ship e ticket CI Queue check visíveis no Vite (iniciar basta para occupancy; merge exige passed)",
+              "Regressão / non-goal: runtime-probe e npm run check fora da fila não contam como prova de merge"
+            ],
+            "owner": "main_agent",
+            "status": "pending"
+          },
+          {
+            "id": "subtask-5-5",
+            "description": "Ship DietFlow only after 5-1..5-4. Verify gh identity is dietflowoficial / Dietflowoficial before the command. Confirm the reusable ticket is passed, eligible, and pinHeadSha-matches the frozen DietFlow HEAD and base from 5-2. If HEAD moved, enqueue a new proof; do not reuse the previous HEAD ticket. Run npm run ship in dietflow-ci-queue-node-pin. Do not start the CI Queue ship in this task. Never gh pr merge. Never push origin/dev. Never runtime-probe as proof.",
+            "behavior": "DietFlow merges through npm run ship on the frozen HEAD with the verified dietflowoficial identity.",
+            "files_to_modify": [],
+            "files_to_create": [],
+            "patterns_from": [
+              "specs/001-prova-local-progress-ship/PRD.md"
+            ],
+            "tdd": {
+              "required": false,
+              "skip_reason": "Live DietFlow ship is operational proof, not a product-suite assertion."
+            },
+            "verification": {
+              "type": "manual",
+              "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && gh auth status && git rev-parse HEAD && npm run ship",
+              "expected": "identity dietflowoficial; ticket headSha equals frozen HEAD; npm run ship merges the lane; command is not gh pr merge"
+            },
+            "acceptance_criteria": [
+              "Quando executar: merge via npm run ship",
+              "DietFlow: merge em dev pelo npm run ship, sem GitHub Actions",
+              "Regressão / non-goal: gh pr merge avulso e push em origin/dev não contam como ship"
+            ],
+            "owner": "main_agent",
+            "status": "pending"
+          },
+          {
+            "id": "subtask-5-6",
+            "description": "Start only after 5-5 succeeded. Verify gh identity is nmarcofernandess. Confirm the CI Queue check ticket is passed, eligible, and pinHeadSha-matches the frozen CI Queue HEAD from 5-2. If HEAD moved, enqueue a new check; do not reuse the previous HEAD ticket. Run ci-queue ship --dry-run --no-remote --json, then ci-queue ship --no-remote --json as a separate command after dry-run succeeds. Never chain this after a failed DietFlow ship. Never gh pr merge. Never push origin/dev. Confirm both merges landed and record close-out in progress.md.",
+            "behavior": "CI Queue merges through ci-queue ship --no-remote on the frozen HEAD with the verified nmarcofernandess identity, and only after DietFlow ship succeeded.",
+            "files_to_modify": [
+              "specs/001-prova-local-progress-ship/progress.md"
+            ],
+            "files_to_create": [],
+            "patterns_from": [
+              "specs/001-prova-local-progress-ship/PRD.md"
+            ],
+            "tdd": {
+              "required": false,
+              "skip_reason": "Live CI Queue ship is operational proof, not a product-suite assertion."
+            },
+            "verification": {
+              "type": "manual",
+              "command": "cd /Users/marcoantonio/ci-queue && gh auth status && git rev-parse HEAD && ci-queue ship --dry-run --no-remote --json",
+              "expected": "identity nmarcofernandess; ticket headSha equals frozen HEAD; dry-run then ship --no-remote merge; DietFlow ship already succeeded; neither command is gh pr merge"
+            },
+            "acceptance_criteria": [
+              "Quando executar: merge via ci-queue ship --no-remote",
+              "CI Queue: check na fila local; quem fecha e mergeia é o CI Queue depois do ship",
+              "Regressão / non-goal: gh pr merge avulso e push em origin/dev não contam como ship",
+              "Regressão / non-goal: runtime-probe e npm run check fora da fila não contam como prova de merge"
+            ],
+            "owner": "main_agent",
+            "status": "pending"
+          }
+        ]
+      }
+    ],
+    "summary": {
+      "total_phases": 5,
+      "total_subtasks": 14,
+      "estimated_complexity": "deep"
+    }
+  },
+  "done_criteria": [
+    "Analyst destillation, PRD ready, and SPEC Recode 11 already evidenced in analysis.md / PRD.md / SPEC.md / review_log.json (the stale AC 'Nenhum Build/Execute nesta passagem' belonged to the Analyst pass and is superseded by this Plan).",
+    "Every remaining PRD acceptance criterion maps to a subtask above.",
+    "Each completed tdd.required subtask has red+green evidence in implementation_log.json.",
+    "Code review and accepted-finding proof complete before release activation, Vite observation, and ship.",
+    "Activated /build.json matches the frozen CI Queue release before installed-queue observation.",
+    "Instrumented tickets show expected stages; undeclared-progress tickets show the approved Alert. Alert is not an equivalent pass for an instrumented recipe.",
+    "DietFlow npm run ship and CI Queue ci-queue ship --no-remote run separately with verified identities on frozen HEADs; gh pr merge and checkout npm run check are not.",
+    "status.json and progress.md are updated by the phase executor."
+  ]
+}

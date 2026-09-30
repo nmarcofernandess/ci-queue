@@ -1,4 +1,5 @@
 import { EntityIdentity } from "@/features/shared/entity-identity"
+import { InspectButton } from "@/features/shared/inspect-button"
 import { DataTableFrame } from "@/features/shared/data-table-frame"
 import * as React from "react"
 import {
@@ -12,7 +13,6 @@ import {
   CheckIcon,
   ChevronDownIcon,
   CopyIcon,
-  EyeIcon,
   FolderOpenIcon,
   InboxIcon,
   SearchIcon,
@@ -49,11 +49,6 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   TableBody,
@@ -62,7 +57,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useRequiredProject } from "@/features/projects/project-context"
+import { useProjectContext } from "@/features/projects/project-context"
 import { scopeKey } from "@/features/projects/scope"
 import {
   getWorktrees,
@@ -77,6 +72,8 @@ import type {
 } from "@/lib/types"
 import { ErrorState } from "@/features/shared/async-state"
 import { formatBytes } from "@/features/shared/format"
+import { ProjectChip } from "@/features/shared/project-chip"
+import { projectChipFacts } from "@/features/shared/project-chip-model"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
 
 const worktreeTableFeatures = tableFeatures({ rowSelectionFeature })
@@ -88,6 +85,15 @@ const EMPTY_WORKTREES: WorktreeRecord[] = []
 
 function worktreeName(path: string) {
   return path.split("/").filter(Boolean).at(-1) || path
+}
+
+function worktreeRowId(worktree: WorktreeRecord) {
+  return worktree.projectId ? `${worktree.projectId}:${worktree.id}` : worktree.id
+}
+
+function stickyColumn(id: string) {
+  if (id === "selection") return "start"
+  return undefined
 }
 
 function selectionFromStorage(key: string | undefined): RowSelectionState {
@@ -213,14 +219,16 @@ function WorktreeDrawer({
   session: ApiQuery<DashboardSession>
   onClose: () => void
 }) {
+  const { scope } = useProjectContext()
   const detail = {
-    data: worktrees.data?.worktrees.find((item) => item.id === id),
+    data: worktrees.data?.worktrees.find(
+      (item) => worktreeRowId(item) === id
+    ),
     loading: worktrees.loading,
     error: worktrees.error,
     reload: worktrees.reload,
   }
   const [opening, setOpening] = React.useState(false)
-  const project = useRequiredProject()
 
   const copy = async (value: string, message: string) => {
     try {
@@ -238,11 +246,22 @@ function WorktreeDrawer({
     }
     setOpening(true)
     try {
-      if (!project) {
+      const ownerId = detail.data?.projectId
+      const owner =
+        ownerId
+          ? { kind: "project" as const, projectId: ownerId }
+          : scope?.kind === "project"
+            ? scope
+            : null
+      if (!owner) {
         toast.error("Selecione um projeto para abrir a pasta.")
         return
       }
-      await revealWorktree(project, session.data.csrfToken, id)
+      await revealWorktree(
+        owner,
+        session.data.csrfToken,
+        detail.data?.id ?? id
+      )
       toast.success("Pasta aberta no sistema.")
     } catch (reason) {
       toast.error(
@@ -263,12 +282,24 @@ function WorktreeDrawer({
         media={{ kind: "worktree" }}
         badge={
           detail.data ? (
-            <Badge variant="outline">
-              {detail.data.dirty === false ? (
-                <CheckIcon data-icon="inline-start" />
+            <>
+              {detail.data.projectName ? (
+                <ProjectChip
+                  mode="inline"
+                  name={detail.data.projectName}
+                  facts={projectChipFacts({
+                    branch: detail.data.branch,
+                    headSha: detail.data.headSha,
+                  })}
+                />
               ) : null}
-              {cleanlinessLabel(detail.data)}
-            </Badge>
+              <Badge variant="outline">
+                {detail.data.dirty === false ? (
+                  <CheckIcon data-icon="inline-start" />
+                ) : null}
+                {cleanlinessLabel(detail.data)}
+              </Badge>
+            </>
           ) : undefined
         }
         closeLabel="Fechar worktree"
@@ -345,12 +376,14 @@ function WorktreeDataTable({
   setRowSelection,
   onOpen,
   emptyDescription,
+  showProjectChip = false,
 }: {
   worktrees: WorktreeRecord[]
   rowSelection: RowSelectionState
   setRowSelection: React.Dispatch<React.SetStateAction<RowSelectionState>>
   onOpen: (id: string) => void
   emptyDescription: string
+  showProjectChip?: boolean
 }) {
   const columns = React.useMemo(
     () =>
@@ -388,18 +421,32 @@ function WorktreeDataTable({
         worktreeColumnHelper.accessor("path", {
           header: "Worktree",
           cell: ({ row }) => (
-            <EntityIdentity
-              presentation="table"
-              title={worktreeName(row.original.path)}
-              onOpen={() => onOpen(row.original.id)}
-            />
+            <div className="max-w-[26rem]">
+              <EntityIdentity
+                presentation="table"
+                title={worktreeName(row.original.path)}
+                onOpen={() => onOpen(worktreeRowId(row.original))}
+                badge={
+                  showProjectChip && row.original.projectName ? (
+                    <ProjectChip
+                      mode="inline"
+                      name={row.original.projectName}
+                      facts={projectChipFacts({
+                        branch: row.original.branch,
+                        headSha: row.original.headSha,
+                      })}
+                    />
+                  ) : undefined
+                }
+              />
+            </div>
           ),
         }),
         worktreeColumnHelper.accessor("branch", {
           header: "Branch",
           cell: ({ getValue }) => (
             <span
-              className="block truncate font-mono text-xs"
+              className="block max-w-[24rem] truncate font-mono text-xs"
               title={getValue()}
             >
               {getValue()}
@@ -429,31 +476,21 @@ function WorktreeDataTable({
           id: "actions",
           header: () => <span className="sr-only">Ações</span>,
           cell: ({ row }) => (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Ver ${worktreeName(row.original.path)}`}
-                  onClick={() => onOpen(row.original.id)}
-                >
-                  <EyeIcon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ver worktree</TooltipContent>
-            </Tooltip>
+            <InspectButton
+              presentation="table"
+              onClick={() => onOpen(worktreeRowId(row.original))}
+            />
           ),
         }),
       ]),
-    [onOpen]
+    [onOpen, showProjectChip]
   )
 
   const table = useTable({
     columns,
     data: worktrees,
     features: worktreeTableFeatures,
-    getRowId: (row) => row.id,
+    getRowId: (row) => worktreeRowId(row),
     enableMultiRowSelection: true,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
@@ -461,20 +498,23 @@ function WorktreeDataTable({
   })
 
   return (
-    <DataTableFrame placement="body" label="Worktrees">
+    <DataTableFrame placement="body" label="Worktrees" width="scroll">
       <TableHeader>
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map((header) => (
               <TableHead
                 key={header.id}
+                data-sticky={stickyColumn(header.column.id)}
                 className={
                   header.column.id === "selection"
                     ? "w-11"
                     : header.column.id === "actions"
-                      ? "w-10"
+                      ? "w-14"
                       : header.column.id === "path"
-                        ? "w-44"
+                        ? "w-[26rem]"
+                        : header.column.id === "branch"
+                          ? "w-[24rem]"
                         : header.column.id === "size" ||
                             header.column.id === "state"
                           ? "w-28"
@@ -497,7 +537,11 @@ function WorktreeDataTable({
               data-state={row.getIsSelected() ? "selected" : undefined}
             >
               {row.getAllCells().map((cell) => (
-                <TableCell key={cell.id} className="overflow-hidden">
+                <TableCell
+                  key={cell.id}
+                  className="overflow-hidden"
+                  data-sticky={stickyColumn(cell.column.id)}
+                >
                   <table.FlexRender cell={cell} />
                 </TableCell>
               ))}
@@ -527,18 +571,18 @@ function WorktreeDataTable({
 }
 
 function WorktreeTable({
-  projectId,
+  persistenceId,
+  showProjectChip,
   worktrees,
   session,
 }: {
-  projectId: string | undefined
+  persistenceId: string
+  showProjectChip: boolean
   worktrees: ApiQuery<WorktreesResponse>
   session: ApiQuery<DashboardSession>
 }) {
-  const { rowSelection, setRowSelection } = usePersistentSelection(projectId)
-  const searchKey = projectId
-    ? `ci-queue:worktrees-search:${projectId}`
-    : undefined
+  const { rowSelection, setRowSelection } = usePersistentSelection(persistenceId)
+  const searchKey = `ci-queue:worktrees-search:${persistenceId}`
   const [search, setSearch] = React.useState(() => textFromStorage(searchKey))
   const [openWorktreeId, setOpenWorktreeId] = React.useState<string>()
   const allWorktrees = worktrees.data?.worktrees ?? EMPTY_WORKTREES
@@ -556,12 +600,13 @@ function WorktreeTable({
         worktree.path,
         worktree.branch,
         worktree.headSha || "",
+        worktree.projectName || "",
       ].some((value) => value.toLocaleLowerCase("pt-BR").includes(needle))
     )
   }, [allWorktrees, search])
 
   const selected = React.useMemo(
-    () => allWorktrees.filter((worktree) => rowSelection[worktree.id]),
+    () => allWorktrees.filter((worktree) => rowSelection[worktreeRowId(worktree)]),
     [allWorktrees, rowSelection]
   )
 
@@ -582,7 +627,7 @@ function WorktreeTable({
   }
 
   return (
-    <main className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
+    <main className="flex min-w-0 flex-1 flex-col gap-5 p-4 lg:p-6">
       <div className="flex items-baseline gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Worktrees</h1>
         {worktrees.data ? (
@@ -646,12 +691,22 @@ function WorktreeTable({
           onRetry={worktrees.reload}
         />
       ) : null}
+      {worktrees.data?.projectErrors?.length ? (
+        <div className="flex flex-col gap-1">
+          {worktrees.data.projectErrors.map((item) => (
+            <p key={item.projectId} className="text-sm text-destructive">
+              {item.projectName || item.projectId}: {item.error}
+            </p>
+          ))}
+        </div>
+      ) : null}
       {worktrees.data && !worktrees.data.error ? (
         <WorktreeDataTable
           worktrees={visible}
           rowSelection={rowSelection}
           setRowSelection={setRowSelection}
           onOpen={setOpenWorktreeId}
+          showProjectChip={showProjectChip}
           emptyDescription={
             allWorktrees.length
               ? "Nenhum item corresponde à busca."
@@ -673,24 +728,26 @@ function WorktreeTable({
 }
 
 export function WorktreesPage() {
-  const project = useRequiredProject()
+  const { scope } = useProjectContext()
+  const allowed =
+    scope?.kind === "project" || scope?.kind === "all" ? scope : null
   const worktreeRequest = React.useCallback(
-    () =>
-      project
-        ? getWorktrees(project)
+    (signal?: AbortSignal) =>
+      allowed
+        ? getWorktrees(allowed, signal)
         : Promise.reject(new Error("Selecione um projeto para ver worktrees.")),
-    [project]
+    [allowed]
   )
   const worktrees = useApiQuery(
-    `worktrees:${project ? scopeKey(project) : "none"}`,
+    `worktrees:${allowed ? scopeKey(allowed) : "none"}`,
     worktreeRequest,
-    { pollMs: 60_000, enabled: Boolean(project) }
+    { pollMs: 60_000, enabled: Boolean(allowed) }
   )
   const session = useDashboardSession()
 
-  if (!project) {
+  if (!allowed) {
     return (
-      <main className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
+      <main className="flex min-w-0 flex-1 flex-col gap-5 p-4 lg:p-6">
         <ErrorState
           title="Worktrees exigem um projeto"
           error={new Error("Cadastre ou selecione um projeto com pasta Git.")}
@@ -701,8 +758,9 @@ export function WorktreesPage() {
 
   return (
     <WorktreeTable
-      key={project.projectId}
-      projectId={project.projectId}
+      key={scopeKey(allowed)}
+      persistenceId={allowed.kind === "all" ? "all" : allowed.projectId}
+      showProjectChip={allowed.kind === "all"}
       worktrees={worktrees}
       session={session}
     />

@@ -1,21 +1,42 @@
 import { readQueueConfig } from "./contracts/config.js"
+import { InitError, initProject } from "./ship/init.js"
+import { ShipError } from "./ship/ops.js"
+import { runShip } from "./ship/ship.js"
+import { createSystemOps } from "./ship/system-ops.js"
 import { existsSync, readFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import {
   API_VERSION,
   normalizeTicketFlags,
   parseRequestContext,
+  parseRunVariant,
+  RECIPE_ARTIFACTS_CAPABILITY,
   type CliFailure,
   type CliResult,
   type CliSuccess,
   type QueueTicket,
 } from "./contracts/schema.js"
+import { SPEND_ABORT_CAPABILITY } from "./core/spend-abort.js"
 import { JOB_ENV_CAPABILITY, cancelQueuedOrRunningTicket } from "./core/runner.js"
+import { RUNTIME_CAPABILITY } from "./contracts/runtime.js"
+import { registerProjectRuntime, readRuntimeRegistry, runtimeRegistryPath, RuntimeError } from "./core/runtime.js"
 import { enqueueExplicitTicket, enqueueTicket } from "./core/enqueue.js"
 import { runWorker } from "./core/worker.js"
 import { findJobById, listHistoryJobs, listQueuedJobs, readRunningJob, resolveStateRoot } from "./core/state.js"
 import { buildPresetHistory } from "./core/preset-history.js"
+import { attachProgressToTicket, PROGRESS_Q2Q3_CAPABILITY } from "./core/progress.js"
 import { listAdvisories, upsertAdvisory } from "./core/advisories.js"
+import { evaluateExecutionEntry, EXECUTION_ENTRY_GUARD_CAPABILITY } from "./core/execution-entry.js"
+import {
+  EXECUTION_OBSERVE_CAPABILITY,
+  OBSERVATION_MAX_BYTES,
+} from "./contracts/execution-observation.js"
+import {
+  listExecutionHistory,
+  ObservationError,
+  readStdinLimited,
+  storeExecutionObservation,
+} from "./core/execution-observations.js"
 
 type GlobalArgs = { command?: string; rest: string[]; json: boolean; stateRoot?: string; cwd?: string; configPath?: string }
 
@@ -61,7 +82,7 @@ function splitExtra(args: string[]): string[] {
 }
 
 function enqueuePreset(args: string[]): string | undefined {
-  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--flags-json", "--timeout-ms", "--request-context"])
+  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--flags-json", "--timeout-ms", "--request-context", "--run-variant"])
   for (let index = 0; index < args.length; index += 1) {
     const value = args[index]
     if (value === "--") return undefined
@@ -104,14 +125,21 @@ function usage(): string {
   return [
     "Uso: ci-queue <comando> [--state DIR] [--cwd DIR] [--config FILE] [--json]",
     "  version",
+    "  init [--name NAME] [--base-ref REMOTE/BRANCH] [--argv-json JSON] [--workflow] [--force]",
+    "  guard [--cwd PATH] [--config FILE] [--state ROOT] [--json]",
+    "  ship [--pr N] [--repo [HOST/]OWNER/REPO] [--dry-run] [--remote|--no-remote] [--timeout-ms N]",
     "  enqueue <preset> [--wait] [--timeout-ms N] [-- <args da receita>]",
     "  enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH [--flags-json JSON]",
     "  worker",
     "  status",
+    "  observe --stdin [--json]",
     "  history [--project ID] [--legacy]",
+    "  history --include-observed [--project ID]",
     "  preset-history [--preset NAME]",
     "  advisory upsert --preset NAME --head-sha SHA --reason TEXT [--pr N]",
     "  advisory list",
+    "  runtime show",
+    "  runtime register --project ID --node PATH [--version x.y.z] [--npm-cli PATH] [--npx-cli PATH]",
     "  logs [latest|<ticketId>]",
     "  cancel <ticketId>",
     "  config",
@@ -136,8 +164,89 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, RECIPE_ARTIFACTS_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
+      }
+      case "observe": {
+        if (!args.rest.includes("--stdin")) {
+          return failure("USAGE", "observe requer --stdin")
+        }
+        const raw = await readStdinLimited(process.stdin, OBSERVATION_MAX_BYTES)
+        let payload: unknown
+        try {
+          payload = JSON.parse(raw)
+        } catch {
+          return failure("OBSERVATION_INVALID", "stdin não é JSON válido")
+        }
+        const stored = storeExecutionObservation(root, payload)
+        return success({
+          id: stored.id,
+          executionId: stored.executionId,
+          outcome: stored.outcome,
+        })
+      }
+      case "init": {
+        const argvText = optionValue(args.rest, "--argv-json")
+        return success(await initProject(args.cwd ?? process.cwd(), {
+          stateRoot: root,
+          force: args.rest.includes("--force"),
+          workflow: args.rest.includes("--workflow"),
+          ...(optionValue(args.rest, "--name") ? { name: optionValue(args.rest, "--name") } : {}),
+          ...(optionValue(args.rest, "--base-ref") ? { baseRef: optionValue(args.rest, "--base-ref") } : {}),
+          ...(argvText !== undefined ? { argv: parseJsonArray(argvText, "--argv-json") } : {}),
+        }))
+      }
+      case "guard": {
+        let loaded
+        try {
+          loaded = readQueueConfig(args.cwd ?? process.cwd(), args.configPath)
+        } catch (error) {
+          return failure("USAGE", error instanceof Error ? error.message : String(error))
+        }
+        const verdict = await evaluateExecutionEntry({
+          config: loaded.config,
+          stateRoot: root,
+          cwd: loaded.executionCwd,
+          env: process.env,
+        })
+        if (!verdict.allowed) {
+          return failure(verdict.code, verdict.message)
+        }
+        return success({
+          allowed: true,
+          reason: verdict.reason,
+          capability: EXECUTION_ENTRY_GUARD_CAPABILITY,
+          projectId: loaded.config.project.id,
+          cwd: loaded.executionCwd,
+        })
+      }
+      case "ship": {
+        const timeoutRaw = optionValue(args.rest, "--timeout-ms")
+        const timeoutMs = timeoutRaw ? Number(timeoutRaw) : 60 * 60_000
+        if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return failure("USAGE", "--timeout-ms precisa ser número positivo")
+        const prRaw = optionValue(args.rest, "--pr")
+        const pr = prRaw === undefined ? undefined : Number(prRaw)
+        if (prRaw !== undefined && (!Number.isSafeInteger(pr) || (pr as number) <= 0)) {
+          return failure("USAGE", "--pr precisa ser um inteiro positivo")
+        }
+        const repo = optionValue(args.rest, "--repo")
+        const noRemote = args.rest.includes("--no-remote")
+        const remote = args.rest.includes("--remote")
+        if (noRemote && remote) return failure("USAGE", "--remote e --no-remote juntos")
+        const report = await runShip(createSystemOps({
+          cwd: args.cwd ?? process.cwd(),
+          stateRoot: root,
+          configPath: args.configPath,
+          log: (message) => process.stderr.write(`${message}\n`),
+        }), {
+          dryRun: args.rest.includes("--dry-run"),
+          noRemote,
+          remote,
+          timeoutMs,
+          ...(pr !== undefined ? { pr } : {}),
+          ...(repo ? { repo } : {}),
+        })
+        return success(report)
       }
       case "enqueue": {
         const recipe = optionValue(args.rest, "--recipe")
@@ -150,6 +259,23 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           if (!requestContext) return failure("USAGE", "--request-context não respeita o contrato de identificadores")
         }
         if (recipe && !args.cwd) return failure("USAGE", "--cwd absoluto é obrigatório com --recipe")
+        const runVariantRaw = optionValue(args.rest, "--run-variant")
+        if (args.rest.includes("--run-variant") && runVariantRaw === undefined) {
+          return failure("USAGE", "--run-variant requer focal ou custom")
+        }
+        if (!recipe && runVariantRaw !== undefined) {
+          return failure("USAGE", "--run-variant exige --recipe; o preset não declara a descoberta do consumidor")
+        }
+        let runVariant: ReturnType<typeof parseRunVariant>
+        if (runVariantRaw !== undefined) {
+          try {
+            runVariant = parseRunVariant(runVariantRaw)
+          } catch (error) {
+            return failure("USAGE", error instanceof Error ? error.message : String(error))
+          }
+        } else {
+          runVariant = undefined
+        }
         const ticket = recipe
           ? enqueueExplicitTicket({
             recipe,
@@ -162,6 +288,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
             ...(optionValue(args.rest, "--artifacts-json") ? { artifacts: parseJsonArray(optionValue(args.rest, "--artifacts-json"), "--artifacts-json") } : {}),
             ...(optionValue(args.rest, "--flags-json") ? { flags: parseFlags(optionValue(args.rest, "--flags-json")) } : {}),
             requestContext,
+            ...(runVariant ? { runVariant } : {}),
           })
           : enqueueTicket({ preset: preset!, stateRoot: root, cwd: args.cwd, configPath: args.configPath, extraArgs: splitExtra(args.rest), requestContext })
         if (args.rest.includes("--wait")) {
@@ -175,10 +302,24 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
       }
       case "worker":
         return success(await runWorker(root))
-      case "status":
-        return success({ running: readRunningJob(root) ?? null, queued: listQueuedJobs(root), latest: listHistoryJobs(root)[0] ?? null })
-      case "history":
-        return success({ jobs: listHistoryJobs(root, optionValue(args.rest, "--project")).filter(ticket => !args.rest.includes("--legacy") || !ticket.projectId) })
+      case "status": {
+        const running = readRunningJob(root)
+        return success({ running: running ? attachProgressToTicket(root, running) : null, queued: listQueuedJobs(root), latest: listHistoryJobs(root)[0] ?? null })
+      }
+      case "history": {
+        const projectId = optionValue(args.rest, "--project")
+        if (args.rest.includes("--include-observed")) {
+          if (args.rest.includes("--legacy")) {
+            return failure("USAGE", "--legacy não pode ser combinado com --include-observed")
+          }
+          return success({ executions: listExecutionHistory(root, projectId) })
+        }
+        return success({
+          jobs: listHistoryJobs(root, projectId).filter(
+            (ticket) => !args.rest.includes("--legacy") || !ticket.projectId,
+          ),
+        })
+      }
       case "preset-history": {
         const loaded = readQueueConfig(args.cwd, args.configPath)
         const report = buildPresetHistory(listHistoryJobs(root, loaded.config.project.id), loaded.config)
@@ -208,6 +349,34 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           reason,
           ...(pr !== undefined ? { pr } : {}),
         }))
+      }
+      case "runtime": {
+        const action = args.rest.find((item) => !item.startsWith("--"))
+        if (action === "show") {
+          try {
+            const registry = readRuntimeRegistry(root) ?? { schemaVersion: 1 as const, projects: {} }
+            return success({ registryPath: runtimeRegistryPath(root), registry })
+          } catch (error) {
+            if (error instanceof RuntimeError) return failure(error.code, error.message)
+            throw error
+          }
+        }
+        if (action !== "register") return failure("USAGE", "runtime requer show ou register")
+        const projectId = optionValue(args.rest, "--project")
+        const node = optionValue(args.rest, "--node")
+        if (!projectId || !node) return failure("USAGE", "runtime register requer --project e --node")
+        try {
+          return success(registerProjectRuntime(root, {
+            projectId,
+            node,
+            ...(optionValue(args.rest, "--version") ? { version: optionValue(args.rest, "--version") } : {}),
+            ...(optionValue(args.rest, "--npm-cli") ? { npmCli: optionValue(args.rest, "--npm-cli") } : {}),
+            ...(optionValue(args.rest, "--npx-cli") ? { npxCli: optionValue(args.rest, "--npx-cli") } : {}),
+          }))
+        } catch (error) {
+          if (error instanceof RuntimeError) return failure(error.code, error.message)
+          throw error
+        }
       }
       case "logs": {
         const requested = args.rest.find((item) => !item.startsWith("--")) ?? "latest"
@@ -240,6 +409,14 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         return failure("USAGE", usage())
     }
   } catch (error) {
+    if (error instanceof InitError) return failure(error.code, error.message)
+    if (error instanceof ObservationError) return failure(error.code, error.message)
+    if (error instanceof ShipError) {
+      return failure(error.code, error.message, {
+        effects: error.effects,
+        ...(error.mergeSha ? { mergeSha: error.mergeSha } : {}),
+      })
+    }
     return failure("COMMAND_FAILED", error instanceof Error ? error.message : String(error))
   }
 }

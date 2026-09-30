@@ -47,6 +47,14 @@ def _plan(state_root):
     return raw["pending"]
 
 
+def read_validation_plan(state_root):
+    """Read the shared validation plan once and retain a factual read error."""
+    try:
+        return _plan(state_root), None
+    except ValueError as error:
+        return [], str(error)
+
+
 def _covers(repository_path, required_sha, green_sha, cache):
     if required_sha == green_sha:
         return True
@@ -109,17 +117,33 @@ def read_pending_advisories(state_root, config, project_id=None):
     read Git never guesses that an advisory was resolved.
     """
     ident = project_id or (config.project_id if config is not None else None)
-    try:
-        plan = _plan(state_root)
-    except ValueError as error:
-        return [], str(error)
+    plan, plan_error = read_validation_plan(state_root)
+    jobs = read_history(state_root) if config is not None and plan_error is None else []
+    return read_pending_advisories_snapshot(
+        state_root, config, project_id, plan, jobs, plan_error,
+    )
+
+
+def read_pending_advisories_snapshot(state_root, config, project_id, plan, jobs, plan_error=None):
+    """Project recommendations from request snapshots without rereading shared files."""
+    ident = project_id or (config.project_id if config is not None else None)
+    if plan_error:
+        return [], plan_error
     if config is None:
         return _documents_for(plan, ident), None
 
-    jobs = [job for job in read_history(state_root)
-            if job.get("projectId") == ident]
+    jobs = [job for job in jobs if job.get("projectId") == ident]
     jobs.sort(key=history_key, reverse=True)
-    remote = read_remote_slots(config.remote_slots_path, config, state_root)
+    local_ticket_ids = {
+        job.get("id") for job in jobs
+        if job.get("projectId") == ident and isinstance(job.get("id"), str)
+    }
+    remote = read_remote_slots(
+        config.remote_slots_path,
+        config,
+        state_root,
+        local_ticket_ids=local_ticket_ids,
+    )
     remote_greens = remote.get("greens") if isinstance(remote, dict) else []
     if not isinstance(remote_greens, list):
         remote_greens = []

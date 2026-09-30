@@ -4,12 +4,38 @@ CI Queue is an independent local CI executor and observability product. It owns
 its CLI, queue, supervisor, records, API, dashboard, installation and product
 tests. A consuming project owns its recipes, preparation and test harness.
 
+## Integration documentation
+
+The generic entry is `docs/CONSUMER-QUICKSTART.md`; the complete offline teaching
+manual is `docs/GUIA-INTEGRACAO-CI-QUEUE.html`. Owners and navigation are in
+`docs/README.md`. Formats belong to `docs/CONTRACTS.md`; release operations to
+`docs/INSTALL.md`; the feedback/proof choice and adoption templates to
+`docs/TESTING-METHOD.md`; Node binding limits to `docs/RUNTIME-ISOLATION.md`.
+Read live code/tests on the requested branch before reconciling prose. Historical
+specs/plans are context, not current operational policy. Do not rewrite their
+phases as part of a docs reconciliation.
+
+When adopting CI Queue in a consumer, explicitly update its AGENTS file (the
+actual target if it is a symlink) and its versioned operational skill/instruction.
+Keep one editable owner; use pointers rather than parallel contract copies.
+`ship.acceptedPresets` is OR; absent proof enqueues the first recipe. Required
+multiple checks belong in a real aggregate recipe with failure propagation.
+Progress is observability, never ship eligibility. An offline manual is not a
+runtime proof. Draft documentation PRs do not authorize merge, installation,
+cutover, Full execution or changes to product policy.
+
 ## Working in this repository
 
+- Product commands in this repository remain runnable directly. Use the
+  official queue when validating through CI Queue (`ci-queue enqueue
+  check|review --wait`); fixtures inside the suite use temporary states. Do not
+  start a second worker on the operator state. Resume an existing queued job by
+  inspecting its ticket/status/process before enqueueing again.
 - Keep the executor and dashboard independent of a consumer checkout. A path,
   import, script or release asset must not require DietFlow internals.
 - Preserve proven process ownership, cancellation, locking and record formats
   unless the change has a migration and recovery path.
+- The worker and runner never import `src/ship` and never request GitHub merge.
 - The project UI lives in `ui/` and uses Vite, TypeScript, Tailwind 4,
   `radix-nova`, Radix and Lucide. Read `ui/components.json` and run
   `cd ui && npx shadcn@latest info --json` before changing UI.
@@ -19,8 +45,12 @@ tests. A consuming project owns its recipes, preparation and test harness.
 
 ## UI: retrieve, select, adapt
 
-Before changing UI, read `DESIGN.md`, locate the surface in
-`.context/domains/manifest.yaml` and open `.context/patterns/ui-composition.yaml`.
+Start at the [domain map](.context/domains/manifest.yaml), then open the
+[UI composition pattern](.context/patterns/ui-composition.yaml) for the shared
+owner, consumers and checks. Read `DESIGN.md` and the product contract before
+changing the selected surface. For execution state, use the shared descriptor
+in `ui/src/features/shared/presentation.ts`; status color, retry and failure
+priority do not belong in individual screens.
 Recover the installed composition and its consumers before JSX. Features pass
 data/actions; shared owners decide geometry/presentation. Family corrections
 must verify all consumers. Types/lint prove mechanical limits; the rendered
@@ -90,7 +120,12 @@ CSS grid when an API name differs.
 
 ## Validation
 
-Run the smallest relevant tests first. Before release/cutover, execute the
+During UI iteration, render and review the candidate before running a queue
+ticket. A Draft PR, visual adjustment, commit or push does not by itself call
+for `check` or `review`. Use the smallest focal check for a concrete behavior or
+contract risk; a failed broad run calls for causal diagnosis before another
+canonical run. Once the candidate is ready for integration, run the documented
+minimum check for that destination. Before release/cutover, execute the
 product's documented contract, integration, UI and installation checks. A
 consumer smoketest does not prove the queue engine; an isolated queue fixture
 does not prove a consumer Full run.

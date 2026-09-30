@@ -9,16 +9,23 @@ import {
 } from "@/components/ui/item"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { formatDuration } from "./format"
+import {
+  stageContextDescription,
+} from "./progress-detail"
+import { ProgressDuration } from "./progress-duration"
 import { describeProgressState } from "./presentation"
 import { StatusIndicator } from "./status-indicator"
 
 export function ExecutionStages({
   stages,
   jobStatus,
+  active = [],
+  planned = [],
 }: {
   stages: readonly ProgressNode[]
   jobStatus: JobStatus | undefined
+  active?: readonly ProgressNode[]
+  planned?: readonly (ProgressNode & { rootId: string })[]
 }) {
   const root = React.useRef<HTMLDivElement>(null)
   const following = React.useRef(true)
@@ -85,7 +92,7 @@ export function ExecutionStages({
             >
               <div className="flex w-full items-center gap-2">
                 <StatusIndicator
-                  descriptor={describeProgressState(stage.status, jobStatus)}
+                  descriptor={describeProgressState(stage, jobStatus)}
                   presentation="stage"
                 />
                 {index < stages.length - 1 ? (
@@ -99,11 +106,11 @@ export function ExecutionStages({
                 >
                   {stage.label}
                 </ItemTitle>
-                {typeof stage.durationMs === "number" ? (
-                  <ItemDescription className="text-xs tabular-nums">
-                    {formatDuration(stage.durationMs)}
-                  </ItemDescription>
-                ) : null}
+                <ItemDescription className="text-xs">
+                  {stageContextDescription(stage, active, planned) ?? (
+                    <ProgressDuration node={stage} jobStatus={jobStatus} />
+                  )}
+                </ItemDescription>
               </ItemContent>
             </Item>
           )

@@ -1,0 +1,100 @@
+{
+  "schema_version": "superflow.implementation_log.v1",
+  "feature": "001-prova-local-progress-ship",
+  "updated_at": "2026-09-19T01:40:00+00:00",
+  "entries": [
+    {
+      "subtask_id": "subtask-1-1",
+      "tdd": "skipped",
+      "skip_reason": "Harness invert only",
+      "green": {
+        "command": "TZ=America/Sao_Paulo ./node_modules/.bin/jest --runTestsByPath scripts/ci/__tests__/progress-instrumentation.test.ts -t 'catalog progress ratchet is a positive allowlist of currently instrumented recipes' --runInBand",
+        "excerpt": "PASS catalog progress ratchet is a positive allowlist of currently instrumented recipes"
+      }
+    },
+    {
+      "subtask_id": "subtask-2-1",
+      "red": {
+        "command": "TZ=America/Sao_Paulo ./node_modules/.bin/jest --runTestsByPath scripts/ci/__tests__/queue-material-proof.test.ts -t 'helper without a resolved recipe is not eligible' --runInBand",
+        "excerpt": "Expected false, Received true because isQueueMaterialProofEligible defaults expected.preset to smoketest"
+      },
+      "green": {
+        "command": "TZ=America/Sao_Paulo ./node_modules/.bin/jest --runTestsByPath scripts/ci/__tests__/queue-material-proof.test.ts --runInBand",
+        "excerpt": "Tests: 9 passed, 9 total"
+      }
+    },
+    {
+      "subtask_id": "subtask-2-2",
+      "red": {
+        "command": "TZ=America/Sao_Paulo ./node_modules/.bin/jest --runTestsByPath scripts/ship/__tests__/ship.test.ts -t 'darwin without persistent queue fails LOCAL_RED without spawning ci:smoketest' --runInBand",
+        "excerpt": "Named test added after production ShipOps.platform(); later extraArgs shadowing was observed RED: Expected t1, Received undefined"
+      },
+      "green": {
+        "command": "TZ=America/Sao_Paulo ./node_modules/.bin/jest --runTestsByPath scripts/ship/__tests__/ship.test.ts --runInBand",
+        "excerpt": "Tests: 134 passed, 134 total"
+      }
+    },
+    {
+      "subtask_id": "subtask-3-1",
+      "red": {
+        "command": "TZ=America/Sao_Paulo ./node_modules/.bin/jest --runTestsByPath scripts/ci/__tests__/progress-instrumentation.test.ts -t 'eleven stack and golden test recipes declare progress without changing argv' --runInBand",
+        "excerpt": "Expected: true\nReceived: undefined"
+      },
+      "green": {
+        "command": "TZ=America/Sao_Paulo ./node_modules/.bin/jest --runTestsByPath scripts/ci/__tests__/progress-instrumentation.test.ts -t 'eleven stack and golden test recipes declare progress without changing argv' --runInBand",
+        "excerpt": "PASS eleven stack and golden test recipes declare progress without changing argv"
+      }
+    },
+    {
+      "subtask_id": "subtask-3-2",
+      "red": {
+        "command": "TZ=America/Sao_Paulo ./node_modules/.bin/jest --runTestsByPath scripts/ci/__tests__/progress-instrumentation.test.ts -t 'wrappers without stack emit the declared stable root ids when progress env is on' --runInBand",
+        "excerpt": "Expected: true\nReceived: undefined"
+      },
+      "green": {
+        "command": "TZ=America/Sao_Paulo ./node_modules/.bin/jest --runTestsByPath scripts/ci/__tests__/progress-instrumentation.test.ts --runInBand",
+        "excerpt": "Tests: 16 passed, 16 total; ci-local.sh flowui still emits no invented stages"
+      }
+    },
+    {
+      "subtask_id": "subtask-3-3",
+      "tdd": "skipped",
+      "skip_reason": "Docs and .context copy only",
+      "green": {
+        "command": "python3 invariant check across 8 DietFlow files",
+        "excerpt": "ok — Progresso contínuo ausente é aviso, não recusa"
+      }
+    },
+    {
+      "subtask_id": "subtask-4-1",
+      "red": {
+        "command": "python3 -m unittest discover -s tests/backend -p 'test_public_job.py'",
+        "excerpt": "KeyError: 'progressEnabled'"
+      },
+      "green": {
+        "command": "python3 -m unittest discover -s tests/backend -p 'test_public_job.py'",
+        "excerpt": "Ran 3 tests in 0.000s\nOK"
+      }
+    },
+    {
+      "subtask_id": "subtask-4-2",
+      "red": {
+        "command": "npx vitest run tests/ui/presentation.test.ts",
+        "excerpt": "TypeError: progressSurface is not a function"
+      },
+      "green": {
+        "command": "npx vitest run tests/ui/presentation.test.ts",
+        "excerpt": "Tests  7 passed (7)"
+      }
+    },
+    {
+      "subtask_id": "subtask-5-1",
+      "tdd": "skipped",
+      "skip_reason": "Review phase",
+      "green": {
+        "command": "npm run check:ui && DietFlow ship.test.ts",
+        "excerpt": "Accepted E1/E2 re-verified: UI build green; ship 134 passed"
+      }
+    }
+  ]
+}

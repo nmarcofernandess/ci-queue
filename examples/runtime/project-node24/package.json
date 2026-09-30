@@ -1,0 +1,7 @@
+{
+  "name": "runtime-example-node24",
+  "private": true,
+  "engines": {
+    "node": "24.x"
+  }
+}

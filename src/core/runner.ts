@@ -2,9 +2,18 @@ import { spawn, spawnSync } from "node:child_process"
 import { cpSync, existsSync, mkdirSync, renameSync, rmSync, statSync, unlinkSync } from "node:fs"
 import { basename, isAbsolute, join, relative, resolve } from "node:path"
 
+import { prepareJobRuntime, RuntimeError, discardRuntimeDirectory, type RuntimeSession } from "./runtime.js"
+import { RUNTIME_CAPABILITY } from "../contracts/runtime.js"
+
 import { initialExecutionDeadline, captureExecutionDeadline, validateQueuedDeadline } from "./deadline.js"
 import { ProgressCollector, attachProgressToTicket, removeProgressSnapshot } from "./progress.js"
 import { probeProcessGroupIdentity, readProcessObservation, terminateVerifiedProcessGroup } from "./process.js"
+import {
+  decideSpendAbort,
+  observeRemoteBase,
+  resolveRemoteBase,
+  STALE_BASE_FAILURE_REASON,
+} from "./spend-abort.js"
 import {
   appendLog,
   atomicWriteJson,
@@ -43,6 +52,11 @@ export type RunJobHooks = {
   onJob?: (job: QueueTicket | undefined) => void
   onChildPid?: (pid: number | undefined, identity?: ProcessGroupIdentity) => void
   interruptedReason?: () => string | undefined
+  spendAbort?: {
+    observe?: typeof observeRemoteBase
+    sleep?: (ms: number, signal: AbortSignal) => Promise<void>
+    nowMs?: () => number
+  }
 }
 
 /** Versioned child-process environment contract. */
@@ -137,7 +151,8 @@ export function readGitInfo(cwd: string, baseRef?: string): GitInfo | undefined 
   const headSha = git(cwd, ["rev-parse", "HEAD"])
   if (!headSha) return undefined
   const branch = git(cwd, ["branch", "--show-current"]) || "HEAD-detached"
-  const statusShort = git(cwd, ["status", "--short"]) ?? ""
+  const statusShort = git(cwd, ["status", "--short"])
+  if (statusShort === undefined) return undefined
   const baseSha = baseRef ? git(cwd, ["rev-parse", baseRef]) : undefined
   return { branch, headSha, baseSha: baseSha ?? "", statusShort }
 }
@@ -274,15 +289,41 @@ function copyArtifacts(root: string, ticket: QueueTicket): string | undefined {
   return copied ? target : undefined
 }
 
-function finalProgress(root: string, ticket: QueueTicket, artifactStatus: "passed" | "failed" | "skipped"): QueueTicket {
-  const collector = new ProgressCollector(root, ticket.id)
+function publishArtifactNode(collector: ProgressCollector, artifactStatus: "running" | "passed" | "failed" | "skipped"): void {
   collector.ingest(`${"@@ci-queue-progress"}\t1\tnode\tartifacts\t-\tartifact\t${artifactStatus}\t-\tArtefatos`)
-  const enriched = attachProgressToTicket(root, ticket)
-  removeProgressSnapshot(root, ticket.id)
-  return enriched
 }
 
-export async function closeRunningTicket(root: string, candidate: QueueTicket): Promise<QueueTicket> {
+/** Attach finalized progress. Never deletes the sidecar — that happens only after authoritative history. */
+function withFinalProgress(
+  root: string,
+  ticket: QueueTicket,
+  collector?: ProgressCollector,
+  options: { publishSkippedArtifacts?: boolean } = {},
+): QueueTicket {
+  const active = collector ?? new ProgressCollector(root, ticket.id)
+  if (options.publishSkippedArtifacts) {
+    // Skipped without a copy attempt: terminal without running → honest missing-start, never 0 ms.
+    publishArtifactNode(active, "skipped")
+  }
+  const progress = active.finalize()
+  return { ...ticket, progress, ...(progress.runVariant ? { runVariant: progress.runVariant } : {}) }
+}
+
+function finalProgress(
+  root: string,
+  ticket: QueueTicket,
+  collector?: ProgressCollector,
+): QueueTicket {
+  return withFinalProgress(root, ticket, collector, { publishSkippedArtifacts: true })
+}
+
+export type CloseTicketResult = { ticket: QueueTicket; authoritative: boolean }
+
+/**
+ * Persist a terminal ticket under the job lock.
+ * `authoritative` is true only when history exists on disk afterwards — never inferred from candidate/status/id.
+ */
+export async function closeRunningTicket(root: string, candidate: QueueTicket): Promise<CloseTicketResult> {
   const terminal = await withTicketLock(root, candidate.id, () => {
     const existing = readHistoryJob(root, candidate.id)
     if (existing) return existing
@@ -297,7 +338,20 @@ export async function closeRunningTicket(root: string, candidate: QueueTicket): 
     removeFile(claimPath(root, candidate.id))
     return merged
   })
-  return terminal ?? candidate
+  if (terminal === undefined) {
+    return { ticket: candidate, authoritative: false }
+  }
+  const persisted = readHistoryJob(root, candidate.id)
+  return { ticket: terminal, authoritative: Boolean(persisted) }
+}
+
+async function closeAndMaybeDropSidecar(root: string, candidate: QueueTicket, runtimeDirectory?: string): Promise<QueueTicket> {
+  const { ticket, authoritative } = await closeRunningTicket(root, candidate)
+  if (authoritative) {
+    removeProgressSnapshot(root, ticket.id)
+    discardRuntimeDirectory(runtimeDirectory)
+  }
+  return ticket
 }
 
 export async function claimQueuedTicket(root: string, id: string, workerPid = process.pid): Promise<ClaimResult> {
@@ -373,13 +427,15 @@ export async function reconcileInterruptedJob(root: string): Promise<{ state: "n
     appendRedactedLog(blocked.logPath, `[${new Date().toISOString()}] ${blocked.cleanupBlockedReason}\n`)
     return { state: "blocked", job: blocked }
   }
-  const terminal = await closeRunningTicket(root, {
+  const collector = new ProgressCollector(root, running.id)
+  const withProgress = withFinalProgress(root, {
     ...running,
     status: "interrupted",
     finishedAt: new Date().toISOString(),
     exitCode: null,
     failureReason: "worker interrompido; processo filho encerrado durante a recuperação",
-  })
+  }, collector, { publishSkippedArtifacts: true })
+  const terminal = await closeAndMaybeDropSidecar(root, withProgress)
   return { state: "reconciled", job: terminal }
 }
 
@@ -396,6 +452,7 @@ export function buildJobEnv(root: string, ticket: QueueTicket): NodeJS.ProcessEn
     CI_QUEUE_PROJECT_ID: ticket.projectId ?? "",
     CI_QUEUE_STATE_DIR: root,
     CI_QUEUE_PRESET: ticket.preset,
+    CI_QUEUE_RUN_VARIANT: ticket.runVariant ?? "",
     // v1 compatibility aliases remain necessary while existing project
     // recipes/proofs migrate to the product-named environment.
     DIETFLOW_CI_QUEUE_DIR: root,
@@ -413,20 +470,155 @@ export function buildJobEnv(root: string, ticket: QueueTicket): NodeJS.ProcessEn
   }
 }
 
+const SPEND_ABORT_INTERVAL_MS = 15_000
+const SPEND_ABORT_BACKOFF_MS = [30_000, 60_000, 120_000] as const
+const SPEND_ABORT_OBSERVE_TIMEOUT_MS = 10_000
+
+export type SpendAbortObserver = { stop(): Promise<void> }
+
+export function startSpendAbortObserver(input: {
+  ticket: QueueTicket
+  observe: typeof observeRemoteBase
+  sleep: (ms: number, signal: AbortSignal) => Promise<void>
+  onStale: (remoteSha: string) => Promise<void>
+  nowMs: () => number
+}): SpendAbortObserver {
+  const controller = new AbortController()
+  const loop = runSpendAbortLoop(input, controller.signal)
+  return {
+    async stop() {
+      controller.abort()
+      await loop
+      deleteObservedRef(input.ticket.cwd, input.ticket.id)
+    },
+  }
+}
+
+async function runSpendAbortLoop(
+  input: {
+    ticket: QueueTicket
+    observe: typeof observeRemoteBase
+    sleep: (ms: number, signal: AbortSignal) => Promise<void>
+    onStale: (remoteSha: string) => Promise<void>
+    nowMs: () => number
+  },
+  signal: AbortSignal,
+): Promise<void> {
+  let consecutiveErrors = 0
+  let first = true
+  while (!signal.aborted) {
+    input.nowMs()
+    if (!first) {
+      const waitMs = consecutiveErrors === 0
+        ? SPEND_ABORT_INTERVAL_MS
+        : SPEND_ABORT_BACKOFF_MS[Math.min(consecutiveErrors, SPEND_ABORT_BACKOFF_MS.length) - 1]
+      await input.sleep(waitMs, signal)
+      if (signal.aborted) break
+    }
+    first = false
+    try {
+      const fetchBase = input.ticket.flags?.fetchBase
+      if (!fetchBase) {
+        consecutiveErrors += 1
+        continue
+      }
+      const base = resolveRemoteBase(fetchBase, listGitRemotes(input.ticket.cwd))
+      const observation = await input.observe({
+        cwd: input.ticket.cwd,
+        base,
+        headSha: input.ticket.headSha,
+        ticketId: input.ticket.id,
+        signal,
+        timeoutMs: SPEND_ABORT_OBSERVE_TIMEOUT_MS,
+      })
+      if (signal.aborted) break
+      const decision = decideSpendAbort({
+        abortOnStaleBase: input.ticket.flags?.abortOnStaleBase === true,
+        remoteBaseSha: observation.kind === "known" ? observation.sha : null,
+        isRemoteAncestorOfHead: observation.kind === "known" ? observation.isAncestor : null,
+      })
+      if (observation.kind === "known") consecutiveErrors = 0
+      else consecutiveErrors += 1
+      if (decision.action === "abort") {
+        await input.onStale(decision.remoteSha)
+        break
+      }
+    } catch {
+      consecutiveErrors += 1
+    }
+  }
+}
+
+function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve()
+      return
+    }
+    const timer = setTimeout(resolve, ms)
+    timer.unref?.()
+    const onAbort = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    signal.addEventListener("abort", onAbort, { once: true })
+  })
+}
+
+function listGitRemotes(cwd: string): string[] {
+  const result = spawnSync("git", ["remote"], {
+    cwd,
+    encoding: "utf8",
+    timeout: 10_000,
+    env: { ...process.env, LC_ALL: "C", LANG: "C" },
+  })
+  if (result.status !== 0) throw new Error("não foi possível listar remotes")
+  return String(result.stdout)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
+function deleteObservedRef(cwd: string, ticketId: string): void {
+  spawnSync("git", ["update-ref", "-d", `refs/ci-queue/observed/${ticketId}`], {
+    cwd,
+    encoding: "utf8",
+    timeout: 10_000,
+    env: { ...process.env, LC_ALL: "C", LANG: "C" },
+  })
+}
+
 export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHooks = {}): Promise<QueueTicket> {
   ensureQueueDirs(root)
   let ticket = parsed.ticket
+  // One collector for the whole job, including early exits (E3 / R01).
+  const collector = new ProgressCollector(root, ticket.id)
   let preflight: GitInfo | undefined
+  let runtime: RuntimeSession
   try {
     preflight = assertPreflight(ticket, parsed.flags)
+    ticket = { ...ticket, preflight }
   } catch (error) {
-    const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: error instanceof Error ? error.message : String(error) }, "skipped")
-    return closeRunningTicket(root, failed)
+    const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: error instanceof Error ? error.message : String(error) }, collector)
+    return closeAndMaybeDropSidecar(root, failed)
   }
 
   try {
-    ticket = mergeRunning(root, { ...ticket, preflight })
+    runtime = prepareJobRuntime(root, ticket, parsed.argv, buildJobEnv(root, ticket))
+    ticket = { ...ticket, runtime: runtime.receipt }
   } catch (error) {
+    if (error instanceof RuntimeError) {
+      ticket = { ...ticket, runtime: { capability: RUNTIME_CAPABILITY, coverage: "unconfigured", state: "rejected", observations: [], failureCode: error.code } }
+      appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] ${error.message}\n`)
+    }
+    const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: error instanceof Error ? error.message : String(error) }, collector)
+    return closeAndMaybeDropSidecar(root, failed)
+  }
+
+  try {
+    ticket = mergeRunning(root, ticket)
+  } catch (error) {
+    discardRuntimeDirectory(runtime.directory)
     throw new Error(`não foi possível reservar running.json: ${error instanceof Error ? error.message : String(error)}`)
   }
   hooks.onJob?.(ticket)
@@ -434,22 +626,28 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
 
   let child: ReturnType<typeof spawn>
   try {
-    child = spawn(parsed.argv[0], parsed.argv.slice(1), { cwd: ticket.cwd, env: buildJobEnv(root, ticket), detached: true, stdio: ["ignore", "pipe", "pipe"] })
+    child = spawn(runtime.argv[0], runtime.argv.slice(1), { cwd: ticket.cwd, env: runtime.env, detached: true, stdio: ["ignore", "pipe", "pipe"] })
   } catch (error) {
-    const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: `spawn falhou: ${error instanceof Error ? error.message : String(error)}` }, "skipped")
-    return closeRunningTicket(root, failed)
+    ticket = { ...ticket, runtime: runtime.finish() }
+    const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: `spawn falhou: ${error instanceof Error ? error.message : String(error)}` }, collector)
+    return closeAndMaybeDropSidecar(root, failed, runtime.directory)
   }
 
-  const collector = new ProgressCollector(root, ticket.id)
+  if (runtime.receipt.node) appendRedactedLog(ticket.logPath, `[runtime] ${runtime.receipt.node.executable} v${runtime.receipt.node.version}; coverage=${runtime.receipt.coverage}\n`)
+
   const logRedactor = new LogRedactor()
-  const output = (chunk: Buffer) => {
-    const text = chunk.toString("utf8")
-    appendRedactedLog(ticket.logPath, logRedactor.push(text))
-    decoder.push(text)
+  const stdoutProgress = collector.decoder()
+  const stderrProgress = collector.decoder()
+  const onStdout = (chunk: Buffer) => {
+    appendRedactedLog(ticket.logPath, logRedactor.push(chunk.toString("utf8")))
+    stdoutProgress.push(chunk)
   }
-  const decoder = collector.decoder()
-  child.stdout?.on("data", output)
-  child.stderr?.on("data", output)
+  const onStderr = (chunk: Buffer) => {
+    appendRedactedLog(ticket.logPath, logRedactor.push(chunk.toString("utf8")))
+    stderrProgress.push(chunk)
+  }
+  child.stdout?.on("data", onStdout)
+  child.stderr?.on("data", onStderr)
 
   const identity = child.pid ? probeProcessGroupIdentity(child.pid) : undefined
   const started = mergeRunning(root, {
@@ -463,10 +661,13 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   hooks.onJob?.(ticket); hooks.onChildPid?.(child.pid, identity)
 
   let timedOut = false
+  let childClosed = false
+  let staleAborted = false
   let deadlineTimer: NodeJS.Timeout | undefined
   if (ticket.executionDeadline?.state === "armed") {
     const deadline = ticket.executionDeadline
     deadlineTimer = setTimeout(() => {
+      if (childClosed || staleAborted) return
       const current = readRunningJob(root)
       if (!current || current.id !== ticket.id) return
       timedOut = true
@@ -482,9 +683,31 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     deadlineTimer.unref?.()
   }
 
+  const observer = parsed.flags.abortOnStaleBase === true && parsed.flags.fetchBase
+    ? startSpendAbortObserver({
+      ticket,
+      observe: hooks.spendAbort?.observe ?? observeRemoteBase,
+      sleep: hooks.spendAbort?.sleep ?? abortableSleep,
+      nowMs: hooks.spendAbort?.nowMs ?? Date.now,
+      onStale: async (_remoteSha) => {
+        if (childClosed) return
+        const current = readRunningJob(root)
+        if (!current || current.id !== ticket.id) return
+        if (current.cancelRequestedAt) return
+        if (current.executionDeadline?.state === "expired") return
+        if (!current.processGroupIdentity) return
+        staleAborted = true
+        await terminateVerifiedProcessGroup(current.processGroupIdentity)
+      },
+    })
+    : undefined
+
   const exit = await childExit(child)
+  childClosed = true
   if (deadlineTimer) clearTimeout(deadlineTimer)
-  decoder.flush()
+  if (observer) await observer.stop()
+  stdoutProgress.flush()
+  stderrProgress.flush()
   appendRedactedLog(ticket.logPath, logRedactor.flush())
   const latest = readRunningJob(root)
   const interrupted = Boolean(hooks.interruptedReason?.())
@@ -498,6 +721,22 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
         ? "prazo de execução excedido"
         : `processo terminou com código ${exit.code}`
       : undefined
+  if (staleAborted && !cancelRequested && !interrupted && !timedOut) {
+    status = "failed"
+    exitCode = 1
+    failureReason = STALE_BASE_FAILURE_REASON
+  }
+  const runtimeReceipt = runtime.finish()
+  ticket = { ...ticket, runtime: runtimeReceipt }
+  if (runtimeReceipt.state === "rejected") {
+    const runtimeFailure = runtimeReceipt.failureCode ?? "RUNTIME_REJECTED"
+    appendRedactedLog(ticket.logPath, `[runtime] ${runtimeFailure}\n`)
+    if (status !== "cancelled" && status !== "interrupted") {
+      status = "failed"
+      exitCode = 78
+      if (!staleAborted) failureReason = runtimeFailure
+    }
+  }
   let postflight: GitInfo | undefined
   if (status === "passed") {
     const stability = verifyGitStability(ticket, parsed.flags)
@@ -514,17 +753,21 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     : deadline
   const observation = readProcessObservation(identity, { capture: "end", cwd: ticket.cwd, jobId: ticket.id, exitedBeforeObservation: true })
   let artifactsPath: string | undefined
-  let artifactStatus: "passed" | "failed" | "skipped" = "skipped"
+  let publishSkippedArtifacts = false
   if (ticket.artifacts?.length) {
+    // R04: measure only the existing copy on the same collector (running → terminal).
+    publishArtifactNode(collector, "running")
     try {
       artifactsPath = copyArtifacts(root, ticket)
-      artifactStatus = artifactsPath ? "passed" : "skipped"
+      publishArtifactNode(collector, artifactsPath ? "passed" : "skipped")
     } catch (error) {
-      artifactStatus = "failed"
+      publishArtifactNode(collector, "failed")
       appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] cópia de artefatos falhou: ${error instanceof Error ? error.message : String(error)}\n`)
     }
+  } else {
+    publishSkippedArtifacts = true
   }
-  const terminal = finalProgress(root, {
+  const candidate = withFinalProgress(root, {
     ...ticket,
     ...(latest?.cancelRequestedAt ? { cancelRequestedAt: latest.cancelRequestedAt } : {}),
     status,
@@ -536,8 +779,8 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     ...(completedDeadline ? { executionDeadline: completedDeadline } : {}),
     ...(postflight ? { postflight } : {}),
     processObservations: [...(ticket.processObservations ?? []), observation],
-  }, artifactStatus)
+  }, collector, { publishSkippedArtifacts })
   hooks.onChildPid?.(undefined)
   hooks.onJob?.(undefined)
-  return closeRunningTicket(root, terminal)
+  return closeAndMaybeDropSidecar(root, candidate, runtime.directory)
 }

@@ -1,0 +1,12 @@
+{
+  "method": "Synthetic values exercising the observed argument/order boundary only",
+  "source": "nmarcofernandess/ci-queue@24d6a2b417876db209db4519c3826566ab94a1e7 src/core/runner.ts: buildJobEnv/runJob",
+  "environmentForChild": {
+    "DIETFLOW_CI_BASE_SHA": "",
+    "LOCAL_CI_BASE_SHA": ""
+  },
+  "recordedBaseSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "sameBaseInRecordAndEnvironment": false,
+  "fullRunnerExecuted": false,
+  "consumerFallback": "smoketest-local.sh reads origin/dev again if DIETFLOW_CI_BASE_SHA is empty"
+}

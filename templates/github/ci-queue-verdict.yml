@@ -1,0 +1,61 @@
+name: CI Queue verdict
+
+run-name: >-
+  ci-verdict PR ${{ github.event.pull_request.number || inputs.pr }} H ${{ github.event.pull_request.head.sha || inputs.head }} B0 ${{ github.event.pull_request.base.sha || inputs.base }}${{ github.event_name == 'workflow_dispatch' && format(' req {0}', inputs.requestId) || '' }}
+
+on:
+  pull_request:
+    branches: ['__CI_QUEUE_DEFAULT_BRANCH__']
+    types: [ready_for_review, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number
+        required: true
+        type: string
+      head:
+        description: Expected head SHA (H)
+        required: true
+        type: string
+      base:
+        description: Expected base SHA (B0)
+        required: true
+        type: string
+      requestId:
+        description: Correlation id for this dispatch
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  statuses: read
+  pull-requests: read
+
+concurrency:
+  group: ci-queue-verdict-${{ github.repository }}-${{ github.event.pull_request.number || inputs.pr }}-${{ github.event.pull_request.head.sha || inputs.head }}-${{ github.run_attempt }}
+  cancel-in-progress: true
+
+jobs:
+  ci-verdict:
+    name: ci-verdict
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Load verifier script
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/verify-local-attestation.sh
+          sparse-checkout-cone-mode: false
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+
+      - name: Verify local attestation
+        env:
+          repo: ${{ github.repository }}
+          H: ${{ github.event.pull_request.head.sha || inputs.head }}
+          B0: ${{ github.event.pull_request.base.sha || inputs.base }}
+          context: '__CI_QUEUE_ATTESTATION_CONTEXT__'
+          pr: ${{ github.event.pull_request.number || inputs.pr }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/verify-local-attestation.sh

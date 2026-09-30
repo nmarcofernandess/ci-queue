@@ -148,3 +148,8 @@ playwright-report/
 
 # Reproducible distribution output
 /releases/
+
+# Python bytecode from test:backend (breaks requireGitStability)
+__pycache__/
+**/__pycache__/
+*.py[cod]

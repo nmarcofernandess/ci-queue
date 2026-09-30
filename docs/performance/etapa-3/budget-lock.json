@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "lockedBeforeOptimization": true,
+  "lockedAt": "2026-09-19T17:35:00Z",
+  "base": {
+    "commit": "5a9268e41e27644362dfd9e5cd4e163813f5e1a1",
+    "tree": "67da42f17aac27f046995f952ec49ad578bb9712"
+  },
+  "environment": {
+    "os": "macOS 26.6.2 (25G83)",
+    "cpu": "Apple M4",
+    "logicalCpu": 10,
+    "ramBytes": 17179869184,
+    "filesystem": "operator workspace on local macOS volume; OS page cache not purged",
+    "python": "3.9.6",
+    "nodeBaseline": "v25.6.1",
+    "nodeCanonicalCheck": "v24.20.0",
+    "playwright": "1.63.0"
+  },
+  "method": {
+    "seed": "ci-queue-etapa-3-s0-v1",
+    "warmSamplesPerEndpoint": 100,
+    "applicationColdSamplesPerEndpoint": 30,
+    "percentile": "nearest-rank",
+    "transport": "real loopback ThreadingHTTPServer",
+    "state": "temporary synthetic roots only",
+    "osCachePurged": false,
+    "raw": "raw/baseline-http-raw.csv"
+  },
+  "baselineD1000H": {
+    "statusAll": {"warmP50Ms": 183.814, "warmP95Ms": 204.474, "coldP95Ms": 476.907, "bodyBytes": 988609},
+    "executionsAll": {"warmP50Ms": 187.082, "warmP95Ms": 202.016, "coldP95Ms": 349.55, "bodyBytes": 966719},
+    "analysisAlpha": {"warmP50Ms": 64.843, "warmP95Ms": 74.203, "coldP95Ms": 206.02, "bodyBytes": 22114},
+    "job4096": {"warmP50Ms": 12.065, "warmP95Ms": 12.647, "coldP95Ms": 12.171, "bodyBytes": 695241}
+  },
+  "targets": {
+    "warmLiveOrList": {"p50MsMax": 75, "p95MsMax": 150},
+    "repeatedAnalysis": {"p95MsMax": 200},
+    "warmDetail4096": {"p95MsMax": 300},
+    "worktreesSnapshotHit": {"p95MsMax": 150},
+    "routeReentryUsefulRegion": {"p95MsMax": 100},
+    "localFeedbackFilterOrDrawer": {"p95MsMax": 100},
+    "coldFirstUsefulRegionD1000H": {"p95MsMax": 1500},
+    "ui1000Rows": {"interactionP95MsMax": 100, "hotUpdateLongTaskMsMax": 200},
+    "pollingCpu60s": {"reductionMinFractionWhenBaselineAtLeast1CpuSecond": 0.5, "maxRegressionFractionOtherwise": 0.1},
+    "summaryPayloadReductionMinFraction": 0.8
+  },
+  "structuralGates": {
+    "warmUnchangedHistoryBodyReads": 0,
+    "warmUnchangedHistoryBodyHashes": 0,
+    "oneTicketDeltaMaxBodiesReadAndParsed": 1,
+    "projection": "page before recursive projection; no off-page tree projection",
+    "client": "one in-flight update and one schedule per canonical key/store instance",
+    "pollCadence": "unchanged",
+    "detail": "full ticket and 4096-node tree preserved",
+    "occupancy": "global in every project/all/unassigned filter"
+  },
+  "decisions": {
+    "recordCache": "per-file cache plus immutable generation snapshot in the existing Python API process",
+    "changeFingerprint": "directory scan with file identity and metadata including inode, size, mtime_ns and ctime_ns; read, hash and parse the same bytes only for visible deltas; bounded stat/read/stat retry",
+    "integrityLimit": "metadata-invisible bit changes cannot be detected without reopening bodies; exact cryptographic verification on every request conflicts with the zero-body-read warm gate and is not claimed",
+    "liveRepresentation": "additive view=live on the existing status path, with default compatibility retained",
+    "executionRepresentation": "additive page summary; full detail remains by ticket id",
+    "client": "small canonical-key store with shared promise, subscribers, data plus error, freshness and bounded inactive entries",
+    "worktrees": "reuse a per-request-generation inventory; preserve live action revalidation and existing du coalescing",
+    "rejected": ["SQLite", "TanStack Query", "filesystem watcher", "WebSocket", "second service", "reduced polling cadence"]
+  },
+  "knownLinearCosts": [
+    "directory metadata scan remains O(N) until measured evidence justifies a different change source",
+    "ledger overlay may remain O(N) in memory after ledger mutation",
+    "cold rebuild remains proportional to retained records"
+  ],
+  "measurementGapsAtLock": [
+    "compiled-browser render/layout, two-tab and 100-remount traces remain for integrated proof",
+    "DWT Git/du latency and full child CPU accounting remain for integrated proof",
+    "cold login and installed-Mac performance are S6-only and bootObserved is false"
+  ]
+}

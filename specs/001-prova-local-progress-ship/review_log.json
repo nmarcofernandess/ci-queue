@@ -1,0 +1,160 @@
+{
+  "schema_version": "superflow.review.v1",
+  "source_plan": "SPEC.md",
+  "rounds": [
+    {
+      "id": "review-1",
+      "kind": "spec",
+      "target": "SPEC.md vs live DietFlow/CI Queue code vs analysis.md vs PRD.md",
+      "reviewer": "second-agent gpt-5.6-sol-xhigh (9d10b875-5a8b-4931-938a-7e7615c2dc66)",
+      "findings": [
+        {
+          "id": "R1",
+          "severity": "blocker",
+          "claim": "SPEC used finishedAt to identify each recipe’s latest attempt, conflating attempt order with the cross-recipe winner so an older-started run that finishes later could shadow a newer attempt.",
+          "evidence": "SPEC.md:121-123 (pre-recode); src/ship/eligibility.ts:158-164,202-211; tests/core/eligibility.test.ts:244-266; analysis.md:500-518",
+          "verdict": "accepted",
+          "reason": "Recode 11 closed finishedAt only among eligible latests, against product list-order. Per-recipe recency in the product is startedAt. Collapsing both clocks onto finishedAt would encode the wrong shadow test.",
+          "proof": {
+            "command": "rg -n \"Ordenar por .startedAt.|Per-recipe latest attempt is the newest\" specs/001-prova-local-progress-ship/SPEC.md",
+            "excerpt": "128:5. Latest-attempt **por receita**: ... Ordenar por `startedAt` (ausente → `createdAt`; desempate `id`) — `eligibility.ts:158-164` ... Um run que **começou antes** e **terminou depois** não é “mais novo”.\n212:- [ ] Per-recipe latest attempt is the newest `startedAt` (fallback `createdAt`), not `finishedAt`",
+            "ok": true
+          }
+        },
+        {
+          "id": "R2",
+          "severity": "major",
+          "claim": "SPEC declared source-less legacy tickets eligible, then excluded them from the canonical-attempt set by requiring source queue.",
+          "evidence": "SPEC.md:116,121 (pre-recode); analysis.md:445; DietFlow scripts/ci/queue-ticket-contract.ts:269-271; src/ship/eligibility.ts:176-179",
+          "verdict": "accepted",
+          "reason": "Eligibility and the canonical set must use the same source test: absent or queue. Requiring source===queue on the set would drop live legacy tickets that the predicate still accepts.",
+          "proof": {
+            "command": "rg -n \"source ausente .ou. .queue. \\(legado\" specs/001-prova-local-progress-ship/SPEC.md",
+            "excerpt": "128:5. Latest-attempt **por receita**: membros canônicos = mesmo HEAD+base+cwd+preset+argv canônico, status terminal, `source` ausente **ou** `queue` (legado sem source entra no conjunto; `direct*` não).",
+            "ok": true
+          }
+        },
+        {
+          "id": "R3",
+          "severity": "major",
+          "claim": "SPEC removes the predicate’s hardcoded smoketest default but omitted the live no-argument caller in jest-scope.test.ts, so implementation would keep forbidden preset knowledge or break the suite.",
+          "evidence": "SPEC.md:78-82,110-113 (pre-recode); DietFlow scripts/ci/queue-ticket-contract.ts:260-269; DietFlow scripts/ci/__tests__/jest-scope.test.ts:610-612",
+          "verdict": "accepted",
+          "reason": "The only live scripts/ caller without a recipe is jest-scope.test.ts:610-612. Missing recipe must return false; review stays ineligible because it is not a proof recipe, not because the default name is smoketest.",
+          "proof": {
+            "command": "rg -n \"jest-scope.test.ts:610-612|Helper without a resolved recipe\" specs/001-prova-local-progress-ship/SPEC.md",
+            "excerpt": "127:4. Helper sem receita material resolvida: **não elegível** (`false`). Nunca `expected.preset ?? 'smoketest'`. Caller vivo: `scripts/ci/__tests__/jest-scope.test.ts:610-612`\n215:- [ ] Helper without a resolved recipe is not eligible and does not default to smoketest",
+            "ok": true
+          }
+        },
+        {
+          "id": "R4",
+          "severity": "major",
+          "claim": "SPEC rewrote findEligibleTicket without preserving the full-only advisory contract, where smoke must leave the recommendation pending and only eligible full may satisfy it.",
+          "evidence": "DietFlow scripts/ship/ship.ts:750-756; DietFlow scripts/ship/__tests__/ship.test.ts:830-852,885-902; SPEC.md:190-209 (pre-recode)",
+          "verdict": "accepted",
+          "reason": "runShip looks up full by name for fullAdvisory before proof reuse. Folding that into the Recode 11 proof selector would mark advisory satisfied on smoke. The proof selector and the recipe-scoped full lookup stay distinct.",
+          "proof": {
+            "command": "rg -n \"Advisory de Full|Proof selector is not the full-advisory|aviso Full\" specs/001-prova-local-progress-ship/SPEC.md",
+            "excerpt": "142:8. Aviso de Full **não** escolhe o ticket de merge e **não** é gate. ... Smoke elegível deixa `fullAdvisory.status = pending`.",
+            "ok": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "review-2",
+      "kind": "spec",
+      "target": "SPEC.md vs src/contracts/config.ts vs ShipOps vs public_job vs Recode 11",
+      "reviewer": "human-pasted GPT review (operator 2026-09-18)",
+      "findings": [
+        {
+          "id": "R2-1",
+          "severity": "blocker",
+          "claim": "DietFlow resolver accepted existence plus argv, so an acceptedPreset without requireCleanTree/requireGitStability/pinHeadSha/fetchBase could become the proof ruler.",
+          "evidence": "src/contracts/config.ts:100-106; SPEC Backend item 1 before recode",
+          "verdict": "accepted",
+          "reason": "Product parse refuses non-ship-bound acceptedPresets. DietFlow must reproduce that invariant locally and fail closed before ticket search, without importing the parser.",
+          "proof": {
+            "command": "rg -n \"ship-bound: .requireCleanTree === true.|Resolver fail-closes before ticket\" specs/001-prova-local-progress-ship/SPEC.md",
+            "excerpt": "128:1. ... a receita é ship-bound: `requireCleanTree === true`, `requireGitStability === true`, `pinHeadSha === true`, `fetchBase` não vazio. ... Falha fechado de **configuração** ... (`config.ts:100-106`).\n221:- [ ] Resolver fail-closes before ticket search if an accepted preset is missing, has empty argv, or is not ship-bound",
+            "ok": true
+          }
+        },
+        {
+          "id": "R2-2",
+          "severity": "blocker",
+          "claim": "hasPersistentQueue() false mixes Mac-without-queue and Linux/cloud, so Plan would mock process.platform or mutate Linux with the Mac fail-closed.",
+          "evidence": "DietFlow scripts/ship/ship.ts:98-127,1007-1008; SPEC Mac/Linux before recode",
+          "verdict": "accepted",
+          "reason": "The decision already existed. ShipOps.platform() makes it injectable. SystemOps returns process.platform. Testable helpers must not read the global.",
+          "proof": {
+            "command": "rg -n \"platform\\(\\): NodeJS.Platform|ops.platform\\(\\) === .darwin.\" specs/001-prova-local-progress-ship/SPEC.md",
+            "excerpt": "96: Uma capacidade: `platform(): NodeJS.Platform`.\n143:9. ... `ops.platform() === 'darwin'` → `LOCAL_RED` ... **Proibido** ler `process.platform` dentro de `ensureLocalProof` / `runShip` / helper de prova.",
+            "ok": true
+          }
+        },
+        {
+          "id": "R2-3",
+          "severity": "major",
+          "claim": "Adding progressEnabled to PUBLIC_JOB_FIELDS alone copies nothing because the flag lives under job.flags.",
+          "evidence": "backend/ci_queue_api/records.py:23-27,234-241",
+          "verdict": "accepted",
+          "reason": "public_job is a top-level whitelist. The browser field must be derived: flags.progressEnabled is True. flags stay unpublished.",
+          "proof": {
+            "command": "rg -n \"public_job .deriva. um campo top-level|derived top-level .progressEnabled\" specs/001-prova-local-progress-ship/SPEC.md",
+            "excerpt": "150:- `public_job` **deriva** um campo top-level browser-safe `progressEnabled: boolean` a partir de `job.flags.progressEnabled is True`. `flags` não é copiado. Acrescentar o nome em `PUBLIC_JOB_FIELDS` **sozinho não basta**",
+            "ok": true
+          }
+        },
+        {
+          "id": "R2-4",
+          "severity": "major",
+          "claim": "Canonical set is terminal-only, so a newer running full would leave a prior pass reusable unless that is an explicit decree.",
+          "evidence": "SPEC latest-attempt 'status terminal'; src/ship/eligibility.ts:179",
+          "verdict": "accepted",
+          "reason": "A non-terminal attempt has no verdict. Shadowing a green with running would couple independent jobs. Decree: queued/running do not shadow; once terminal they become latest. Blocking ship on in-flight rerun is a different policy, out of this slice.",
+          "proof": {
+            "command": "rg -n \"não sombreiam. verde terminal|queued./.running. attempt does not shadow\" specs/001-prova-local-progress-ship/SPEC.md",
+            "excerpt": "139:5. ... `queued` e `running` **não entram** no conjunto e **não sombreiam** verde terminal anterior.\n239:- [ ] Newer `queued`/`running` attempt does not shadow a prior eligible terminal proof of the same recipe",
+            "ok": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "review-execute-1",
+      "kind": "code",
+      "target": "DietFlow Recode 11 + Track B; CI Queue public_job/Alert",
+      "reviewer": "execute R2 code-reviewer gpt-5.6-sol-xhigh (ed33b683-6d79-481e-a04b-78865886503b)",
+      "findings": [
+        {
+          "id": "E1",
+          "severity": "blocker",
+          "claim": "JobRecord.progressEnabled required broke RunTableJob synthetic machine/git rows; ui check:ui failed TS2322.",
+          "evidence": "ui/src/lib/types.ts:65; ui/src/features/shared/run-table.tsx:57; ui/src/features/status/status-page.tsx:824,841",
+          "verdict": "accepted",
+          "reason": "Keep JobRecord.progressEnabled required for API jobs. Omit it from RunTableJob so Status synthetic greens compile. Drawer still loads the real job.",
+          "proof": {
+            "command": "cd /Users/marcoantonio/ci-queue && npm run check:ui",
+            "excerpt": "tsc -b && vite build ✓ built in 375ms",
+            "ok": true
+          }
+        },
+        {
+          "id": "E2",
+          "severity": "blocker",
+          "claim": "DietFlow latestCanonicalAttempt ranked any terminal same-preset ticket, so later extraArgs/argv/cwd could shadow a prior canonical passed proof.",
+          "evidence": "scripts/ship/ship.ts latestCanonicalAttempt; src/ship/eligibility.ts:168-184 inCanonicalTuple",
+          "verdict": "accepted",
+          "reason": "Canonical membership is HEAD+base+cwd+preset+argv without extraArgs, source absent|queue, terminal. Then startedAt. Eligibility still decides passed vs failed.",
+          "proof": {
+            "command": "cd /Users/marcoantonio/dietflow-ci-queue-node-pin && TZ=America/Sao_Paulo ./node_modules/.bin/jest --runTestsByPath scripts/ship/__tests__/ship.test.ts -t 'later extraArgs or divergent argv does not shadow a prior canonical passed attempt' --runInBand",
+            "excerpt": "Expected t1 after extraArgs/argv/cwd later terminals; PASS",
+            "ok": true
+          }
+        }
+      ]
+    }
+  ]
+}

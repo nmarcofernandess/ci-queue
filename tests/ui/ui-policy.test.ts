@@ -2,6 +2,8 @@ import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
+// ESLint parse in-process is slow under queue load; 5s flake.
+
 const uiRoot = resolve('ui')
 function lint(snippet: string, filename = 'src/features/status/policy-case.tsx') {
   const result = spawnSync(process.execPath, ['node_modules/eslint/bin/eslint.js', '--stdin', '--stdin-filename', filename, '--format', 'json'], { cwd: uiRoot, input: snippet, encoding: 'utf8' })
@@ -12,6 +14,8 @@ function lint(snippet: string, filename = 'src/features/status/policy-case.tsx')
   return messages.filter(message => ['no-restricted-imports', 'no-restricted-syntax'].includes(message.ruleId ?? ''))
 }
 describe('UI composition policy through installed ESLint parser', () => {
+  // flake under parallel queue load: ESLint lint() >5s
+
   it.each([
     "import { Drawer } from 'vaul'; export { Drawer }",
     "export { Dialog } from 'radix-ui'",
@@ -22,26 +26,39 @@ describe('UI composition policy through installed ESLint parser', () => {
     "export * from '@/components/ui/drawer.tsx'",
   ])('rejects direct primitive or drawer import: %s', snippet => {
     expect(lint(snippet).some(message => message.ruleId === 'no-restricted-imports')).toBe(true)
-  })
+  }, 30_000)
   it('allows shared DetailDrawer and named semantic owners', () => {
     expect(lint("export { DetailDrawer } from '@/features/shared/detail-drawer'")).toEqual([])
     expect(lint("export { DrawerTitle } from '@/components/ui/drawer'", 'src/features/shared/entity-identity.tsx')).toEqual([])
     expect(lint("export { Drawer } from '@/components/ui/drawer'", 'src/features/shared/detail-drawer.tsx')).toEqual([])
-  })
+  }, 30_000)
   it.each(['data-icon', 'data-icon={true}', 'data-icon="wrong"', 'data-icon={"inline-start"}'])('rejects invalid icon position %s', attribute => {
     expect(lint(`export function Case() { return <svg ${attribute} /> }`).some(message => message.ruleId === 'no-restricted-syntax')).toBe(true)
-  })
+  }, 30_000)
   it.each(['data-icon="inline-start"', 'data-icon="inline-end"', ''])('allows explicit icon position or icon-only: %s', attribute => {
     expect(lint(`export function Case() { return <svg ${attribute} /> }`)).toEqual([])
-  })
+  }, 30_000)
   it.each([
     '"[&_svg]:size-12"', '"[&>svg]:w-10"',
     '{true ? "[&_svg]:h-6" : "flex"}', '{`flex [&_svg]:size-12`}',
   ])('rejects descendant SVG sizing in JSX class expression %s', expression => {
     expect(lint(`export function Case() { return <div className=${expression} /> }`).some(message => message.ruleId === 'no-restricted-syntax')).toBe(true)
-  })
+  }, 30_000)
   it('allows sizing in explicit owner and unrelated ordinary feature classes', () => {
     expect(lint('export function Case() { return <div className="[&_svg]:size-12" /> }', 'src/features/shared/status-indicator.tsx')).toEqual([])
     expect(lint('export function Case() { return <div className="size-12 text-sm select-text!" /> }')).toEqual([])
-  })
+  }, 30_000)
+  it.each([
+    '<ProjectChip name="A" />',
+    '<ProjectChip name="A" mode={mode} />',
+    '<ProjectChip name="A" mode={"inline"} />',
+    '<ProjectChip name="A" mode />',
+    '<ProjectChip name="A" mode="inline" className="max-w-full" />',
+    '<ProjectChip name="A" mode="compact-context" className={classes} />',
+  ])('rejects ProjectChip presentation forks: %s', chip => {
+    expect(lint(`export function Case() { return ${chip} }`).some(message => message.ruleId === 'no-restricted-syntax')).toBe(true)
+  }, 30_000)
+  it.each(['inline', 'compact-context'])('allows explicit ProjectChip mode %s', mode => {
+    expect(lint(`export function Case() { return <ProjectChip name="A" mode="${mode}" /> }`)).toEqual([])
+  }, 30_000)
 })

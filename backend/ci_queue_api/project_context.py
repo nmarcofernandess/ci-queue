@@ -33,12 +33,12 @@ class ReadScope:
     project_id: Optional[str] = None
 
     def key(self):
-        return "project:%s" % self.project_id if self.kind == "project" else "unassigned"
+        return "project:%s" % self.project_id if self.kind == "project" else self.kind
 
     def echo(self):
-        if self.kind == "unassigned":
-            return {"kind": "unassigned"}
-        return {"kind": "project", "projectId": self.project_id}
+        if self.kind == "project":
+            return {"kind": "project", "projectId": self.project_id}
+        return {"kind": self.kind}
 
 
 @dataclass(frozen=True)
@@ -70,8 +70,10 @@ def scope_from_query(query, bootstrap_project_id):
         project_id = None
     if project_id is not None and not PROJECT_ID.fullmatch(project_id):
         raise ValueError("projectId inválido")
-    if project_id and context == "unassigned":
-        raise ValueError("projectId e context=unassigned são mutuamente exclusivos")
+    if project_id and context in {"unassigned", "all"}:
+        raise ValueError("projectId e context são mutuamente exclusivos")
+    if context == "all":
+        return ReadScope("all")
     if context == "unassigned" or (legacy == "legacy" and not project_id):
         return ReadScope("unassigned")
     if project_id:

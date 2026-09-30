@@ -1,0 +1,13 @@
+{
+  "physicalWidth": 820,
+  "physicalHeight": 900,
+  "zoomPercent": 200,
+  "innerWidth": 410,
+  "innerHeight": 450,
+  "devicePixelRatio": 2,
+  "candidateHead": "5bff6a270442a6961b33c9d06fe53bae3814c4f8",
+  "sourceDiffSha256": "35415916c6b23b6d0bc99ee3804affa7d09902acd2f043a536fb119254e0914d",
+  "fixtureOwner": "tests/browser/table-layout.spec.ts",
+  "scaleMode": "deviceScaleFactor",
+  "nativeBrowserZoomObserved": false
+}

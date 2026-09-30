@@ -14,7 +14,13 @@ import {
 } from "@/lib/api"
 import type { Diagnostic, JobRecord, LogExport, LogSlice } from "@/lib/types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   DetailDrawer,
   DetailDrawerHeader,
@@ -23,7 +29,15 @@ import {
   DetailDrawerFooter,
 } from "./detail-drawer"
 import { FactsTable } from "./facts-table"
-import { describeJobState } from "./presentation"
+import {
+  describeExecutionState,
+  observedProgressCopy,
+  progressSurface,
+  unconfiguredProgressCopy,
+} from "./presentation"
+import { ProjectChip } from "./project-chip"
+import { projectChipFacts } from "./project-chip-model"
+import { RunVariantBadge } from "./run-variant-badge"
 import {
   Popover,
   PopoverContent,
@@ -37,7 +51,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
 import { formatDuration, statusLabel } from "@/features/shared/format"
 import { useDashboardSession } from "@/features/status/use-dashboard-session"
-import { ClipboardIcon, DownloadIcon, FileWarningIcon } from "lucide-react"
+import { ClipboardIcon, CircleAlertIcon, DownloadIcon, FileWarningIcon } from "lucide-react"
 import { toast } from "sonner"
 
 const DEFAULT_CLIPBOARD_LIMIT_BYTES = 512_000
@@ -66,8 +80,11 @@ async function copyText(value: string, limit: number | undefined) {
 }
 
 function contextForJob(job: JobRecord) {
+  const observed = job.recordKind === "observed-execution"
   return [
-    `Ticket: ${job.id}`,
+    observed ? `Execução: ${job.executionId || job.id}` : `Ticket: ${job.id}`,
+    ...(observed ? [`Registro: ${job.id}`] : []),
+    `Executor: ${observed ? "direct" : job.executor || "queue"}`,
     `Preset: ${job.preset || "Não informado"}`,
     `Estado: ${statusLabel(job.status)}`,
     `Branch: ${job.branch || "Não informada"}`,
@@ -94,16 +111,39 @@ function diagnosticBundle(diagnostic: Diagnostic, logExport?: LogExport) {
 type DiagnosticExportAction = "copy-diagnostic" | "download-diagnostic"
 
 function JobDetailsTable({ job }: { job: JobRecord }) {
+  const observed = job.recordKind === "observed-execution"
   return (
     <FactsTable
       caption="Detalhes da execução"
       rows={[
-        {
-          id: "ticket",
-          label: "Ticket",
-          value: job.id || "Não informado",
-          technical: true,
-        },
+        ...(observed
+          ? [
+              {
+                id: "execution",
+                label: "Execução",
+                value: job.executionId || job.id || "Não informado",
+                technical: true,
+              },
+              {
+                id: "record",
+                label: "Registro",
+                value: job.id || "Não informado",
+                technical: true,
+              },
+              {
+                id: "origin",
+                label: "Origem",
+                value: "Execução direta",
+              },
+            ]
+          : [
+              {
+                id: "ticket",
+                label: "Ticket",
+                value: job.id || "Não informado",
+                technical: true,
+              },
+            ]),
         { id: "branch", label: "Branch", value: job.branch || "Não informado" },
         {
           id: "sha",
@@ -141,6 +181,7 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
     )
   const nodes =
     job.data.progressSummary?.nodes ?? job.data.progressSummary?.roots ?? []
+  const surface = progressSurface(job.data)
   return (
     <div className="flex flex-col gap-5">
       <JobDetailsTable job={job.data} />
@@ -151,8 +192,21 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
           <AlertDescription>{job.data.failureReason}</AlertDescription>
         </Alert>
       ) : null}
-      {nodes.length ? (
+      {surface === "tree" ? (
         <ProgressTree nodes={nodes} jobStatus={job.data.status} />
+      ) : surface === "not-collected" ? (
+        <EmptyState
+          title={observedProgressCopy.title}
+          description={observedProgressCopy.description}
+        />
+      ) : surface === "unconfigured" ? (
+        <Alert variant={unconfiguredProgressCopy.variant}>
+          <CircleAlertIcon />
+          <AlertTitle>{unconfiguredProgressCopy.title}</AlertTitle>
+          <AlertDescription>
+            {unconfiguredProgressCopy.description}
+          </AlertDescription>
+        </Alert>
       ) : (
         <EmptyState
           title="Progresso não registrado"
@@ -250,7 +304,8 @@ function DiagnosticPopover({
   const exportRequest = React.useRef<Promise<LogExport> | undefined>(undefined)
   const { scope } = useProjectContext()
   const diagnosticRequest = React.useCallback(
-    () => (scope ? getDiagnostic(scope, jobId) : Promise.reject(new Error("projeto ausente"))),
+    (signal?: AbortSignal) =>
+      scope ? getDiagnostic(scope, jobId, signal) : Promise.reject(new Error("projeto ausente")),
     [jobId, scope]
   )
   const diagnostic = useApiQuery(`diagnostic:${scope ? scopeKey(scope) : "none"}:${jobId}`, diagnosticRequest, {
@@ -436,7 +491,8 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
   )
   const [logRequested, setLogRequested] = React.useState(false)
   const jobRequest = React.useCallback(
-    () => (scope ? getJob(scope, jobId) : Promise.reject(new Error("projeto ausente"))),
+    (signal?: AbortSignal) =>
+      scope ? getJob(scope, jobId, signal) : Promise.reject(new Error("projeto ausente")),
     [jobId, scope]
   )
   const job = useApiQuery(`job:${scope ? scopeKey(scope) : "none"}:${jobId}`, jobRequest, {
@@ -444,11 +500,12 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
     pollWhile: jobIsLive,
     enabled: Boolean(scope),
   })
+  const isObserved = job.data?.recordKind === "observed-execution"
   const log = useLiveLog(
     scope,
     jobId,
-    logRequested && Boolean(job.data),
-    job.data?.status === "running"
+    logRequested && Boolean(job.data) && !isObserved,
+    !isObserved && job.data?.status === "running"
   )
   const session = useDashboardSession()
 
@@ -481,8 +538,35 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
         }
         media={
           job.data
-            ? { kind: "state", descriptor: describeJobState(job.data.status) }
+            ? { kind: "state", descriptor: describeExecutionState(job.data) }
             : undefined
+        }
+        badge={
+          job.data &&
+          (job.data.projectName ||
+            job.data.runVariant ||
+            job.data.recordKind === "observed-execution") ? (
+            <>
+              {job.data.recordKind === "observed-execution" ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline">Direta</Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Resultado declarado pelo receipt; não é comprovação canônica
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+              {job.data.projectName ? (
+                <ProjectChip
+                  mode="inline"
+                  name={job.data.projectName}
+                  facts={projectChipFacts(job.data)}
+                />
+              ) : null}
+              <RunVariantBadge runVariant={job.data.runVariant} />
+            </>
+          ) : undefined
         }
         closeLabel="Fechar execução"
       />
@@ -517,6 +601,11 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
                 error={job.error}
                 onRetry={job.reload}
               />
+            ) : isObserved ? (
+              <EmptyState
+                title="Log bruto não coletado"
+                description="O resultado foi registrado a partir do receipt. Logs ou relatórios específicos podem existir no ambiente de origem."
+              />
             ) : (
               <LogPanel log={log} running={job.data?.status === "running"} />
             )}
@@ -533,10 +622,12 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
           <ClipboardIcon data-icon="inline-start" />
           Copiar contexto
         </Button>
-        <DiagnosticPopover
-          jobId={jobId}
-          clipboardLimitBytes={session.data?.clipboardLimitBytes}
-        />
+        {isObserved ? null : (
+          <DiagnosticPopover
+            jobId={jobId}
+            clipboardLimitBytes={session.data?.clipboardLimitBytes}
+          />
+        )}
       </DetailDrawerFooter>
     </DetailDrawer>
   )

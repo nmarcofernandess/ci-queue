@@ -10,7 +10,11 @@ from pathlib import Path
 from .config import PRESET_NAME
 from .history import canonical_green
 from .records import history_key, read_history
-from .validation_advisories import read_pending_advisories
+from .validation_advisories import (
+    read_pending_advisories,
+    read_pending_advisories_snapshot,
+    read_validation_plan,
+)
 
 
 class RevisionConflict(ValueError):
@@ -102,30 +106,50 @@ def _meta(raw, config):
     return {"name": name, "description": description, "presets": normalized}
 
 
-def _decorated(state, state_root, config, project_id=None):
+def _decorated(state, state_root, config, project_id=None, *, catalog=None,
+               history=None, plan=None, plan_error=None):
     ident = project_id or (config.project_id if config is not None else None)
     if config is None:
-        pending, pending_error = read_pending_advisories(state_root, None, project_id=ident)
+        pending, pending_error = (
+            read_pending_advisories_snapshot(
+                state_root, None, ident, plan,
+                history if history is not None else [], plan_error,
+            ) if plan is not None else read_pending_advisories(state_root, None, project_id=ident)
+        )
         result = {
             **state,
             "projectId": ident,
             "presets": [],
-            "catalog": "unlinked",
+            "catalog": catalog or "unlinked",
             "pending": pending,
             "pendingError": pending_error,
         }
         meta = state.get("meta")
         if meta:
-            result["meta"] = {**meta, "checks": None, "candidateSha": None, "catalog": "unlinked"}
+            result["meta"] = {
+                **meta, "checks": None, "candidateSha": None,
+                "catalog": catalog or "unlinked",
+            }
         return result
-    result = {**state, "projectId": config.project_id, "presets": sorted(config.presets)}
-    pending, pending_error = read_pending_advisories(state_root, config)
+    result = {
+        **state,
+        "projectId": config.project_id,
+        "presets": sorted(config.presets),
+        "catalog": catalog or "linked",
+    }
+    pending, pending_error = (
+        read_pending_advisories_snapshot(
+            state_root, config, ident, plan,
+            history if history is not None else [], plan_error,
+        ) if plan is not None else read_pending_advisories(state_root, config)
+    )
     result["pending"] = pending
     result["pendingError"] = pending_error
     meta = state.get("meta")
     if not meta:
         return result
-    jobs = sorted((job for job in read_history(state_root)
+    source_history = history if history is not None else read_history(state_root)
+    jobs = sorted((job for job in source_history
                    if job.get("projectId") == config.project_id),
                   key=history_key, reverse=True)
     checks = []
@@ -168,6 +192,44 @@ def read_dashboard_state(state_root, config, project_id=None):
         raise ValueError("projeto obrigatório")
     state = _project_state(_read(_path(state_root)), ident)
     return _decorated(state, state_root, config, ident)
+
+
+def read_dashboard_state_all(state_root, projects):
+    """Aggregate factual Meta and Pendências for active project snapshots."""
+    document = _read(_path(state_root))
+    plan, plan_error = read_validation_plan(state_root)
+    history = read_history(state_root)
+    rows = []
+    project_errors = []
+    ordered = sorted(projects, key=lambda project: (project.display_name.casefold(), project.project_id))
+    for project in ordered:
+        try:
+            state = _project_state(document, project.project_id)
+            rows.append({
+                **_decorated(
+                    state,
+                    state_root,
+                    project.config,
+                    project.project_id,
+                    catalog=project.binding_state,
+                    history=history,
+                    plan=plan,
+                    plan_error=plan_error,
+                ),
+                "catalog": project.binding_state,
+                "projectName": project.display_name,
+            })
+        except (OSError, ValueError) as error:
+            project_errors.append({
+                "projectId": project.project_id,
+                "projectName": project.display_name,
+                "error": str(error),
+            })
+    return {
+        "schemaVersion": 2,
+        "projects": rows,
+        "projectErrors": project_errors,
+    }
 
 
 def write_dashboard_state(state_root, config, body):

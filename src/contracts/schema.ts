@@ -1,3 +1,5 @@
+import type { RuntimeReceipt } from "./runtime.js"
+
 /**
  * Contratos persistidos do CI Queue. Os tickets v1, v2 e v3 continuam
  * legíveis porque o worker decide a forma executável no momento do claim.
@@ -5,6 +7,7 @@
 
 export const API_VERSION = 1 as const
 export const TICKET_SCHEMA_VERSION = 3 as const
+export const RECIPE_ARTIFACTS_CAPABILITY = "recipe-artifacts-v1" as const
 
 export const TERMINAL_STATUSES = ["passed", "failed", "cancelled", "interrupted"] as const
 export const JOB_STATUSES = ["queued", "running", ...TERMINAL_STATUSES] as const
@@ -28,6 +31,7 @@ export type TicketFlags = {
   fetchBase?: string
   requireGitStability?: boolean
   pinHeadSha?: boolean
+  abortOnStaleBase?: boolean
   /** Whether this recipe is allowed to emit structured progress markers. */
   progressEnabled?: boolean
 }
@@ -79,6 +83,9 @@ export function normalizeTicketFlags(value: unknown): TicketFlags {
       : {}),
     ...(optionalBoolean(raw, "pinHeadSha") !== undefined
       ? { pinHeadSha: optionalBoolean(raw, "pinHeadSha") }
+      : {}),
+    ...(optionalBoolean(raw, "abortOnStaleBase") !== undefined
+      ? { abortOnStaleBase: optionalBoolean(raw, "abortOnStaleBase") }
       : {}),
     ...(optionalBoolean(raw, "progressEnabled") !== undefined
       ? { progressEnabled: optionalBoolean(raw, "progressEnabled") }
@@ -143,6 +150,13 @@ export type ProgressCounts = {
   skipped: number
 }
 
+export type ProgressDurationSource = "emitter" | "collector"
+export type ProgressDurationUnavailableReason =
+  | "missing-start"
+  | "collector-restarted"
+  | "clock-invalid"
+  | "missing-end"
+
 export type ProgressNode = {
   id: string
   parentId: string | null
@@ -150,14 +164,24 @@ export type ProgressNode = {
   label: string
   status: ProgressStatus
   durationMs?: number
+  /** Who produced durationMs: emitter TSV value, or collector monotonic observation. */
+  durationSource?: ProgressDurationSource
+  /** Honest absence — never invent 0 ms when timing could not be established. */
+  durationUnavailableReason?: ProgressDurationUnavailableReason
   detail?: ProgressCounts
   retryCount?: number
+  /** The predeclared children were replaced by the execution's actual inventory. */
+  inventoryReplaced?: boolean
 }
 
 export type JobProgress = {
   schema: typeof LOCAL_CI_PROGRESS_SCHEMA
   updatedAt: string | null
   nodes: ProgressNode[]
+  /** Producer-confirmed observational variant; never a proof predicate. */
+  runVariant?: RunVariant
+  /** Retry facts from cases omitted by the presentation budget, keyed by owner node. */
+  retrySummary?: Record<string, number>
 }
 
 export type RequestContext = {
@@ -169,6 +193,18 @@ export type RequestContext = {
 }
 
 /** Persisted ticket: fields added in v2/v3 remain optional for v1 readers. */
+export type RunVariant = "custom" | "focal"
+
+export const RUN_VARIANTS = ["custom", "focal"] as const
+
+export function parseRunVariant(value: unknown): RunVariant | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== "string" || !(RUN_VARIANTS as readonly string[]).includes(value)) {
+    throw new Error("--run-variant precisa ser custom ou focal")
+  }
+  return value as RunVariant
+}
+
 export type QueueTicket = {
   id: string
   createdAt: string
@@ -208,13 +244,24 @@ export type QueueTicket = {
   processObservation?: ProcessObservation
   processObservations?: ProcessObservation[]
   requestContext?: RequestContext
+  /** Observational only — never affects ship eligibility. */
+  runVariant?: RunVariant
+  /** User-space Node guard evidence; never implies an OS sandbox. */
+  runtime?: RuntimeReceipt
 }
 
 export type ProjectPreset = TicketFlags & {
   argv: string[]
+  artifacts?: string[]
   note?: string
   /** Project-local declaration; persisted as flags.progressEnabled on the ticket. */
   progress?: boolean
+}
+
+export type ShipConfig = {
+  acceptedPresets: string[]
+  attestationContext: string
+  remoteVerdict?: { workflow: string; job: string }
 }
 
 export type QueueProjectConfig = {
@@ -223,6 +270,11 @@ export type QueueProjectConfig = {
   repository?: { path?: string; baseRef?: string }
   presets: Record<string, ProjectPreset>
   artifacts?: string[]
+  ship?: ShipConfig
+  execution?: {
+    executor: "queue"
+    queue?: { command?: string }
+  }
 }
 
 export type CliSuccess<T> = { apiVersion: typeof API_VERSION; ok: true; result: T }

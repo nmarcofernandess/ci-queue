@@ -1,5 +1,6 @@
+import { ProjectChip } from "@/features/shared/project-chip"
 import { RelativeTime } from "@/features/shared/live-time"
-import { ClipboardIcon, EyeIcon, GitCommitIcon } from "lucide-react"
+import { ClipboardIcon, GitCommitIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -37,6 +38,7 @@ import {
 import { StatusIndicator } from "@/features/shared/status-indicator"
 import { describeJobState } from "@/features/shared/presentation"
 import { EntityIdentity } from "@/features/shared/entity-identity"
+import { InspectButton } from "@/features/shared/inspect-button"
 import { DataTableFrame } from "@/features/shared/data-table-frame"
 import type { GreenCommitGroup } from "@/features/status/green-commit"
 
@@ -70,11 +72,13 @@ function commitRunColumnClass(
 
 export function GreenCommitTable({
   embedded = false,
+  showProjectChip = false,
   groups,
   onOpen,
   emptyDescription,
 }: {
   embedded?: boolean
+  showProjectChip?: boolean
   groups: GreenCommitGroup[]
   onOpen: (group: GreenCommitGroup) => void
   emptyDescription: string
@@ -120,7 +124,7 @@ export function GreenCommitTable({
       </TableHeader>
       <TableBody>
         {groups.map((group) => (
-          <TableRow key={group.sha}>
+          <TableRow key={`${group.projectId ?? ""}:${group.sha}`}>
             <TableCell className={commitColumnClass("status", placement)}>
               <StatusIndicator
                 descriptor={describeJobState("passed")}
@@ -131,6 +135,11 @@ export function GreenCommitTable({
               <EntityIdentity
                 presentation="table"
                 title={shortSha(group.sha)}
+                badge={
+                  showProjectChip && group.projectName ? (
+                    <ProjectChip mode="inline" name={group.projectName} />
+                  ) : undefined
+                }
                 monospaceTitle
                 onOpen={() => onOpen(group)}
               />
@@ -157,19 +166,10 @@ export function GreenCommitTable({
               {originLabel(group.origins)}
             </TableCell>
             <TableCell className={commitColumnClass("actions", placement)}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Ver commit ${shortSha(group.sha)}`}
-                    onClick={() => onOpen(group)}
-                  >
-                    <EyeIcon />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Ver commit</TooltipContent>
-              </Tooltip>
+              <InspectButton
+                presentation="table"
+                onClick={() => onOpen(group)}
+              />
             </TableCell>
           </TableRow>
         ))}
@@ -199,6 +199,11 @@ export function GreenCommitDrawer({
     <DetailDrawer onClose={onClose}>
       <DetailDrawerHeader
         title={shortSha(group.sha)}
+        badge={
+          group.projectName ? (
+            <ProjectChip mode="inline" name={group.projectName} />
+          ) : undefined
+        }
         monospaceTitle
         description={
           <>
@@ -284,21 +289,17 @@ export function GreenCommitDrawer({
                       {formatTimelineDate(row.finishedAt)}
                     </TableCell>
                     <TableCell className={commitRunColumnClass("duration")}>
-                      {formatDuration(row.durationMs)}
+                      {formatDuration(row.durationMs, "—")}
                     </TableCell>
                     <TableCell className={commitRunColumnClass("actions")}>
                       {id ? (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Ver ${row.preset}`}
+                        <InspectButton
+                          presentation="table"
                           onClick={() => {
                             onClose()
                             onOpenJob(id)
                           }}
-                        >
-                          <EyeIcon />
-                        </Button>
+                        />
                       ) : null}
                     </TableCell>
                   </TableRow>

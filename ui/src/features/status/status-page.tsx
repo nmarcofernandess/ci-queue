@@ -1,8 +1,16 @@
+import {
+  asMachineGreen,
+  asGitGreen,
+  mergeGreenRows,
+  filterGreens,
+} from "@/features/status/green-rows"
 import { EntityIdentity } from "@/features/shared/entity-identity"
-import { describeJobState } from "@/features/shared/presentation"
+import { describeExecutionState } from "@/features/shared/presentation"
 import { ExecutionStages } from "@/features/shared/execution-stages"
-import { Badge } from "@/components/ui/badge"
-import { JobTimeline } from "@/features/shared/live-time"
+import { ElapsedItem } from "@/features/shared/live-time"
+import { ProjectChip } from "@/features/shared/project-chip"
+import { projectChipFacts } from "@/features/shared/project-chip-model"
+import { RunVariantBadge } from "@/features/shared/run-variant-badge"
 import * as React from "react"
 
 import { useProjectContext } from "@/features/projects/project-context"
@@ -17,10 +25,14 @@ import {
   type ApiQuery,
   useApiQuery,
 } from "@/lib/api"
+import { sharedPageRequest } from "@/lib/query-store"
 import type {
+  DashboardAllState,
   DashboardState,
-  PresetHistoryEntry,
-  RemoteGreen,
+  PresetHistoryResponse,
+  PresetHistoryAllResponse,
+  RemoteSlotsResponse,
+  RemoteSlotsAllResponse,
   StatusSnapshot,
 } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -28,7 +40,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -41,12 +52,10 @@ import {
   Item,
   ItemContent,
   ItemDescription,
-  ItemGroup,
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item"
 import { FilterSelect } from "@/features/shared/filter-select"
-import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
@@ -62,6 +71,7 @@ import {
 } from "@/features/shared/format"
 import { JobDrawer } from "@/features/shared/job-drawer"
 import { type RunTableJob, RunTable } from "@/features/shared/run-table"
+import { StatusStateCards } from "@/features/status/status-state-cards"
 import { StatusStateDrawer } from "@/features/status/status-state-drawer"
 import {
   GreenCommitDrawer,
@@ -72,10 +82,8 @@ import {
   type GreenCommitGroup,
 } from "@/features/status/green-commit"
 import {
-  CheckCircle2Icon,
   CircleDotIcon,
   HardDriveIcon,
-  EyeIcon,
   SearchIcon,
 } from "lucide-react"
 
@@ -104,15 +112,6 @@ function CurrentExecution({
             </ItemMedia>
             <ItemContent>
               <ItemTitle>Nenhuma execução em andamento</ItemTitle>
-              {snapshot.otherProjectOccupancy ? (
-                <ItemDescription>
-                  Há trabalho de outro projeto na fila global.
-                </ItemDescription>
-              ) : snapshot.globalOccupancy ? (
-                <ItemDescription>
-                  O executor está ocupado.
-                </ItemDescription>
-              ) : null}
             </ItemContent>
           </Item>
         </CardContent>
@@ -123,7 +122,6 @@ function CurrentExecution({
   const stages = current.progressSummary?.available
     ? (current.progressSummary.roots ?? [])
     : []
-
   return (
     <Card size="sm">
       <CardHeader>
@@ -131,44 +129,35 @@ function CurrentExecution({
       </CardHeader>
       <CardContent>
         <div className="flex min-w-0 flex-col gap-5">
-          <div className="flex min-w-0 items-start gap-2">
-            <EntityIdentity
-              presentation="current"
-              title={current.preset || "Preset não informado"}
-              media={{
-                kind: "state",
-                descriptor: describeJobState(current.status),
-              }}
-              onOpen={() => onOpenJob(current.id)}
-              description={
+          <EntityIdentity
+            presentation="current"
+            title={current.preset || "Preset não informado"}
+            media={{
+              kind: "state",
+              descriptor: describeExecutionState(current),
+            }}
+            onOpen={() => onOpenJob(current.id)}
+            description={
+              <>
+                {current.branch || "Branch não informada"} ·{" "}
+                <span className="font-mono">{shortSha(current.headSha)}</span>
+              </>
+            }
+            badge={
+              current.projectName || current.runVariant ? (
                 <>
-                  <JobTimeline job={current} /> ·{" "}
-                  {current.branch || "Branch não informada"} ·{" "}
-                  <span className="font-mono">{shortSha(current.headSha)}</span>
+                  {current.projectName ? (
+                    <ProjectChip
+                      mode="inline"
+                      name={current.projectName}
+                      facts={projectChipFacts(current)}
+                    />
+                  ) : null}
+                  <RunVariantBadge runVariant={current.runVariant} />
                 </>
-              }
-              badge={
-                current.progressSummary?.nodes?.some(
-                  (node) => (node.retryCount ?? 0) > 0
-                ) ? (
-                  <Badge variant="outline">Flaky detectado</Badge>
-                ) : undefined
-              }
-            />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Ver ${current.preset ?? "execução"}`}
-                  onClick={() => onOpenJob(current.id)}
-                >
-                  <EyeIcon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ver execução</TooltipContent>
-            </Tooltip>
-          </div>
+              ) : undefined
+            }
+          />
           {current.commitSubject ? (
             <ItemDescription>{current.commitSubject}</ItemDescription>
           ) : null}
@@ -177,8 +166,15 @@ function CurrentExecution({
               key={current.id}
               stages={stages}
               jobStatus={current.status}
+              active={current.progressSummary?.active ?? []}
+              planned={current.progressSummary?.planned ?? []}
             />
           ) : null}
+          <ElapsedItem
+            job={current}
+            presentation="current"
+            onInspect={() => onOpenJob(current.id)}
+          />
         </div>
       </CardContent>
     </Card>
@@ -186,7 +182,7 @@ function CurrentExecution({
 }
 
 function MachineCard() {
-  const request = React.useCallback(() => getMachine(), [])
+  const request = React.useCallback((signal?: AbortSignal) => getMachine(signal), [])
   const machine = useApiQuery("machine", request, { pollMs: 60_000 })
 
   return (
@@ -222,192 +218,9 @@ function MachineCard() {
   )
 }
 
-function StatusStateCards({
-  dashboard,
-  onOpen,
-  onOpenJob,
-}: {
-  dashboard: ApiQuery<DashboardState>
-  onOpen: (surface: "meta" | "pending") => void
-  onOpenJob: (jobId: string) => void
-}) {
-  if (dashboard.loading) {
-    return (
-      <Card>
-        <CardContent>
-          <Skeleton className="h-32 w-full" />
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (dashboard.error || !dashboard.data) {
-    return (
-      <Card>
-        <CardContent>
-          <p className="text-sm text-destructive">
-            {dashboard.error?.message || "Meta e pendências indisponíveis."}
-          </p>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  const { meta, pending, pendingError } = dashboard.data
-  const observed =
-    meta?.checks.filter((check) => check.status === "passed").length ?? 0
-  const total = meta?.checks.length ?? 0
-
-  return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Meta para main</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {meta ? (
-            <>
-              <p className="font-medium">{meta.name}</p>
-              {meta.description ? (
-                <p className="text-sm text-muted-foreground">
-                  {meta.description}
-                </p>
-              ) : null}
-              {total ? (
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm text-muted-foreground">
-                    {observed} de {total} requisitos atendidos
-                  </p>
-                  <Progress value={(observed / total) * 100} />
-                  {meta.candidateSha ? (
-                    <p className="text-sm text-muted-foreground">
-                      Candidato{" "}
-                      <span className="font-mono">
-                        {shortSha(meta.candidateSha)}
-                      </span>
-                    </p>
-                  ) : null}
-                  <ItemGroup className="gap-0">
-                    {meta.checks.map((check) => {
-                      const Icon =
-                        check.status === "passed"
-                          ? CheckCircle2Icon
-                          : CircleDotIcon
-                      return (
-                        <Item
-                          key={check.preset}
-                          variant="default"
-                          size="sm"
-                          className="border-transparent px-0 py-1"
-                        >
-                          <ItemMedia variant="icon">
-                            <Icon />
-                          </ItemMedia>
-                          <ItemContent>
-                            <ItemTitle>
-                              {check.status === "passed" && check.ticketId ? (
-                                <Button
-                                  type="button"
-                                  variant="link"
-                                  className="h-auto p-0"
-                                  onClick={() => onOpenJob(check.ticketId!)}
-                                >
-                                  {check.preset}
-                                </Button>
-                              ) : (
-                                check.preset
-                              )}
-                            </ItemTitle>
-                            <ItemDescription>
-                              {check.status === "passed"
-                                ? "Verde elegível"
-                                : check.status === "recipe-missing"
-                                  ? "Receita não declarada"
-                                  : "Sem verde elegível"}
-                            </ItemDescription>
-                          </ItemContent>
-                        </Item>
-                      )
-                    })}
-                  </ItemGroup>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Sem requisitos definidos.
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Nenhuma meta declarada.
-            </p>
-          )}
-        </CardContent>
-        <CardFooter className="border-0 bg-transparent pt-0">
-          <Button type="button" variant="ghost" onClick={() => onOpen("meta")}>
-            Abrir meta
-          </Button>
-        </CardFooter>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Pendências · {pending.length}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {pendingError ? (
-            <p className="text-sm text-destructive">{pendingError}</p>
-          ) : pending.length ? (
-            <ItemGroup>
-              {pending.slice(0, 3).map((item) => (
-                <Item
-                  key={item.id}
-                  variant="default"
-                  size="sm"
-                  className="border-transparent px-0 py-0"
-                >
-                  <ItemContent>
-                    <ItemTitle>
-                      {item.latestTicketId ? (
-                        <Button
-                          type="button"
-                          variant="link"
-                          className="h-auto px-0 py-0"
-                          onClick={() => onOpenJob(item.latestTicketId!)}
-                        >
-                          {item.preset}
-                        </Button>
-                      ) : (
-                        item.preset
-                      )}
-                    </ItemTitle>
-                    <ItemDescription>
-                      {item.pr ? `PR #${item.pr} · ` : ""}
-                      {shortSha(item.headSha)}
-                    </ItemDescription>
-                  </ItemContent>
-                </Item>
-              ))}
-            </ItemGroup>
-          ) : (
-            <p className="text-sm text-muted-foreground">Nenhuma pendência.</p>
-          )}
-        </CardContent>
-        <CardFooter className="border-0 bg-transparent pt-0">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpen("pending")}
-          >
-            Ver pendências
-          </Button>
-        </CardFooter>
-      </Card>
-    </>
-  )
-}
-
 function HistoryToolbar({
   mode,
+  greensAvailable,
   search,
   period,
   result,
@@ -422,6 +235,7 @@ function HistoryToolbar({
   onClear,
 }: {
   mode: HistoryMode
+  greensAvailable: boolean
   search: string
   period: Period
   result: HistoryResult
@@ -445,6 +259,12 @@ function HistoryToolbar({
           grouping !== "preset"
         )
 
+  const greensToggle = (
+    <ToggleGroupItem value="greens" disabled={!greensAvailable}>
+      Últimos verdes
+    </ToggleGroupItem>
+  )
+
   return (
     <div className="flex flex-col gap-4">
       <ToggleGroup
@@ -458,7 +278,16 @@ function HistoryToolbar({
         aria-label="Modo do histórico"
       >
         <ToggleGroupItem value="executions">Execuções</ToggleGroupItem>
-        <ToggleGroupItem value="greens">Últimos verdes</ToggleGroupItem>
+        {greensAvailable ? (
+          greensToggle
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">{greensToggle}</span>
+            </TooltipTrigger>
+            <TooltipContent>escolha um projeto</TooltipContent>
+          </Tooltip>
+        )}
       </ToggleGroup>
       <div className="flex flex-wrap items-center gap-2">
         <InputGroup className="min-w-48 flex-1 basis-full sm:basis-48">
@@ -554,6 +383,7 @@ type ExecutionHistoryState = {
   snapshotBefore: string | undefined
   nextCursor: string | null
   unattributedRecords?: number
+  corruptRecords?: number
 }
 
 const HISTORY_DEFAULTS: HistoryFilters = {
@@ -656,8 +486,21 @@ function appendExecutionJobs(
   current: RunTableJob[],
   next: RunTableJob[]
 ): RunTableJob[] {
-  const seen = new Set(current.map(jobIdentity))
-  return [...current, ...next.filter((job) => !seen.has(jobIdentity(job)))]
+  const safeCurrent = Array.isArray(current) ? current : []
+  const safeNext = Array.isArray(next) ? next : []
+  const seen = new Set(safeCurrent.map(jobIdentity))
+  return [...safeCurrent, ...safeNext.filter((job) => !seen.has(jobIdentity(job)))]
+}
+
+function mergeFirstPage(
+  current: RunTableJob[],
+  firstPage: RunTableJob[]
+): RunTableJob[] {
+  const safeFirst = Array.isArray(firstPage) ? firstPage : []
+  const safeCurrent = Array.isArray(current) ? current : []
+  const updatedIds = new Map(safeFirst.map((job) => [jobIdentity(job), job]))
+  const remaining = safeCurrent.filter((job) => !updatedIds.has(jobIdentity(job)))
+  return [...safeFirst, ...remaining]
 }
 
 function useExecutionHistory(
@@ -672,6 +515,8 @@ function useExecutionHistory(
   const periodStart = React.useMemo(() => queryPeriodStart(period), [period])
   const requestKey = `${scopeKey(scope)}\u0000${search}\u0000${period}\u0000${result}`
   const requestVersion = React.useRef(0)
+  const appliedHistoryRevision = React.useRef(historyRevision)
+  const lastRequestKey = React.useRef(requestKey)
   const [state, setState] = React.useState<ExecutionHistoryState>({
     queryKey: requestKey,
     jobs: [],
@@ -684,48 +529,112 @@ function useExecutionHistory(
     nextCursor: null,
   })
 
-  React.useEffect(() => {
-    const version = requestVersion.current + 1
-    requestVersion.current = version
-    void getExecutions(scope, {
+  const initialRequest = React.useCallback(
+    (signal?: AbortSignal) => getExecutions(scope, {
       q: search || undefined,
       result,
       from: periodStart,
-    })
-      .then((page) => {
-        if (requestVersion.current !== version) {
-          return
+    }, signal),
+    [periodStart, result, scope, search]
+  )
+  const initialPage = useApiQuery(
+    `executions:${requestKey}:${historyRevision}`,
+    initialRequest,
+    { pollMs: 10_000 }
+  )
+
+  React.useEffect(() => {
+    const isNewQuery = lastRequestKey.current !== requestKey
+    if (isNewQuery) {
+      lastRequestKey.current = requestKey
+      requestVersion.current += 1
+    }
+
+    const pageError = initialPage.error
+      ? errorFrom(initialPage.error, "Não foi possível carregar o histórico.")
+      : undefined
+
+    if (initialPage.data) {
+      const page = initialPage.data
+      const pageJobs = Array.isArray(page.jobs) ? page.jobs : []
+      const isNewGen = appliedHistoryRevision.current !== historyRevision
+      if (isNewGen || isNewQuery) {
+        appliedHistoryRevision.current = historyRevision
+        if (isNewGen) requestVersion.current += 1
+      }
+      setState((current) => {
+        const preserveSubsequent =
+          !isNewGen &&
+          !isNewQuery &&
+          current.queryKey === requestKey &&
+          current.jobs.length > pageJobs.length
+
+        if (preserveSubsequent) {
+          return {
+            ...current,
+            jobs: mergeFirstPage(current.jobs, pageJobs),
+            loading: false,
+            error: pageError,
+            unattributedRecords: page.coverage?.unattributedRecords,
+            corruptRecords: page.coverage?.corruptRecords,
+          }
         }
-        setState({
+
+        return {
           queryKey: requestKey,
-          jobs: page.jobs,
+          jobs: pageJobs,
           loading: false,
           loadingMore: false,
-          error: undefined,
+          error: pageError,
           loadMoreError: undefined,
-          hasMore: page.hasMore,
+          hasMore: Boolean(page.hasMore),
           snapshotBefore: page.snapshotBefore,
-          nextCursor: page.nextCursor,
+          nextCursor: page.nextCursor ?? null,
           unattributedRecords: page.coverage?.unattributedRecords,
-        })
-      })
-      .catch((reason) => {
-        if (requestVersion.current !== version) {
-          return
+          corruptRecords: page.coverage?.corruptRecords,
         }
-        setState({
-          queryKey: requestKey,
-          jobs: [],
-          loading: false,
-          loadingMore: false,
-          error: errorFrom(reason, "Não foi possível carregar o histórico."),
-          loadMoreError: undefined,
-          hasMore: false,
-          snapshotBefore: undefined,
-          nextCursor: null,
-        })
       })
-  }, [historyRevision, periodStart, requestKey, result, scope, search])
+      return
+    }
+
+    if (initialPage.error) {
+      setState((current) => ({
+        queryKey: requestKey,
+        jobs: current.queryKey === requestKey ? current.jobs : [],
+        loading: false,
+        loadingMore: false,
+        error: pageError,
+        loadMoreError: undefined,
+        hasMore: false,
+        snapshotBefore: undefined,
+        nextCursor: null,
+      }))
+      return
+    }
+
+    const waitingNewGen = appliedHistoryRevision.current !== historyRevision
+    if (waitingNewGen) {
+      requestVersion.current += 1
+      setState({
+        queryKey: requestKey,
+        jobs: [],
+        loading: true,
+        loadingMore: false,
+        error: undefined,
+        loadMoreError: undefined,
+        hasMore: false,
+        snapshotBefore: undefined,
+        nextCursor: null,
+      })
+      return
+    }
+
+    setState((current) =>
+      current.queryKey === requestKey
+        ? { ...current, loading: true }
+        : { queryKey: requestKey, jobs: [], loading: true, loadingMore: false, error: undefined, loadMoreError: undefined, hasMore: false, snapshotBefore: undefined, nextCursor: null }
+    )
+  }, [initialPage.data, initialPage.error, requestKey, historyRevision])
 
   const loadMore = React.useCallback(() => {
     if (
@@ -747,13 +656,13 @@ function useExecutionHistory(
       loadMoreError: undefined,
     }))
 
-    void getExecutions(scope, {
+    void sharedPageRequest(`executions-page:${requestKey}:${snapshotBefore}:${cursor}`, () => getExecutions(scope, {
       q: search || undefined,
       result,
       from: periodStart,
       snapshotBefore,
       cursor,
-    })
+    }))
       .then((page) => {
         if (requestVersion.current !== version) {
           return
@@ -770,6 +679,7 @@ function useExecutionHistory(
             hasMore: page.hasMore,
             nextCursor: page.nextCursor,
             unattributedRecords: page.coverage?.unattributedRecords,
+            corruptRecords: page.coverage?.corruptRecords,
           }
         })
       })
@@ -806,133 +716,6 @@ function useExecutionHistory(
   return { ...visibleState, loadMore }
 }
 
-function asMachineGreen(entry: PresetHistoryEntry): RunTableJob | undefined {
-  const reference = entry.lastGreenCanonical
-  if (!reference?.ticketId) {
-    return undefined
-  }
-
-  return {
-    id: reference.ticketId,
-    rowKey: `machine:${reference.ticketId}`,
-    origin: "machine",
-    origins: ["machine"],
-    preset: entry.preset,
-    status: reference.status ?? undefined,
-    branch: reference.branch ?? undefined,
-    headSha: reference.headSha ?? undefined,
-    startedAt: reference.startedAt ?? undefined,
-    createdAt: reference.createdAt ?? undefined,
-    finishedAt: reference.finishedAt ?? undefined,
-    durationMs: reference.durationMs,
-  }
-}
-
-function asGitGreen(green: RemoteGreen): RunTableJob {
-  return {
-    ticketId: green.ticketId,
-    rowKey: `git:${green.ticketId}`,
-    origin: "git",
-    origins: ["git"],
-    detailsJobId: green.jobAvailable ? green.ticketId : undefined,
-    preset: green.preset,
-    status: green.status,
-    branch: green.branch ?? undefined,
-    headSha: green.headSha,
-    finishedAt: green.finishedAt,
-    durationMs: green.durationMs,
-    detailsAvailable: green.jobAvailable,
-  }
-}
-
-function greenIdentity(job: RunTableJob) {
-  const ticket = job.ticketId ?? job.id
-  return ticket
-    ? `${job.preset ?? "preset-indisponível"}\u0000${ticket}`
-    : `${job.preset ?? "preset-indisponível"}\u0000${job.headSha ?? job.rowKey ?? "registro-indisponível"}`
-}
-
-function mergeGreenRows(jobs: RunTableJob[]) {
-  const byIdentity = new Map<string, RunTableJob>()
-  for (const job of jobs) {
-    const key = greenIdentity(job)
-    const existing = byIdentity.get(key)
-    if (!existing) {
-      byIdentity.set(key, job)
-      continue
-    }
-
-    const existingDetails =
-      existing.detailsJobId ??
-      (existing.detailsAvailable !== false ? existing.id : undefined)
-    const nextDetails =
-      job.detailsJobId ?? (job.detailsAvailable !== false ? job.id : undefined)
-    const preferred = existingDetails ? existing : nextDetails ? job : existing
-    const origins = [
-      ...new Set([...(existing.origins ?? []), ...(job.origins ?? [])]),
-    ]
-    byIdentity.set(key, {
-      ...existing,
-      ...job,
-      ...preferred,
-      rowKey: `green:${key}`,
-      origin: undefined,
-      origins,
-      id: preferred.id ?? existing.id ?? job.id,
-      ticketId: preferred.ticketId ?? existing.ticketId ?? job.ticketId,
-      detailsJobId: existingDetails ?? nextDetails,
-      detailsAvailable: Boolean(existingDetails ?? nextDetails),
-    })
-  }
-  return [...byIdentity.values()]
-}
-
-function filterGreens({
-  jobs,
-  search,
-  grouping,
-  period,
-}: {
-  jobs: RunTableJob[]
-  search: string
-  grouping: GreenGrouping
-  period: Period
-}) {
-  const needle = search.trim().toLocaleLowerCase("pt-BR")
-  const from = queryPeriodStart(period)
-  return jobs
-    .filter((job) => {
-      const haystack = [
-        job.ticketId,
-        job.id,
-        job.preset,
-        job.branch,
-        job.headSha,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLocaleLowerCase("pt-BR")
-      return (
-        (!needle || haystack.includes(needle)) &&
-        (!from || (job.finishedAt ?? "") >= from)
-      )
-    })
-    .sort((left, right) => {
-      const primary =
-        grouping === "preset" ? (left.preset ?? "") : (left.headSha ?? "")
-      const secondary =
-        grouping === "preset" ? (right.preset ?? "") : (right.headSha ?? "")
-      const leftTime = left.finishedAt ?? left.startedAt ?? left.createdAt ?? ""
-      const rightTime =
-        right.finishedAt ?? right.startedAt ?? right.createdAt ?? ""
-      return (
-        primary.localeCompare(secondary, "pt-BR") ||
-        (left.preset ?? "").localeCompare(right.preset ?? "", "pt-BR") ||
-        rightTime.localeCompare(leftTime)
-      )
-    })
-}
-
 function sourceFailure<T>(
   query: ApiQuery<T>,
   fallback: string
@@ -959,27 +742,33 @@ function HistoryPanel({
     React.useState<HistoryFilters>(readHistoryFilters)
   const [selectedCommit, setSelectedCommit] = React.useState<GreenCommitGroup>()
   const executions = useExecutionHistory(scope, filters, historyRevision)
-  const projectScope = scope.kind === "project" ? scope : null
-  const historyMode = projectScope ? filters.mode : "executions"
+  const greenScope = scope.kind !== "unassigned" ? scope : null
+  const greensAvailable = Boolean(greenScope)
+  if (!greensAvailable && filters.mode !== "executions") {
+    setFilters((current) =>
+      current.mode === "executions" ? current : { ...current, mode: "executions" },
+    )
+  }
+  const historyMode = greensAvailable ? filters.mode : "executions"
   const greensMode = historyMode === "greens"
   const needsMachine = filters.origin !== "git"
   const needsGit = filters.origin !== "machine"
   const presetRequest = React.useCallback(
-    () =>
-      projectScope
-        ? getPresetHistory(projectScope)
+    (signal?: AbortSignal): Promise<PresetHistoryResponse | PresetHistoryAllResponse> =>
+      greenScope
+        ? getPresetHistory(greenScope, signal)
         : Promise.reject(new Error("catálogo exige um projeto")),
-    [projectScope]
+    [greenScope]
   )
   const remoteRequest = React.useCallback(
-    () =>
-      projectScope
-        ? getRemoteSlots(projectScope)
+    (signal?: AbortSignal): Promise<RemoteSlotsResponse | RemoteSlotsAllResponse> =>
+      greenScope
+        ? getRemoteSlots(greenScope, signal)
         : Promise.reject(new Error("verdes exigem um projeto")),
-    [projectScope]
+    [greenScope]
   )
   const presetHistory = useApiQuery(
-    `preset-history:${projectScope ? scopeKey(projectScope) : "none"}`,
+    `preset-history:${greenScope ? scopeKey(greenScope) : "none"}`,
     presetRequest,
     {
       enabled: greensMode && needsMachine,
@@ -987,7 +776,7 @@ function HistoryPanel({
     }
   )
   const remote = useApiQuery(
-    `remote-slots:${projectScope ? scopeKey(projectScope) : "none"}`,
+    `remote-slots:${greenScope ? scopeKey(greenScope) : "none"}`,
     remoteRequest,
     {
       enabled: greensMode && needsGit,
@@ -996,8 +785,8 @@ function HistoryPanel({
   )
 
   React.useEffect(() => {
-    writeHistoryFilters(filters)
-  }, [filters])
+    writeHistoryFilters({ ...filters, mode: historyMode })
+  }, [filters, historyMode])
 
   const machineGreens = React.useMemo(
     () =>
@@ -1024,6 +813,7 @@ function HistoryPanel({
     }
     if (
       remote.data &&
+      "source" in remote.data &&
       !remote.data.source.available &&
       remote.data.greens.length === 0
     ) {
@@ -1054,31 +844,52 @@ function HistoryPanel({
     needsGit,
     needsMachine,
   ])
-  const machineSourceSucceeded = Boolean(presetHistory.data)
-  const gitSourceSucceeded = Boolean(
-    remote.data && (remote.data.source.available || remote.data.greens.length)
-  )
+  const machineProjectErrors = needsMachine && presetHistory.data && "projectErrors" in presetHistory.data
+    ? presetHistory.data.projectErrors : []
+  const gitProjectErrors = needsGit && remote.data && "projectErrors" in remote.data
+    ? remote.data.projectErrors : []
+  const projectNotes = [
+    ...machineProjectErrors.map(project => `Máquina · ${project.projectName}: ${project.error}`),
+    ...gitProjectErrors.map(project => `Git · ${project.projectName}: ${project.error}`),
+  ]
+  const machineSourceSucceeded = Boolean(presetHistory.data && (
+    "catalog" in presetHistory.data || presetHistory.data.projects.length ||
+    !presetHistory.data.projectErrors.length || machineGreens.length
+  ))
+  const gitSourceSucceeded = Boolean(remote.data && (
+    ("source" in remote.data
+      ? remote.data.source.available
+      : remote.data.projects.some(project => project.source?.available) ||
+        (!remote.data.projects.length && !remote.data.projectErrors.length)) ||
+    remote.data.greens.length
+  ))
   const selectedSourceSucceeded =
     (needsMachine && machineSourceSucceeded) || (needsGit && gitSourceSucceeded)
   const greenLoading =
     selectedGreenRows.length === 0 &&
     ((needsMachine && presetHistory.loading) || (needsGit && remote.loading))
-  const greenError =
-    !greenLoading && !selectedSourceSucceeded
-      ? needsMachine && machineFailure
-        ? machineFailure
-        : gitFailure
-      : undefined
+  const greenError = !greenLoading && !selectedSourceSucceeded
+    ? (needsMachine && machineFailure) || (needsGit && gitFailure) ||
+      new Error(projectNotes.join(" · ") || "Nenhuma fonte de últimos verdes disponível.")
+    : undefined
   const sourceNotes = [
     needsMachine && machineFailure && selectedSourceSucceeded
-      ? `Máquina indisponível: ${machineFailure.message}`
-      : null,
-    needsGit && remote.data?.source.reason && selectedSourceSucceeded
-      ? `Git: ${remote.data.source.reason.message}`
-      : null,
+      ? `Máquina indisponível: ${machineFailure.message}` : null,
+    needsGit && remote.data && "source" in remote.data && remote.data.source.reason && selectedSourceSucceeded
+      ? `Git: ${remote.data.source.reason.message}` : null,
     needsGit && remote.error && selectedSourceSucceeded
-      ? `Git indisponível: ${remote.error.message}`
-      : null,
+      ? `Git indisponível: ${remote.error.message}` : null,
+    ...projectNotes,
+    ...(needsGit && remote.data && "projects" in remote.data
+      ? remote.data.projects.flatMap(project => [
+        project.source?.reason
+          ? `Git · ${project.projectName}: ${project.source.reason.message}` : null,
+        project.source?.stale
+          ? `Git · ${project.projectName}: espelho desatualizado; os verdes refletem a última leitura local.` : null,
+        ...(project.coverage?.invalidPayloads.map(payload =>
+          `Git · ${project.projectName} · ${payload.preset ?? "Preset não identificado"}: payload publicado inválido; último verde omitido.`
+        ) ?? []),
+      ]) : []),
   ].filter((note): note is string => Boolean(note))
   const greenDescription = [
     filters.grouping === "preset"
@@ -1110,15 +921,13 @@ function HistoryPanel({
     <>
       <HistoryToolbar
         mode={historyMode}
+        greensAvailable={greensAvailable}
         search={filters.search}
         period={filters.period}
         result={filters.result}
         origin={filters.origin}
         grouping={filters.grouping}
         onMode={(mode) => {
-          if (!projectScope && mode === "greens") {
-            return
-          }
           setFilters((current) => ({ ...current, mode }))
         }}
         onSearch={(search) => setFilters((current) => ({ ...current, search }))}
@@ -1161,6 +970,10 @@ function HistoryPanel({
           loadingMore={executions.loadingMore}
           loadMoreError={executions.loadMoreError}
           onLoadMore={executions.loadMore}
+          showProjectChip={scope.kind !== "project"}
+          filterProjectId={
+            scope.kind === "project" ? scope.projectId : undefined
+          }
         />
       ) : filters.grouping === "commit" ? (
         <Card className="gap-0 pb-0">
@@ -1169,12 +982,19 @@ function HistoryPanel({
             {toolbar}
           </CardHeader>
           <CardContent className="px-0">
-            <GreenCommitTable
-              embedded
-              groups={groupGreenCommits(selectedGreenRows)}
-              onOpen={setSelectedCommit}
-              emptyDescription="Não há execução canônica aprovada para os filtros selecionados."
-            />
+            {greenLoading ? (
+              <Skeleton className="h-28 w-full" />
+            ) : greenError ? (
+              <ErrorState title="Últimos verdes indisponíveis" error={greenError} />
+            ) : (
+              <GreenCommitTable
+                embedded
+                groups={groupGreenCommits(selectedGreenRows)}
+                showProjectChip={scope.kind === "all"}
+                onOpen={setSelectedCommit}
+                emptyDescription="Não há execução canônica aprovada para os filtros selecionados."
+              />
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -1188,6 +1008,7 @@ function HistoryPanel({
           emptyDescription="Não há execução canônica aprovada para os filtros selecionados."
           onOpenJob={onOpenJob}
           showOrigin={filters.origin === "both"}
+          showProjectChip={scope.kind === "all"}
         />
       )}
       {selectedCommit ? (
@@ -1204,9 +1025,9 @@ function HistoryPanel({
 export function StatusPage() {
   const { scope, loading: projectsLoading } = useProjectContext()
   const statusRequest = React.useCallback(
-    () =>
+    (signal?: AbortSignal) =>
       scope
-        ? getStatus(scope)
+        ? getStatus(scope, signal)
         : Promise.reject(new Error("Selecione um projeto ou o arquivo sem projeto.")),
     [scope]
   )
@@ -1214,21 +1035,18 @@ export function StatusPage() {
     pollMs: 10_000,
     enabled: Boolean(scope),
   })
-  const projectScope = scope?.kind === "project" ? scope : null
+  const dashboardScope = scope && scope.kind !== "unassigned" ? scope : null
   const dashboardRequest = React.useCallback(
-    () =>
-      projectScope
-        ? getDashboardState(projectScope)
+    (signal?: AbortSignal): Promise<DashboardState | DashboardAllState> =>
+      dashboardScope
+        ? getDashboardState(dashboardScope, signal)
         : Promise.reject(new Error("Meta exige um projeto")),
-    [projectScope]
+    [dashboardScope]
   )
   const dashboard = useApiQuery(
-    `dashboard-state:${projectScope ? scopeKey(projectScope) : "none"}`,
+    `dashboard-state:${dashboardScope ? scopeKey(dashboardScope) : "none"}`,
     dashboardRequest,
-    {
-      pollMs: 10_000,
-      enabled: Boolean(projectScope),
-    }
+    { pollMs: 10_000, enabled: Boolean(dashboardScope) }
   )
   const [selectedJobId, setSelectedJobId] = React.useState<string>()
   const [stateDrawerOpen, setStateDrawerOpen] = React.useState(false)
@@ -1280,42 +1098,36 @@ export function StatusPage() {
     )
   }
 
-  const unassigned = scope.kind === "unassigned"
-
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 lg:p-6">
-      {unassigned ? null : (
-        <CurrentExecution snapshot={status.data} onOpenJob={setSelectedJobId} />
-      )}
+      <CurrentExecution snapshot={status.data} onOpenJob={setSelectedJobId} />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div className="flex min-w-0 flex-col gap-6">
-          {unassigned ? null : (
-            <RunTable
-              title="Fila"
-              kind="queue"
-              jobs={status.data.queued}
-              loading={false}
-              error={undefined}
-              emptyTitle="Fila livre"
-              emptyDescription="A próxima execução aguardando aparecerá aqui."
-              onOpenJob={setSelectedJobId}
-            />
-          )}
+          <RunTable
+            title="Fila"
+            kind="queue"
+            jobs={status.data.queued}
+            loading={false}
+            error={undefined}
+            emptyTitle="Fila livre"
+            emptyDescription="A próxima execução aguardando aparecerá aqui."
+            onOpenJob={setSelectedJobId}
+            showProjectChip
+          />
           <HistoryPanel
             scope={scope}
             onOpenJob={setSelectedJobId}
-            historyRevision={status.data.history?.[0]?.id ?? ""}
+            historyRevision={status.data.historyRevision ?? status.data.history?.[0]?.id ?? ""}
           />
         </div>
-        <aside className="flex flex-col gap-4">
+        <aside className="flex min-w-0 flex-col gap-4">
           <MachineCard />
-          {unassigned ? null : (
-            <StatusStateCards
-              dashboard={dashboard}
-              onOpen={openStatusState}
-              onOpenJob={setSelectedJobId}
-            />
-          )}
+          <StatusStateCards
+            dashboard={dashboard}
+            readable={scope.kind !== "unassigned"}
+            onOpen={openStatusState}
+            onOpenJob={setSelectedJobId}
+          />
         </aside>
       </div>
       {selectedJobId ? (

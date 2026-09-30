@@ -74,9 +74,12 @@ export function formatRelativeTime(
   return difference >= 0 ? `em ${quantity} ${label}` : `há ${quantity} ${label}`
 }
 
-export function formatDuration(value: number | null | undefined) {
+export function formatDuration(
+  value: number | null | undefined,
+  unavailable = "Sem duração",
+) {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-    return "Sem duração"
+    return unavailable
   }
 
   if (value < 1_000) {
@@ -151,14 +154,19 @@ export function jobDuration(
     startedAt?: string | null
     durationMs?: number | null
   },
-  now = Date.now()
+  now = Date.now(),
+  compact = false,
 ) {
-  if (job.status === "cancelled" && !job.startedAt) return "Não iniciada"
+  const unavailable = compact ? "—" : "Sem duração"
+  if (job.status === "cancelled" && !job.startedAt) {
+    return compact ? unavailable : "Não iniciada"
+  }
   if (job.status === "running") {
     const start = job.startedAt ? Date.parse(job.startedAt) : NaN
     return formatDuration(
-      Number.isFinite(start) ? Math.max(0, now - start) : undefined
+      Number.isFinite(start) ? Math.max(0, now - start) : undefined,
+      unavailable,
     )
   }
-  return formatDuration(job.durationMs)
+  return formatDuration(job.durationMs, unavailable)
 }

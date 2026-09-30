@@ -34,12 +34,25 @@ const releasePaths = [
   "scripts/install.mjs",
   "scripts/legacy-projects.mjs",
   "scripts/release.mjs",
+  "scripts/ci/verify-local-attestation.sh",
+  "scripts/ci/check-with-progress.sh",
+  "scripts/ci/test-suite.sh",
+  "scripts/progress-emit.sh",
+  "templates",
   "docs",
   "package.json",
   "package-lock.json",
   "LICENSE",
   "README.md",
 ]
+
+function includeReleasePath(root, path) {
+  const bundlePath = relative(root, path).split("\\").join("/")
+  if (bundlePath.split("/").includes("__pycache__")) return false
+  if (bundlePath.endsWith(".pyc") || bundlePath.endsWith(".pyo")) return false
+  if (bundlePath === "docs/superpowers/specs" || bundlePath.startsWith("docs/superpowers/specs/")) return false
+  return true
+}
 
 function gitRevision(root) {
   try {
@@ -53,11 +66,12 @@ function hashFile(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex")
 }
 
-function assertRegularTree(path) {
+function assertRegularTree(root, path) {
+  if (!includeReleasePath(root, path)) return
   const entry = lstatSync(path)
   if (entry.isSymbolicLink()) throw new Error(`bundle não aceita symlink: ${path}`)
   if (!entry.isDirectory()) return
-  for (const name of readdirSync(path)) assertRegularTree(join(path, name))
+  for (const name of readdirSync(path)) assertRegularTree(root, join(path, name))
 }
 
 function collectFiles(root, current = root) {
@@ -100,7 +114,7 @@ export function buildRelease({ root = productRoot, outputDir, now = new Date(), 
   for (const source of releasePaths) {
     const sourcePath = join(root, source)
     if (!existsSync(sourcePath)) throw new Error(`release requer ${source}`)
-    assertRegularTree(sourcePath)
+    assertRegularTree(root, sourcePath)
   }
 
   mkdirSync(destination, { recursive: true, mode: 0o755 })
@@ -108,7 +122,13 @@ export function buildRelease({ root = productRoot, outputDir, now = new Date(), 
     for (const source of releasePaths) {
       const from = join(root, source)
       const to = join(destination, source)
-      cpSync(from, to, { recursive: true, force: false, errorOnExist: true, dereference: false })
+      cpSync(from, to, {
+        recursive: true,
+        force: false,
+        errorOnExist: true,
+        dereference: false,
+        filter: (path) => includeReleasePath(root, path),
+      })
     }
     const manifest = {
       schemaVersion: 1,

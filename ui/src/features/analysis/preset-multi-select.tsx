@@ -7,6 +7,8 @@ import { InputGroup, InputGroupInput } from "@/components/ui/input-group"
 import {
   rankResults,
   resolveSelection,
+  resultIdentity,
+  resultLabel,
   type PresetSelection,
   type ResultCounts,
 } from "@/features/analysis/results-model"
@@ -44,14 +46,14 @@ export function PresetMultiSelect({
   const resolved = resolveSelection(visible, selection)
   const selected = new Set(resolved.selected)
   const filtered = ranked.filter((row) =>
-    row.preset.toLowerCase().includes(query.trim().toLowerCase())
+    resultLabel(row).toLowerCase().includes(query.trim().toLowerCase())
   )
 
-  const toggle = (preset: string, checked: boolean) => {
+  const toggle = (identity: string, checked: boolean) => {
     const current = resolveSelection(visible, selection).selected
     const next = checked
-      ? [...new Set([...current, preset])]
-      : current.filter((name) => name !== preset)
+      ? [...new Set([...current, identity])]
+      : current.filter((name) => name !== identity)
     onSelection({ mode: "custom", presets: next })
   }
 
@@ -101,23 +103,27 @@ export function PresetMultiSelect({
         </div>
       }
     >
-      {filtered.map((row) => (
-        <Field key={row.preset} orientation="horizontal" className="items-center gap-2 px-1">
-          <Checkbox
-            checked={selected.has(row.preset)}
-            onCheckedChange={(value) => toggle(row.preset, value === true)}
-            id={`preset-${row.preset}`}
-          />
-          <FieldLabel htmlFor={`preset-${row.preset}`} className="min-w-0 flex-1">
-            <span className="flex min-w-0 justify-between gap-3">
-              <span className="truncate" title={row.preset}>
-                {row.preset}
+      {filtered.map((row) => {
+        const identity = resultIdentity(row)
+        const label = resultLabel(row)
+        return (
+          <Field key={identity} orientation="horizontal" className="items-center gap-2 px-1">
+            <Checkbox
+              checked={selected.has(identity)}
+              onCheckedChange={(value) => toggle(identity, value === true)}
+              id={`preset-${identity}`}
+            />
+            <FieldLabel htmlFor={`preset-${identity}`} className="min-w-0 flex-1">
+              <span className="flex min-w-0 justify-between gap-3">
+                <span className="truncate" title={label}>
+                  {label}
+                </span>
+                <span className="tabular-nums text-muted-foreground">{row.total}</span>
               </span>
-              <span className="tabular-nums text-muted-foreground">{row.total}</span>
-            </span>
-          </FieldLabel>
-        </Field>
-      ))}
+            </FieldLabel>
+          </Field>
+        )
+      })}
     </SelectionPanel>
   )
 }

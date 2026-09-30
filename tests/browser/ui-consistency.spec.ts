@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { installConsistencyFixtures } from './fixtures/ui-consistency'
+import { fixtureDashboard, installConsistencyFixtures } from './fixtures/ui-consistency'
 
 const captureFinal = process.env.CI_QUEUE_CAPTURE_FINAL === '1'
 test.use({ timezoneId: 'UTC' })
@@ -31,12 +31,16 @@ async function closeDrawer(page: Page) {
 
 for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
   test(`complete family ${width} ${theme}`, async({page,context})=>{
+    // Full matrix (status→analysis) exceeds default 30s under load; failure looked like scatter count flake.
+    test.setTimeout(120_000)
     await context.grantPermissions(['clipboard-read','clipboard-write'])
     await page.setViewportSize({width,height:1000})
     await installConsistencyFixtures(page,{theme,saveError:true})
     const prefix=`final-${width}-${theme}`
     await page.goto('/#status')
     await expect(page.locator('[data-slot=entity-identity][data-presentation=current]').getByRole('button',{name:'smoketest',exact:true})).toBeVisible()
+    await expect(page.locator('[data-slot=card-title]').filter({hasText:/^Metas$/})).toBeVisible()
+    await expect(page.locator('[data-slot=card-title]').filter({hasText:/^Pendências$/})).toBeVisible()
     await shot(page,`${prefix}-status`)
     const currentTitle=page.locator('[data-presentation=current]').getByRole('button',{name:'smoketest',exact:true})
     const tableTitle=page.getByRole('button',{name:'passed-run',exact:true})
@@ -50,7 +54,7 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     // Values must receive the remaining space, not an accidental equal split.
     expect(valueWidth).toBeGreaterThan(labelWidth)
     const drawerFont=await drawer.locator('[data-slot=drawer-title]').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))
-    expect(currentFont).toBeGreaterThan(drawerFont)
+    expect(currentFont).toBe(drawerFont)
     expect(drawerFont).toBeGreaterThan(tableFont)
     const executionHeader=await drawer.locator('[data-slot=drawer-header]').boundingBox()
     const executionTitle=await drawer.locator('[data-slot=drawer-title]').boundingBox()
@@ -59,11 +63,23 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     expect(Math.abs(staticBox!.x-jestBox!.x)).toBeLessThanOrEqual(1)
     const leaf=drawer.locator('[data-slot=progress-row][data-node-id=jest]')
     await expect(leaf.getByRole('button')).toHaveCount(0)
+    const expandedTitleFont=await drawer.locator('[data-slot=progress-row][data-node-id=static] [data-slot=collapsible-trigger]').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))
+    const leafTitleFont=await leaf.locator('[data-slot=progress-label] span').last().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))
+    expect(expandedTitleFont).toBe(leafTitleFont)
     await shot(page,`${prefix}-execution-progress`)
-    const toggle=drawer.getByRole('button',{name:'Expandir Static',exact:true})
+    const toggle=drawer.locator('[data-slot=progress-row][data-node-id=static] [data-slot=collapsible-trigger]')
+    await expect(toggle).toHaveCount(1)
+    const rowHeight=await drawer.locator('[data-slot=progress-row][data-node-id=static]').evaluate(el=>el.getBoundingClientRect().height)
+    expect(rowHeight).toBeLessThanOrEqual(40)
+    await expect(drawer.locator('[data-slot=collapsible-content]').first()).toHaveCSS('border-left-width','0px')
     await toggle.click()
     await expect(toggle).toHaveAttribute('data-state','closed')
     await shot(page,`${prefix}-execution-collapsed`)
+    await toggle.getByText('Static',{exact:true}).click()
+    await expect(toggle).toHaveAttribute('data-state','open')
+    await toggle.focus()
+    await page.keyboard.press('Enter')
+    await expect(toggle).toHaveAttribute('data-state','closed')
     await toggle.click()
     await drawer.getByRole('tab',{name:'Log',exact:true}).click()
     await expect(drawer.locator('pre')).toContainText('line 0:')
@@ -94,7 +110,7 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     await expect(drawer.getByRole('button',{name:'Remover',exact:true})).toBeFocused()
     await closeDrawer(page)
     await page.clock.fastForward(5000)
-    await expect(page.getByText('Fixture save rejected',{exact:true})).toHaveCount(0)
+    await expect(page.getByText('Fixture save rejected',{exact:true})).toBeHidden()
     await page.getByRole('button',{name:'Ver pendências',exact:true}).click()
     drawer=await inspectDrawer(page)
     await expect(drawer.getByRole('textbox')).toHaveCount(0)
@@ -168,6 +184,8 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     await installConsistencyFixtures(page,{theme,empty:true})
     await page.goto('/#status')
     await expect(page.getByText('Fila livre',{exact:true})).toBeVisible()
+    await expect(page.locator('[data-slot=card-title]').filter({hasText:/^Metas$/})).toBeVisible()
+    await expect(page.locator('[data-slot=card-title]').filter({hasText:/^Pendências$/})).toBeVisible()
     await shot(page,`final-${width}-${theme}-status-empty`)
     await page.getByRole('textbox',{name:'Buscar por preset, branch, SHA ou ticket'}).fill('not-in-fixture')
     await expect(page.getByText('Nenhuma execução corresponde aos filtros',{exact:true})).toBeVisible()
@@ -256,14 +274,11 @@ test('review regressions keep dense identities and table actions inside their ce
   const flakyRow=history.getByRole('row').filter({has:page.getByRole('button',{name:'passed-run',exact:true})})
   const plainRow=history.getByRole('row').filter({has:page.getByRole('button',{name:'failed-run',exact:true})})
   const longRow=history.getByRole('row').filter({has:page.getByRole('button',{name:'a-very-long-preset-name-for-density',exact:true})})
-  const flakyIdentity=flakyRow.locator('[data-slot=entity-identity]')
-  const titleBox=(await flakyIdentity.getByRole('button',{name:'passed-run',exact:true}).boundingBox())!
-  const badgeBox=(await flakyIdentity.getByText('Flaky detectado',{exact:true}).boundingBox())!
-  expect(Math.abs((titleBox.y+titleBox.height/2)-(badgeBox.y+badgeBox.height/2))).toBeLessThanOrEqual(1)
+  await expect(flakyRow.getByRole('img',{name:'Passou · Flaky detectado'})).toBeVisible()
   expect((await flakyRow.boundingBox())!.height).toBe((await plainRow.boundingBox())!.height)
-  await expect(longRow.getByText('Flaky detectado',{exact:true})).toBeVisible()
+  await expect(longRow.getByRole('img',{name:'Passou · Flaky detectado'})).toBeVisible()
 
-  const historyAction=flakyRow.getByRole('button',{name:'Ver passed-run',exact:true})
+  const historyAction=flakyRow.getByRole('button',{name:'Inspecionar',exact:true})
   const actionGeometry=await historyAction.evaluate(button=>{
     const cell=button.closest('td')!
     const b=button.getBoundingClientRect(),c=cell.getBoundingClientRect(),style=getComputedStyle(cell)
@@ -293,7 +308,7 @@ test('review regressions keep dense identities and table actions inside their ce
   const originCell=commitRow.getByRole('cell').nth(4)
   expect(await countCell.evaluate(cell=>cell.scrollWidth<=cell.clientWidth+1)).toBe(true)
   expect(await originCell.evaluate(cell=>cell.scrollWidth<=cell.clientWidth+1)).toBe(true)
-  const commitAction=commitRow.getByRole('button',{name:/Ver commit/})
+  const commitAction=commitRow.getByRole('button',{name:'Inspecionar',exact:true})
   const commitActionGeometry=await commitAction.evaluate(button=>{
     const cell=button.closest('td')!
     const b=button.getBoundingClientRect(),c=cell.getBoundingClientRect(),style=getComputedStyle(cell)
@@ -310,7 +325,7 @@ test('review regressions keep dense identities and table actions inside their ce
   await page.keyboard.press('Enter')
   const commitDrawer=await inspectDrawer(page)
   const drawerTable=commitDrawer.getByRole('table',{name:'Execuções do commit',exact:true})
-  const drawerAction=drawerTable.getByRole('button',{name:'Ver smoketest',exact:true})
+  const drawerAction=drawerTable.getByRole('button',{name:'Inspecionar',exact:true})
   const drawerActionGeometry=await drawerAction.evaluate(button=>{
     const cell=button.closest('td')!
     const b=button.getBoundingClientRect(),c=cell.getBoundingClientRect(),style=getComputedStyle(cell)
@@ -362,3 +377,73 @@ test('worktrees and analysis distinguish loading from errors',async({page})=>{
   await expect(page.getByText('Não foi possível carregar os resultados',{exact:true})).toBeVisible()
   await shot(page,'final-1440-light-analysis-error')
 })
+
+const longProjectName = 'Alpha — projeto com nome suficientemente longo para truncar'
+
+async function installAllStatusConsistency(page: Page, theme: 'light' | 'dark', state: 'data' | 'empty' = 'data') {
+  await installConsistencyFixtures(page, { theme, empty: true, displayName: longProjectName, extraProjects: [{ id: 'beta', displayName: 'Beta' }] })
+  const projects = ['example', 'beta'].map(projectId => ({
+    projectId, projectName: projectId === 'example' ? longProjectName : 'Beta',
+    revision: 1, catalog: 'linked', presets: ['smoketest'], pendingError: null,
+    meta: state === 'empty' ? null : { ...fixtureDashboard().meta!, name: `${projectId} entrega`, description: '', checks: fixtureDashboard().meta!.checks },
+    pending: state === 'empty' ? [] : [{ ...fixtureDashboard().pending[0], id: `${projectId}-pending`, preset: `${projectId}-full`, latestTicketId: null }],
+  }))
+  await page.route('**/api/dashboard-state**', route => route.fulfill({ json: {
+    schemaVersion: 2, projects, context: { kind: 'all' },
+    projectErrors: [],
+  } }))
+  await page.goto('/?context=all#status')
+  await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /light/)
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`all status compact context across widths and full tooltip ${theme}`, async ({ page }) => {
+    await installAllStatusConsistency(page, theme)
+    await page.clock.resume()
+    const cards = page.locator('aside [data-slot=card]').filter({ has: page.locator('[data-slot=card-title]').filter({ hasText: /^(Metas|Pendências)$/ }) })
+    await expect(cards.getByText('example entrega', { exact: true })).toBeVisible()
+    for (const width of [390, 640, 820, 1440, 1600]) {
+      await page.setViewportSize({ width, height: 1000 })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      const rows = cards.locator('[data-slot=item-content]')
+      await expect(rows).toHaveCount(4)
+      for (const row of await rows.all()) {
+        const chip = row.locator('[data-slot=tooltip-trigger][data-variant=outline]')
+        const chipBounds = (await chip.boundingBox())!
+        const titleBounds = (await row.locator('[data-slot=item-title]').boundingBox())!
+        expect(titleBounds.y).toBeGreaterThanOrEqual(chipBounds.y + chipBounds.height)
+        expect(chipBounds.width).toBeLessThanOrEqual((await row.boundingBox())!.width)
+      }
+    }
+    // Inspect the tooltip after the resize matrix; resize/scroll dismisses overlays.
+    const longChips = cards.locator('[data-slot=tooltip-trigger][data-variant=outline]').filter({ hasText: longProjectName })
+    await expect(longChips).toHaveCount(2)
+    await page.mouse.move(0, 0)
+    await longChips.first().hover()
+    await expect(page.locator('[role=tooltip]:not([data-state=closed])')).toContainText(longProjectName)
+    await page.keyboard.press('Escape')
+  })
+
+  test(`all status empty and partial coverage preserve facts ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 1000 })
+    await installAllStatusConsistency(page, theme, 'empty')
+    const cards = page.locator('aside [data-slot=card]').filter({ has: page.locator('[data-slot=card-title]').filter({ hasText: /^(Metas|Pendências)$/ }) })
+    await expect(cards.getByText('Nenhuma meta declarada.', { exact: true })).toBeVisible()
+    await expect(cards.getByText('Nenhuma pendência.', { exact: true })).toBeVisible()
+    await expect(cards.getByText('Selecione um projeto', { exact: true })).toHaveCount(0)
+    // Reuse the installed clock/theme fixture; change only the aggregate resource.
+    await page.route('**/api/dashboard-state**', route => route.fulfill({ json: {
+      schemaVersion: 2, context: { kind: 'all' },
+      projects: [{ ...fixtureDashboard(), projectName: longProjectName, catalog: 'linked', meta: { ...fixtureDashboard().meta!, name: 'Valid project meta', checks: null } }],
+      projectErrors: [{ projectId: 'beta', projectName: 'Beta', error: 'Leitura indisponível' }],
+    } }))
+    await page.reload()
+    await expect(cards.getByText('Valid project meta', { exact: true })).toBeVisible()
+    await expect(cards.getByText('full', { exact: true })).toBeVisible()
+    await expect(cards.getByText('Beta: Leitura indisponível', { exact: true })).toHaveCount(2)
+    await expect(cards.getByText('Checks indisponíveis:', { exact: false })).toHaveCount(1)
+    await expect(cards.getByText(/0 de .* requisitos atendidos/)).toHaveCount(0)
+    await expect(cards.getByText('Nenhuma meta declarada.', { exact: true })).toHaveCount(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  })
+}

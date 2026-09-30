@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import type { DashboardProjectState } from '../../ui/src/lib/types'
 
 const fixtureProjects = {
   schemaVersion: 1,
@@ -26,7 +27,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 // Isolated API fixtures exercise the real Vite UI without launching any job.
-const baseJob = { id: 'observed', preset: 'smoke', projectId: 'example', branch: 'example-branch', headSha: 'abcdef12', startedAt: new Date(Date.now()-61000).toISOString(), createdAt: new Date().toISOString(), cwd: '/example' }
+const baseJob = { id: 'observed', preset: 'smoke', projectId: 'example', branch: 'example-branch', headSha: 'abcdef12', startedAt: new Date(Date.now()-61000).toISOString(), createdAt: new Date().toISOString(), cwd: '/example', progressEnabled: true }
 const nodes = [
   { id: 'e2e', label: 'E2E', kind: 'stage', status: 'running' },
   { id: 'pw', parentId: 'e2e', label: 'Playwright', kind: 'suite', status: 'running', detail: { kind: 'cases', completed: 0, total: 1, passed: 0, failed: 0, running: 1, pending: 0, skipped: 0 } },
@@ -59,16 +60,19 @@ test('live drawer preserves identity, recursive counts, cursor and terminal poll
     await route.fulfill({ json: data[url.pathname] ?? {} })
   })
   await page.goto('/#status')
-  await expect(page.getByText('Flaky detectado')).toBeVisible()
+  const currentState = page.locator('[data-slot=entity-identity][data-presentation=current] [data-slot=status-indicator]')
+  await expect(currentState).toHaveAttribute('aria-label', 'Em execução · Flaky detectado')
+  await expect(currentState).toHaveClass(/text-warning/)
   await expect(page.getByText('Atualizando', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'smoke', exact: true }).click()
   const drawer = page.getByRole('dialog')
   await expect(drawer.getByText('Retry case')).toBeVisible()
   await expect(drawer.getByText('0 de 1')).toBeVisible()
-  const expand = drawer.getByRole('button', {name:'Expandir E2E', exact:true})
+  const expand = drawer.locator('[data-slot=progress-row][data-node-id=e2e] [data-slot=collapsible-trigger]')
+  await expect(expand).toHaveCount(1)
   await expect(expand).toHaveAttribute('data-state', 'open')
   const openRotation = await expand.locator('svg').evaluate(el => getComputedStyle(el).rotate)
-  await expand.click()
+  await expand.getByText('E2E', {exact:true}).click()
   await expect(expand).toHaveAttribute('data-state', 'closed')
   await expect.poll(() => expand.locator('svg').evaluate(el => getComputedStyle(el).rotate)).not.toBe(openRotation)
   await expand.click()
@@ -91,7 +95,7 @@ test('live drawer preserves identity, recursive counts, cursor and terminal poll
 
   terminal = true
   await expect(drawer.locator('pre')).toContainText('terminal line', { timeout: 8000 })
-  await expect(drawer.getByLabel('Passou', { exact: true })).toBeVisible()
+  await expect(drawer.getByLabel('Passou · Flaky detectado', { exact: true })).toBeVisible()
   await expect(drawer.locator('.animate-spin')).toHaveCount(0)
   await expect(drawer).toContainText('Duração: 1m 2s')
   const count = offsets.length
@@ -151,6 +155,183 @@ for (const width of [390, 820, 1440]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   })
 }
+
+test('history keeps the loaded query, its next page and an accessible refresh error', async ({ page }) => {
+  await page.clock.install()
+  const firstPage = Array.from({ length: 50 }, (_, index) => ({
+    ...baseJob,
+    id: `history-a-${index + 1}`,
+    preset: `history-a-${index + 1}`,
+    status: 'passed',
+    finishedAt: new Date().toISOString(),
+    durationMs: 62_000,
+  }))
+  const nextPage = {
+    ...baseJob,
+    id: 'history-a-page-two',
+    preset: 'history-a-page-two',
+    status: 'passed',
+    finishedAt: new Date().toISOString(),
+    durationMs: 62_000,
+  }
+  const recoveredFirstPage = Array.from({ length: 50 }, (_, index) => ({
+    ...baseJob,
+    id: `history-recovered-${index + 1}`,
+    preset: `history-recovered-${index + 1}`,
+    status: 'passed',
+    finishedAt: new Date().toISOString(),
+    durationMs: 62_000,
+  }))
+  let rejectRefresh = false
+  let generation: 'a' | 'b' = 'a'
+
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/api/executions') {
+      if (url.searchParams.get('q') === 'history-b') {
+        await route.fulfill({ status: 503, json: { error: 'History B unavailable' } })
+        return
+      }
+      if (url.searchParams.get('cursor') === 'page-two') {
+        await route.fulfill({
+          json: {
+            jobs: [nextPage],
+            hasMore: false,
+            snapshotBefore: 'fixture-snapshot',
+            nextCursor: null,
+            coverage: { unattributedRecords: 0 },
+          },
+        })
+        return
+      }
+      if (rejectRefresh) {
+        await route.fulfill({ status: 503, json: { error: 'History refresh unavailable' } })
+        return
+      }
+      const activeFirstPage = generation === 'a' ? firstPage : recoveredFirstPage
+      await route.fulfill({
+        json: {
+          jobs: activeFirstPage,
+          hasMore: generation === 'a',
+          snapshotBefore: `fixture-snapshot-${generation}`,
+          nextCursor: generation === 'a' ? 'page-two' : null,
+          coverage: { unattributedRecords: 0 },
+        },
+      })
+      return
+    }
+
+    const data: Record<string, unknown> = {
+      '/api/status': {
+        project: { id: 'example', name: 'Example' },
+        running: null,
+        queued: [],
+        history: generation === 'a' ? firstPage : recoveredFirstPage,
+        historyRevision: `history-${generation}`,
+        globalOccupancy: false,
+      },
+      '/api/session': { csrfToken: 'fixture', canReveal: false },
+      '/api/dashboard-state': { revision: 0, presets: ['smoke'], meta: null, pending: [] },
+      '/api/machine': {},
+      '/api/job': firstPage[0],
+    }
+    if (url.pathname === '/api/projects') {
+      await route.fulfill({ json: fixtureProjects })
+      return
+    }
+    await route.fulfill({ json: data[url.pathname] ?? {} })
+  })
+
+  await page.goto('/#status')
+  const history = page.getByRole('table', { name: 'Execuções' }).last()
+  await expect(history.getByRole('button', { name: 'history-a-50', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Carregar mais', exact: true }).click()
+  await expect(history.getByRole('button', { name: 'history-a-page-two', exact: true })).toBeVisible()
+
+  rejectRefresh = true
+  await page.clock.fastForward(10_000)
+  const refreshError = page.getByRole('alert')
+  await expect(refreshError).toContainText('History refresh unavailable')
+  await expect(history.getByRole('button', { name: 'history-a-50', exact: true })).toBeVisible()
+  await expect(history.getByRole('button', { name: 'history-a-page-two', exact: true })).toBeVisible()
+
+  rejectRefresh = false
+  generation = 'b'
+  await page.clock.fastForward(10_000)
+  await page.clock.fastForward(10_000)
+  await expect(refreshError).toHaveCount(0)
+  await expect(history.getByRole('button', { name: 'history-recovered-50', exact: true })).toBeVisible()
+  await expect(history.getByRole('button', { name: 'history-a-50', exact: true })).toHaveCount(0)
+  await expect(history.getByRole('button', { name: 'history-a-page-two', exact: true })).toHaveCount(0)
+
+  await page.getByRole('textbox', { name: 'Buscar por preset, branch, SHA ou ticket' }).fill('history-b')
+  await expect(page.getByText('History B unavailable', { exact: true })).toBeVisible()
+  await expect(history.getByRole('button', { name: 'history-a-50', exact: true })).toHaveCount(0)
+})
+
+test('history drops project A rows before a failed project B query', async ({ page }, testInfo) => {
+  testInfo.setTimeout(10_000)
+  const projects = {
+    ...fixtureProjects,
+    projects: [
+      ...fixtureProjects.projects,
+      {
+        ...fixtureProjects.projects[0],
+        id: 'other',
+        displayName: 'Other',
+        repositoryPath: '/other',
+        resolvedRepositoryPath: '/other',
+      },
+    ],
+  }
+  const projectAJob = {
+    ...baseJob,
+    id: 'history-project-a',
+    preset: 'history-project-a',
+    status: 'passed',
+    finishedAt: new Date().toISOString(),
+    durationMs: 62_000,
+  }
+
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/api/executions') {
+      if (url.searchParams.get('projectId') === 'other') {
+        await route.fulfill({ status: 503, json: { error: 'Other history unavailable' } })
+        return
+      }
+      await route.fulfill({
+        json: {
+          jobs: [projectAJob],
+          hasMore: false,
+          nextCursor: null,
+          coverage: { unattributedRecords: 0 },
+        },
+      })
+      return
+    }
+    if (url.pathname === '/api/projects') {
+      await route.fulfill({ json: projects })
+      return
+    }
+    const data: Record<string, unknown> = {
+      '/api/status': { project: { id: 'example', name: 'Example' }, running: null, queued: [], history: [projectAJob], globalOccupancy: false },
+      '/api/session': { csrfToken: 'fixture', canReveal: false },
+      '/api/dashboard-state': { revision: 0, presets: ['smoke'], meta: null, pending: [] },
+      '/api/machine': {},
+      '/api/job': projectAJob,
+    }
+    await route.fulfill({ json: data[url.pathname] ?? {} })
+  })
+
+  await page.goto('/#status')
+  const history = page.getByRole('table', { name: 'Execuções' }).last()
+  await expect(history.getByRole('button', { name: 'history-project-a', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Example', exact: true }).click()
+  await page.getByRole('button', { name: 'Other /other', exact: true }).click()
+  await expect(page.getByText('Other history unavailable', { exact: true })).toBeVisible()
+  await expect(history.getByRole('button', { name: 'history-project-a', exact: true })).toHaveCount(0)
+})
 
 test('worktree selection persists and copy menu exposes only the two formats', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -247,7 +428,7 @@ test('log pause preserves visible text, fixed regions and diagnostic bundle', as
 })
 
 test('meta creates, cancels edits, reports save failure and removes without SHA input',async({page})=>{
-  let state:any={revision:0,presets:['smoke'],meta:null,pending:[]}
+  let state:any={projectId:'example',revision:0,presets:['smoke'],meta:null,pending:[],pendingError:null,context:{kind:'project',projectId:'example'}}
   let fail=false
   await page.route('**/api/**',async route=>{
     const path=new URL(route.request().url()).pathname
@@ -367,4 +548,297 @@ test('current stages fit eight, overflow horizontally and follow without stealin
   expect(await viewport.evaluate(el => el.scrollLeft)).toBe(0)
   await page.setViewportSize({width:390,height:844})
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+async function allStatusFixture(page: import('@playwright/test').Page, empty = false, partial = false, longName = false) {
+  const projects = ['alpha', 'beta'].map(id => ({ ...fixtureProjects.projects[0], id, displayName: id === 'alpha' ? (longName ? 'Alpha — projeto com nome suficientemente longo para truncar' : 'Alpha') : 'Beta', repositoryPath: `/${id}`, resolvedRepositoryPath: `/${id}` }))
+  let states: DashboardProjectState[] = projects.map(project => ({
+    projectId: project.id, projectName: project.displayName, revision: 1, catalog: 'linked', presets: ['check'], pendingError: null,
+    meta: empty ? null : { name: `${project.displayName} entrega`, description: '', presets: ['check'], candidateSha: null, checks: partial && project.id === 'beta' ? null : [{ preset: 'check', status: 'pending', ticketId: null, headSha: null, finishedAt: null }] },
+    pending: empty ? [] : [{ id: `${project.id}-advisory`, preset: `${project.id}-check`, reason: 'Validação recomendada', createdAt: '2026-09-29T10:00:00Z', headSha: 'abcdef12', pr: 42, latestTicketId: null, latestStatus: null }],
+  }))
+  const writes: URL[] = []
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/api/dashboard-state') {
+      if (route.request().method() === 'POST') {
+        writes.push(url)
+        const mutation = route.request().postDataJSON()
+        states = states.map(state => state.projectId === url.searchParams.get('projectId') ? { ...state, revision: state.revision + 1, meta: { ...mutation.meta, candidateSha: null, checks: [] } } : state)
+      }
+      const state = states.find(state => state.projectId === url.searchParams.get('projectId'))
+      await route.fulfill({ json: url.searchParams.get('context') === 'all'
+        ? { schemaVersion: 2, projects: states, projectErrors: partial ? [{ projectId: 'gamma', projectName: 'Gamma', error: 'Leitura indisponível' }] : [], context: { kind: 'all' } }
+        : { ...state, context: { kind: 'project', projectId: state?.projectId } } })
+      return
+    }
+    const data: Record<string, unknown> = {
+      '/api/projects': { ...fixtureProjects, bootstrapProjectId: 'alpha', projects },
+      '/api/session': { csrfToken: 'fixture' },
+      '/api/status': { running: null, queued: [], history: [], context: { kind: 'all' } },
+      '/api/executions': { jobs: [], coverage: {}, context: { kind: 'all' } },
+      '/api/machine': {},
+    }
+    await route.fulfill({ json: data[url.pathname] ?? {} })
+  })
+  await page.goto('/?context=all#status')
+  return writes
+}
+
+test('all status mixes project previews and factual global empties', async ({ page }) => {
+  await allStatusFixture(page)
+  const cards = page.locator('aside')
+  await expect(cards.getByText('Alpha entrega', { exact: true })).toBeVisible()
+  await expect(cards.getByText('Beta entrega', { exact: true })).toBeVisible()
+  await expect(cards.getByText('alpha-check', { exact: true })).toBeVisible()
+  await expect(cards.getByText('beta-check', { exact: true })).toBeVisible()
+  await expect(cards.getByText('Alpha', { exact: true })).toHaveCount(2)
+  await expect(cards.getByText('Beta', { exact: true })).toHaveCount(2)
+  await expect(cards.getByText('Selecione um projeto')).toHaveCount(0)
+  await allStatusFixture(page, true)
+  await expect(cards.getByText('Nenhuma meta declarada.', { exact: true })).toBeVisible()
+  await expect(cards.getByText('Nenhuma pendência.', { exact: true })).toBeVisible()
+})
+
+test('all metas drawer chooses a local owner and preserves drafts and global scope', async ({ page }) => {
+  const writes = await allStatusFixture(page, true)
+  await page.getByRole('button', { name: 'Abrir metas', exact: true }).click()
+  const drawer = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: 'Metas', exact: true }) })
+  await expect(drawer.getByRole('button', { name: 'Todos os projetos', exact: true })).toBeVisible()
+  await expect(drawer.getByRole('button', { name: 'Declarar meta', exact: true })).toHaveCount(0)
+  await drawer.getByRole('button', { name: 'Todos os projetos', exact: true }).click()
+  await page.getByRole('button', { name: /Beta.*\/beta/ }).click()
+  await drawer.getByRole('button', { name: 'Declarar meta', exact: true }).click()
+  await drawer.getByLabel('Nome', { exact: true }).fill('Beta draft')
+  await drawer.getByRole('button', { name: 'Beta', exact: true }).click()
+  await page.getByRole('button', { name: /Alpha.*\/alpha/ }).click()
+  await drawer.getByRole('button', { name: 'Alpha', exact: true }).click()
+  await page.getByRole('button', { name: /Beta.*\/beta/ }).click()
+  await drawer.getByRole('button', { name: 'Declarar meta', exact: true }).click()
+  await expect(drawer.getByLabel('Nome', { exact: true })).toHaveValue('Beta draft')
+  await drawer.getByRole('checkbox', { name: 'check', exact: true }).check()
+  await drawer.getByRole('button', { name: 'Salvar meta', exact: true }).click()
+  await expect(drawer.getByText('Nenhuma meta declarada', { exact: true })).toHaveCount(0)
+  expect(writes).toHaveLength(1)
+  expect(writes[0].searchParams.get('projectId')).toBe('beta')
+  expect(writes[0].searchParams.has('context')).toBe(false)
+  await drawer.getByRole('button', { name: 'Fechar', exact: true }).click()
+  await expect(page.locator('header').first().getByRole('button', { name: 'Todos os projetos', exact: true })).toBeVisible()
+  expect(new URL(page.url()).searchParams.get('context')).toBe('all')
+})
+
+test('all pendings drawer filters locally without a creation action', async ({ page }) => {
+  await allStatusFixture(page)
+  await page.getByRole('button', { name: 'Ver pendências', exact: true }).click()
+  const drawer = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: 'Pendências', exact: true }) })
+  await expect(drawer.getByText('alpha-check', { exact: true })).toBeVisible()
+  await expect(drawer.getByText('beta-check', { exact: true })).toBeVisible()
+  await drawer.getByRole('button', { name: 'Todos os projetos', exact: true }).click()
+  await page.getByRole('button', { name: /Beta.*\/beta/ }).click()
+  await expect(drawer.getByText('alpha-check', { exact: true })).toHaveCount(0)
+  await expect(drawer.getByText('beta-check', { exact: true })).toBeVisible()
+  await expect(drawer.getByRole('button', { name: /Nova pendência|Criar|Salvar|Editar|Remover/ })).toHaveCount(0)
+  await drawer.getByRole('button', { name: 'Fechar', exact: true }).click()
+  await expect(page.locator('header').first().getByRole('button', { name: 'Todos os projetos', exact: true })).toBeVisible()
+})
+
+
+test('all status preserves valid projects and unavailable checks without inventing progress', async ({ page }) => {
+  await allStatusFixture(page, false, true)
+  const cards = page.locator('aside')
+  await expect(cards.getByText('Alpha entrega', { exact: true })).toBeVisible()
+  await expect(cards.getByText('Beta entrega', { exact: true })).toBeVisible()
+  await expect(cards.getByText('Checks indisponíveis:', { exact: false })).toHaveCount(1)
+  await expect(cards.getByText('0 de 1 requisitos atendidos', { exact: true })).toHaveCount(1)
+  await expect(cards.getByText('Gamma: Leitura indisponível', { exact: true })).toHaveCount(2)
+})
+
+
+test('all status project chips stay on their own line without overflow at supported widths', async ({ page }) => {
+  await allStatusFixture(page, false, false, true)
+  const cards = page.locator('aside')
+  await expect(cards.getByText('Beta entrega', { exact: true })).toBeVisible()
+  for (const width of [390, 640, 820, 1440, 1600]) {
+    await page.setViewportSize({ width, height: 1000 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    const rows = cards.locator('[data-slot=item-content]')
+    for (const row of await rows.all()) {
+      const chip = await row.locator('[data-slot=tooltip-trigger][data-variant=outline]').boundingBox()
+      const title = await row.locator('[data-slot=item-title]').boundingBox()
+      expect(chip).not.toBeNull()
+      expect(title!.y).toBeGreaterThanOrEqual(chip!.y + chip!.height)
+      expect(chip!.width).toBeLessThanOrEqual((await row.boundingBox())!.width)
+    }
+  }
+})
+
+test('all drawer keeps long project identity readable inside the narrow detail surface', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await allStatusFixture(page, false, false, true)
+  await page.getByRole('button', { name: 'Abrir metas', exact: true }).click()
+  const drawer = page.getByRole('dialog')
+  const projectItem = drawer.locator('[data-slot=item]').filter({ has: page.getByText('Alpha — projeto com nome suficientemente longo para truncar', { exact: true }) }).first()
+  const bounds = await drawer.boundingBox()
+  const itemBounds = await projectItem.boundingBox()
+  expect(itemBounds!.x + itemBounds!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width)
+  const identity = projectItem.locator('[data-slot=scroll-area-viewport]').first()
+  await expect(identity).toBeVisible()
+  await identity.locator('[tabindex="0"]').focus()
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(() => identity.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
+  await drawer.getByRole('button', { name: 'Todos os projetos', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Buscar projeto' }).fill('Beta')
+  await page.getByRole('button', { name: /Beta.*\/beta/ }).click()
+  await expect(drawer.getByRole('button', { name: 'Editar', exact: true })).toBeVisible()
+})
+
+async function allGreensFixture(page: import('@playwright/test').Page, partial = false, failed = false, empty = false, mixedGitCoverage = false) {
+  const projects = ['alpha', 'beta'].map(id => ({ ...fixtureProjects.projects[0], id, displayName: id === 'alpha' ? 'Alpha' : 'Beta' }))
+  const requests: URL[] = []
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url())
+    const context = url.searchParams.get('context') === 'unassigned' ? { kind: 'unassigned' } : { kind: 'all' }
+    const source = { kind: 'git', available: true, stale: false, remote: 'origin', namespace: 'ci', readAt: null, refreshedAt: null, reason: null }
+    const errors = partial ? [{ projectId: 'beta', projectName: 'Beta', error: 'Catálogo indisponível' }] : []
+    const visible = empty ? [] : partial ? projects.slice(0, 1) : projects
+    if (['/api/preset-history', '/api/remote-slots'].includes(url.pathname)) {
+      requests.push(url)
+      if (failed) { await route.fulfill({ status: 503, json: { error: 'Fonte indisponível' } }); return }
+    }
+    const data: Record<string, unknown> = {
+      '/api/projects': { ...fixtureProjects, bootstrapProjectId: 'alpha', projects },
+      '/api/session': { csrfToken: 'fixture' },
+      '/api/status': { running: null, queued: [], history: [], context },
+      '/api/executions': { jobs: [], coverage: {}, context },
+      '/api/dashboard-state': { schemaVersion: 2, projects: [], projectErrors: [], context },
+      '/api/machine': {},
+      '/api/preset-history': { schemaVersion: 2, context, projects: visible.map(project => ({ projectId: project.id, projectName: project.displayName, resolved: true, declaredCount: 1 })), projectErrors: errors, coverage: {}, presets: visible.map(project => ({ projectId: project.id, projectName: project.displayName, preset: 'full', lastGreenCanonical: { ticketId: 'shared-ticket', status: 'passed', headSha: 'abcdef123456', branch: 'dev', finishedAt: '2026-09-29T10:00:00Z' } })) },
+      '/api/remote-slots': { schemaVersion: 2, context, projects: visible.map(project => ({ projectId: project.id, projectName: project.displayName, catalog: 'linked', source: { ...source, stale: mixedGitCoverage && project.id === 'beta' }, coverage: { declaredPresets: mixedGitCoverage ? 2 : 1, greenPresets: 1, withoutTagPresets: mixedGitCoverage && project.id === 'alpha' ? ['full'] : [], invalidPayloads: mixedGitCoverage && project.id === 'beta' ? [{ preset: 'full', reason: 'payload-exit-not-green' }] : [] } })), projectErrors: errors, greens: visible.map(project => ({ projectId: project.id, projectName: project.displayName, origin: 'git', preset: mixedGitCoverage ? 'smoke' : 'full', ticketId: 'shared-ticket', jobAvailable: false, status: 'passed', headSha: 'abcdef123456', commitSha: 'abcdef123456', baseSha: null, branch: 'dev', finishedAt: '2026-09-29T10:00:00Z', publishedAt: '2026-09-29T10:00:00Z', durationMs: 1000, ref: mixedGitCoverage ? 'refs/green/smoke' : 'refs/green/full' })) },
+    }
+    await route.fulfill({ json: data[url.pathname] ?? {} })
+  })
+  await page.goto('/?context=all&mode=greens#status')
+  return requests
+}
+
+test('all greens preserve project identity, sources, search and commit drawer', async ({ page }) => {
+  const requests = await allGreensFixture(page)
+  const history = page.getByRole('region', { name: 'Histórico', exact: true })
+  await expect(history.getByRole('radio', { name: 'Últimos verdes', exact: true })).toBeEnabled()
+  await expect(history.getByText('Alpha', { exact: true })).toBeVisible()
+  await expect(history.getByText('Beta', { exact: true })).toBeVisible()
+  await expect(history.getByRole('row')).toHaveCount(3)
+  await history.getByRole('textbox').fill('Beta')
+  await expect(history.getByText('Alpha', { exact: true })).toHaveCount(0)
+  await expect(history.getByText('Beta', { exact: true })).toBeVisible()
+  await history.getByRole('textbox').fill('')
+  for (const name of ['Máquina', 'Git', 'Máquina e Git']) {
+    await history.getByRole('combobox', { name: 'Origem', exact: true }).click()
+    await page.getByRole('option', { name, exact: true }).click()
+    await expect(history.getByRole('row')).toHaveCount(3)
+    await expect(history.getByText('Alpha', { exact: true })).toBeVisible()
+    await expect(history.getByRole('button', { name: 'full', exact: true })).toHaveCount(name === 'Git' ? 0 : 2)
+  }
+  await history.getByRole('combobox', { name: 'Agrupamento do histórico' }).click()
+  await page.getByRole('option', { name: 'Por commit', exact: true }).click()
+  await expect(history.getByRole('row')).toHaveCount(3)
+  const beta = history.getByRole('row').filter({ has: page.getByText('Beta', { exact: true }) })
+  await beta.getByRole('button', { name: 'abcdef12', exact: true }).click()
+  await expect(page.getByRole('dialog').locator('[data-slot=drawer-header]').getByText('Beta', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Fechar commit' }).click()
+  expect(requests.every(url => url.searchParams.get('context') === 'all' && !url.searchParams.has('projectId'))).toBe(true)
+  await page.goto('/?context=unassigned&mode=greens#status')
+  await expect(page.getByRole('radio', { name: 'Últimos verdes', exact: true })).toBeDisabled()
+})
+
+test('all greens keep data and project coverage notes after a partial failure', async ({ page }) => {
+  await allGreensFixture(page, true)
+  const history = page.getByRole('region', { name: 'Histórico', exact: true })
+  await expect(history.getByText('Alpha', { exact: true })).toBeVisible()
+  await expect(history).toContainText('Beta')
+  await expect(history).toContainText('Catálogo indisponível')
+})
+
+test('all greens distinguish empty responses from failed sources in both groupings', async ({ page }) => {
+  await allGreensFixture(page, false, false, true)
+  const history = page.getByRole('region', { name: 'Histórico', exact: true })
+  await expect(history).toContainText('Não há execução canônica aprovada')
+  await history.getByRole('combobox', { name: 'Agrupamento do histórico' }).click()
+  await page.getByRole('option', { name: 'Por commit', exact: true }).click()
+  await expect(history).toContainText('Nenhum commit encontrado')
+  await allGreensFixture(page, false, true)
+  await expect(history).toContainText('Fonte indisponível')
+  await history.getByRole('combobox', { name: 'Agrupamento do histórico' }).click()
+  await page.getByRole('option', { name: 'Por commit', exact: true }).click()
+  await expect(history).toContainText('Últimos verdes indisponíveis')
+  await expect(history.getByText('Nenhum commit encontrado')).toHaveCount(0)
+})
+
+test('all greens composition stays contained across widths and themes with drawer open', async ({ page }) => {
+  await allGreensFixture(page)
+  const history = page.getByRole('region', { name: 'Histórico', exact: true })
+  await history.getByRole('combobox', { name: 'Agrupamento do histórico' }).click()
+  await page.getByRole('option', { name: 'Por commit', exact: true }).click()
+  await expect(history.getByText('Beta', { exact: true })).toBeVisible()
+  for (const theme of ['light', 'dark', 'system']) {
+    await page.evaluate(theme => { localStorage.setItem('ci-queue-theme', theme); window.dispatchEvent(new StorageEvent('storage', { key: 'ci-queue-theme', newValue: theme, storageArea: localStorage })) }, theme)
+    await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /light/)
+    for (const width of [390, 640, 820, 1440, 1600]) {
+      await page.setViewportSize({ width, height: 1000 })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      await history.getByRole('button', { name: 'abcdef12', exact: true }).first().click()
+      const drawer = page.getByRole('dialog')
+      await expect(drawer.locator('[data-slot=drawer-header]').getByText('Alpha', { exact: true })).toBeVisible()
+      await expect.poll(async () => {
+        const bounds = await drawer.boundingBox()
+        return Boolean(bounds && bounds.x >= -1 && bounds.y >= -1 &&
+          bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= 1001)
+      }).toBe(true)
+      await drawer.getByRole('button', { name: 'Fechar commit' }).click()
+      await expect(drawer).toHaveCount(0)
+    }
+  }
+})
+
+
+test('all greens preserve machine data when the Git request fails', async ({ page }) => {
+  await allGreensFixture(page)
+  await page.route('**/api/remote-slots?context=all', route => route.fulfill({ status: 503, json: { error: 'Espelho offline' } }))
+  await page.reload()
+  const history = page.getByRole('region', { name: 'Histórico', exact: true })
+  await expect(history.getByText('Alpha', { exact: true })).toBeVisible()
+  await expect(history.getByText('Beta', { exact: true })).toBeVisible()
+  await expect(history).toContainText('Git indisponível: Espelho offline')
+})
+
+test('all greens explain stale and invalid Git coverage beside valid greens in both groupings', async ({ page }) => {
+  const requests = await allGreensFixture(page, false, false, false, true)
+  const history = page.getByRole('region', { name: 'Histórico', exact: true })
+  const description = history.locator('[data-slot="card-description"]')
+  for (const grouping of ['Por preset', 'Por commit']) {
+    await history.getByRole('combobox', { name: 'Agrupamento do histórico' }).click()
+    await page.getByRole('option', { name: grouping, exact: true }).click()
+    for (const origin of ['Git', 'Máquina e Git', 'Máquina']) {
+      await history.getByRole('combobox', { name: 'Origem', exact: true }).click()
+      await page.getByRole('option', { name: origin, exact: true }).click()
+      const hasGit = origin !== 'Máquina'
+      if (hasGit) {
+        await expect(description).toContainText(/Git · Beta:.*espelho.*desatualizado/i)
+        await expect(description).toContainText(/Git · Beta.*full.*inválido/i)
+      } else {
+        await expect(description).not.toContainText(/desatualizado|inválido/i)
+      }
+      const rows = history.getByRole('row')
+      await expect(rows).toHaveCount(grouping === 'Por preset' && origin === 'Máquina e Git' ? 5 : 3)
+      for (const project of ['Alpha', 'Beta']) {
+        const projectRows = rows.filter({ has: page.getByText(project, { exact: true }) })
+        await expect(projectRows).toHaveCount(grouping === 'Por preset' && origin === 'Máquina e Git' ? 2 : 1)
+        if (grouping === 'Por preset') {
+          await expect(projectRows.filter({ hasText: 'smoke' })).toHaveCount(hasGit ? 1 : 0)
+          await expect(projectRows.filter({ hasText: 'full' })).toHaveCount(origin === 'Git' ? 0 : 1)
+        }
+      }
+    }
+  }
+  expect(requests.every(url => url.searchParams.get('context') === 'all' && !url.searchParams.has('projectId'))).toBe(true)
 })

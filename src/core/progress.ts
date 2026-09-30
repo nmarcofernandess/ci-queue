@@ -1,3 +1,4 @@
+import { StringDecoder } from "node:string_decoder"
 import type {
   JobProgress,
   ProgressCountKind,
@@ -6,10 +7,17 @@ import type {
   ProgressNodeKind,
   ProgressStatus,
 } from "../contracts/schema.js"
+import {
+  ProgressTimingTracker,
+  systemProgressClock,
+  type ProgressClock,
+  type ProgressNodeUpdate,
+} from "./progress-timing.js"
 import { atomicWriteJson, progressPath, readJsonFile, removeFile } from "./state.js"
 
 /** Stable stdout protocol. Consumers can emit it without importing CI Queue. */
 export const PROGRESS_PREFIX = "@@ci-queue-progress"
+export const PROGRESS_Q2Q3_CAPABILITY = "progress-q2q3-v1"
 const LEGACY_PROGRESS_PREFIX = "@@local-ci-progress"
 
 const VALID_ID = /^[A-Za-z0-9_.:-]+$/
@@ -17,9 +25,12 @@ const STATUSES = new Set<ProgressStatus>(["pending", "running", "passed", "faile
 const NODE_KINDS = new Set<ProgressNodeKind>(["stage", "group", "gate", "suite", "case", "artifact"])
 const COUNT_KINDS = new Set<ProgressCountKind>(["gates", "suites", "cases", "artifacts", "items"])
 
-type NodeEvent = Omit<ProgressNode, "detail" | "retryCount"> & { type: "node" }
+type NodeEvent = ProgressNodeUpdate & { type: "node" }
 type CountsEvent = ProgressCounts & { type: "counts"; id: string }
-type ProgressEvent = NodeEvent | CountsEvent
+type VariantEvent = { type: "variant"; runVariant: "focal" }
+type ReplaceChildrenEvent = { type: "replace-children"; id: string }
+type RetriesEvent = { type: "retries"; id: string; count: number }
+type ProgressEvent = NodeEvent | CountsEvent | VariantEvent | ReplaceChildrenEvent | RetriesEvent
 
 export function createProgressState(updatedAt: string | null = null): JobProgress {
   return { schema: 1, updatedAt, nodes: [] }
@@ -41,6 +52,16 @@ export function parseProgressLine(line: unknown): ProgressEvent | undefined {
   if (typeof line !== "string") return undefined
   const parts = line.split("\t")
   if ((parts[0] !== PROGRESS_PREFIX && parts[0] !== LEGACY_PROGRESS_PREFIX) || parts[1] !== "1") return undefined
+  if (parts[2] === "variant" && parts.length === 4 && parts[3] === "focal") {
+    return { type: "variant", runVariant: "focal" }
+  }
+  if (parts[2] === "replace-children" && parts.length === 4 && VALID_ID.test(parts[3])) {
+    return { type: "replace-children", id: parts[3] }
+  }
+  if (parts[2] === "retries" && parts.length === 5 && VALID_ID.test(parts[3])) {
+    const count = nonNegative(parts[4])
+    if (count !== undefined) return { type: "retries", id: parts[3], count }
+  }
   if (parts[2] === "node" && parts.length === 9) {
     const [, , , id, parent, rawKind, rawStatus, duration, label] = parts
     const durationMs = duration === "-" || duration === "" ? undefined : nonNegative(duration)
@@ -59,19 +80,58 @@ export function parseProgressLine(line: unknown): ProgressEvent | undefined {
   return undefined
 }
 
-export function applyProgressLine(state: JobProgress, line: unknown, now = new Date().toISOString()): JobProgress {
+/** Structural reducer — duration metadata is applied by ProgressTimingTracker when present. */
+export function applyProgressLine(
+  state: JobProgress,
+  line: unknown,
+  now = new Date().toISOString(),
+  timing?: ProgressTimingTracker,
+): JobProgress {
   const event = parseProgressLine(line)
   if (!event) return state
+  if (event.type === "variant") return { ...state, updatedAt: now, runVariant: event.runVariant }
+  if (event.type === "replace-children") {
+    const owner = state.nodes.find((node) => node.id === event.id)
+    if (!owner || !["stage", "group", "suite"].includes(owner.kind)) return state
+    const descendants = new Set<string>()
+    for (let changed = true; changed;) {
+      changed = false
+      for (const node of state.nodes) {
+        if (node.parentId && (node.parentId === event.id || descendants.has(node.parentId)) && !descendants.has(node.id)) {
+          descendants.add(node.id)
+          changed = true
+        }
+      }
+    }
+    if (state.nodes.some((node) => descendants.has(node.id)
+      && node.status !== "pending"
+      && !(node.kind === "group" && node.id.endsWith(":truncated") && node.status === "skipped"))) return state
+    return {
+      ...state,
+      updatedAt: now,
+      nodes: state.nodes.filter((node) => !descendants.has(node.id)).map((node) =>
+        node.id === event.id ? { ...node, inventoryReplaced: true, detail: undefined } : node),
+    }
+  }
+  if (event.type === "retries") {
+    if (!state.nodes.some((node) => node.id === event.id)) return state
+    return { ...state, updatedAt: now, retrySummary: { ...state.retrySummary, [event.id]: event.count } }
+  }
   if (event.type === "node") {
     const index = state.nodes.findIndex((node) => node.id === event.id)
     const previous = state.nodes[index]
-    const node: ProgressNode = { ...previous, ...event }
+    const structural: ProgressNode = { ...previous, ...event }
     // Repeated running markers are observations, not additional attempts.
     if (previous?.status === "failed" && event.status === "running") {
-      node.retryCount = (previous.retryCount ?? 0) + 1
-      delete node.durationMs
+      structural.retryCount = (previous.retryCount ?? 0) + 1
+      delete structural.durationMs
+      delete structural.durationSource
+      delete structural.durationUnavailableReason
     }
-    delete (node as { type?: string }).type
+    delete (structural as { type?: string }).type
+    const node = timing
+      ? timing.apply(previous, event, structural)
+      : structural
     const nodes = [...state.nodes]
     if (index === -1) nodes.push(node)
     else nodes[index] = node
@@ -88,6 +148,9 @@ export function isJobProgress(value: unknown): value is JobProgress {
   if (!value || typeof value !== "object") return false
   const state = value as JobProgress
   return state.schema === 1 && (state.updatedAt === null || typeof state.updatedAt === "string") && Array.isArray(state.nodes)
+    && (state.runVariant === undefined || state.runVariant === "focal")
+    && (state.retrySummary === undefined || (typeof state.retrySummary === "object" && state.retrySummary !== null
+      && Object.entries(state.retrySummary).every(([id, count]) => VALID_ID.test(id) && Number.isSafeInteger(count) && count >= 0)))
 }
 
 export function readProgressSnapshot(root: string, id: string): JobProgress | undefined {
@@ -105,34 +168,88 @@ export function removeProgressSnapshot(root: string, id: string): void {
 
 export function attachProgressToTicket<T extends { id: string }>(root: string, ticket: T): T {
   const progress = readProgressSnapshot(root, ticket.id)
-  return progress ? { ...ticket, progress } : ticket
+  return progress ? { ...ticket, progress, ...(progress.runVariant ? { runVariant: progress.runVariant } : {}) } : ticket
 }
 
 export class ProgressLineDecoder {
   #buffer = ""
+  #decoder = new StringDecoder("utf8")
   constructor(private readonly onLine: (line: string) => void) {}
   push(chunk: unknown): void {
-    this.#buffer += String(chunk)
+    const text = Buffer.isBuffer(chunk)
+      ? this.#decoder.write(chunk)
+      : typeof chunk === "string"
+        ? chunk
+        : this.#decoder.write(Buffer.from(String(chunk)))
+    this.#buffer += text
     const lines = this.#buffer.split(/\r?\n/)
     this.#buffer = lines.pop() ?? ""
     for (const line of lines) this.onLine(line)
   }
   flush(): void {
+    this.#buffer += this.#decoder.end()
     if (this.#buffer) this.onLine(this.#buffer)
     this.#buffer = ""
   }
 }
 
+function cloneProgressNode(node: ProgressNode): ProgressNode {
+  return {
+    ...node,
+    ...(node.detail ? { detail: { ...node.detail } } : {}),
+  }
+}
+
 export class ProgressCollector {
   private state: JobProgress
-  constructor(private readonly root: string, private readonly id: string) {
+  private readonly timing: ProgressTimingTracker
+  private readonly clock: ProgressClock
+  private finalized = false
+
+  constructor(
+    private readonly root: string,
+    private readonly id: string,
+    options?: { clock?: ProgressClock },
+  ) {
+    this.clock = options?.clock ?? systemProgressClock()
     this.state = readProgressSnapshot(root, id) ?? createProgressState()
+    this.timing = new ProgressTimingTracker(this.clock, this.state.nodes)
   }
+
   ingest(line: string): void {
-    const next = applyProgressLine(this.state, line)
+    if (this.finalized) return
+    const next = applyProgressLine(this.state, line, this.clock.wallNowIso(), this.timing)
     if (next === this.state) return
     this.state = next
     try { writeProgressSnapshot(this.root, this.id, this.state) } catch { /* non-fatal */ }
   }
-  decoder(): ProgressLineDecoder { return new ProgressLineDecoder((line) => this.ingest(line)) }
+
+  decoder(): ProgressLineDecoder {
+    return new ProgressLineDecoder((line) => this.ingest(line))
+  }
+
+  snapshot(): JobProgress {
+    return {
+      schema: this.state.schema,
+      updatedAt: this.state.updatedAt,
+      nodes: this.state.nodes.map(cloneProgressNode),
+      ...(this.state.runVariant ? { runVariant: this.state.runVariant } : {}),
+      ...(this.state.retrySummary ? { retrySummary: { ...this.state.retrySummary } } : {}),
+    }
+  }
+
+  /** Idempotent. Open intervals become honest absences; further ingest is ignored. */
+  finalize(): JobProgress {
+    if (!this.finalized) {
+      this.finalized = true
+      const nodes = this.timing.finalize(this.state.nodes)
+      this.state = {
+        ...this.state,
+        updatedAt: this.clock.wallNowIso(),
+        nodes,
+      }
+      try { writeProgressSnapshot(this.root, this.id, this.state) } catch { /* non-fatal */ }
+    }
+    return this.snapshot()
+  }
 }

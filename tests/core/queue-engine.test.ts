@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -23,6 +23,7 @@ import {
 } from "../../src/core/state.js"
 import { runWorker } from "../../src/core/worker.js"
 import { runCli } from "../../src/cli.js"
+import { isShipEligibleTicket } from "../../src/ship/eligibility.js"
 import type { QueueTicket } from "../../src/contracts/schema.js"
 
 const cleanup: string[] = []
@@ -47,6 +48,61 @@ function fixture(
   return { project, state }
 }
 
+function commitFixture(project: string): void {
+  execFileSync("git", ["init"], { cwd: project })
+  execFileSync("git", ["config", "user.email", "ci-queue@example.invalid"], { cwd: project })
+  execFileSync("git", ["config", "user.name", "CI Queue test"], { cwd: project })
+  execFileSync("git", ["add", "ci-queue.json"], { cwd: project })
+  execFileSync("git", ["commit", "-m", "fixture"], { cwd: project })
+}
+
+async function withFailingGitStatus(
+  failureAt: number,
+  run: () => Promise<void>,
+  mode: "exit" | "timeout" = "exit",
+): Promise<void> {
+  const proxyDir = mkdtempSync(join(tmpdir(), "ci-queue-git-proxy-"))
+  cleanup.push(proxyDir)
+  const statusCount = join(proxyDir, "status-count")
+  const realGit = execFileSync("which", ["git"], { encoding: "utf8" }).trim()
+  const proxy = join(proxyDir, "git")
+  writeFileSync(proxy, [
+    "#!/bin/sh",
+    'if [ "$1" = "status" ] && [ "$2" = "--short" ]; then',
+    '  count=$(cat "$CQ_TEST_STATUS_COUNT" 2>/dev/null || printf 0)',
+    '  count=$((count + 1))',
+    '  printf "%s" "$count" > "$CQ_TEST_STATUS_COUNT"',
+    '  if [ "$count" -eq "$CQ_TEST_STATUS_FAILURE_AT" ]; then',
+    '    if [ "$CQ_TEST_STATUS_MODE" = "timeout" ]; then exec sleep 11; fi',
+    '    exit 17',
+    '  fi',
+    "fi",
+    'exec "$CQ_TEST_REAL_GIT" "$@"',
+    "",
+  ].join("\n"))
+  chmodSync(proxy, 0o755)
+  const previous = {
+    PATH: process.env.PATH,
+    CQ_TEST_STATUS_COUNT: process.env.CQ_TEST_STATUS_COUNT,
+    CQ_TEST_STATUS_FAILURE_AT: process.env.CQ_TEST_STATUS_FAILURE_AT,
+    CQ_TEST_STATUS_MODE: process.env.CQ_TEST_STATUS_MODE,
+    CQ_TEST_REAL_GIT: process.env.CQ_TEST_REAL_GIT,
+  }
+  process.env.PATH = `${proxyDir}:${process.env.PATH ?? ""}`
+  process.env.CQ_TEST_STATUS_COUNT = statusCount
+  process.env.CQ_TEST_STATUS_FAILURE_AT = String(failureAt)
+  process.env.CQ_TEST_STATUS_MODE = mode
+  process.env.CQ_TEST_REAL_GIT = realGit
+  try {
+    await run()
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
+}
+
 async function waitFor(predicate: () => boolean, timeoutMs = 3_000): Promise<void> {
   const until = Date.now() + timeoutMs
   while (Date.now() < until) {
@@ -57,6 +113,139 @@ async function waitFor(predicate: () => boolean, timeoutMs = 3_000): Promise<voi
 }
 
 describe("queue lifecycle", () => {
+  it("rejects a canonical job when preflight Git status cannot be observed", async () => {
+    const { project, state } = fixture({
+      guarded: {
+        argv: [process.execPath, "-e", "require('node:fs').writeFileSync(require('node:path').join(process.env.CI_QUEUE_STATE_DIR, 'child-started'), 'yes')"],
+        requireCleanTree: true,
+        requireGitStability: true,
+        pinHeadSha: true,
+      },
+    })
+    commitFixture(project)
+    const ticket = enqueueTicket({ preset: "guarded", cwd: project, stateRoot: state })
+
+    await withFailingGitStatus(1, async () => { await runWorker(state) })
+
+    expect(existsSync(join(state, "child-started"))).toBe(false)
+    expect(listHistoryJobs(state)[0]).toMatchObject({
+      id: ticket.id,
+      status: "failed",
+      failureReason: expect.stringContaining("preflight git indisponível"),
+    })
+    expect(listHistoryJobs(state)[0].preflight).toBeUndefined()
+    expect(isShipEligibleTicket(listHistoryJobs(state)[0], {
+      projectId: "fixture-project",
+      executionCwd: project,
+      headSha: ticket.headSha,
+      baseSha: "",
+      acceptedRecipes: [{ name: "guarded", argv: ticket.argv ?? [], flags: ticket.flags ?? {} }],
+    })).toBe(false)
+  })
+
+  it("rejects a canonical job when preflight Git status times out", async () => {
+    const { project, state } = fixture({
+      guarded: {
+        argv: [process.execPath, "-e", "require('node:fs').writeFileSync(require('node:path').join(process.env.CI_QUEUE_STATE_DIR, 'child-started'), 'yes')"],
+        requireCleanTree: true,
+        requireGitStability: true,
+        pinHeadSha: true,
+      },
+    })
+    commitFixture(project)
+    enqueueTicket({ preset: "guarded", cwd: project, stateRoot: state })
+
+    await withFailingGitStatus(1, async () => { await runWorker(state) }, "timeout")
+
+    expect(existsSync(join(state, "child-started"))).toBe(false)
+    expect(listHistoryJobs(state)[0]).toMatchObject({
+      status: "failed",
+      failureReason: expect.stringContaining("preflight git indisponível"),
+    })
+  }, 15_000)
+
+  it("does not certify a child that exited zero when postflight Git status fails", async () => {
+    const { project, state } = fixture({
+      guarded: {
+        argv: [process.execPath, "-e", "require('node:fs').writeFileSync(require('node:path').join(process.env.CI_QUEUE_STATE_DIR, 'child-finished'), 'yes')"],
+        requireCleanTree: true,
+        requireGitStability: true,
+        pinHeadSha: true,
+      },
+    })
+    commitFixture(project)
+    const ticket = enqueueTicket({ preset: "guarded", cwd: project, stateRoot: state })
+
+    await withFailingGitStatus(2, async () => { await runWorker(state) })
+
+    expect(existsSync(join(state, "child-finished"))).toBe(true)
+    const terminal = listHistoryJobs(state)[0]
+    expect(terminal).toMatchObject({
+      id: ticket.id,
+      status: "failed",
+      exitCode: 1,
+      failureReason: expect.stringContaining("não foi possível ler o estado Git pós-job"),
+      preflight: expect.objectContaining({ statusShort: "" }),
+    })
+    expect(terminal.postflight).toBeUndefined()
+  })
+
+  it("rejects a genuinely dirty tree before the child starts", async () => {
+    const { project, state } = fixture({
+      guarded: {
+        argv: [process.execPath, "-e", "require('node:fs').writeFileSync(require('node:path').join(process.env.CI_QUEUE_STATE_DIR, 'child-started'), 'yes')"],
+        requireCleanTree: true,
+        requireGitStability: true,
+        pinHeadSha: true,
+      },
+    })
+    commitFixture(project)
+    writeFileSync(join(project, "untracked.txt"), "dirty")
+    enqueueTicket({ preset: "guarded", cwd: project, stateRoot: state })
+
+    await runWorker(state)
+
+    expect(existsSync(join(state, "child-started"))).toBe(false)
+    expect(listHistoryJobs(state)[0]).toMatchObject({
+      status: "failed",
+      failureReason: "árvore de trabalho não está limpa",
+    })
+  })
+
+  it("passes the preflight-observed base to a newly enqueued child", async () => {
+    const script = 'require("node:fs").writeFileSync(require("node:path").join(process.env.CI_QUEUE_STATE_DIR, "child-git-env.json"), JSON.stringify({head: process.env.DIETFLOW_CI_QUEUE_HEAD_SHA, base: process.env.DIETFLOW_CI_BASE_SHA, alias: process.env.LOCAL_CI_BASE_SHA}))'
+    const { project, state } = fixture({
+      guarded: {
+        argv: [process.execPath, "-e", script],
+        requireCleanTree: true,
+        requireGitStability: true,
+        pinHeadSha: true,
+        fetchBase: "origin/dev",
+      },
+    })
+    commitFixture(project)
+    const remote = mkdtempSync(join(tmpdir(), "ci-queue-remote-"))
+    cleanup.push(remote)
+    execFileSync("git", ["init", "--bare"], { cwd: remote })
+    execFileSync("git", ["remote", "add", "origin", remote], { cwd: project })
+    execFileSync("git", ["push", "-u", "origin", "HEAD:refs/heads/dev"], { cwd: project })
+    const ticket = enqueueTicket({ preset: "guarded", cwd: project, stateRoot: state })
+    expect(ticket.preflight).toBeUndefined()
+
+    await runWorker(state)
+
+    const terminal = listHistoryJobs(state)[0]
+    expect(terminal).toMatchObject({ id: ticket.id, status: "passed" })
+    const actualBase = execFileSync("git", ["rev-parse", "HEAD"], { cwd: project, encoding: "utf8" }).trim()
+    expect(terminal.preflight?.baseSha).toBe(actualBase)
+    expect(terminal.postflight?.baseSha).toBe(actualBase)
+    expect(JSON.parse(readFileSync(join(state, "child-git-env.json"), "utf8"))).toEqual({
+      head: actualBase,
+      base: actualBase,
+      alias: actualBase,
+    })
+  })
+
   it("keeps a submitted job queued until the explicit worker drains it", async () => {
     const { project, state } = fixture({ ok: { argv: [process.execPath, "-e", "process.exit(0)"] } })
     const ticket = enqueueTicket({ preset: "ok", cwd: project, stateRoot: state })
@@ -399,7 +588,41 @@ describe("CLI JSON v1", () => {
           "enqueue",
           "execution-flags-v1",
           "job-env-v1",
+          "spend-abort-v1",
+          "node-runtime-guard-v1",
         ]),
+      },
+    })
+  })
+
+  it("registers an absolute Node into the operator runtime registry", async () => {
+    const state = mkdtempSync(join(tmpdir(), "ci-queue-runtime-registry-"))
+    cleanup.push(state)
+    const node = realpathSync(process.execPath)
+    const registered = await runCli([
+      "runtime", "register",
+      "--project", "example",
+      "--node", node,
+      "--state", state,
+      "--json",
+    ])
+    expect(registered).toMatchObject({
+      apiVersion: 1,
+      ok: true,
+      result: {
+        projectId: "example",
+        node: { executable: node, version: process.versions.node },
+      },
+    })
+    const shown = await runCli(["runtime", "show", "--state", state, "--json"])
+    expect(shown).toMatchObject({
+      apiVersion: 1,
+      ok: true,
+      result: {
+        registry: {
+          schemaVersion: 1,
+          projects: { example: { node: { executable: node, version: process.versions.node } } },
+        },
       },
     })
   })

@@ -1,15 +1,19 @@
 import { EntityIdentity } from "./entity-identity"
 import { StatusIndicator } from "./status-indicator"
-import { describeJobState } from "./presentation"
+import { describeExecutionState } from "./presentation"
 import { DataTableFrame } from "./data-table-frame"
+import { InspectButton } from "./inspect-button"
 import { RelativeTime, JobDuration, QueueWait } from "./live-time"
+import { ProjectChip } from "./project-chip"
+import { projectChipFacts, projectChipVisible } from "./project-chip-model"
+import { RunVariantBadge } from "./run-variant-badge"
 import * as React from "react"
 import {
   createColumnHelper,
   tableFeatures,
   useTable,
 } from "@tanstack/react-table"
-import { EyeIcon, InboxIcon } from "lucide-react"
+import { InboxIcon } from "lucide-react"
 
 import {
   Card,
@@ -19,7 +23,6 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/card"
-import { statusColor } from "@/features/shared/status-color"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -46,12 +49,11 @@ import { ErrorState } from "@/features/shared/async-state"
 import {
   formatTimelineDate,
   shortSha,
-  statusLabel,
 } from "@/features/shared/format"
-import type { JobRecord, JobStatus } from "@/lib/types"
+import type { JobRecord } from "@/lib/types"
 
 const features = tableFeatures({})
-export type RunTableJob = Omit<JobRecord, "id"> & {
+export type RunTableJob = Omit<JobRecord, "id" | "progressEnabled"> & {
   id?: string
   ticketId?: string
   rowKey?: string
@@ -59,17 +61,11 @@ export type RunTableJob = Omit<JobRecord, "id"> & {
   detailsAvailable?: boolean
   origin?: "machine" | "git"
   origins?: Array<"machine" | "git">
+  progressEnabled?: boolean
 }
 const helper = createColumnHelper<typeof features, RunTableJob>()
 const EMPTY: RunTableJob[] = []
 
-export function JobStatusBadge({ status }: { status: JobStatus | undefined }) {
-  return (
-    <Badge variant="outline" className={statusColor(status)}>
-      {statusLabel(status)}
-    </Badge>
-  )
-}
 export type RunTableProps = {
   title: string
   description?: string
@@ -87,6 +83,8 @@ export type RunTableProps = {
   showOrigin?: boolean
   showFailureReason?: boolean
   kind?: "queue" | "terminal"
+  showProjectChip?: boolean
+  filterProjectId?: string
 }
 function detailId(job: RunTableJob) {
   return (
@@ -96,21 +94,60 @@ function detailId(job: RunTableJob) {
 
 function columnClass(id: string) {
   if (id === "status") return "w-16"
-  if (id === "execution") return "w-52"
+  if (id === "execution") return "w-[28rem]"
   if (id === "time") return "w-28"
-  if (id === "duration") return "w-20"
-  if (id === "actions") return "w-14 text-right"
+  if (id === "duration") return "w-24"
+  if (id === "revision") return "w-[24rem]"
+  if (id === "actions") return "w-18 text-right"
   return undefined
+}
+
+function identityBadge(
+  job: RunTableJob,
+  chip: { always?: boolean; filterProjectId?: string }
+) {
+  const chipVisible = projectChipVisible(job, chip)
+  const observed = job.recordKind === "observed-execution"
+  const variant = <RunVariantBadge runVariant={job.runVariant} />
+  if (!chipVisible && !observed && !job.runVariant) {
+    return undefined
+  }
+  return (
+    <>
+      {observed ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline">Direta</Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            Resultado declarado pelo receipt; não é comprovação canônica
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+      {chipVisible && job.projectName ? (
+        <ProjectChip
+          mode="inline"
+          name={job.projectName}
+          facts={projectChipFacts(job)}
+        />
+      ) : null}
+      {variant}
+    </>
+  )
 }
 
 function RunDataTable({
   jobs,
   onOpenJob,
   showOrigin = false,
+  showProjectChip = false,
+  filterProjectId,
 }: {
   jobs: RunTableJob[]
   onOpenJob: (jobId: string) => void
   showOrigin?: boolean
+  showProjectChip?: boolean
+  filterProjectId?: string
 }) {
   const queued = jobs.some((job) => job.status === "queued")
   const columns = React.useMemo(
@@ -121,7 +158,7 @@ function RunDataTable({
           header: "Estado",
           cell: ({ row }) => (
             <StatusIndicator
-              descriptor={describeJobState(row.original.status)}
+              descriptor={describeExecutionState(row.original)}
               presentation="table"
             />
           ),
@@ -133,18 +170,17 @@ function RunDataTable({
             const job = row.original
             const id = detailId(job)
             return (
-              <EntityIdentity
-                presentation="table"
-                title={job.preset || "Não informada"}
-                onOpen={id && job.preset ? () => onOpenJob(id) : undefined}
-                badge={
-                  job.progressSummary?.nodes?.some(
-                    (node) => (node.retryCount ?? 0) > 0
-                  ) ? (
-                    <Badge variant="outline">Flaky detectado</Badge>
-                  ) : undefined
-                }
-              />
+              <div className="max-w-[28rem]">
+                <EntityIdentity
+                  presentation="table"
+                  title={job.preset || "Não informada"}
+                  onOpen={id && job.preset ? () => onOpenJob(id) : undefined}
+                  badge={identityBadge(job, {
+                    always: showProjectChip,
+                    filterProjectId,
+                  })}
+                />
+              </div>
             )
           },
         }),
@@ -180,9 +216,9 @@ function RunDataTable({
           cell: ({ row }) => (
             <span className="block truncate whitespace-nowrap">
               {row.original.status === "queued" ? (
-                <QueueWait value={row.original.createdAt} />
+                <QueueWait value={row.original.createdAt} compact />
               ) : (
-                <JobDuration job={row.original} />
+                <JobDuration job={row.original} compact />
               )}
             </span>
           ),
@@ -202,7 +238,7 @@ function RunDataTable({
             return (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="block max-w-64 truncate font-mono text-xs">
+                  <span className="block max-w-[24rem] truncate font-mono text-xs" title={label}>
                     {label}
                   </span>
                 </TooltipTrigger>
@@ -220,24 +256,15 @@ function RunDataTable({
           cell: ({ row }) => {
             const id = detailId(row.original)
             return id ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Ver ${row.original.preset ?? "execução"}`}
-                    onClick={() => onOpenJob(id)}
-                  >
-                    <EyeIcon />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Ver execução</TooltipContent>
-              </Tooltip>
+              <InspectButton
+                presentation="table"
+                onClick={() => onOpenJob(id)}
+              />
             ) : null
           },
         }),
       ]),
-    [onOpenJob, queued, showOrigin]
+    [filterProjectId, onOpenJob, queued, showOrigin, showProjectChip]
   )
   const table = useTable({
     columns,
@@ -247,7 +274,7 @@ function RunDataTable({
       row.rowKey ?? row.id ?? row.ticketId ?? `${row.preset}-${row.finishedAt}`,
   })
   return (
-    <DataTableFrame placement="card" label="Execuções">
+    <DataTableFrame placement="card" label="Execuções" width="scroll">
       <TableHeader>
         {table.getHeaderGroups().map((group) => (
           <TableRow key={group.id}>
@@ -255,6 +282,7 @@ function RunDataTable({
               <TableHead
                 key={header.id}
                 className={columnClass(header.column.id)}
+                data-sticky={header.column.id === "actions" ? "end" : undefined}
               >
                 {header.isPlaceholder ? null : (
                   <table.FlexRender header={header} />
@@ -271,6 +299,7 @@ function RunDataTable({
               <TableCell
                 key={cell.id}
                 className={`overflow-hidden ${columnClass(cell.column.id) ?? ""}`}
+                data-sticky={cell.column.id === "actions" ? "end" : undefined}
               >
                 <table.FlexRender cell={cell} />
               </TableCell>
@@ -302,7 +331,7 @@ function EmptyTable({
   kind: "queue" | "terminal"
 }) {
   return (
-    <DataTableFrame placement="card" label="Execuções">
+    <DataTableFrame placement="card" label="Execuções" width="scroll">
       <TableHeader>
         <TableRow>
           {headers(kind).map((header, index) => (
@@ -359,8 +388,11 @@ export function RunTable({
   onLoadMore,
   showOrigin = false,
   kind = "terminal",
+  showProjectChip = false,
+  filterProjectId,
 }: RunTableProps) {
   const data = jobs ?? EMPTY
+  const hasLoadedRows = data.length > 0
   if (kind === "queue" && !loading && !error && !data.length) {
     return (
       <Card size="sm">
@@ -391,7 +423,7 @@ export function RunTable({
       <CardContent className="px-0">
         {loading ? (
           <div className="overflow-hidden">
-            <DataTableFrame placement="card" label="Carregando execuções">
+            <DataTableFrame placement="card" label="Carregando execuções" width="scroll">
               <TableHeader>
                 <TableRow>
                   {headers(kind).map((h, i) => (
@@ -414,10 +446,12 @@ export function RunTable({
           </div>
         ) : null}
         {!loading && error ? (
-          <ErrorState
-            title={`Não foi possível carregar ${title.toLowerCase()}`}
-            error={error}
-          />
+          <div role="alert">
+            <ErrorState
+              title={`${hasLoadedRows ? "Não foi possível atualizar" : "Não foi possível carregar"} ${title.toLowerCase()}`}
+              error={error}
+            />
+          </div>
         ) : null}
         {!loading && !error && !data.length ? (
           <div className="overflow-hidden">
@@ -428,11 +462,13 @@ export function RunTable({
             />
           </div>
         ) : null}
-        {!loading && !error && data.length ? (
+        {!loading && hasLoadedRows ? (
           <RunDataTable
             jobs={data}
             onOpenJob={onOpenJob}
             showOrigin={showOrigin}
+            showProjectChip={showProjectChip}
+            filterProjectId={filterProjectId}
           />
         ) : null}
       </CardContent>

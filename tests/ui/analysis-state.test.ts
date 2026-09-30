@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   defaultAnalysisState,
   parseAnalysisState,
+  parseNamespacedPreset,
   writeAnalysisState,
 } from '../../ui/src/features/analysis/analysis-state'
 
@@ -39,5 +40,26 @@ describe('analysis-state', () => {
       durationPreset: 'smoketest',
     })
     expect(defaultAnalysisState().resultSelection).toEqual({ mode: 'top10' })
+  })
+
+  it('roundtrips namespaced projectId:preset keys used in Todos', () => {
+    const key = 'da61d8ae-19f9-4dce-bafb-02271a6f1601:check'
+    const encoded = writeAnalysisState('', {
+      metric: 'duration',
+      period: 'all',
+      resultSelection: { mode: 'custom', presets: [key] },
+      durationPreset: key,
+    })
+    expect(parseAnalysisState(encoded)).toEqual({
+      metric: 'duration',
+      period: 'all',
+      resultSelection: { mode: 'custom', presets: [key] },
+      durationPreset: key,
+    })
+    expect(parseNamespacedPreset(key)).toEqual({
+      projectId: 'da61d8ae-19f9-4dce-bafb-02271a6f1601',
+      preset: 'check',
+    })
+    expect(parseNamespacedPreset('check')).toBeNull()
   })
 })

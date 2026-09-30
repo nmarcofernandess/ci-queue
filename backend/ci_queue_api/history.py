@@ -7,7 +7,8 @@ import statistics
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .records import history_key, read_history, read_json
+from .record_store import store_for
+from .records import history_key, read_history, read_history_with_coverage, read_json
 
 
 REMOTE_SLOT_SCHEMA = 1
@@ -60,7 +61,50 @@ def _valid_duration(value):
         return False
 
 
-def build_preset_history(state_root, config):
+def duration_reference_from_samples(samples):
+    window = sorted(samples, reverse=True)[:10]
+    if not window:
+        return None
+    durations = [item[1] for item in window]
+    return {
+        "medianMs": statistics.median(durations),
+        "meanMs": statistics.fmean(durations),
+        "sampleCount": len(durations),
+        "window": "latest-green-canonical",
+    }
+
+
+def duration_reference_for_running(state_root, job):
+    """Mean of the ticket's catalog, not the request filter. Absent when unknown."""
+    if not isinstance(job, dict):
+        return None
+    project_id = job.get("projectId")
+    preset = job.get("preset")
+    if not isinstance(project_id, str) or not project_id or not isinstance(preset, str) or not preset:
+        return None
+    from .projects import RegistryError, read_registry, resolve_config_for_entry
+    try:
+        registry = read_registry(state_root)
+    except (RegistryError, OSError):
+        return None
+    projects = registry.get("projects") if isinstance(registry, dict) else {}
+    entry = projects.get(project_id) if isinstance(projects, dict) else None
+    if not isinstance(entry, dict):
+        return None
+    config = resolve_config_for_entry(entry)
+    recipe = config.presets.get(preset) if config is not None else None
+    if not isinstance(recipe, dict):
+        return None
+    samples = []
+    for row in read_history(state_root):
+        if row.get("projectId") != project_id or row.get("preset") != preset:
+            continue
+        if canonical_green(row, recipe) and _valid_duration(row.get("durationMs")):
+            samples.append((history_key(row), row["durationMs"]))
+    return duration_reference_from_samples(samples)
+
+
+def build_preset_history(state_root, config, *, jobs=None, corrupt_count=None):
     buckets = {}
     for preset, recipe in config.presets.items():
         buckets[preset] = {
@@ -78,7 +122,7 @@ def build_preset_history(state_root, config):
             "_durations": [],
         }
     unattributed = 0
-    for job in read_history(state_root):
+    for job in read_history(state_root) if jobs is None else jobs:
         if job.get("projectId") != config.project_id:
             if job.get("projectId") is None:
                 unattributed += 1
@@ -117,28 +161,82 @@ def build_preset_history(state_root, config):
                 entry["lastFailure"] = {**_run_ref(job), "failureReason": job.get("failureReason"), "_key": key}
     values = []
     for entry in buckets.values():
-        samples = sorted(entry.pop("_durations"), reverse=True)[:10]
-        if samples:
-            durations = [item[1] for item in samples]
-            entry["durationReference"] = {
-                "medianMs": statistics.median(durations),
-                "meanMs": statistics.fmean(durations),
-                "sampleCount": len(durations),
-                "window": "latest-green-canonical",
-            }
+        entry["durationReference"] = duration_reference_from_samples(entry.pop("_durations"))
         for key in ("lastRun", "lastGreenCanonical", "lastFailure"):
             if entry[key] is not None:
                 entry[key].pop("_key", None)
         values.append(entry)
     values.sort(key=lambda item: item["preset"])
     values.sort(key=lambda item: (item["lastGreenCanonical"] or {}).get("finishedAt") or "", reverse=True)
+    if corrupt_count is None:
+        corrupt_count = read_history_with_coverage(state_root)[1]["corruptRecords"]
     return {
         "schemaVersion": 1,
         "catalog": {"resolved": True, "projectId": config.project_id, "declaredCount": len(config.presets)},
         "presets": values,
         "totals": {"tickets": sum(item["runCount"] for item in values), "presets": len(values)},
-        "coverage": {"unattributedRecords": unattributed},
+        "coverage": {"unattributedRecords": unattributed, "corruptRecords": corrupt_count},
     }
+
+
+def _aggregate_history_snapshot(state_root):
+    jobs, coverage = read_history_with_coverage(state_root)
+    grouped = {}
+    for job in jobs:
+        project_id = job.get("projectId")
+        grouped.setdefault(project_id, []).append(job)
+    return grouped, coverage["corruptRecords"]
+
+
+def _project_read_error(project, error):
+    return {"projectId": project.project_id, "projectName": project.display_name,
+            "error": str(error)}
+
+
+def build_preset_history_all(state_root, projects):
+    grouped, corrupt_count = _aggregate_history_snapshot(state_root)
+    presets = []
+    catalogs = []
+    errors = []
+    for project in projects:
+        try:
+            if project.config is None:
+                raise ValueError("catálogo não vinculado: " + project.binding_state)
+            payload = build_preset_history(state_root, project.config,
+                jobs=grouped.get(project.project_id, []), corrupt_count=corrupt_count)
+            presets.extend({**entry, "projectName": project.display_name} for entry in payload["presets"])
+            catalogs.append({**payload["catalog"], "projectName": project.display_name})
+        except (OSError, ValueError) as error:
+            errors.append(_project_read_error(project, error))
+    presets.sort(key=lambda entry: (entry["projectId"], entry["preset"]))
+    presets.sort(key=lambda entry: (entry["lastGreenCanonical"] or {}).get("finishedAt") or "",
+                 reverse=True)
+    return {"schemaVersion": 2, "projects": catalogs, "presets": presets,
+            "projectErrors": errors,
+            "totals": {"tickets": sum(entry["runCount"] for entry in presets), "presets": len(presets)},
+            "coverage": {"unattributedRecords": len(grouped.get(None, [])), "corruptRecords": corrupt_count}}
+
+
+def read_remote_slots_all(state_root, projects):
+    grouped, _ = _aggregate_history_snapshot(state_root)
+    rows = []
+    greens = []
+    errors = []
+    for project in projects:
+        identity = {"projectId": project.project_id, "projectName": project.display_name,
+                    "catalog": project.binding_state}
+        try:
+            if project.config is None:
+                raise ValueError("catálogo não vinculado: " + project.binding_state)
+            ids = {job.get("id") for job in grouped.get(project.project_id, []) if isinstance(job.get("id"), str)}
+            payload = read_remote_slots(project.config.remote_slots_path, project.config,
+                                        state_root, local_ticket_ids=ids)
+            rows.append({**identity, "source": payload["source"], "coverage": payload["coverage"]})
+            greens.extend({**green, "projectName": project.display_name} for green in payload["greens"])
+        except (OSError, ValueError) as error:
+            rows.append({**identity, "source": None, "coverage": None})
+            errors.append(_project_read_error(project, error))
+    return {"schemaVersion": 2, "projects": rows, "greens": greens, "projectErrors": errors}
 
 
 def _remote_reason(code, message):
@@ -310,7 +408,7 @@ def _canonical_git_green(slot, config, local_ticket_ids):
     }, None
 
 
-def read_remote_slots(path, config, state_root=None):
+def read_remote_slots(path, config, state_root=None, *, local_ticket_ids=None):
     """Read and normalize a local Git-slot mirror without fetching Git.
 
     The source format is the `SlotReadReport` emitted by the canonical
@@ -389,7 +487,8 @@ def read_remote_slots(path, config, state_root=None):
         if preset in declared:
             by_preset.setdefault(preset, []).append(slot)
 
-    local_ticket_ids = _local_ticket_ids(state_root, config.project_id)
+    if local_ticket_ids is None:
+        local_ticket_ids = _local_ticket_ids(state_root, config.project_id)
     greens = []
     without_tag = []
     for preset in sorted(declared):

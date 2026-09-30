@@ -12,14 +12,20 @@ O consumidor permanece responsável por receitas, preparação, testes e políti
 de aprovação. O produto preserva tickets, logs, resultados e proveniência sem
 depender do checkout de um consumidor específico.
 
-## Corte atual: etapa 1B
+## Fotografia atual — 21/09/2026
 
-Contexto global de projeto; cadastro local com vínculo opcional de receitas;
-reparo e archive/restore; arquivo de histórico não atribuído; Análise
-proporcional e seleção múltipla em Resultados; menu local de tema e Bridge.
+Esta é uma fotografia do `dev@550409a92f359cffc3e75f34712d39133b8ab130`, não
+uma afirmação sobre a instalação de qualquer Mac.
 
-Esses itens só serão classificados como entregues após implementação, testes,
-review e integração autorizada.
+| Camada | Estado delimitado |
+|---|---|
+| Implementado em `dev` | Contexto global de projeto; cadastro local e vínculo de receitas; lifecycle de worktrees; histórico não atribuído; Análise/Resultados com filtros e seleção; duração observada, retry e projeções `active`/`planned` do progresso. Q2/Q3 e a PR visual #18 estão integrados. |
+| Testado por código/fixture | Contratos de fila, API e projeções têm suites proprietárias; a geometria #18 tem testes browser versionados. Isso não é uma prova única do produtor DietFlow ao worker, API e UI compilada. |
+| Instalação | Requer receipt próprio com revisão, manifest, CLI, API e serviços. Nenhum recibo atual é inferido de um merge ou de uma fixture. |
+| Próximo | C01 fecha as fronteiras Git/B0; C03 a cadeia integrada; C04 o refresh; C05 recursos/retenção; C06 seleção. Medir latência de API/navegação e custo do consumidor continua trabalho futuro, sem prometer ganho antes da medição. |
+
+O produto não precisa reabrir a etapa 1B para registrar esses limites. Código,
+fixture, instalação e direção futura permanecem fatos diferentes.
 
 ## Próximas prioridades já identificadas
 
@@ -47,6 +53,20 @@ de outra ferramenta.
 Conta, OAuth, colaboração hospedada, telemetria, licenciamento, execução
 remota e políticas de equipe não estão decididos nem autorizados. Não criar
 placeholders de UI para essas possibilidades.
+
+## Backlog pausado — ExecutionPack (23/09/2026)
+
+A [spec viva de ExecutionPack](../specs/execution-packs/README.md) preserva a
+proposta de lote durável de tickets e a análise de custo/benefício. **Não
+implementar neste fechamento.** O estado e as condições de retomada estão em
+[status.md](../specs/execution-packs/status.md); o
+[handbook](../specs/execution-packs/handbook.md) resume a decisão.
+
+O método atual prioriza sessão do consumidor, tentativas pela fila e receita
+agregadora quando uma prova composta basta. Pack não é pré-condição de F4/F5,
+feedback, release ou ship. Só reconsiderar com necessidade demonstrada de
+membros independentes ou continuidade autônoma do conjunto. Seleção por diff e
+ship multiprova são possibilidades separadas, não entregas prometidas.
 
 ## Inspiração documentada
 

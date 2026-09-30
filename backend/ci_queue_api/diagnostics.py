@@ -57,8 +57,7 @@ def _read(path, offset, length, terminal=False):
 
 
 def _lookup(state_root, config, job_id, unassigned=False):
-    project_id = None if unassigned else config.project_id
-    return lookup_job(state_root, job_id, project_id, unassigned=unassigned)
+    return lookup_job(state_root, job_id)
 
 
 def read_log_slice(state_root, config, job_id, offset=0, length=LOG_SLICE_LIMIT, unassigned=False):

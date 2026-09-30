@@ -1,9 +1,47 @@
 import { existsSync, readFileSync } from "node:fs"
 import { dirname, isAbsolute, join, resolve } from "node:path"
 
-import { isValidPresetArgv, isValidProjectId, type ProjectPreset, type QueueProjectConfig } from "./schema.js"
+import {
+  isValidPresetArgv,
+  isValidProjectId,
+  type ProjectPreset,
+  type QueueProjectConfig,
+  type ShipConfig,
+} from "./schema.js"
 
 export const CONFIG_FILENAME = "ci-queue.json"
+
+function isSafeRelativeArtifact(path: unknown): path is string {
+  return typeof path === "string" &&
+    Boolean(path.trim()) &&
+    !path.includes("\0") &&
+    !isAbsolute(path) &&
+    !/^[A-Za-z]:[\\/]/.test(path) &&
+    !path.startsWith("\\") &&
+    !path.split(/[\\/]/).includes("..")
+}
+
+function parseArtifactPaths(value: unknown, owner: string): string[] {
+  if (!Array.isArray(value)) throw new Error(`${owner} precisa ser um array de caminhos relativos`)
+  const paths: string[] = []
+  for (const path of value) {
+    if (!isSafeRelativeArtifact(path)) {
+      throw new Error(`${owner} contém caminho de artefato inválido`)
+    }
+    paths.push(path)
+  }
+  return paths
+}
+
+/** Resolve the one artifact list that will be frozen on a queued ticket. */
+export function resolveRecipeArtifacts(
+  globalPaths: readonly string[] | undefined,
+  recipePaths: readonly string[] | undefined,
+): string[] {
+  const global = globalPaths === undefined ? undefined : [...globalPaths]
+  const recipe = recipePaths === undefined ? undefined : parseArtifactPaths(recipePaths, "preset.artifacts")
+  return [...(recipe === undefined ? global ?? [] : recipe)]
+}
 
 export type ResolvedQueueConfig = {
   config: QueueProjectConfig
@@ -49,19 +87,120 @@ function readPresets(value: unknown): Record<string, ProjectPreset> {
     if (item.progress !== undefined && typeof item.progress !== "boolean") {
       throw new Error(`preset ${name} tem progress inválido`)
     }
+    const artifacts = item.artifacts === undefined
+      ? undefined
+      : parseArtifactPaths(item.artifacts, `preset ${name}.artifacts`)
+    if (item.abortOnStaleBase !== undefined && typeof item.abortOnStaleBase !== "boolean") {
+      throw new Error(`preset ${name} tem abortOnStaleBase inválido`)
+    }
+    const fetchBase = typeof item.fetchBase === "string" ? item.fetchBase : undefined
+    const abortOnStaleBase = typeof item.abortOnStaleBase === "boolean" ? item.abortOnStaleBase : undefined
+    if (abortOnStaleBase === true && !fetchBase) {
+      throw new Error(`preset ${name} exige fetchBase quando abortOnStaleBase é true`)
+    }
     presets[name] = {
       argv: [...item.argv],
       ...(typeof item.note === "string" ? { note: item.note } : {}),
       ...(typeof timeout === "number" ? { executionTimeoutMs: timeout } : {}),
       ...(typeof item.requireCleanTree === "boolean" ? { requireCleanTree: item.requireCleanTree } : {}),
-      ...(typeof item.fetchBase === "string" ? { fetchBase: item.fetchBase } : {}),
+      ...(fetchBase ? { fetchBase } : {}),
       ...(typeof item.requireGitStability === "boolean" ? { requireGitStability: item.requireGitStability } : {}),
       ...(typeof item.pinHeadSha === "boolean" ? { pinHeadSha: item.pinHeadSha } : {}),
+      ...(abortOnStaleBase !== undefined ? { abortOnStaleBase } : {}),
       ...(typeof item.progress === "boolean" ? { progress: item.progress } : {}),
+      ...(artifacts !== undefined ? { artifacts } : {}),
     }
   }
   if (Object.keys(presets).length === 0) throw new Error('campo "presets" não pode estar vazio')
   return presets
+}
+
+function readShip(value: unknown, presets: Record<string, ProjectPreset>): ShipConfig | undefined {
+  if (value === undefined) return undefined
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("ship inválido")
+  const raw = value as Record<string, unknown>
+  const acceptedPresetsRaw = raw.acceptedPresets
+  if (!Array.isArray(acceptedPresetsRaw) || acceptedPresetsRaw.length === 0) {
+    throw new Error("ship.acceptedPresets não pode estar vazio")
+  }
+  const seen = new Set<string>()
+  const acceptedPresets: string[] = []
+  for (const item of acceptedPresetsRaw) {
+    if (typeof item !== "string" || !item.trim() || !isValidProjectId(item)) {
+      throw new Error("ship.acceptedPresets inválido")
+    }
+    if (seen.has(item)) throw new Error("ship.acceptedPresets deve ser único")
+    seen.add(item)
+    const preset = presets[item]
+    if (!preset) throw new Error(`ship.acceptedPresets referencia preset desconhecido: ${item}`)
+    if (
+      preset.requireCleanTree !== true
+      || preset.requireGitStability !== true
+      || preset.pinHeadSha !== true
+      || !preset.fetchBase
+    ) {
+      throw new Error(`ship.acceptedPresets ${item} precisa requireCleanTree, requireGitStability, pinHeadSha e fetchBase`)
+    }
+    acceptedPresets.push(item)
+  }
+  const attestationContext = raw.attestationContext
+  if (
+    typeof attestationContext !== "string" ||
+    !attestationContext.trim() ||
+    attestationContext.length > 100 ||
+    attestationContext.includes("\n")
+  ) {
+    throw new Error("ship.attestationContext inválido")
+  }
+  let remoteVerdict: ShipConfig["remoteVerdict"]
+  if (raw.remoteVerdict !== undefined) {
+    if (!raw.remoteVerdict || typeof raw.remoteVerdict !== "object" || Array.isArray(raw.remoteVerdict)) {
+      throw new Error("ship.remoteVerdict inválido")
+    }
+    const verdict = raw.remoteVerdict as Record<string, unknown>
+    const workflow = verdict.workflow
+    const job = verdict.job
+    if (
+      typeof workflow !== "string" ||
+      !workflow.startsWith(".github/workflows/") ||
+      workflow.includes("..") ||
+      !(workflow.endsWith(".yml") || workflow.endsWith(".yaml"))
+    ) {
+      throw new Error("ship.remoteVerdict.workflow inválido")
+    }
+    if (typeof job !== "string" || !job.trim()) {
+      throw new Error("ship.remoteVerdict.job inválido")
+    }
+    remoteVerdict = { workflow, job: job.trim() }
+  }
+  return {
+    acceptedPresets,
+    attestationContext: attestationContext.trim(),
+    ...(remoteVerdict ? { remoteVerdict } : {}),
+  }
+}
+
+function readExecution(value: unknown): QueueProjectConfig["execution"] {
+  if (value === undefined) return undefined
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("execution inválido")
+  }
+  const raw = value as Record<string, unknown>
+  if (raw.executor !== "queue") {
+    throw new Error('execution.executor suportado: "queue"')
+  }
+  let queue: { command?: string } | undefined
+  if (raw.queue !== undefined) {
+    if (!raw.queue || typeof raw.queue !== "object" || Array.isArray(raw.queue)) {
+      throw new Error("execution.queue inválido")
+    }
+    const command = (raw.queue as { command?: unknown }).command
+    if (command !== undefined && (typeof command !== "string" || !command.trim())) {
+      throw new Error("execution.queue.command inválido")
+    }
+    queue = typeof command === "string" ? { command: command.trim() } : {}
+  }
+  return { executor: "queue", ...(queue ? { queue } : {}) }
 }
 
 /**
@@ -77,6 +216,9 @@ export function parseQueueConfig(raw: Record<string, unknown>, projectRoot: stri
   const projectName = projectRaw?.name ?? raw.projectName
   if (!isValidProjectId(projectId)) throw new Error("project.id deve ser um identificador estável")
   if (typeof projectName !== "string" || !projectName.trim()) throw new Error("project.name é obrigatório")
+  const artifacts = Array.isArray(raw.artifacts) && raw.artifacts.every((item) => typeof item === "string")
+    ? [...raw.artifacts] as string[]
+    : undefined
   const nestedPresets = projectRaw?.presets
   const presets = readPresets(raw.presets ?? nestedPresets)
   const repositoryRaw = raw.repository && typeof raw.repository === "object" && !Array.isArray(raw.repository)
@@ -84,15 +226,16 @@ export function parseQueueConfig(raw: Record<string, unknown>, projectRoot: stri
     : undefined
   const repositoryPath = typeof repositoryRaw?.path === "string" ? repositoryRaw.path : undefined
   const baseRef = typeof repositoryRaw?.baseRef === "string" ? repositoryRaw.baseRef : undefined
-  const artifacts = Array.isArray(raw.artifacts) && raw.artifacts.every((item) => typeof item === "string")
-    ? [...raw.artifacts] as string[]
-    : undefined
+  const ship = readShip(raw.ship, presets)
+  const execution = readExecution(raw.execution)
   return {
     schemaVersion: 1,
     project: { id: projectId, name: projectName.trim() },
     ...(repositoryPath || baseRef ? { repository: { ...(repositoryPath ? { path: repositoryPath } : {}), ...(baseRef ? { baseRef } : {}) } } : {}),
     presets,
     ...(artifacts ? { artifacts } : {}),
+    ...(ship ? { ship } : {}),
+    ...(execution ? { execution } : {}),
   }
 }
 

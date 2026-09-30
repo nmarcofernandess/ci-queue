@@ -1,0 +1,28 @@
+{
+  "method": "excertos tipados convertidos para JS; apenas I/O Git substituído; nenhum runner/ship completo executado",
+  "source": "https://github.com/nmarcofernandess/ci-queue/blob/24d6a2b417876db209db4519c3826566ab94a1e7/src/core/runner.ts#L139-L173",
+  "runtime": {
+    "node": "v22.16.0",
+    "platform": "linux"
+  },
+  "control": {
+    "branch": "feature/fixture",
+    "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "baseSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "statusShort": "M tracked.ts"
+  },
+  "failedStatusObservation": {
+    "branch": "feature/fixture",
+    "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "baseSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "statusShort": ""
+  },
+  "guardWouldDetectDirty": false,
+  "repeatedFailureLooksStable": true,
+  "finding": "ausência de observação de status é convertida em string de árvore limpa",
+  "limits": [
+    "sem execução da suíte",
+    "sem prova de exploração do ship",
+    "sem acesso ou alteração do Mac/repositórios/state"
+  ]
+}

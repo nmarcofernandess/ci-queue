@@ -1,6 +1,8 @@
 import type { RunTableJob } from "@/features/shared/run-table"
 
 export type GreenCommitGroup = {
+  projectId?: string
+  projectName?: string
   sha: string
   rows: RunTableJob[]
   finishedAt?: string
@@ -12,7 +14,10 @@ export function groupGreenCommits(rows: RunTableJob[]): GreenCommitGroup[] {
   const groups = new Map<string, GreenCommitGroup>()
   for (const row of rows) {
     if (!row.headSha) continue
-    const current = groups.get(row.headSha) ?? {
+    const key = `${row.projectId ?? ""}\u0000${row.headSha}`
+    const current = groups.get(key) ?? {
+      projectId: row.projectId,
+      projectName: row.projectName,
       sha: row.headSha,
       rows: [],
       finishedAt: row.finishedAt,
@@ -27,7 +32,7 @@ export function groupGreenCommits(rows: RunTableJob[]): GreenCommitGroup[] {
     for (const origin of row.origins ?? (row.origin ? [row.origin] : [])) {
       if (!current.origins.includes(origin)) current.origins.push(origin)
     }
-    groups.set(row.headSha, current)
+    groups.set(key, current)
   }
   return [...groups.values()].sort((a, b) =>
     (b.finishedAt ?? "").localeCompare(a.finishedAt ?? "")

@@ -24,14 +24,14 @@ adapting shadcn sources rather than re-inventing surfaces.
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | App shell                              | `SidebarProvider` → `Sidebar variant="inset" collapsible="offcanvas"` → `SidebarInset` → header with `SidebarTrigger`               | Brand, routes and project context only. No `SidebarRail`; trigger stays in header; project switcher stays at the header's end.                                                                                                                                                                                                                      |
 | Sidebar navigation and local environment | `SidebarHeader`, `SidebarContent`, `SidebarMenu`, `SidebarMenuButton`, `SidebarFooter`, `DropdownMenu`                            | Footer is `LocalEnvironmentMenu`: Bridge from `/health` and theme radios. No fake user.                                                                                                                                                                                                                                                            |
-| Project switcher                       | Shared `SelectionPanel` (`Popover` + `ScrollArea` + `InputGroup`) + `Button`                                                        | Searchable exclusive list of active projects plus unassigned history. Archived entries stay in the manager.                                                                                                                                                                                                                                         |
+| Project switcher                       | Shared `ProjectSelectionPanel` → `SelectionPanel` (`Popover` + `ScrollArea` + `InputGroup`) + `Button`                                                        | Searchable exclusive list. **Todos os projetos** sits above the list; unassigned history stays in the footer. Archived entries stay in the manager. `projectId=all` is a real project id.                                                                                                                                                                                                                                         |
 | Project manager                        | Shared `DetailDrawer` + `FieldSet`/`Field` + `InputGroup` + `AlertDialog` + `Badge`                                                  | Local register/rename/relocate/link/archive/restore. Path fields stay pasteable. **Procurar…** calls the host folder/file dialog via `/api/project-pick`; it does not use a browser file input as a fake absolute path. Probe is Conferir pasta. Archive does not cancel jobs. Observed identities are an explicit list, not a free-text default. List uses `Badge` when no living worktree remains. |
-| Current execution                      | `Card` → `CardHeader`/`CardContent`, `Item`, `ItemGroup`, `Empty`, `Tooltip`, icon `Button`                                         | Region is always visible. Running has one state icon; title and final eye open the drawer.                                                                                                                                                                                                                                                          |
+| Current execution                      | `Card` → `CardHeader`/`CardContent`, `EntityIdentity`, `Item` elapsed, `Empty`, `Tooltip`, shared `InspectButton`                   | Region is always visible, including Todos/unassigned. Running has one state icon; title and the elapsed-row eye open the drawer. Chip is `Badge outline`.                                                                                                                                                                                                                                                          |
 | Queue                                  | Dashboard 01 `DataTable` composition adapted into shared `RunTable`                                                                 | Only queued tickets; no filter toolbar. The terminal receipt moves to history, never becomes a queue summary.                                                                                                                                                                                                                                      |
 | Queue, history and last greens          | Dashboard 01 `DataTable` composition (`@tanstack/react-table`, `table.FlexRender`, `Table`) adapted into shared `RunTable` renderer | One-line rows with status icon, execution, time, duration, revision and final eye. Commit grouping has a dedicated aggregate table and official Drawer.                                                                                                                                                                                             |
-| History controls                       | `InputGroup`, default `ToggleGroup`, shared `FilterSelect`, `Button ghost`                                                        | Controls live in the owning CardHeader, above the table, and wrap left-to-right. No Calendar, interval or nested popup. Executions search server-side across preset, branch, SHA, ticket, cwd, command and extra arguments without exposing the latter two; last greens search the four fields the normalized legacy data actually contained: preset, branch, SHA and ticket. |
+| History controls                       | `InputGroup`, default `ToggleGroup`, shared `FilterSelect`, `Button ghost`, `Tooltip`                                              | Controls live in the owning CardHeader, above the table, and wrap left-to-right. Últimos verdes accepts `kind=project` and `kind=all`; it is `disabled` only in `kind=unassigned`; tooltip copy **escolha um projeto** wraps the inert item so hover still works. No Calendar, interval or nested popup. Executions search server-side across preset, branch, SHA, ticket, cwd, command and extra arguments without exposing the latter two; last greens search project name, preset, branch, SHA and ticket. |
 | Machine                                | `Card` → `CardHeader`/`CardContent`, `Item`                                                                                         | Only measurable disk capacity. No action, invented normal state, memory total or per-card refresh.                                                                                                                                                                                                                                                  |
-| Meta and pending items                 | Separate `Card` summaries; Meta uses a `Drawer` with `FieldSet`/`FieldGroup`/`Field`, while Pendências uses a read-only `Drawer` with `ItemGroup`/`Item` | Meta persists only name, description and selected presets; candidate SHA is derived from their current canonical greens. Pendências renders idempotent validation recommendations emitted by consumers and offers no manual form. Neither surface gates CI or merge.                                                                                  |
+| Meta and pending items                 | Separate `Card` summaries; projectless states use `Empty` in the same `CardContent` and disabled `Button` inside `Tooltip`; Meta uses a `Drawer` with `FieldSet`/`FieldGroup`/`Field`, while Pendências uses a read-only `Drawer` with `ItemGroup`/`Item` | Both cards remain visible in every project filter with fixed titles. Only unassigned says **Selecione um projeto** with disabled actions. Todos mixes up to three Meta/pending previews with `ProjectChip compact-context` above the title; global empties are **Nenhuma meta declarada.** / **Nenhuma pendência.** Partial errors retain valid project data. Drawers share `ProjectSelectionPanel` for their local target, leaving the header unchanged. Meta mutation requires a concrete project; no global editor exists. Meta persists only name, description and selected presets; candidate SHA is derived from their current canonical greens. Pendências renders idempotent validation recommendations emitted by consumers and offers no manual form. Neither surface gates CI or merge. |
 | Worktrees                              | Dashboard 01 `DataTable` composition + `Checkbox`, `InputGroup`, `ButtonGroup`, `DropdownMenu`                                      | Persistent selected IDs is a named state-management gap; rows do not become buttons.                                                                                                                                                                                                                                                               |
 | Job, worktree, meta and pending detail | `Drawer` from Dashboard 01, right on desktop/bottom on mobile; `DrawerHeader`, `ScrollArea`, `DrawerFooter` where actions exist     | Job header/tabs/footer stay fixed and only its central content scrolls. Match the compact proportions of the approved historical drawer without copying its markup. Meta and Pendências open directly in their own drawer surface, without a second navigation layer.                                                                              |
 | Diagnostic and copy variants           | `Popover` for diagnostic, `DropdownMenu` for explicit copy variants                                                                 | Diagnostic does not render below a log. No nested menus.                                                                                                                                                                                                                                                                                           |
@@ -52,8 +52,8 @@ the remaining controls wrap in this order.
 
 | View     | Selected composition                                                                                   | Contract                                                                                                                                                                                                                                                                              |
 | -------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Results  | `Card` + Nova `ChartContainer`, custom tooltip payload, `ChartLegendContent`, Recharts `BarChart` + shared `PresetMultiSelect` | Per-preset percentage stacks on a 0–100 axis. Tooltip keeps count · percent and the preset total. Default visible set is top 10 by volume; filtering is local. The table keeps exact counts in the same order.                                        |
-| Duration | `Card` + `ItemGroup` + Nova `ChartContainer`, `ChartTooltipContent`, Recharts `ScatterChart`/`Scatter` | Specific preset required. Visible median/range/N above the chart. Both numerical axes derive bounded domains from the visible points, so timestamps never fall back to the epoch. Points only; no `Line`, curve or interpolation. Tooltip contains point-specific temporal/unit data. |
+| Results  | `Card` + Nova `ChartContainer`, `ChartTooltipContent`, `ChartLegendContent`, Recharts `BarChart` + shared `PresetMultiSelect` | Per-preset percentage stacks on a 0–100 axis. Identity is `projectId:preset` in Todos (`Nome · preset`). Tooltip uses the official content; `labelFormatter` reads `projectName` from the series payload; formatter keeps count · percent. Default visible set is top 10 by volume; filtering is local. The table keeps exact counts in the same order. |
+| Duration | `Card` + `ItemGroup` + Nova `ChartContainer`, `ChartTooltipContent`, Recharts `ScatterChart`/`Scatter` | Specific declared pair required. In Todos the `FilterSelect` is namespaced `projectId:preset`. Visible median/range/N above the chart. Both numerical axes derive bounded domains from the visible points, so timestamps never fall back to the epoch. Points only; no `Line`, curve or interpolation. Tooltip contains point-specific temporal/unit data. |
 
 `ChartContainer` is the official Nova chart shell and owns chart config, theme
 variables, tooltip and legend styling. Its canvas has an explicit bounded height
@@ -78,8 +78,9 @@ rearranging execution records. This is a product adaptation, not permission to
 turn table rows into buttons or to substitute a handmade table.
 
 Column budgets belong to each table consumer. Compact execution identities keep
-title and status badge on one line, truncate only the flexible title, and retain
-the complete accessible value. Card tables reserve the final action width for
+title and contextual badges on one line, truncate only the flexible title, and retain
+the complete accessible value. Flaky belongs to the shared status indicator's
+tooltip and accessible name. Card tables reserve the final action width for
 the installed icon Button plus both effective paddings. Compact absolute dates
 remain in the cell; relative time remains available through Tooltip.
 
@@ -88,7 +89,7 @@ remain in the cell; relative time remains available through Tooltip.
 | Gap                | Allowed composition                                                                                               | Prohibited substitute                                     |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | Status layout      | Responsive page wrapper around existing Cards/Tables                                                              | A bespoke dashboard/card system or arbitrary divider.     |
-| Execution stages   | Recursive `ItemGroup`/`Item` with official `Collapsible`, dots and checks                                         | Percent, ETA, Slider/Progress or flattened hierarchy.    |
+| Execution stages   | Recursive `ItemGroup`/`Item` with official `Collapsible`, dots and checks; chevron and node title both use `CollapsibleTrigger` | Percent, ETA, Slider/Progress or flattened hierarchy.    |
 | Worktree selection | TanStack v9 controlled `Record<worktreeId, true>` over Checkbox/Data Table, persisted per project in localStorage | Custom checkboxes or clickable rows.                      |
 | Duration scatter   | `ChartContainer` with Recharts scatter series                                                                     | Line chart, trendline, area chart or raw tooltip styling. |
 
@@ -126,9 +127,10 @@ to the right edge resumes following. The job drawer retains its recursive vertic
 tree. Browser regression uses twelve isolated stages and checks manual scroll,
 automatic following and narrow viewport overflow.
 
-The current preset uses the prominent title size with a two-line-height status
-indicator. Time, duration and branch share a wrapping metadata row. Collapsible
-chevrons point down while open and right while closed. Drawer content permits
+The current preset uses the drawer title size with a two-line-height status
+indicator. Identity is preset + project chip + `branch · sha`. Elapsed time and
+the inspect eye live in an `Item` at the end of `CardContent`, not in a tinted
+`CardFooter`. Collapsible chevrons point down while open and right while closed. Drawer content permits
 native text selection; dragging content must never dismiss the drawer. Closing
 remains available through Close, Escape and the outside overlay. The controlled
 detail shell enables Vaul autofocus and uses DrawerContent close autofocus to
@@ -140,8 +142,30 @@ The previous indicator-only scale is superseded by `presentation.ts` and the
 complete `EntityIdentity` composition. Executable values live only in code;
 `DESIGN.md` explains their roles. DetailDrawer owns all five detail surfaces,
 FactsTable owns their metadata sheets, DataTableFrame owns list gutters, and
-ProgressTree/ExecutionStages share StatusIndicator descriptors. These compose
+ProgressTree/ExecutionStages share StatusIndicator descriptors. ProgressTree uses
+one shadcn CollapsibleTrigger per expandable row, with its chevron, title and
+count on one line; the hover/focus underline spans the entire trigger. The
+title truncates only at a fixed content boundary while the count stays visible;
+leaf labels may wrap. Nested content is indented without a connector line. These compose
 installed Nova primitives; they add no backend or data model.
 
 This candidate is subject to human review. Prior approvals do not approve this
 new family implementation. See the etapa-1 evidence index for actual proof.
+
+## Shared composition ownership — etapa 2
+
+| Component | Owner | Contract |
+| --------- | ----- | -------- |
+| ProgressDuration | shared | Árvore e faixa — duração/origem/ausência |
+| InspectButton | `ui/src/features/shared/inspect-button.tsx` | Olho da família; `presentation.inspect`; label **Inspecionar**; sem `data-icon` |
+| ElapsedItem | `ui/src/features/shared/live-time.tsx` | Número grande no fim do CardContent da execução atual; JobTimeline permanece no drawer |
+| ProjectChip | `ui/src/features/shared/project-chip.tsx` | `Badge outline` + Tooltip com nome completo; modo literal obrigatório, sem `className` local. `inline`: execução atual, tabelas e drawers de execução/worktree/commit/Meta/Pendências; `compact-context`: somente previews laterais Meta/Pendências em Todos, linha própria acima do título e texto truncável sem overflow |
+
+O owner `ui/src/features/projects/project-selection-panel.tsx` fornece a lista
+pesquisável de projetos ativos para `ProjectSwitcher` e `StatusStateDrawer`.
+O primeiro muda `ReadScope`; o segundo apenas `ProjectTarget` local. Metas
+ordena previews por nome/ID; Pendências por createdAt decrescente e projectId/id.
+Últimos verdes preserva identidade `projectId + preset + ticketId` na união das
+fontes e agrupa commits por `projectId + headSha`, com chip inline na tabela e
+no drawer. Problemas individuais aparecem como cobertura parcial sem apagar
+verdes válidos de outros projetos.
