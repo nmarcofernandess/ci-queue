@@ -48,12 +48,33 @@ composition:
   project_chip:
     source: ui/src/features/shared/project-chip.tsx
     model: ui/src/features/shared/project-chip-model.ts
-    use: "Badge outline do dono quando o filtro não identifica o ticket sozinho."
+    use: "Badge outline + Tooltip com nome completo; mode literal obrigatório; className local proibida."
+    modes:
+      inline:
+        use: "Identidade em execução atual, tabelas e drawers; preserva apresentação existente."
+        consumers:
+          - ui/src/features/status/status-page.tsx
+          - ui/src/features/shared/run-table.tsx
+          - ui/src/features/shared/job-drawer.tsx
+          - ui/src/features/worktrees/worktrees-page.tsx
+          - ui/src/features/status/green-commit-table.tsx
+          - ui/src/features/status/status-state-drawer.tsx
+      compact-context:
+        use: "Somente previews laterais de Metas/Pendências em Todos; linha própria acima do título, texto truncável, sem overflow ou redução de fonte."
+        consumers:
+          - ui/src/features/status/status-state-cards.tsx
+    checks:
+      - tests/ui/ui-policy.test.ts
+      - tests/browser/dashboard.spec.ts
+      - tests/browser/ui-consistency.spec.ts
+  project_selection_panel:
+    source: ui/src/features/projects/project-selection-panel.tsx
+    use: "Lista pesquisável compartilhada de projetos ativos via SelectionPanel. ProjectSwitcher muda ReadScope; drawers mudam apenas ProjectTarget local."
     consumers:
-      - ui/src/features/status/status-page.tsx
-      - ui/src/features/shared/run-table.tsx
-      - ui/src/features/shared/job-drawer.tsx
-      - ui/src/features/worktrees/worktrees-page.tsx
+      - ui/src/features/projects/project-switcher.tsx
+      - ui/src/features/status/status-state-drawer.tsx
+    checks:
+      - tests/browser/dashboard.spec.ts
   drawer:
     source: ui/src/features/shared/detail-drawer.tsx
     consumers:

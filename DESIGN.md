@@ -22,6 +22,14 @@ produto sobre Nova, não variantes oficiais inventadas.
 DrawerDescription para acessibilidade. A feature fornece conteúdo e callbacks.
 Na execução atual o tempo decorrido **não** mora na description: `ElapsedItem`
 fecha o `CardContent`. Chip de projeto é `Badge outline` via `ProjectChip`.
+`ProjectChip` exige modo literal e não aceita `className` do consumidor.
+`inline` conserva a identidade na execução atual, nas tabelas de execuções,
+Worktrees e Últimos verdes, e nos drawers de execução, worktree, commit,
+Meta e Pendências. `compact-context` pertence somente aos previews laterais
+de Metas e Pendências em Todos: `Badge outline` em linha própria acima do
+título, texto visual truncável e Tooltip com nome completo, sem reduzir fonte
+nem provocar rolagem horizontal. O owner decide a geometria dos dois modos.
+
 Olho da família é `InspectButton` (label **Inspecionar**, tamanho em
 `presentation.inspect`).
 
@@ -31,7 +39,7 @@ Olho da família é `InspectButton` (label **Inspecionar**, tamanho em
   title={current.preset || "Preset não informado"}
   media={{ kind: "state", descriptor: describeJobState(current.status) }}
   description={<>{branch} · {sha}</>}
-  badge={<ProjectChip name={current.projectName} facts={projectChipFacts(current)} />}
+  badge={<ProjectChip mode="inline" name={current.projectName} facts={projectChipFacts(current)} />}
   onOpen={() => onOpenJob(current.id)}
 />
 ```
@@ -47,7 +55,12 @@ célula: não reunir todas as colunas num card.
 O header global carrega o seletor de projeto à direita: um projeto, Todos os
 projetos ou Histórico sem projeto. O rodapé da sidebar é
 o ambiente local, não um usuário. Menus pesquisáveis usam `SelectionPanel`;
-filtros simples usam `FilterSelect`. Não aninhar Select em Popover para período.
+`ProjectSelectionPanel` é o dono da lista pesquisável de projetos ativos,
+compartilhada pelo `ProjectSwitcher` e pelos drawers de Meta/Pendências.
+O header muda o contexto global; o drawer aberto em Todos muda apenas seu
+alvo local. Ler Todos é permitido; declarar, editar ou remover Meta exige
+um projeto concreto escolhido nesse alvo. Histórico sem projeto conserva
+as ações desabilitadas. Filtros simples usam `FilterSelect`. Não aninhar Select em Popover para período.
 
 ## Drawers
 

@@ -65,7 +65,7 @@ A página tem uma faixa de execução atual acima de um grid com coluna principa
 
 ### Fila e histórico
 
-Últimos verdes exige um projeto selecionado; em Todos ou sem projeto, o modo fica desabilitado com tooltip **escolha um projeto**. Os cards **Metas** e **Pendências** permanecem visíveis em todos os filtros, sem misturar dados de projetos.
+Últimos verdes aceita um projeto ou Todos; somente Histórico sem projeto desabilita o modo com tooltip **escolha um projeto**. Os cards **Metas** e **Pendências** permanecem visíveis em todos os filtros. Em Todos, agregam os projetos ativos preservando a identidade de cada dono.
 
 A fila e o histórico compartilham a composição DataTable do Dashboard 01. Cada execução ocupa uma única linha: **Estado** por ícone, **Execução**, **Término/Entrada**, **Duração/Espera**, **Revisão** com SHA curto e branch e **Ações**. Preset e a ação ocular final abrem o drawer; a linha e os demais fatos são inertes.
 
@@ -75,20 +75,30 @@ A fila contém apenas tickets `queued` **da máquina**, na ordem da fila, e não
 
 O histórico une tickets terminais e observações de execução directa (`recordKind=observed-execution`) do filtro atual: um projeto, atribuídos em Todos, ou sem `projectId` em Histórico sem projeto. Observação não é ticket: chip/rótulo distinguem a origem; drawer sem log de fila trata ausência como legítima. Em Todos o chip nomeia o dono. Contagens de Análise, Meta, Últimos verdes e prova de ship **não** incluem observações. Acima e fora da borda da tabela ficam:
 
-1. ToggleGroup Execuções / Últimos verdes na primeira linha; fora de um projeto o verde fica `disabled` com tooltip **escolha um projeto**;
+1. ToggleGroup Execuções / Últimos verdes na primeira linha; no Histórico sem projeto o verde fica `disabled` com tooltip **escolha um projeto**;
 2. InputGroup de busca na segunda linha, seguido dos Selects diretos de período e resultado;
 3. em Últimos verdes, origem e agrupamento substituem resultado;
 4. Limpar somente quando há filtro aplicado.
 
 Execuções oferece período Todo período, Hoje, 48h, Semana ou 15 dias, e resultado Todos, Passou, Falhou, Cancelado ou Interrompido. Não existe intervalo livre, calendário, popover contendo select nem controle duplicado.
 
-Últimos verdes inicia em origem Todos e oferece Todos, Máquina ou Git, com agrupamento Por preset ou Por commit. Por preset mostra uma linha por receita, sem contagem. Por commit mostra uma linha agregada por SHA e abre um drawer de 36rem com SHA, branches, origem e as execuções canônicas daquele commit. Execuções vindas somente do Git permanecem legíveis e não fabricam log local. O período oculta o verde canônico atual fora da janela, nunca escolhe um verde anterior. Esse modo não pagina e a leitura Git nunca força rede por conta própria.
+Últimos verdes inicia em origem Todos e oferece Todos, Máquina ou Git, com agrupamento Por preset ou Por commit. Por preset mostra uma linha por projeto e receita, sem contagem; em Todos a busca inclui projeto, preset, branch, SHA e ticket. A união Máquina + Git deduplica por `projectId + preset + ticketId`. Por commit mostra uma linha agregada por `projectId + headSha` e abre um drawer de 36rem com SHA, branches, origem e as execuções canônicas daquele commit e projeto. Tabela e drawer preservam o chip do projeto dono. Falha parcial mantém dados válidos e identifica os projetos sem cobertura; a leitura agregada faz uma requisição por recurso, sem fan-out no browser. Execuções vindas somente do Git permanecem legíveis e não fabricam log local. O período oculta o verde canônico atual fora da janela, nunca escolhe um verde anterior. Esse modo não pagina e a leitura Git nunca força rede por conta própria.
 
 ### Coluna direita
 
 - **Máquina:** somente disco livre atual. Não exibe ação, estado “normal”, memória, idade da leitura ou refresh por card.
-- **Metas:** título fixo, sem nome da branch. Em Todos e no histórico sem projeto, o card mostra **Selecione um projeto** e a ação desabilitada com tooltip **escolha um projeto**. Com um projeto selecionado, há uma única meta, formada por nome, descrição e presets acompanhados. O usuário não digita SHA. Cada requisito lê o último verde canônico da receita atual; o título de um requisito atendido abre esse ticket. O progresso `x de y` fica no corpo e é a quantidade real de presets com verde canônico. Só existe `candidateSha` quando todos os requisitos estão verdes na mesma revisão; verdes em revisões diferentes são mostrados como tal e não fabricam um candidato. A meta pode ser criada, editada e removida e nunca bloqueia CI ou merge. Não existe CTA de ship/merge no dashboard; integração é só `ci-queue ship` na CLI.
-- **Pendências:** título fixo, sem contador. Em Todos e no histórico sem projeto, o card mostra **Selecione um projeto** e a ação desabilitada com tooltip **escolha um projeto**. Com um projeto selecionado, mostra recomendações automáticas e não bloqueantes de validação, emitidas de forma idempotente por um consumidor para um preset declarado. Cada item preserva preset, motivo, revisão, data e PR quando houver, além da tentativa posterior mais recente. Não existem nota livre, título manual, tags, vínculo com arquivo, `progressNodeId`, botão **Nova pendência** nem edição no dashboard. Um verde canônico posterior da máquina ou de um slot Git verificado, cuja revisão contém a revisão recomendada, resolve o item automaticamente. Falha ao registrar ou publicar a recomendação permanece observável e nunca bloqueia o fluxo. O vazio de um projeto é **Nenhuma pendência**.
+- **Metas:** título fixo, sem nome da branch. No histórico sem projeto, o card mostra **Selecione um projeto** e a ação desabilitada com tooltip **escolha um projeto**. Com um projeto selecionado, há uma única meta, formada por nome, descrição e presets acompanhados. O usuário não digita SHA. Cada requisito lê o último verde canônico da receita atual; o título de um requisito atendido abre esse ticket. O progresso `x de y` fica no corpo e é a quantidade real de presets com verde canônico. Só existe `candidateSha` quando todos os requisitos estão verdes na mesma revisão; verdes em revisões diferentes são mostrados como tal e não fabricam um candidato. A meta pode ser criada, editada e removida e nunca bloqueia CI ou merge. Não existe CTA de ship/merge no dashboard; integração é só `ci-queue ship` na CLI.
+
+Em Todos, Metas mostra até três projetos com meta, ordenados por nome e ID,
+com `ProjectChip mode="compact-context"` acima do título. Mostra requisitos
+atendidos quando calculáveis e candidato curto quando presente; catálogo
+indisponível é fato explícito, nunca progresso inventado. O vazio é **Nenhuma
+meta declarada.** e a ação é **Abrir metas**. O drawer inicia em Todos, sem
+mutação global; escolher um projeto local permite declarar, editar e remover
+com `projectId` explícito, preservando drafts por projeto e revisão, sem mudar
+o filtro do header.
+
+- **Pendências:** título fixo, sem contador. No histórico sem projeto, o card mostra **Selecione um projeto** e a ação desabilitada com tooltip **escolha um projeto**. Com um projeto selecionado, mostra recomendações automáticas e não bloqueantes de validação, emitidas de forma idempotente por um consumidor para um preset declarado. Cada item preserva preset, motivo, revisão, data e PR quando houver, além da tentativa posterior mais recente. Não existem nota livre, título manual, tags, vínculo com arquivo, `progressNodeId`, botão **Nova pendência** nem edição no dashboard. Um verde canônico posterior da máquina ou de um slot Git verificado, cuja revisão contém a revisão recomendada, resolve o item automaticamente. Falha ao registrar ou publicar a recomendação permanece observável e nunca bloqueia o fluxo. O vazio de um projeto é **Nenhuma pendência**. Em Todos, mostra até três recomendações misturadas, ordenadas por createdAt decrescente e projectId + id no desempate, com ProjectChip compact-context acima do preset, PR e SHA curto. O vazio global é **Nenhuma pendência.** O drawer inicia em Todos; a seleção local filtra a leitura sem alterar o header e sem oferecer mutations. Falhas por projeto mantêm os dados válidos dos demais nas duas superfícies.
 
 ## Drawer de execução
 

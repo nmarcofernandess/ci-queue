@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { installConsistencyFixtures } from './fixtures/ui-consistency'
+import { fixtureDashboard, installConsistencyFixtures } from './fixtures/ui-consistency'
 
 const captureFinal = process.env.CI_QUEUE_CAPTURE_FINAL === '1'
 test.use({ timezoneId: 'UTC' })
@@ -377,3 +377,73 @@ test('worktrees and analysis distinguish loading from errors',async({page})=>{
   await expect(page.getByText('Não foi possível carregar os resultados',{exact:true})).toBeVisible()
   await shot(page,'final-1440-light-analysis-error')
 })
+
+const longProjectName = 'Alpha — projeto com nome suficientemente longo para truncar'
+
+async function installAllStatusConsistency(page: Page, theme: 'light' | 'dark', state: 'data' | 'empty' = 'data') {
+  await installConsistencyFixtures(page, { theme, empty: true, displayName: longProjectName, extraProjects: [{ id: 'beta', displayName: 'Beta' }] })
+  const projects = ['example', 'beta'].map(projectId => ({
+    projectId, projectName: projectId === 'example' ? longProjectName : 'Beta',
+    revision: 1, catalog: 'linked', presets: ['smoketest'], pendingError: null,
+    meta: state === 'empty' ? null : { ...fixtureDashboard().meta!, name: `${projectId} entrega`, description: '', checks: fixtureDashboard().meta!.checks },
+    pending: state === 'empty' ? [] : [{ ...fixtureDashboard().pending[0], id: `${projectId}-pending`, preset: `${projectId}-full`, latestTicketId: null }],
+  }))
+  await page.route('**/api/dashboard-state**', route => route.fulfill({ json: {
+    schemaVersion: 2, projects, context: { kind: 'all' },
+    projectErrors: [],
+  } }))
+  await page.goto('/?context=all#status')
+  await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /light/)
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`all status compact context across widths and full tooltip ${theme}`, async ({ page }) => {
+    await installAllStatusConsistency(page, theme)
+    await page.clock.resume()
+    const cards = page.locator('aside [data-slot=card]').filter({ has: page.locator('[data-slot=card-title]').filter({ hasText: /^(Metas|Pendências)$/ }) })
+    await expect(cards.getByText('example entrega', { exact: true })).toBeVisible()
+    for (const width of [390, 640, 820, 1440, 1600]) {
+      await page.setViewportSize({ width, height: 1000 })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      const rows = cards.locator('[data-slot=item-content]')
+      await expect(rows).toHaveCount(4)
+      for (const row of await rows.all()) {
+        const chip = row.locator('[data-slot=tooltip-trigger][data-variant=outline]')
+        const chipBounds = (await chip.boundingBox())!
+        const titleBounds = (await row.locator('[data-slot=item-title]').boundingBox())!
+        expect(titleBounds.y).toBeGreaterThanOrEqual(chipBounds.y + chipBounds.height)
+        expect(chipBounds.width).toBeLessThanOrEqual((await row.boundingBox())!.width)
+      }
+    }
+    // Inspect the tooltip after the resize matrix; resize/scroll dismisses overlays.
+    const longChips = cards.locator('[data-slot=tooltip-trigger][data-variant=outline]').filter({ hasText: longProjectName })
+    await expect(longChips).toHaveCount(2)
+    await page.mouse.move(0, 0)
+    await longChips.first().hover()
+    await expect(page.locator('[role=tooltip]:not([data-state=closed])')).toContainText(longProjectName)
+    await page.keyboard.press('Escape')
+  })
+
+  test(`all status empty and partial coverage preserve facts ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 1000 })
+    await installAllStatusConsistency(page, theme, 'empty')
+    const cards = page.locator('aside [data-slot=card]').filter({ has: page.locator('[data-slot=card-title]').filter({ hasText: /^(Metas|Pendências)$/ }) })
+    await expect(cards.getByText('Nenhuma meta declarada.', { exact: true })).toBeVisible()
+    await expect(cards.getByText('Nenhuma pendência.', { exact: true })).toBeVisible()
+    await expect(cards.getByText('Selecione um projeto', { exact: true })).toHaveCount(0)
+    // Reuse the installed clock/theme fixture; change only the aggregate resource.
+    await page.route('**/api/dashboard-state**', route => route.fulfill({ json: {
+      schemaVersion: 2, context: { kind: 'all' },
+      projects: [{ ...fixtureDashboard(), projectName: longProjectName, catalog: 'linked', meta: { ...fixtureDashboard().meta!, name: 'Valid project meta', checks: null } }],
+      projectErrors: [{ projectId: 'beta', projectName: 'Beta', error: 'Leitura indisponível' }],
+    } }))
+    await page.reload()
+    await expect(cards.getByText('Valid project meta', { exact: true })).toBeVisible()
+    await expect(cards.getByText('full', { exact: true })).toBeVisible()
+    await expect(cards.getByText('Beta: Leitura indisponível', { exact: true })).toHaveCount(2)
+    await expect(cards.getByText('Checks indisponíveis:', { exact: false })).toHaveCount(1)
+    await expect(cards.getByText(/0 de .* requisitos atendidos/)).toHaveCount(0)
+    await expect(cards.getByText('Nenhuma meta declarada.', { exact: true })).toHaveCount(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  })
+}

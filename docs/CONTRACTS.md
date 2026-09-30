@@ -125,7 +125,7 @@ Garantia: **head-pinned-base-observed**, não lock atômico H+B. PUT de merge le
 
 Cadastro local: `<state>/state/projects.json`; runtimes: `<state>/runtimes.json`; atribuição legada: `<state>/state/legacy-projects.json`. São autoridades diferentes. Registry usa gitCommonDir e `git worktree list`, não busca recursiva em pasta pai. Main worktree não significa branch main. Se common-dir vive, outro checkout pode permitir recuperação; se o clone inteiro mudou, relocalização explícita é necessária.
 
-Histórico, Worktrees e Análise seguem projeto/Todos. Running e Fila são globais. Abrir ticket de B com A selecionado não troca A. `context=all` é modo; `projectId=all` é ID literal. Meta/Últimos verdes/Pendências precisam de projeto concreto/capacidade apropriada. Sem projeto mantém legado separado, sem atribuição inferida. Ampliar o Histórico humano com observações **não** altera o denominador das análises de tickets/greens nesta entrega.
+Histórico, Worktrees, Análise, Meta, Pendências e Últimos verdes aceitam projeto/Todos para leitura. Running e Fila são globais. Abrir ticket de B com A selecionado não troca A. `context=all` é modo; `projectId=all` é ID literal. Todos agrega somente projetos ativos e preserva projectId/projectName e falhas por projeto; não cria catálogo, Meta ou receita global. Mutations de Meta continuam project-scoped: exigem um projectId concreto escolhido localmente no drawer. Pendências continuam somente leitura; verdes canônicos usam a receita atual do projeto dono. Sem projeto mantém legado separado, sem atribuição inferida. Ampliar o Histórico humano com observações **não** altera o denominador das análises de tickets/greens nesta entrega.
 
 ## Runtime Node
 
