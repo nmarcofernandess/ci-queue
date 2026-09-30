@@ -692,7 +692,7 @@ test('all drawer keeps long project identity readable inside the narrow detail s
   await expect(drawer.getByRole('button', { name: 'Editar', exact: true })).toBeVisible()
 })
 
-async function allGreensFixture(page: import('@playwright/test').Page, partial = false, failed = false, empty = false) {
+async function allGreensFixture(page: import('@playwright/test').Page, partial = false, failed = false, empty = false, mixedGitCoverage = false) {
   const projects = ['alpha', 'beta'].map(id => ({ ...fixtureProjects.projects[0], id, displayName: id === 'alpha' ? 'Alpha' : 'Beta' }))
   const requests: URL[] = []
   await page.route('**/api/**', async route => {
@@ -713,7 +713,7 @@ async function allGreensFixture(page: import('@playwright/test').Page, partial =
       '/api/dashboard-state': { schemaVersion: 2, projects: [], projectErrors: [], context },
       '/api/machine': {},
       '/api/preset-history': { schemaVersion: 2, context, projects: visible.map(project => ({ projectId: project.id, projectName: project.displayName, resolved: true, declaredCount: 1 })), projectErrors: errors, coverage: {}, presets: visible.map(project => ({ projectId: project.id, projectName: project.displayName, preset: 'full', lastGreenCanonical: { ticketId: 'shared-ticket', status: 'passed', headSha: 'abcdef123456', branch: 'dev', finishedAt: '2026-09-29T10:00:00Z' } })) },
-      '/api/remote-slots': { schemaVersion: 2, context, projects: visible.map(project => ({ projectId: project.id, projectName: project.displayName, catalog: 'linked', source, coverage: { declaredPresets: 1, greenPresets: 1, withoutTagPresets: [], invalidPayloads: [] } })), projectErrors: errors, greens: visible.map(project => ({ projectId: project.id, projectName: project.displayName, origin: 'git', preset: 'full', ticketId: 'shared-ticket', jobAvailable: false, status: 'passed', headSha: 'abcdef123456', commitSha: 'abcdef123456', baseSha: null, branch: 'dev', finishedAt: '2026-09-29T10:00:00Z', publishedAt: '2026-09-29T10:00:00Z', durationMs: 1000, ref: 'refs/green/full' })) },
+      '/api/remote-slots': { schemaVersion: 2, context, projects: visible.map(project => ({ projectId: project.id, projectName: project.displayName, catalog: 'linked', source: { ...source, stale: mixedGitCoverage && project.id === 'beta' }, coverage: { declaredPresets: mixedGitCoverage ? 2 : 1, greenPresets: 1, withoutTagPresets: mixedGitCoverage && project.id === 'alpha' ? ['full'] : [], invalidPayloads: mixedGitCoverage && project.id === 'beta' ? [{ preset: 'full', reason: 'payload-exit-not-green' }] : [] } })), projectErrors: errors, greens: visible.map(project => ({ projectId: project.id, projectName: project.displayName, origin: 'git', preset: mixedGitCoverage ? 'smoke' : 'full', ticketId: 'shared-ticket', jobAvailable: false, status: 'passed', headSha: 'abcdef123456', commitSha: 'abcdef123456', baseSha: null, branch: 'dev', finishedAt: '2026-09-29T10:00:00Z', publishedAt: '2026-09-29T10:00:00Z', durationMs: 1000, ref: mixedGitCoverage ? 'refs/green/smoke' : 'refs/green/full' })) },
     }
     await route.fulfill({ json: data[url.pathname] ?? {} })
   })
@@ -809,4 +809,36 @@ test('all greens preserve machine data when the Git request fails', async ({ pag
   await expect(history.getByText('Alpha', { exact: true })).toBeVisible()
   await expect(history.getByText('Beta', { exact: true })).toBeVisible()
   await expect(history).toContainText('Git indisponível: Espelho offline')
+})
+
+test('all greens explain stale and invalid Git coverage beside valid greens in both groupings', async ({ page }) => {
+  const requests = await allGreensFixture(page, false, false, false, true)
+  const history = page.getByRole('region', { name: 'Histórico', exact: true })
+  const description = history.locator('[data-slot="card-description"]')
+  for (const grouping of ['Por preset', 'Por commit']) {
+    await history.getByRole('combobox', { name: 'Agrupamento do histórico' }).click()
+    await page.getByRole('option', { name: grouping, exact: true }).click()
+    for (const origin of ['Git', 'Máquina e Git', 'Máquina']) {
+      await history.getByRole('combobox', { name: 'Origem', exact: true }).click()
+      await page.getByRole('option', { name: origin, exact: true }).click()
+      const hasGit = origin !== 'Máquina'
+      if (hasGit) {
+        await expect(description).toContainText(/Git · Beta:.*espelho.*desatualizado/i)
+        await expect(description).toContainText(/Git · Beta.*full.*inválido/i)
+      } else {
+        await expect(description).not.toContainText(/desatualizado|inválido/i)
+      }
+      const rows = history.getByRole('row')
+      await expect(rows).toHaveCount(grouping === 'Por preset' && origin === 'Máquina e Git' ? 5 : 3)
+      for (const project of ['Alpha', 'Beta']) {
+        const projectRows = rows.filter({ has: page.getByText(project, { exact: true }) })
+        await expect(projectRows).toHaveCount(grouping === 'Por preset' && origin === 'Máquina e Git' ? 2 : 1)
+        if (grouping === 'Por preset') {
+          await expect(projectRows.filter({ hasText: 'smoke' })).toHaveCount(hasGit ? 1 : 0)
+          await expect(projectRows.filter({ hasText: 'full' })).toHaveCount(origin === 'Git' ? 0 : 1)
+        }
+      }
+    }
+  }
+  expect(requests.every(url => url.searchParams.get('context') === 'all' && !url.searchParams.has('projectId'))).toBe(true)
 })

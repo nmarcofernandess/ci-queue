@@ -881,8 +881,15 @@ function HistoryPanel({
       ? `Git indisponível: ${remote.error.message}` : null,
     ...projectNotes,
     ...(needsGit && remote.data && "projects" in remote.data
-      ? remote.data.projects.flatMap(project => project.source?.reason
-        ? [`Git · ${project.projectName}: ${project.source.reason.message}`] : []) : []),
+      ? remote.data.projects.flatMap(project => [
+        project.source?.reason
+          ? `Git · ${project.projectName}: ${project.source.reason.message}` : null,
+        project.source?.stale
+          ? `Git · ${project.projectName}: espelho desatualizado; os verdes refletem a última leitura local.` : null,
+        ...(project.coverage?.invalidPayloads.map(payload =>
+          `Git · ${project.projectName} · ${payload.preset ?? "Preset não identificado"}: payload publicado inválido; último verde omitido.`
+        ) ?? []),
+      ]) : []),
   ].filter((note): note is string => Boolean(note))
   const greenDescription = [
     filters.grouping === "preset"
