@@ -263,6 +263,8 @@ class ProjectScopeHttpTests(unittest.TestCase):
         self.assertEqual({item["projectId"] for item in payload["projects"]}, {"alpha", "beta"})
         self.assertEqual({item["projectName"] for item in payload["projects"]}, {"Alpha", "Beta"})
         by_project = {item["projectId"]: item for item in payload["projects"]}
+        self.assertEqual(by_project["alpha"]["catalog"], "linked")
+        self.assertEqual(by_project["beta"]["catalog"], "linked")
         self.assertEqual(by_project["alpha"]["meta"]["name"], "Alpha goal")
         self.assertEqual(by_project["beta"]["meta"]["name"], "Beta goal")
         self.assertEqual(by_project["alpha"]["pending"][0]["reason"], "Alpha pending")

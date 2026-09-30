@@ -131,7 +131,12 @@ def _decorated(state, state_root, config, project_id=None, *, catalog=None,
                 "catalog": catalog or "unlinked",
             }
         return result
-    result = {**state, "projectId": config.project_id, "presets": sorted(config.presets)}
+    result = {
+        **state,
+        "projectId": config.project_id,
+        "presets": sorted(config.presets),
+        "catalog": catalog or "linked",
+    }
     pending, pending_error = (
         read_pending_advisories_snapshot(
             state_root, config, ident, plan,
@@ -211,6 +216,7 @@ def read_dashboard_state_all(state_root, projects):
                     plan=plan,
                     plan_error=plan_error,
                 ),
+                "catalog": project.binding_state,
                 "projectName": project.display_name,
             })
         except (OSError, ValueError) as error:

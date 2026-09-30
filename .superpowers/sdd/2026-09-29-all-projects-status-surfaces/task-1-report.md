@@ -64,3 +64,41 @@ Os testes HTTP precisaram de permissão para abrir um servidor efêmero em loopb
 - A inspeção do diff confirmou que a agregação é somente leitura e que a validação canônica continua usando a receita do projeto dono. Worker, runner, fila, ship e política de archive/restore não foram alterados.
 - Não houve JSX nesta tarefa; a skill `ci-queue-shadcn` foi carregada antes de editar `ui/src`, e seu fluxo de composição visual não foi necessário para mudanças de tipos/API.
 - Commit: `feat(api): aggregate status state across projects`.
+
+## Fix round 1/5 — findings I1 e I2
+
+Base da correção: `50392cd93555bc2a2bd5209b55861b2897243d8f`.
+
+- **I1:** Status card e drawer agora distinguem `checks: null` de `checks: []`. Quando o catálogo não está disponível, exibem “Checks indisponíveis: não há catálogo utilizável para calcular o progresso.” e omitem contagem, lista e barra de progresso. A lista vazia continua com seu estado sem requisitos.
+- **I2:** cada item agregado agora contém `catalog: project.binding_state`; a resposta de projeto também declara o valor. O teste HTTP confirma `linked` para Alpha e Beta, além de conservar a asserção `unlinked` do cenário sem catálogo.
+- A recuperação e seleção de composição da Task 0 foram reutilizadas: `Card` com conteúdo lateral e `DetailDrawer` existente. A mudança só adapta o texto e os dados do estado; não cria composição ou componente local.
+
+**RED — novo assert para I2:**
+
+```bash
+python3 -m unittest tests.backend.test_project_scope.ProjectScopeHttpTests.test_dashboard_state_all_aggregates_active_projects_and_excludes_archived
+```
+
+Antes da correção, falhou no novo assert com `KeyError: 'catalog'` para Alpha vinculado.
+
+**GREEN — backend HTTP focal:**
+
+```bash
+python3 -m unittest tests.backend.test_project_scope.ProjectScopeHttpTests.test_dashboard_state_all_aggregates_active_projects_and_excludes_archived tests.backend.test_project_scope.ProjectScopeHttpTests.test_dashboard_state_all_keeps_linked_project_when_another_catalog_is_unavailable
+```
+
+Resultado: `Ran 2 tests ... OK`; ligados retornam `linked`, o projeto desvinculado continua presente com checks nulos, e projeto arquivado permanece ausente.
+
+**Compilação e checks UI para I1:**
+
+```bash
+./node_modules/.bin/tsc --noEmit -p tsconfig.app.json
+npm run lint
+npm run build
+```
+
+`tsc` da aplicação passou sem diagnósticos, cobrindo os nove acessos que haviam falhado com TS18047. ESLint passou. Build passou (`2712 modules transformed`, `✓ built in 3.10s`); Vite manteve o aviso existente de chunk JavaScript acima de 500 kB após minificação. O script de typecheck do projeto não foi alterado.
+
+`git diff --check` também passou. Não executei browser/E2E: a correção é uma ramificação de renderização para um valor já tipado, e a compilação real, lint/build e o contrato HTTP observam os dois findings; o estado visual factual não precisa de outro harness nesta fix wave.
+
+Commit da fix wave: `fix(ui): preserve unavailable dashboard checks`.

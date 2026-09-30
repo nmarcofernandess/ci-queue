@@ -254,8 +254,8 @@ function StatusStateCards({
   const pending = dashboard.data?.pending ?? []
   const pendingError = dashboard.data?.pendingError
   const observed =
-    meta?.checks.filter((check) => check.status === "passed").length ?? 0
-  const total = meta?.checks.length ?? 0
+    meta?.checks?.filter((check) => check.status === "passed").length ?? null
+  const total = meta?.checks?.length ?? null
 
   return (
     <>
@@ -278,12 +278,16 @@ function StatusStateCards({
                   {meta.description}
                 </p>
               ) : null}
-              {total ? (
+              {meta.checks === null ? (
+                <p className="text-sm text-muted-foreground">
+                  Checks indisponíveis: não há catálogo utilizável para calcular o progresso.
+                </p>
+              ) : total ? (
                 <div className="flex flex-col gap-2">
                   <p className="text-sm text-muted-foreground">
-                    {observed} de {total} requisitos atendidos
+                    {observed ?? 0} de {total} requisitos atendidos
                   </p>
-                  <Progress value={(observed / total) * 100} />
+                  <Progress value={((observed ?? 0) / total) * 100} />
                   {meta.candidateSha ? (
                     <p className="text-sm text-muted-foreground">
                       Candidato{" "}

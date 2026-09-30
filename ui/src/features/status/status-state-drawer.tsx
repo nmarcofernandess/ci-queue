@@ -311,10 +311,11 @@ function MetaRead({
     )
   }
 
-  const total = meta.checks.length
-  const passed = meta.checks.filter((check) => check.status === "passed").length
+  const total = meta.checks?.length ?? null
+  const passed =
+    meta.checks?.filter((check) => check.status === "passed").length ?? null
   const allPassedOnDifferentRevisions =
-    total > 0 && passed === total && !meta.candidateSha
+    total !== null && passed !== null && total > 0 && passed === total && !meta.candidateSha
 
   return (
     <div className="flex flex-col gap-5">
@@ -332,12 +333,18 @@ function MetaRead({
           Os verdes atuais ainda não provam uma única revisão comum.
         </p>
       ) : null}
+      {meta.checks === null ? (
+        <p className="text-sm text-muted-foreground">
+          Checks indisponíveis: não há catálogo utilizável para calcular o progresso.
+        </p>
+      ) : null}
       {meta.description ||
       meta.candidateSha ||
-      allPassedOnDifferentRevisions ? (
+      allPassedOnDifferentRevisions ||
+      meta.checks === null ? (
         <Separator />
       ) : null}
-      {meta.checks.length ? (
+      {meta.checks === null ? null : meta.checks.length ? (
         <ItemGroup>
           {meta.checks.map((check) => (
             <Item key={check.preset} variant="outline" size="sm">
@@ -497,8 +504,8 @@ export function StatusStateDrawer({
   const [metaFormValid, setMetaFormValid] = React.useState(false)
   const unavailable = Boolean(session.error || !session.data)
   const metaPassed =
-    state.meta?.checks.filter((check) => check.status === "passed").length ?? 0
-  const metaTotal = state.meta?.checks.length ?? 0
+    state.meta?.checks?.filter((check) => check.status === "passed").length ?? null
+  const metaTotal = state.meta?.checks?.length ?? null
   const metaFormId = "dashboard-meta-form"
 
   const startMetaEdit = () => {
@@ -543,15 +550,17 @@ export function StatusStateDrawer({
         description={
           surface === "meta"
             ? state.meta
-              ? `${metaPassed} de ${metaTotal} requisitos atendidos`
+              ? metaTotal === null || metaPassed === null
+                ? "Checks indisponíveis: não há catálogo utilizável para calcular o progresso."
+                : `${metaPassed} de ${metaTotal} requisitos atendidos`
               : "Objetivo e verdes canônicos necessários."
             : `${state.pending.length} ${state.pending.length === 1 ? "recomendação" : "recomendações"} ainda sem verde posterior.`
         }
         closeLabel="Fechar"
       >
-        {surface === "meta" && state.meta ? (
+        {surface === "meta" && state.meta && metaTotal !== null && metaPassed !== null ? (
           <Progress
-            value={metaTotal ? (metaPassed / metaTotal) * 100 : 0}
+            value={metaTotal > 0 ? (metaPassed / metaTotal) * 100 : 0}
             aria-label={`${metaPassed} de ${metaTotal} requisitos atendidos`}
           />
         ) : null}

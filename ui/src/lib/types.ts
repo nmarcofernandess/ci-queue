@@ -387,6 +387,7 @@ export type DashboardPending = {
 export type DashboardState = {
   revision: number
   projectId: string
+  catalog: ProjectCatalogState
   presets: string[]
   meta: DashboardMeta | null
   pending: DashboardPending[]
