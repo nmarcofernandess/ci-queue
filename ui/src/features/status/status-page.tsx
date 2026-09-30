@@ -147,6 +147,7 @@ function CurrentExecution({
                 <>
                   {current.projectName ? (
                     <ProjectChip
+                      mode="inline"
                       name={current.projectName}
                       facts={projectChipFacts(current)}
                     />

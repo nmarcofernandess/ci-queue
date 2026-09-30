@@ -559,6 +559,7 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
               ) : null}
               {job.data.projectName ? (
                 <ProjectChip
+                  mode="inline"
                   name={job.data.projectName}
                   facts={projectChipFacts(job.data)}
                 />

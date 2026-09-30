@@ -285,6 +285,7 @@ function WorktreeDrawer({
             <>
               {detail.data.projectName ? (
                 <ProjectChip
+                  mode="inline"
                   name={detail.data.projectName}
                   facts={projectChipFacts({
                     branch: detail.data.branch,
@@ -428,6 +429,7 @@ function WorktreeDataTable({
                 badge={
                   showProjectChip && row.original.projectName ? (
                     <ProjectChip
+                      mode="inline"
                       name={row.original.projectName}
                       facts={projectChipFacts({
                         branch: row.original.branch,

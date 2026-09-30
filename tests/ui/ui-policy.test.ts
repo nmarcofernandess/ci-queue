@@ -48,4 +48,17 @@ describe('UI composition policy through installed ESLint parser', () => {
     expect(lint('export function Case() { return <div className="[&_svg]:size-12" /> }', 'src/features/shared/status-indicator.tsx')).toEqual([])
     expect(lint('export function Case() { return <div className="size-12 text-sm select-text!" /> }')).toEqual([])
   }, 30_000)
+  it.each([
+    '<ProjectChip name="A" />',
+    '<ProjectChip name="A" mode={mode} />',
+    '<ProjectChip name="A" mode={"inline"} />',
+    '<ProjectChip name="A" mode />',
+    '<ProjectChip name="A" mode="inline" className="max-w-full" />',
+    '<ProjectChip name="A" mode="compact-context" className={classes} />',
+  ])('rejects ProjectChip presentation forks: %s', chip => {
+    expect(lint(`export function Case() { return ${chip} }`).some(message => message.ruleId === 'no-restricted-syntax')).toBe(true)
+  }, 30_000)
+  it.each(['inline', 'compact-context'])('allows explicit ProjectChip mode %s', mode => {
+    expect(lint(`export function Case() { return <ProjectChip name="A" mode="${mode}" /> }`)).toEqual([])
+  }, 30_000)
 })

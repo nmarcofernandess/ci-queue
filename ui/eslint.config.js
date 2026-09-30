@@ -22,12 +22,17 @@ const descendantSvgSizeRule = {
   selector: "JSXAttribute[name.name='className'] :matches(Literal[value=/svg[^ ]*:(size|w|h|min-w|min-h|max-w|max-h)-/], TemplateElement[value.raw=/svg[^ ]*:(size|w|h|min-w|min-h|max-w|max-h)-/])",
   message: 'Não redimensione SVG descendente na feature; use a apresentação do componente dono.',
 }
+const projectChipRules = [
+  { selector: "JSXOpeningElement[name.name='ProjectChip']:not(:has(JSXAttribute[name.name='mode']))", message: 'ProjectChip exige um mode literal: inline ou compact-context.' },
+  { selector: "JSXOpeningElement[name.name='ProjectChip'] > JSXAttribute[name.name='mode'][value.type!='Literal']", message: 'O modo de ProjectChip deve ser literal; não passe uma expressão dinâmica.' },
+  { selector: "JSXOpeningElement[name.name='ProjectChip'] > JSXAttribute[name.name='className']", message: 'ProjectChip é dono da apresentação; não passe className no consumidor.' },
+]
 const uiPolicyBlocks = [
   {
     files: ['src/**/*.{ts,tsx}'], ignores: ['src/components/ui/**'],
     rules: {
       'no-restricted-imports': ['error', { patterns: rawPrimitivePatterns }],
-      'no-restricted-syntax': ['error', ...iconPositionRules],
+      'no-restricted-syntax': ['error', ...iconPositionRules, ...projectChipRules],
     },
   },
   {
@@ -38,7 +43,7 @@ const uiPolicyBlocks = [
   {
     files: ['src/features/**/*.{ts,tsx}'],
     ignores: ['src/features/shared/entity-identity.tsx', 'src/features/shared/status-indicator.tsx', 'src/features/shared/presentation.ts'],
-    rules: { 'no-restricted-syntax': ['error', ...iconPositionRules, descendantSvgSizeRule] },
+    rules: { 'no-restricted-syntax': ['error', ...iconPositionRules, ...projectChipRules, descendantSvgSizeRule] },
   },
 ]
 

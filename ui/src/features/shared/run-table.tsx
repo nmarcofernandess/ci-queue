@@ -125,7 +125,11 @@ function identityBadge(
         </Tooltip>
       ) : null}
       {chipVisible && job.projectName ? (
-        <ProjectChip name={job.projectName} facts={projectChipFacts(job)} />
+        <ProjectChip
+          mode="inline"
+          name={job.projectName}
+          facts={projectChipFacts(job)}
+        />
       ) : null}
       {variant}
     </>
