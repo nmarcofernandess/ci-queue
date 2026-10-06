@@ -46,6 +46,14 @@ Use `install` na instalação inicial e `update` na atualização conforme o ins
 
 Worker recebe state e executa tickets completos; dashboard recebe catálogo de bootstrap, UI, manifest e state. A interface instalada é estática servida pela API, não o Vite de desenvolvimento.
 
+## Linux e workers Cloud
+
+A cópia/registro de uma release sem `--activate` é distinta da ativação de serviço. O instalador atual gera envelopes LaunchAgent para macOS; não use `launchctl` nem prometa serviço persistente no Linux. No host Linux, confira release, Node/Python, state e ownership antes de escolher a execução manual documentada pela CLI. Não inicie um segundo worker no mesmo state. Restauração de filesystem não preserva processos ou conexões: um worker/API necessário à tarefa precisa ser reiniciado pelo fluxo autorizado do host.
+
+Instalar o executor não instala dependências do consumidor, concede autenticação GitHub, autorização Vercel ou saída TCP para Postgres. A receita escolhida continua exigindo seus próprios recursos, credenciais e permissões de execução. Acesso HTTP/HTTPS por proxy não demonstra transporte TCP de banco. Um worker Cloud, por si só, não garante Full/E2E; confira os requisitos da receita e a capacidade efetiva do host antes de enfileirar.
+
+Para DietFlow, preparação e ciclo de salvar/publicar/retomar pertencem ao [handbook de runtime](https://github.com/dietflowoficial/Dietflow-app/blob/dev/docs/harness/RUNTIME-PROFILES.md); capacidades e limites observados pertencem ao [mapa de portabilidade](https://github.com/dietflowoficial/Dietflow-app/blob/dev/docs/harness/MAPA-CLOUD-PORTABILIDADE.md). A instalação da Queue e uma execução direta do consumidor são evidências distintas.
+
 ## Ignição e login: o que o código garante e o que verificar
 
 O envelope do worker usa QueueDirectories para jobs e executa sob demanda. Fila vazia sem PID de worker pode ser normal. O dashboard tem envelope separado. Não iniciar outro worker porque não há processo idle.

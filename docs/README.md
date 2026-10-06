@@ -11,6 +11,7 @@ Reconciliado em 19/09/2026 a partir de `dev` em `5a9268e41e27644362dfd9e5cd4e163
 | Release, ativação e recuperação | [INSTALL](INSTALL.md) | Operação da máquina e limites de verificação |
 | Node por job | [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md) | Binding opt-in; observado não é sandbox |
 | UI do produto | [PRODUCT-CONTRACT](ui/PRODUCT-CONTRACT.md), [COMPOSITION-LEDGER](ui/COMPOSITION-LEDGER.md) | Conteúdo e composição da aplicação, não do manual |
+| DietFlow runtime e capacidades Cloud | [Handbook](https://github.com/dietflowoficial/Dietflow-app/blob/dev/docs/harness/RUNTIME-PROFILES.md), [mapa](https://github.com/dietflowoficial/Dietflow-app/blob/dev/docs/harness/MAPA-CLOUD-PORTABILIDADE.md) | Preparação, publicação, capacidades observadas e limites do host |
 | DietFlow consumidor | [CI-QUEUE-CONSUMIDOR em dev](https://github.com/dietflowoficial/Dietflow-app/blob/dev/docs/ci/CI-QUEUE-CONSUMIDOR.md) | Adaptação, política e comandos próprios |
 
 ## Não duplicar contratos
