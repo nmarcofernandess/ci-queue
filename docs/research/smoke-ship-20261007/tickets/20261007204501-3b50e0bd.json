@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 3,
+  "id": "20261007204501-3b50e0bd",
+  "preset": "smoketest-ship",
+  "status": "passed",
+  "exitCode": 0,
+  "failureReason": null,
+  "headSha": "6421c4630ac54972b7aaee63c3a80a58513d5d9b",
+  "branch": "codex/exames-r2-r3-20261007",
+  "command": "npm run ci:smoketest",
+  "argv": [
+    "npm",
+    "run",
+    "ci:smoketest"
+  ],
+  "flags": {
+    "requireCleanTree": true,
+    "fetchBase": "origin/dev",
+    "requireGitStability": true,
+    "pinHeadSha": true,
+    "abortOnStaleBase": true,
+    "progressEnabled": true
+  },
+  "baseRef": "origin/dev",
+  "createdAt": "2026-10-07T20:45:01.683Z",
+  "startedAt": "2026-10-07T20:45:02.288Z",
+  "finishedAt": "2026-10-07T21:04:17.745Z",
+  "durationMs": 1155457,
+  "preflight": {
+    "branch": "codex/exames-r2-r3-20261007",
+    "headSha": "6421c4630ac54972b7aaee63c3a80a58513d5d9b",
+    "baseSha": "93fc3149e0f4dd9c3812fce6a34c918a272772ef",
+    "statusShort": ""
+  },
+  "postflight": {
+    "branch": "codex/exames-r2-r3-20261007",
+    "headSha": "6421c4630ac54972b7aaee63c3a80a58513d5d9b",
+    "baseSha": "93fc3149e0f4dd9c3812fce6a34c918a272772ef",
+    "statusShort": ""
+  },
+  "progress": {
+    "schema": 1,
+    "updatedAt": "2026-10-07T21:04:17.745Z",
+    "nodes": [
+      {
+        "id": "static",
+        "parentId": null,
+        "kind": "stage",
+        "status": "passed",
+        "label": "Static",
+        "durationMs": 333000,
+        "durationSource": "emitter"
+      },
+      {
+        "id": "jest",
+        "parentId": null,
+        "kind": "stage",
+        "status": "passed",
+        "label": "Jest",
+        "durationMs": 799000,
+        "durationSource": "emitter"
+      },
+      {
+        "id": "review",
+        "parentId": null,
+        "kind": "stage",
+        "status": "passed",
+        "label": "Review",
+        "durationMs": 798606,
+        "durationSource": "collector"
+      },
+      {
+        "id": "artifacts",
+        "parentId": null,
+        "kind": "artifact",
+        "status": "passed",
+        "label": "Artefatos",
+        "durationMs": 6,
+        "durationSource": "collector"
+      }
+    ]
+  },
+  "runtime": {
+    "capability": "node-runtime-guard-v1",
+    "coverage": "guarded-node-processes",
+    "state": "verified",
+    "bindingSource": "project-registry",
+    "environmentPolicy": "reconstructed",
+    "nodeVersion": "24.20.0"
+  }
+}

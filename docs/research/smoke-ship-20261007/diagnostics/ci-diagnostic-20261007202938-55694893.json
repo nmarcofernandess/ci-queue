@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-07T20:44:40.069Z",
+  "sources": {
+    "diagnostic": {
+      "schemaVersion": 1,
+      "jobId": "20261007202938-55694893",
+      "available": true,
+      "ticket": {
+        "id": "20261007202938-55694893",
+        "preset": "smoketest-ship",
+        "status": "failed",
+        "exitCode": 1,
+        "failureReason": "processo terminou com código 1",
+        "headSha": "b6e6d9985c2b3950dbdd359ba456383dbe44dd94",
+        "branch": "codex/exames-r2-r3-20261007",
+        "durationMs": 158932
+      },
+      "progress": {
+        "schema": 1,
+        "updatedAt": "2026-10-07T20:32:18.902Z",
+        "nodes": [
+          {
+            "id": "static",
+            "parentId": null,
+            "kind": "stage",
+            "status": "failed",
+            "label": "Static",
+            "durationMs": 152000,
+            "durationSource": "emitter"
+          },
+          {
+            "id": "jest",
+            "parentId": null,
+            "kind": "stage",
+            "status": "pending",
+            "label": "Jest"
+          },
+          {
+            "id": "artifacts",
+            "parentId": null,
+            "kind": "artifact",
+            "status": "passed",
+            "label": "Artefatos",
+            "durationMs": 7,
+            "durationSource": "collector"
+          }
+        ]
+      },
+      "resources": {
+        "observations": [
+          {
+            "schemaVersion": 1,
+            "observedAt": "2026-10-07T20:29:45.569Z",
+            "source": "host",
+            "capture": "start",
+            "cwd": "<HOME>/.codex/worktrees/da55/dietflow-app",
+            "jobId": "20261007202938-55694893",
+            "coverage": "complete",
+            "association": "exact",
+            "items": [
+              {
+                "pid": 40700,
+                "ppid": 40202,
+                "pgid": 40700,
+                "rssBytes": 32768,
+                "command": "sh",
+                "startedAt": "Wed Oct  7 17:29:45 2026",
+                "cwd": "<HOME>/.codex/worktrees/da55/dietflow-app",
+                "source": "host"
+              }
+            ]
+          },
+          {
+            "schemaVersion": 1,
+            "observedAt": "2026-10-07T20:32:18.893Z",
+            "source": "host",
+            "capture": "end",
+            "cwd": "<HOME>/.codex/worktrees/da55/dietflow-app",
+            "jobId": "20261007202938-55694893",
+            "coverage": "unavailable",
+            "association": "unknown",
+            "items": [],
+            "reason": "process-exited-before-observation"
+          }
+        ],
+        "coverage": "reported"
+      },
+      "coverage": {
+        "ticket": "complete",
+        "logs": {
+          "available": true,
+          "sourceBytes": 3294,
+          "capturedBytes": 0,
+          "complete": false,
+          "preserved": "metadata"
+        },
+        "progress": "complete"
+      },
+      "context": {
+        "kind": "all"
+      }
+    },
+    "logExport": {
+      "schemaVersion": 1,
+      "jobId": "20261007202938-55694893",
+      "content": "[2026-10-07T20:29:39.791Z] queued 20261007202938-55694893 smoketest-ship codex/exames-r2-r3-20261007 b6e6d9985c2b3950dbdd359ba456383dbe44dd94\n[2026-10-07T20:29:45.564Z] running 20261007202938-55694893 npm run ci:smoketest\n[runtime] <HOME>/.local/share/dietflow-runtime/node/v24.20.0-darwin-arm64/bin/node v24.20.0; coverage=guarded-node-processes\n\n> DietFlow@0.0.1 ci:smoketest\n> bash scripts/ci/smoketest-local.sh\n\n@@local-ci-progress\t1\tnode\tstatic\t-\tstage\tpending\t-\tStatic\n@@local-ci-progress\t1\tnode\tjest\t-\tstage\tpending\t-\tJest\n==> Static gates\n@@local-ci-progress\t1\tnode\tstatic\t-\tstage\trunning\t-\tStatic\n\n> DietFlow@0.0.1 ci:local\n> bash scripts/ci-local.sh\n\n\nCI local — static\nBypass: git push --no-verify\n\n  prisma generate                         ✓\n  fumadocs .source                        ✓\n  check:use-server                        ✓\n  check:policy-write-boundaries           ✓\n  check:admin-relation-authority          ✓\n  check:zod-schema-sync                   ✓\n  check:architecture                      ✓\n  check:content-writers                   ✓\n  check:content-editor-payload            ✓\n  check:content-resource-boundaries       ✓\n  check:golden-product-shape              ✓\n  check:golden-fresh                      ✓\n  check:clinical-item-header              ✓\n  check:unit-favorite-writers             ✓\n  check:record-date-derivation            ✓\n  check:module-help-docs                  ✓\n  check:favorites-kinds                   ✓\n  check:import-surfaces                   ✓\n  check:field-adornment-contract          ✓\n  check:numeric-input-ratchet             ✓\n  check:field-identity-ratchet            ✓\n  check:context-yaml                      ✓\n  check:e2e-trigger                       ✓\n  check:fixtures                          ✓\n  check:showcase                          ✓\n  check:autofill-policy                   ✓\n  check:patient-proof-routes              ✓\n  check:proof-index-fresh                 ✓\n  check:clinical-readonly-preview-boundary✓\n  check:snapshot-sync                     ✓\n  check:snapshot-runtime                  ✓\n  check:catalog-changes                   ✓\n  check:seed-tag                          ✓\n  check:flowid-contract                   ✓\n  check:e2e-target-contract               ✓\n  check:regression-verdict-provenance     ✓\n  check:vercel-branch-policy              ✓\n  check:a4-css-sync                       ✓\n  check:a4-contract                       ✓\n  check:no-inline-search-input            ✓\n  check:single-favorite-toast             ✓\n  check:content-visibility                ✓\n  check:hard-domain-writers               ✓\n  check:lifecycle-consumers               ✗\n\n\n> DietFlow@0.0.1 check:lifecycle-consumers\n> tsx scripts/check-lifecycle-consumers.ts\n\ncheck:lifecycle-consumers FAILED\n  - censo − registry (2): food:read:prisma/seeds/fixtures/foods-recipes.ts#seedCustomRecipes@1, recipe:write:prisma/seeds/fixtures/foods-recipes.ts#seedCustomRecipes@1\n  - registry − censo (2): food:read:prisma/seeds/fixtures/seed.ts#seedCustomRecipes@1, recipe:write:prisma/seeds/fixtures/seed.ts#seedCustomRecipes@1\n\nFalhou em: check:lifecycle-consumers\n@@local-ci-progress\t1\tnode\tstatic\t-\tstage\tfailed\t152000\tStatic\n",
+      "coverage": {
+        "available": true,
+        "sourceBytes": 3294,
+        "capturedBytes": 3294,
+        "complete": true,
+        "preserved": "complete"
+      },
+      "context": {
+        "kind": "all"
+      }
+    }
+  }
+}

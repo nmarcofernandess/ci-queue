@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 3,
+  "id": "20261007203453-d2ebe2b7",
+  "preset": "smoketest-ship",
+  "status": "failed",
+  "exitCode": 1,
+  "failureReason": "processo terminou com código 1",
+  "headSha": "9f914e7218b6925200dfdd00b07480cab993d899",
+  "branch": "codex/exames-r2-r3-20261007",
+  "command": "npm run ci:smoketest",
+  "argv": [
+    "npm",
+    "run",
+    "ci:smoketest"
+  ],
+  "flags": {
+    "requireCleanTree": true,
+    "fetchBase": "origin/dev",
+    "requireGitStability": true,
+    "pinHeadSha": true,
+    "abortOnStaleBase": true,
+    "progressEnabled": true
+  },
+  "baseRef": "origin/dev",
+  "createdAt": "2026-10-07T20:34:53.720Z",
+  "startedAt": "2026-10-07T20:34:54.076Z",
+  "finishedAt": "2026-10-07T20:40:54.016Z",
+  "durationMs": 359940,
+  "preflight": {
+    "branch": "codex/exames-r2-r3-20261007",
+    "headSha": "9f914e7218b6925200dfdd00b07480cab993d899",
+    "baseSha": "93fc3149e0f4dd9c3812fce6a34c918a272772ef",
+    "statusShort": ""
+  },
+  "postflight": null,
+  "progress": {
+    "schema": 1,
+    "updatedAt": "2026-10-07T20:40:54.016Z",
+    "nodes": [
+      {
+        "id": "static",
+        "parentId": null,
+        "kind": "stage",
+        "status": "failed",
+        "label": "Static",
+        "durationMs": 356000,
+        "durationSource": "emitter"
+      },
+      {
+        "id": "jest",
+        "parentId": null,
+        "kind": "stage",
+        "status": "pending",
+        "label": "Jest"
+      },
+      {
+        "id": "artifacts",
+        "parentId": null,
+        "kind": "artifact",
+        "status": "passed",
+        "label": "Artefatos",
+        "durationMs": 11,
+        "durationSource": "collector"
+      }
+    ]
+  },
+  "runtime": {
+    "capability": "node-runtime-guard-v1",
+    "coverage": "guarded-node-processes",
+    "state": "verified",
+    "bindingSource": "project-registry",
+    "environmentPolicy": "reconstructed",
+    "nodeVersion": "24.20.0"
+  }
+}

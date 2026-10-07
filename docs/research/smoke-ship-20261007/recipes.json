@@ -1,0 +1,981 @@
+{
+  "baselineCommit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+  "catalog": {
+    "schemaVersion": 1,
+    "project": {
+      "id": "da61d8ae-19f9-4dce-bafb-02271a6f1601",
+      "name": "DietFlow"
+    },
+    "execution": {
+      "executor": "queue",
+      "queue": {
+        "command": "ci-queue"
+      }
+    },
+    "repository": {
+      "path": ".",
+      "baseRef": "origin/dev"
+    },
+    "remoteSlotsPath": "~/.local/state/local-ci/queue/state/remote-slots.json",
+    "presets": {
+      "static": {
+        "progress": true,
+        "artifacts": [
+          "artifacts/ci/queue-current"
+        ],
+        "argv": [
+          "npm",
+          "run",
+          "ci:local"
+        ]
+      },
+      "review": {
+        "progress": true,
+        "artifacts": [
+          "artifacts/ci/queue-current"
+        ],
+        "note": "Diagnóstico de base...HEAD + staged/unstaged/untracked contra origin/dev local; git fetch origin dev atualiza a referência quando necessário. Aceita dirty e nunca é proof de ship. Tipo compartilhado exige static antes do commit.",
+        "argv": [
+          "npm",
+          "run",
+          "test:review",
+          "--",
+          "--base-ref",
+          "origin/dev"
+        ]
+      },
+      "responsividade": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "proof:responsividade",
+          "--",
+          "--all"
+        ],
+        "artifacts": [
+          "artifacts/responsividade"
+        ],
+        "note": "Focal opt-in de apresentação; fonte/URL explícita, seleção e terminal próprios. Não executa Full nem elege ship."
+      },
+      "runtime-probe": {
+        "note": "Identidade do Node efetivo. Nao e proof de ship.",
+        "argv": [
+          "node",
+          "-p",
+          "JSON.stringify({version:process.versions.node,execPath:process.execPath})"
+        ]
+      },
+      "smoketest": {
+        "progress": true,
+        "artifacts": [
+          "artifacts/ci/queue-current"
+        ],
+        "argv": [
+          "npm",
+          "run",
+          "ci:smoketest"
+        ]
+      },
+      "smoketest-ship": {
+        "progress": true,
+        "artifacts": [
+          "artifacts/ci/queue-current"
+        ],
+        "note": "Mesmo Smoke do preset comum, com identidade Git estável exigida para prova de ship.",
+        "argv": [
+          "npm",
+          "run",
+          "ci:smoketest"
+        ],
+        "requireCleanTree": true,
+        "fetchBase": "origin/dev",
+        "requireGitStability": true,
+        "pinHeadSha": true,
+        "abortOnStaleBase": true
+      },
+      "full": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:full",
+          "--",
+          "--with-flowui"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "e2e": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:e2e"
+        ]
+      },
+      "e2e-impact": {
+        "progress": true,
+        "note": "Seleção parcial por e2e/impact-groups.json; executa grupos completos e dependências numa única stack. Nunca equivale ao preset full.",
+        "argv": [
+          "npm",
+          "run",
+          "ci:e2e:impact"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "e2e-feedback": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "test:e2e:feedback"
+        ],
+        "artifacts": [
+          "artifacts/ci/queue-current"
+        ],
+        "note": "Feedback WIP sobre sessão local existente; execução direta ou supervisionada pela fila, nunca prova de ship."
+      },
+      "proof-modulo-calculo": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "proof:module-core",
+          "--",
+          "calculo"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-modulo-app": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "proof:module-core",
+          "--",
+          "app"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-modulo-anamnese": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "proof:module-core",
+          "--",
+          "anamnese"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-modulo-agenda": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "proof:module-core",
+          "--",
+          "agenda"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-modulo-documentos": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "proof:module-core",
+          "--",
+          "documentos"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-confianca-multissuperficie": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "proof:confianca",
+          "--"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-documentos-pdf-compare": {
+        "progress": true,
+        "note": "Diagnóstico serial shell/Chrome do único leaf de Documentos. Não publica pack, não satisfaz core 9/9 e não substitui proof-modulo-documentos.",
+        "argv": [
+          "npx",
+          "tsx",
+          "scripts/proof/compare-documentos-pdf.ts",
+          "--profiles-json",
+          "[\"shell-headless\",\"chrome-headless\"]"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-modulo-dieta": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "proof:module-core",
+          "--",
+          "dieta"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-modulo-perfil": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "proof:module-core",
+          "--",
+          "perfil"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-modulo-antropometria": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "proof:module-core",
+          "--",
+          "antropometria"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-modulo-comunicacao": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "proof:module-core",
+          "--",
+          "comunicacao"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-modulo-sistema": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "proof:module-core",
+          "--",
+          "sistema"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "save": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:save"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-care": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "proof:care"
+        ]
+      },
+      "receitas-medidas": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:receitas-medidas"
+        ]
+      },
+      "proof-receitas-medidas": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:proof:receitas-medidas"
+        ]
+      },
+      "regression": {
+        "progress": true,
+        "note": "Balde da pasta inteira: sem argumento varre as 57 specs de e2e/regression/**, incluindo a dívida legada da Spec 056. NÃO é o gatilho das specs de favoritos — essas têm preset próprio (c1-conformance, c2-conformance, ledger-concurrency, p7-selection-search-lab) e rodam sem este preset aqui. Project não é escopo: ver o bloco REGRESSION_SPECS em playwright.config.ts.",
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:regression"
+        ]
+      },
+      "c1-conformance": {
+        "progress": true,
+        "note": "Lista 4 arquivos de e2e/regression/clinical/favorites/ na linha de comando; E2E_PROJECT=regression é só runtime (Supabase local + workerUser). Não depende do preset regression.",
+        "argv": [
+          "npm",
+          "run",
+          "ci:105:c1-conformance"
+        ],
+        "requireCleanTree": true
+      },
+      "c2-conformance": {
+        "progress": true,
+        "note": "Lista cross-module-conformance.spec.ts na linha de comando; E2E_PROJECT=regression é só runtime. Não depende do preset regression.",
+        "argv": [
+          "npm",
+          "run",
+          "ci:105:c2-conformance"
+        ],
+        "requireCleanTree": true
+      },
+      "ledger-concurrency": {
+        "progress": true,
+        "note": "Lista template-usage-metric-concurrency.spec.ts na linha de comando; E2E_PROJECT=regression é só runtime. Não depende do preset regression.",
+        "argv": [
+          "npm",
+          "run",
+          "ci:105:ledger-concurrency"
+        ],
+        "requireCleanTree": true
+      },
+      "p7-selection-search-lab": {
+        "progress": true,
+        "note": "Lista selection-search-lab.spec.ts na linha de comando; E2E_PROJECT=regression é só runtime. Não depende do preset regression.",
+        "argv": [
+          "npm",
+          "run",
+          "ci:105:p7-selection-search-lab"
+        ],
+        "requireCleanTree": true
+      },
+      "clinical-readonly": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:clinical-readonly",
+          "--",
+          "--verify-existing"
+        ]
+      },
+      "clinical-readonly-f2-focal": {
+        "progress": true,
+        "argv": [
+          "bash",
+          "scripts/ci/clinical-readonly-campaign.sh",
+          "--focal"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "clinical-readonly-live": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:clinical-readonly-live"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "flowui": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:flowui"
+        ]
+      },
+      "admin-relation": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:admin-relation-proof"
+        ]
+      },
+      "export-atlas": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:export-atlas",
+          "--",
+          "--scope=all",
+          "--copy-mode=strict",
+          "--output-root=artifacts/export-v2-atlas/runs"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "export-atlas-focal": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:export-atlas",
+          "--",
+          "--scope=single",
+          "--copy-mode=strict",
+          "--only=single.anamnese-registro.adult,single.anamnese-evolucao.instrumento,single.documentos.professional",
+          "--output-root=artifacts/proofs/export-atlas-focal/runs",
+          "--focal-strict"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "export-atlas-calculo-bulk": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:export-atlas",
+          "--",
+          "--scope=bulk",
+          "--copy-mode=strict",
+          "--only=bulk.calculo.adult",
+          "--output-root=artifacts/proofs/export-atlas-focal/runs",
+          "--focal-strict",
+          "--focal-profile=calculo-bulk"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "export-atlas-care-routes": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:export-atlas",
+          "--",
+          "--scope=care",
+          "--copy-mode=strict",
+          "--only=care.evolucao.adult,care.evolucao.child,care.evolucao.gestation,care.anamnese.adult,care.anamnese.child,care.anamnese.gestation,care.gestacao.gestation,care.prescricao.adult,care.exam-pedido.adult,care.documentos.adult,care.exames.adult",
+          "--output-root=artifacts/proofs/export-atlas-focal/runs",
+          "--focal-strict",
+          "--focal-profile=care-routes"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "care-complete-focal": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:e2e",
+          "--",
+          "e2e/local/flows/miniapp/care-publication-sync.spec.ts",
+          "e2e/local/flows/miniapp/care-recipe-sync.spec.ts",
+          "e2e/local/flows/miniapp/care-session-visible-sync.spec.ts",
+          "e2e/local/flows/miniapp/care-agenda-plan-sync.spec.ts",
+          "e2e/local/flows/miniapp/care-login.spec.ts",
+          "e2e/local/flows/miniapp/care-exam-attachment-sync.spec.ts",
+          "e2e/local/flows/miniapp/care-export-security.spec.ts",
+          "e2e/local/flows/miniapp/care-exames-resultados.spec.ts",
+          "e2e/local/flows/miniapp/care-anamnese.spec.ts",
+          "e2e/local/flows/miniapp/care-evolucao.spec.ts",
+          "--project=local-stack-fast",
+          "--workers=1",
+          "--retries=0"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "care-downloads-focal": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:e2e",
+          "--",
+          "e2e/local/flows/miniapp/care-anamnese.spec.ts",
+          "e2e/local/flows/miniapp/care-publication-sync.spec.ts",
+          "e2e/local/flows/miniapp/care-evolucao.spec.ts",
+          "e2e/local/flows/miniapp/care-exames-resultados.spec.ts",
+          "e2e/local/flows/miniapp/care-export-security.spec.ts",
+          "--project=local-stack-fast",
+          "--workers=1",
+          "--retries=0"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "clinical-date-evolution": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:clinical-date-evolution"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "clinical-date-focal-anamnese": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:e2e",
+          "--",
+          "e2e/local/flows/miniapp/congruencia-data-status/anamnese.spec.ts",
+          "--project=local-stack-fast",
+          "--workers=1",
+          "--retries=0"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "clinical-date-focal-documentos": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:e2e",
+          "--",
+          "e2e/local/flows/miniapp/congruencia-data-status/documentos.spec.ts",
+          "--project=local-stack-fast",
+          "--workers=1",
+          "--retries=0"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "clinical-date-focal-calculo": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:e2e",
+          "--",
+          "e2e/local/flows/miniapp/congruencia-data-status/calculo.spec.ts",
+          "--project=local-stack-fast",
+          "--workers=1",
+          "--retries=0"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "agenda-plano-cadencia-focal": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:e2e",
+          "--",
+          "e2e/local/flows/miniapp/agenda-clinical-cycle.segment.spec.ts",
+          "--project=local-stack-fast",
+          "--workers=1",
+          "--retries=0"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "care-publication-focal": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:e2e",
+          "--",
+          "e2e/local/flows/miniapp/care-publication-sync.spec.ts",
+          "--project=local-stack-fast",
+          "--workers=1",
+          "--retries=0"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "care-recipe-snapshot-focal": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:e2e",
+          "--",
+          "e2e/local/flows/miniapp/care-recipe-sync.spec.ts",
+          "--project=local-stack-fast",
+          "--workers=1",
+          "--retries=0",
+          "--grep=receita live:|receita da dieta:"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "care-session-visible-focal": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:e2e",
+          "--",
+          "e2e/local/flows/miniapp/care-session-visible-sync.spec.ts",
+          "--project=local-stack-fast",
+          "--workers=1",
+          "--retries=0",
+          "--grep=Antropometria:|Anamnese:|EXAM_RESULT:"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "care-agenda-plan-focal": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:e2e",
+          "--",
+          "e2e/local/flows/miniapp/care-agenda-plan-sync.spec.ts",
+          "--project=local-stack-fast",
+          "--workers=1",
+          "--retries=0"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "care-login-focal": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:e2e",
+          "--",
+          "e2e/local/flows/miniapp/care-login.spec.ts",
+          "--project=local-stack-fast",
+          "--workers=1",
+          "--retries=0",
+          "--grep=paciente escolhe vínculo|paciente entra por ID|após login inválido"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-favoritos-documentos-focal": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:local:e2e",
+          "--",
+          "e2e/local/flows/miniapp/favoritos-documentos-focal.spec.ts",
+          "--project=local-stack-fast",
+          "--workers=1",
+          "--retries=0"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "app-atlas": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:app-atlas"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "proof-favoritos-anamnese": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:proof:favoritos-anamnese"
+        ],
+        "requireCleanTree": true
+      },
+      "proof-favoritos-superficie": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:proof:favoritos-superficie"
+        ],
+        "requireCleanTree": true
+      },
+      "proof-modais-import-bulk": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:proof:modais-import-bulk"
+        ],
+        "requireCleanTree": true
+      },
+      "proof-colisao-save": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:proof:colisao-save"
+        ],
+        "requireCleanTree": true
+      },
+      "proof-prescricao-importacao": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:proof:prescricao-importacao"
+        ],
+        "requireCleanTree": true
+      },
+      "proof-identidade-visivel": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:proof:identidade-visivel"
+        ],
+        "requireCleanTree": true
+      },
+      "proof-selection-search-lab": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:proof:selection-search-lab"
+        ],
+        "requireCleanTree": true
+      },
+      "proof-favoritos-conformance": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:proof:favoritos-conformance"
+        ],
+        "requireCleanTree": true
+      },
+      "proof-cross-module-conformance": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:proof:cross-module-conformance"
+        ],
+        "requireCleanTree": true
+      },
+      "proof-numeric-input": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:proof:numeric-input"
+        ],
+        "requireCleanTree": true
+      },
+      "proof-importacao": {
+        "progress": true,
+        "argv": [
+          "npm",
+          "run",
+          "ci:proof:importacao"
+        ],
+        "requireCleanTree": true,
+        "requireGitStability": true,
+        "pinHeadSha": true
+      },
+      "content-contract-unit": {
+        "note": "Seleção focal T01; três suites de classificação e fronteira, sem servidor ou banco.",
+        "argv": [
+          "npm",
+          "test",
+          "--",
+          "--runInBand",
+          "--runTestsByPath",
+          "scripts/__tests__/check-content-writers.test.ts",
+          "scripts/__tests__/check-content-editor-payload.test.ts",
+          "scripts/__tests__/check-content-resource-boundaries.test.ts"
+        ]
+      }
+    },
+    "ship": {
+      "acceptedPresets": [
+        "smoketest-ship"
+      ],
+      "attestationContext": "local/smoketest"
+    },
+    "artifacts": [
+      "artifacts/proofs",
+      "artifacts/flowui-ci",
+      "test-results",
+      "playwright-report",
+      "artifacts/ci/queue-current"
+    ]
+  },
+  "npmScripts": {
+    "prisma:generate": "bash scripts/prisma/generate-client.sh",
+    "ship": "tsx scripts/ship/ship.ts",
+    "ci:local": "bash scripts/ci-local.sh",
+    "ci:smoketest": "bash scripts/ci/smoketest-local.sh",
+    "ci:local:preflight": "bash scripts/ci/preflight-local-stack.sh",
+    "ci:local:e2e": "bash scripts/ci/e2e-local-stack.sh --grep-invert @save-cycle",
+    "ci:e2e:impact": "tsx scripts/ci/e2e-impact.ts",
+    "ci:local:regression": "E2E_PROJECT=regression bash scripts/ci/e2e-local-stack.sh --grep-invert @save-cycle",
+    "test:e2e:feedback": "tsx scripts/ci/e2e-feedback.ts",
+    "ci:105:c1-conformance": "E2E_PROJECT=regression bash scripts/ci/e2e-local-stack.sh --grep-invert @save-cycle e2e/regression/clinical/favorites/favorites-source-conformance.spec.ts e2e/regression/clinical/favorites/favorites-import-complete-conformance.spec.ts e2e/regression/clinical/favorites/favorites-import-unit-conformance.spec.ts e2e/regression/clinical/favorites/favorites-import-negative-conformance.spec.ts",
+    "ci:105:c2-conformance": "E2E_PROJECT=regression bash scripts/ci/e2e-local-stack.sh --grep-invert @save-cycle e2e/regression/clinical/favorites/cross-module-conformance.spec.ts",
+    "ci:105:ledger-concurrency": "E2E_PROJECT=regression bash scripts/ci/e2e-local-stack.sh --grep-invert @save-cycle e2e/regression/clinical/favorites/template-usage-metric-concurrency.spec.ts",
+    "ci:105:p7-selection-search-lab": "E2E_PROJECT=regression bash scripts/ci/e2e-local-stack.sh --grep-invert @save-cycle e2e/regression/clinical/favorites/selection-search-lab.spec.ts",
+    "ci:local:full": "bash scripts/ci/full-local.sh",
+    "ci:run": "bash scripts/runtime/with-node.sh tsx scripts/ci/run.ts",
+    "ci:direct:full": "npm run ci:run -- full --executor direct",
+    "ci:cloud:full": "npm run ci:direct:full",
+    "ci:save": "tsx scripts/ci/save-local-stack.ts",
+    "ci:queue": "tsx scripts/ci/queue-entry.ts",
+    "ci:queue:status": "tsx scripts/ci/queue-operator.ts status",
+    "ci:queue:logs": "tsx scripts/ci/queue-operator.ts logs",
+    "ci:queue:cancel": "tsx scripts/ci/queue-operator.ts cancel",
+    "ci:queue:history": "tsx scripts/ci/queue-operator.ts history",
+    "ci:queue:presets": "tsx scripts/ci/queue-operator.ts preset-history",
+    "ci:queue:publish-green": "tsx scripts/ci/publish-green.ts",
+    "ci:queue:read-green": "tsx scripts/ci/read-green.ts",
+    "ci:queue:sync-green-mirror": "tsx scripts/ci/remote-green-mirror.ts",
+    "ci:queue:doctor": "tsx scripts/ci/queue-operator.ts doctor",
+    "pretypecheck": "bash scripts/ci/typecheck-preflight.sh",
+    "typecheck": "bash scripts/ci/typecheck-main.sh",
+    "pretest": "npm run prisma:generate",
+    "test:related": "tsx scripts/ci/jest-scope.ts",
+    "test:review": "tsx scripts/ci/jest-scope.ts --working-tree",
+    "test:frontier": "TZ=UTC jest clinical-day-key-bus tasks-workspace-engine-frontier usePlanejamento-frontier patient-seguimento-frontier acompanhamento-refresh single-next-wake frontier-subtitle",
+    "test:catalog-proof": "tsx scripts/ci/catalog-proof.ts",
+    "test:campaign:foods-canonical": "RUN_FOODS_CANONICAL_CAMPAIGN=1 TZ=America/Sao_Paulo jest scripts/foods prisma/seeds/system/foods/canonical --maxWorkers=2",
+    "test:proof:foods-real-agent": "RUN_FOODS_REAL_AGENT_PROOF=1 TZ=America/Sao_Paulo jest --runTestsByPath scripts/foods/__tests__/hybrid-real-agent-shadow-binding.test.ts --runInBand",
+    "test:watch": "TZ=America/Sao_Paulo jest --watch",
+    "test:coverage": "TZ=America/Sao_Paulo jest --coverage",
+    "worktree:bootstrap": "bash scripts/worktree/bootstrap-local.sh",
+    "ci:clinical-readonly": "bash scripts/ci/clinical-readonly-campaign.sh",
+    "ci:clinical-readonly-live": "bash scripts/ci/clinical-readonly-campaign.sh --all-locations",
+    "ci:admin-relation-proof": "bash scripts/proof/admin-relation-proof.sh",
+    "pretypecheck:storybook": "npm run prisma:generate",
+    "typecheck:storybook": "bash scripts/ci/typecheck-storybook.sh",
+    "test:storybook:care": "vitest --project storybook run src/stories/care",
+    "ci:flowui": "npm run test:storybook:care && tsx scripts/ci-flowui.ts",
+    "test:db:up": "bash scripts/test-db-up.sh",
+    "test:db:down": "bash scripts/test-db-down.sh",
+    "test:db:reset": "bash scripts/test-db-reset.sh",
+    "test:e2e": "bash scripts/e2e-run.sh",
+    "test:e2e:default": "bash scripts/e2e-run.sh --target dev-remote --project chromium-default",
+    "test:e2e:dev": "bash scripts/e2e-run.sh --target dev-remote --project chromium-default",
+    "test:e2e:dev:auth": "bash scripts/e2e-run.sh --target dev-remote --project setup-default",
+    "test:e2e:local": "bash scripts/e2e-run.sh --target local-stack --project local-stack-fast",
+    "test:e2e:fast": "npm run test:e2e:local --",
+    "test:e2e:regression": "bash scripts/e2e-run.sh --target local-stack --project regression",
+    "test:e2e:local:env": "npm run test:e2e:local --",
+    "test:e2e:flow:miniapp": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/prescricao-journey.segment.spec.ts",
+    "test:e2e:flow:dieta": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/dieta-journey.segment.spec.ts",
+    "ci:receitas-medidas": "bash scripts/ci/receitas-medidas-miniapp.sh",
+    "ci:proof:receitas-medidas": "bash scripts/proof/receitas-medidas-proof.sh",
+    "ci:proof:favoritos-anamnese": "bash scripts/proof/run-golden-proof.sh favoritos-anamnese jornadas/favoritos-anamnese e2e/local/flows/golden/favoritos-anamnese-flow.spec.ts",
+    "ci:proof:favoritos-superficie": "bash scripts/proof/run-golden-proof.sh favoritos-superficie jornadas/favoritos-superficie e2e/local/flows/golden/favoritos-superficie-flow.spec.ts",
+    "ci:proof:modais-import-bulk": "bash scripts/proof/run-golden-proof.sh modais-import-bulk jornadas/modais-import-bulk e2e/local/flows/golden/modais-import-bulk-flow.spec.ts",
+    "ci:proof:colisao-save": "bash scripts/proof/run-golden-proof.sh colisao-save jornadas/colisao-save e2e/local/flows/golden/colisao-save-flow.spec.ts",
+    "ci:proof:prescricao-importacao": "bash scripts/proof/run-golden-proof.sh prescricao-importacao-local modulos/prescricao e2e/local/flows/golden/prescricao-importacao-flow.spec.ts",
+    "ci:proof:identidade-visivel": "bash scripts/proof/run-golden-proof.sh identidade-visivel jornadas/identidade-visivel e2e/local/flows/golden/identidade-visivel-flow.spec.ts",
+    "ci:proof:selection-search-lab": "bash scripts/proof/run-golden-proof.sh selection-search-lab jornadas/selection-search-lab e2e/local/flows/golden/selection-search-lab-flow.spec.ts",
+    "ci:proof:favoritos-conformance": "bash scripts/proof/favoritos-conformance-proof.sh",
+    "ci:proof:cross-module-conformance": "bash scripts/proof/run-golden-proof.sh cross-module-conformance jornadas/cross-module-conformance e2e/local/flows/golden/cross-module-conformance-flow.spec.ts",
+    "ci:proof:numeric-input": "bash scripts/proof/run-golden-proof.sh numeric-input jornadas/numeric-input e2e/local/flows/golden/numeric-input-flow.spec.ts",
+    "test:e2e:flow:receitas-medidas": "npm run ci:queue -- receitas-medidas --wait",
+    "test:e2e:flow:calculo-dieta": "npm run ci:local:e2e -- e2e/local/flows/miniapp/calculo-cenarios-save-reload.segment.spec.ts e2e/local/flows/miniapp/dieta-importa-calculo-cenarios.segment.spec.ts e2e/local/flows/miniapp/dieta-refeicoes-avulsas-save.segment.spec.ts e2e/local/flows/miniapp/calculo-dieta-refeicoes-mistas.segment.spec.ts",
+    "test:e2e:flow:exames": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/exames.segment.spec.ts",
+    "test:e2e:flow:exames:ci": "npm run ci:local:e2e -- e2e/local/flows/miniapp/exames.segment.spec.ts",
+    "test:e2e:flow:anamnese": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/anamnese.segment.spec.ts",
+    "test:e2e:flow:anamnese:ci": "npm run ci:local:e2e -- e2e/local/flows/miniapp/anamnese.segment.spec.ts",
+    "test:e2e:flow:forms": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/forms-journey.segment.spec.ts",
+    "test:e2e:flow:forms-access": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/forms-access-journey.segment.spec.ts",
+    "test:e2e:flow:forms-access:ci": "RECORD_FORMS_ACCESS_FLOW=true npm run ci:local:e2e -- e2e/local/flows/miniapp/forms-access-journey.segment.spec.ts && node scripts/ci/forms-access-video-mp4.mjs",
+    "test:e2e:flow:prescricao-absorption": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/prescricao-absorption.segment.spec.ts",
+    "test:e2e:flow:prescricao-export": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/prescricao-export.segment.spec.ts",
+    "test:e2e:flow:prescricao-importacao": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/prescricao-importacao.segment.spec.ts",
+    "test:e2e:flow:prescricao-importacao:golden": "RUN_GOLDEN_FLOW=true RECORD_GOLDEN_FLOW=true npm run test:e2e:local:env -- e2e/local/flows/golden/prescricao-importacao-flow.spec.ts",
+    "test:e2e:flow:modais-import-bulk:golden": "RUN_GOLDEN_FLOW=true npm run test:e2e:local:env -- e2e/local/flows/golden/modais-import-bulk-flow.spec.ts",
+    "test:e2e:flow:colisao-save:golden": "RUN_GOLDEN_FLOW=true npm run test:e2e:local:env -- e2e/local/flows/golden/colisao-save-flow.spec.ts",
+    "test:e2e:flow:care-evolucao": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/care-evolucao.spec.ts",
+    "test:e2e:flow:care-anamnese": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/care-anamnese.spec.ts",
+    "test:e2e:flow:care-exames": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/care-exames-resultados.spec.ts",
+    "test:e2e:flow:agenda-management": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/agenda-management.segment.spec.ts",
+    "test:e2e:flow:agenda-clinical-cycle": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/agenda-clinical-cycle.segment.spec.ts",
+    "test:e2e:flow:textos-whatsapp": "npm run test:e2e:local:env -- e2e/local/flows/miniapp/textos-whatsapp.segment.spec.ts",
+    "test:e2e:flow:save": "npm run test:e2e:local:env -- --grep @save-cycle",
+    "test:e2e:flow:realtime": "npm run test:e2e:local:env -- e2e/local/flows/realtime/admin-consumer.spec.ts",
+    "test:e2e:flow:realtime:ci": "npm run ci:local:e2e -- e2e/local/flows/realtime/admin-consumer.spec.ts e2e/local/flows/realtime/admin-consumer-global.spec.ts",
+    "test:e2e:textos-whatsapp:boundary": "npm run test:e2e:regression -- e2e/regression/clinical/textos/textos-whatsapp-boundary.spec.ts",
+    "test:e2e:route-smoke": "npm run test:e2e:regression -- e2e/regression/platform/routes/route-smoke.spec.ts",
+    "test:e2e:flow:golden": "npm run test:e2e:local:env -- e2e/local/flows/golden/prescricao-journey-flow.spec.ts",
+    "test:e2e:flow:dieta:golden": "RUN_GOLDEN_FLOW=true npm run test:e2e:local:env -- e2e/local/flows/golden/dieta-journey-flow.spec.ts",
+    "test:e2e:flow:golden:record": "RECORD_GOLDEN_FLOW=true npm run test:e2e:flow:golden",
+    "test:e2e:flow:golden:ci": "RUN_GOLDEN_FLOW=true RECORD_GOLDEN_FLOW=true npm run ci:local:e2e -- e2e/local/flows/golden/prescricao-journey-flow.spec.ts e2e/local/flows/golden/dieta-journey-flow.spec.ts",
+    "test:e2e:flowid": "npm run test:e2e:regression -- e2e/regression/clinical/flowid/view-mode-proof.spec.ts",
+    "test:e2e:flowid:local": "npm run test:e2e:flowid --",
+    "test:e2e:ui": "npm run test:e2e:local -- --ui",
+    "test:e2e:headed": "npm run test:e2e:local -- --headed",
+    "test:e2e:dev:ui": "npm run test:e2e:dev -- --ui",
+    "test:e2e:dev:headed": "npm run test:e2e:dev -- --headed",
+    "test:e2e:agenda": "npm run test:e2e:regression -- e2e/regression/clinical/agenda/",
+    "test:e2e:substancias": "npm run test:e2e:regression -- e2e/regression/clinical/prescricao/substancias-semantica/",
+    "test:e2e:perf": "npm run test:e2e:dev -- e2e/platform/perf/boot-network.spec.ts e2e/platform/perf/full-metrics.spec.ts e2e/platform/perf/swr-prefetch.spec.ts",
+    "test:e2e:perf:multi-env": "bash scripts/e2e-run.sh --target multi-env-manual --project multi-env-manual e2e/platform/perf/multi-env-bench.manual.spec.ts",
+    "test:e2e:debug:substancias": "tsx -r dotenv/config scripts/e2e-debug/substancias-driver.ts",
+    "test:e2e:pause": "PWDEBUG=1 tsx -r dotenv/config scripts/e2e-debug/pause.ts",
+    "ci:export-atlas": "bash scripts/ci/export-atlas-local.sh",
+    "ci:proof:importacao": "tsx scripts/ci/importacao-local-stack.ts",
+    "ci:clinical-date-evolution": "tsx scripts/proof/clinical-date-evolution-pack.ts",
+    "ci:app-atlas": "tsx scripts/proof/run-app-atlas-gate.ts"
+  },
+  "authoritativeLinks": [
+    "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/package.json",
+    "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/ci-queue.json"
+  ]
+}

@@ -1,0 +1,652 @@
+[EXCERPT: console payloads/stack traces omitted; structural execution output only]
+@@local-ci-progress	1	node	static	-	stage	pending	-	Static
+@@local-ci-progress	1	node	jest	-	stage	pending	-	Jest
+==> Static gates
+@@local-ci-progress	1	node	static	-	stage	running	-	Static
+  prisma generate                         ✓
+  fumadocs .source                        ✓
+  check:use-server                        ✓
+  check:policy-write-boundaries           ✓
+  check:admin-relation-authority          ✓
+  check:zod-schema-sync                   ✓
+  check:architecture                      ✓
+  check:content-writers                   ✓
+  check:content-editor-payload            ✓
+  check:content-resource-boundaries       ✓
+  check:golden-product-shape              ✓
+  check:golden-fresh                      ✓
+  check:clinical-item-header              ✓
+  check:unit-favorite-writers             ✓
+  check:record-date-derivation            ✓
+  check:module-help-docs                  ✓
+  check:favorites-kinds                   ✓
+  check:import-surfaces                   ✓
+  check:field-adornment-contract          ✓
+  check:numeric-input-ratchet             ✓
+  check:field-identity-ratchet            ✓
+  check:context-yaml                      ✓
+  check:e2e-trigger                       ✓
+  check:fixtures                          ✓
+  check:showcase                          ✓
+  check:autofill-policy                   ✓
+  check:patient-proof-routes              ✓
+  check:proof-index-fresh                 ✓
+  check:clinical-readonly-preview-boundary✓
+  check:snapshot-sync                     ✓
+  check:snapshot-runtime                  ✓
+  check:catalog-changes                   ✓
+  check:seed-tag                          ✓
+  check:flowid-contract                   ✓
+  check:e2e-target-contract               ✓
+  check:regression-verdict-provenance     ✓
+  check:vercel-branch-policy              ✓
+  check:a4-css-sync                       ✓
+  check:a4-contract                       ✓
+  check:no-inline-search-input            ✓
+  check:single-favorite-toast             ✓
+  check:content-visibility                ✓
+  check:hard-domain-writers               ✓
+  check:lifecycle-consumers               ✓
+  check:lifecycle-modal-derivation        ✓
+  check:in-document-removal               ✓
+  check:editor-list-item-delete           ✓
+  check:calculo-card-shell                ✓
+  check:dirty-source-ownership            ✓
+  check:patient-visibility                ✓
+  check:location-visibility               ✓
+  check:plano-visibility                  ✓
+  check:recipe-visibility                 ✓
+  check:substance-visibility              ✓
+  check:exam-visibility                   ✓
+  lint ratchet (origin/dev)               ✓
+  typecheck                               ✓
+  typecheck:storybook                     ✓
+@@local-ci-progress	1	node	static	-	stage	passed	333000	Static
+==> Jest correlacionado ao diff
+@@local-ci-progress	1	node	jest	-	stage	running	-	Jest
+Base congelada: 93fc3149e0f4dd9c3812fce6a34c918a272772ef
+@@local-ci-progress	1	node	review	-	stage	running	-	Review
+[jest-scope] mode=catalog-and-related catalog-proof=yes changed=142 forced=16 related=106 working-tree=no
+[jest-scope] catalog-proof: npx tsx scripts/ci/catalog-proof.ts --max-workers=1
+PASS prisma/seeds/system/foods/canonical/__tests__/canonical-ranking-bundle.test.ts (391.433 s)
+PASS prisma/seeds/system/foods/canonical/__tests__/search-documents.test.ts (119.966 s)
+PASS scripts/foods/__tests__/compare-food-ranking-stages.test.ts (28.586 s)
+PASS prisma/seeds/system/foods/canonical/compatibility/__tests__/measure-source-key-compat.test.ts (24.394 s)
+PASS scripts/__tests__/food-canonical-lenses-shadow.test.ts (14.744 s)
+PASS scripts/__tests__/check-b09-identity-measure-applicability.test.ts (18.911 s)
+PASS prisma/seeds/system/foods/canonical/measures/__tests__/canonical-measures.test.ts (21.935 s)
+PASS prisma/seeds/system/foods/canonical/measures/__tests__/measure-type-gate.test.ts (15.116 s)
+PASS scripts/__tests__/food-market-curation-campaign.test.ts (10.395 s)
+PASS scripts/ci/__tests__/catalog-proof.test.ts (11.792 s)
+PASS prisma/seeds/system/foods/canonical/measures/__tests__/measure-types.test.ts (8.328 s)
+PASS prisma/seeds/system/foods/ontology/_shared/__tests__/apply-material.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/food-measure-catalog-invalidation.test.ts
+PASS src/lib/clinical/foods/__tests__/legacy-measure-source-key.test.ts
+PASS scripts/__tests__/food-canonical-lenses-shadow-boundary.test.ts
+PASS src/lib/clinical/foods/__tests__/canonical-measure-variants.test.ts
+PASS prisma/seeds/system/substancias/scripts/__tests__/validate-reference-labels.test.ts
+PASS prisma/seeds/system/substancias/scripts/__tests__/check-fanout-conflicts.test.ts
+PASS src/export/data/__tests__/prescricao-catalogo-congruencia.contract.test.ts
+PASS src/lib/clinical/catalog-access-lock/substances/__tests__/substance-impact.test.ts
+PASS scripts/foods/__tests__/search-ranking-corpus.test.ts
+PASS prisma/seeds/system/foods/ontology/_shared/__tests__/ranking-data.test.ts
+PASS src/lib/hooks/clinical/__tests__/useMETCache.test.ts
+PASS prisma/seeds/system/foods/ontology/_shared/__tests__/apply-items-triage.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/compute-catalog-diff.test.ts
+PASS prisma/seeds/system/foods/canonical/measures/__tests__/measure-type-current-integrity.test.ts
+PASS src/lib/clinical/prescricao/core/__tests__/dose-semantics-resolver.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/prescricao-patch-adapter.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/cause-repository.test.ts
+PASS src/lib/clinical/prescricao/core/__tests__/reference-resolution.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/apply-catalog-patch-congruence.test.ts
+PASS src/lib/health/__tests__/golden-drift-check.test.ts
+PASS prisma/seeds/system/substancias/scripts/__tests__/validate-taxonomy-coherence.test.ts
+PASS scripts/foods/__tests__/ranking-stage-policy.test.ts
+PASS src/lib/clinical/prescricao/__tests__/substance-cache-item-wire.test.ts
+PASS prisma/seeds/system/__tests__/catalog-access-lock-after-seed.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/dieta-food-snapshot-reconciler.test.ts
+PASS prisma/seeds/system/substancias/scripts/__tests__/validate-source-facts.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/dieta-food-measure-planner.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/food-measure-backfill.test.ts
+PASS prisma/seeds/system/foods/scripts/__tests__/generate-v5-foods-snapshot.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/manifest.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/custom-edit-action-wiring.test.ts
+PASS src/lib/clinical/prescricao/__tests__/substance-snapshot.test.ts
+PASS src/lib/clinical/foods/__tests__/food-golden-serialize.test.ts
+PASS src/lib/clinical/prescricao/core/__tests__/substance-presentation.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/dieta-recipe-patch-adapter.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/catalog-change-gate.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/catalog-lookup.test.ts
+PASS src/lib/clinical/prescricao/core/__tests__/prescription-line-validation.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/exames-patch-adapter.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/dieta-food-patch-adapter.test.ts
+PASS src/lib/clinical/__tests__/cadastrado-actions-measure-equivalence.contract.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/apply-catalog-access-lock.test.ts
+PASS prisma/seeds/system/__tests__/catalog-access-lock-prepare-before-seed.test.ts
+PASS scripts/ci/__tests__/met-medicamentos-golden-contract.test.ts
+PASS prisma/seeds/system/substancias/scripts/__tests__/demographic-coverage-report.test.ts
+PASS src/lib/clinical/content-references/__tests__/extractors.test.ts
+PASS src/lib/clinical/content-references/__tests__/sync.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/verify-catalog-access-lock.test.ts
+PASS src/lib/clinical/prescricao/core/__tests__/resolve-catalog-molecule.test.ts
+PASS src/lib/clinical/prescricao/__tests__/catalog-resolver-integration.test.ts
+PASS prisma/seeds/system/substancias/scripts/__tests__/validate-registry-paths.test.ts
+PASS prisma/seeds/system/substancias/scripts/__tests__/seed-runtime-metadata.test.ts
+PASS scripts/__tests__/check-recipe-visibility.test.ts
+PASS prisma/seeds/system/cid10/__tests__/id.test.ts
+PASS src/lib/clinical/food-measures/__tests__/identity.test.ts
+PASS prisma/seeds/system/foods/scripts/__tests__/check-golden-nutrition.test.ts
+PASS src/lib/clinical/foods/__tests__/recipeBatchFetcher.snapshot.test.ts
+PASS src/lib/clinical/exames/__tests__/system-exam-id.test.ts
+PASS prisma/seeds/system/exames/scripts/__tests__/golden-invert-allowlist.test.ts
+PASS src/lib/clinical/exames/__tests__/reference-resolution.test.ts
+PASS prisma/seeds/system/substancias/scripts/__tests__/golden-baselines.test.ts
+PASS src/components/features/nutrition/measure-editor-consumers.contract.test.ts
+PASS src/components/clinical/modals/__tests__/importable-templates.test.ts
+PASS prisma/seeds/system/edqm/__tests__/dose-forms-reconcile.test.ts
+PASS src/lib/clinical/foods/__tests__/official-food-measures-snapshot.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/manifest-runtime-tracing.test.ts
+PASS prisma/seeds/system/__tests__/catalog-access-lock-seed-wiring.test.ts
+PASS scripts/__tests__/check-runtime-snapshot-contract.test.ts
+PASS src/lib/clinical/exames/__tests__/exam-golden-serialize.test.ts
+PASS prisma/seeds/system/exames/scripts/__tests__/generate-v2-exames-snapshot.test.ts
+PASS src/lib/clinical/templates/__tests__/templateIdGenerator.test.ts
+PASS scripts/__tests__/check-golden-snapshot-sync.test.ts
+PASS src/lib/clinical/__tests__/exames-actions-content-reference-sync.test.ts
+PASS prisma/seeds/system/exames/scripts/__tests__/reconcile-exam.test.ts
+PASS prisma/seeds/system/substancias/scripts/__tests__/generate-v7-snapshot.test.ts
+Test Suites: 87 passed, 87 total
+Tests:       938 passed, 938 total
+Snapshots:   0 total
+Time:        687.107 s, estimated 774 s
+[jest-scope] jest:forced: npm test -- --runTestsByPath e2e/factories/__tests__/clinical-readonly.factory.test.ts e2e/factories/__tests__/worker-catalog.factory.test.ts e2e/factories/__tests__/worker-catalog.golden.test.ts prisma/seeds/fixtures/__tests__/calculo-export-proof-fixture.contract.test.ts prisma/seeds/fixtures/__tests__/charts-export-fixtures.contract.test.ts prisma/seeds/fixtures/__tests__/export-v2-proof-fixtures.contract.test.ts prisma/seeds/fixtures/__tests__/golden-personas.contract.test.ts prisma/seeds/fixtures/__tests__/golden-route-ids.contract.test.ts prisma/seeds/showcase/care/__tests__/source-selection.test.ts src/app/export/care/_registry/__tests__/build-care-evolucao.test.ts src/app/export/care/_registry/__tests__/build-care-gestacao.test.ts src/components/care/server/adapters/__tests__/anamnese.test.ts src/components/care/server/adapters/__tests__/gestacao.test.ts src/lib/clinical/adapters/__tests__/refeicoes-save-contract.test.ts src/lib/clinical/catalog-access-lock/__tests__/fixtures-lock-invariant.test.ts src/lib/fixtures/anamnese/__tests__/golden-sync.test.ts --maxWorkers=1
+PASS e2e/factories/__tests__/worker-catalog.factory.test.ts
+PASS prisma/seeds/showcase/care/__tests__/source-selection.test.ts
+PASS prisma/seeds/fixtures/__tests__/export-v2-proof-fixtures.contract.test.ts
+PASS e2e/factories/__tests__/clinical-readonly.factory.test.ts
+PASS src/components/care/server/adapters/__tests__/anamnese.test.ts
+PASS prisma/seeds/fixtures/__tests__/calculo-export-proof-fixture.contract.test.ts
+PASS src/lib/clinical/adapters/__tests__/refeicoes-save-contract.test.ts
+PASS prisma/seeds/fixtures/__tests__/golden-personas.contract.test.ts
+PASS src/app/export/care/_registry/__tests__/build-care-gestacao.test.ts
+PASS src/app/export/care/_registry/__tests__/build-care-evolucao.test.ts
+PASS e2e/factories/__tests__/worker-catalog.golden.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/fixtures-lock-invariant.test.ts
+PASS prisma/seeds/fixtures/__tests__/golden-route-ids.contract.test.ts
+PASS src/components/care/server/adapters/__tests__/gestacao.test.ts
+PASS prisma/seeds/fixtures/__tests__/charts-export-fixtures.contract.test.ts
+PASS src/lib/fixtures/anamnese/__tests__/golden-sync.test.ts
+Test Suites: 16 passed, 16 total
+Tests:       133 passed, 133 total
+Snapshots:   0 total
+Time:        2.467 s, estimated 3 s
+[jest-scope] jest:related: npm test -- --findRelatedTests e2e/local/flows/miniapp/exames-resultset-documento.segment.spec.ts prisma/seeds/fixtures/foods-recipes.ts prisma/seeds/fixtures/seed.ts prisma/seeds/showcase/care/__tests__/seed.test.ts prisma/seeds/showcase/care/__tests__/showcase-attachments.contract.test.ts prisma/seeds/showcase/care/active-golden-data.ts prisma/seeds/showcase/care/active-golden.ts prisma/seeds/showcase/care/build.ts prisma/seeds/showcase/care/check.ts prisma/seeds/showcase/care/seed.ts prisma/seeds/system/exames/build.ts prisma/seeds/system/exames/data/exames-sistema-v2.ts prisma/seeds/system/exames/data/exames-sistema-v3.ts prisma/seeds/system/exames/scripts/__tests__/generate-v2-exames-snapshot.test.ts prisma/seeds/system/exames/scripts/exam-catalog-base.ts prisma/seeds/system/exames/scripts/generate-v2-exames-snapshot.ts prisma/seeds/system/exames/seed.ts prisma/seeds/system/foods/canonical/measures/__tests__/measure-type-current-integrity.test.ts prisma/seeds/system/foods/canonical/measures/__tests__/measure-type-gate.test.ts prisma/seeds/system/foods/canonical/measures/__tests__/measure-types.test.ts prisma/seeds/system/foods/canonical/measures/classify-measure-types.ts prisma/seeds/system/foods/canonical/measures/measure-type-current-integrity.ts prisma/seeds/system/foods/canonical/measures/measure-type-historical-audit.ts scripts/census/exames-golden-census.ts scripts/check-golden-product-shape.ts scripts/ci/catalog-proof.ts scripts/exames/retire-legacy.ts scripts/showcase/__tests__/smoke-reconcile.test.ts scripts/showcase/__tests__/verify.test.ts scripts/showcase/smoke-reconcile.ts scripts/showcase/verify.ts "src/app/(main)/(authenticated)/admin/dev/taxonomia-exames/_components/TaxonomiaExamesClient.tsx" "src/app/(main)/(authenticated)/meusconteudos/cadastrados/exames/_components/ExamesReadyDashboard.tsx" src/app/api/admin/explorer/query/route.ts src/app/export/care/_registry/__tests__/build-care-exames-resultados.test.ts src/components/cadastrados/ExamMarkerCard.tsx src/components/cadastrados/TableExames.tsx src/components/care/server/adapters/__tests__/exames.test.ts src/components/clinical/exames/ExamResultSetMain.tsx src/components/clinical/exames/__tests__/ExamResultSetMain.test.tsx src/components/clinical/exames/components/cards/CardExamResultSet.tsx src/components/clinical/exames/components/cards/CardExamePrescricao.tsx src/components/clinical/exames/evolucao/hooks/__tests__/useExamesEvolucao.test.tsx src/components/clinical/exames/modals/ModalAdicionarEmMassaExames.tsx src/components/clinical/exames/modals/ModalCadastrarExame.tsx src/components/clinical/exames/modals/__tests__/ModalAdicionarEmMassaExames.matrix.test.tsx src/components/clinical/exames/modals/registration/TabBasico.tsx src/components/clinical/exames/modals/registration/TabResultadoV2.tsx src/components/clinical/exames/tabs/__tests__/ResultSetViews.test.tsx src/components/clinical/exames/utils/__tests__/markerDisplay.test.ts src/components/clinical/exames/utils/markerDisplay.ts src/export/data/__tests__/care-clinical-dto.test.ts src/export/data/__tests__/exam-resultset-dto.test.ts src/export/data/__tests__/exames-dto.numeric-read.test.ts src/export/data/__tests__/exames-layer1-convergencia.test.ts src/export/data/__tests__/getEvolucaoExamesExportDTO.test.ts src/export/data/__tests__/mapExamePrescricaoToDTO.test.ts src/export/data/exames-dto.ts src/lib/clinical/__tests__/content-actions.exam-lineage-gate.test.ts src/lib/clinical/__tests__/exames-actions-clinical-date.test.ts src/lib/clinical/__tests__/exames-actions-create-validation.test.ts src/lib/clinical/__tests__/exames-actions.result-set-reader.test.ts src/lib/clinical/__tests__/exames-resultset.persistence.integration.test.ts src/lib/clinical/__tests__/golden-product-persistence-references.test.ts src/lib/clinical/adapters/__tests__/exames-clinical-date.test.ts src/lib/clinical/adapters/__tests__/exames-save-contract.test.ts src/lib/clinical/adapters/exames.ts src/lib/clinical/adapters/index.ts src/lib/clinical/catalog-read-schema.ts src/lib/clinical/content-codec/field-classification.ts src/lib/clinical/content-references/__tests__/extractors.test.ts src/lib/clinical/content-references/__tests__/sync.test.ts src/lib/clinical/exames-actions.ts src/lib/clinical/exames/__tests__/collision-entry-adapter.test.ts src/lib/clinical/exames/__tests__/collision-save-adapter.test.ts src/lib/clinical/exames/__tests__/exam-golden-serialize.test.ts src/lib/clinical/exames/__tests__/resolve-exam-kind.test.ts src/lib/clinical/exames/__tests__/result-content-codec.test.ts src/lib/clinical/exames/__tests__/result-set-projections.test.ts src/lib/clinical/exames/__tests__/result-set-retention.test.ts src/lib/clinical/exames/evolucao-series.ts src/lib/clinical/exames/exam-cache-types.ts src/lib/clinical/exames/exam-golden-serialize.ts src/lib/clinical/exames/resolve-exam-kind.ts src/lib/clinical/exames/result-content-codec.ts src/lib/clinical/exames/result-content-persistence.ts src/lib/clinical/exames/result-set-collision.ts src/lib/clinical/exames/result-set-entry.ts src/lib/clinical/exames/result-set-import.ts src/lib/clinical/exames/result-set-projections.ts src/lib/clinical/exames/result-set-write.ts src/lib/clinical/exames/transformations.ts src/lib/clinical/exames/types/prescricao.ts src/lib/clinical/exames/types/resultado.ts src/lib/clinical/unit-favorites/__tests__/exam.test.ts src/lib/clinical/unit-favorites/exam.ts src/lib/clinical/unit-favorites/legacy.ts src/lib/clinical/unit-favorites/schemas.ts src/lib/content-doctrine/public-snapshots.ts src/lib/hooks/clinical/__tests__/exam-snapshot-shape.test.ts src/lib/hooks/clinical/__tests__/useExamGridData.test.ts src/lib/hooks/clinical/exam-grid-adapter.ts src/lib/hooks/clinical/snapshot-shape.ts src/lib/hooks/clinical/useExamRepository.ts src/lib/lifecycle/consumers.registry.ts src/lib/types/exames.ts --passWithNoTests --maxWorkers=1
+PASS scripts/ci/__tests__/catalog-proof.test.ts (10.269 s)
+PASS src/components/cadastrados/FoodEditor/__tests__/FoodEditor.numeric.test.tsx
+PASS e2e/local/flows/_registry/__tests__/registry.contract.test.ts
+PASS src/components/clinical/gestacao/__tests__/GestacaoMain.cross-module-import.test.tsx
+PASS src/components/clinical/__tests__/MainGenericEditor.template-usage.test.tsx
+PASS src/lib/clinical/foods/__tests__/legacy-measure-source-key.test.ts
+PASS src/components/features/export/__tests__/useBulkExportController.scale.test.tsx
+PASS src/components/configuracoes/planos-atendimento/__tests__/PlanosAtendimentoMain.crud-shell.test.tsx
+PASS src/components/clinical/exames/__tests__/ExamResultSetMain.test.tsx
+PASS src/components/features/export/__tests__/useExportControllerV2.test.tsx
+PASS src/components/clinical/__tests__/MainGenericEditor.export-continuation.red.test.tsx
+PASS src/components/clinical/__tests__/MainGenericEditor.save-outcome.test.tsx
+PASS src/components/care/__tests__/CareApp.test.tsx
+PASS src/components/features/export/__tests__/useBulkExportController.artifact.test.tsx
+PASS src/components/features/editing-session/__tests__/EditSession.hosts.test.tsx
+PASS src/components/clinical/exames/modals/__tests__/ModalAdicionarEmMassaExames.matrix.test.tsx
+PASS src/lib/clinical/__tests__/template-import-contracts.test.ts
+PASS src/components/crud/features/CRUDForDashboard/__tests__/single-item-delete.test.tsx
+PASS src/lib/clinical/foods/__tests__/canonical-measure-variants.test.ts
+PASS src/components/clinical/exames/tabs/__tests__/ResultSetViews.test.tsx
+PASS src/components/clinical/dieta/__tests__/DietaMain.record-contract.test.tsx
+PASS src/components/clinical/__tests__/text-favorites-save-outcome.test.tsx
+PASS src/components/clinical/dieta/__tests__/DietaMain.load-failure.test.tsx
+PASS e2e/factories/__tests__/worker-catalog.factory.test.ts
+PASS src/components/clinical/cadastrados/__tests__/ModalFoodSystemV2.numeric.test.tsx
+PASS src/components/clinical/app/_components/__tests__/ImportRecipesToAppModal.selection.test.tsx
+PASS src/components/clinical/refeicoes/__tests__/RefeicaoCard.preview.test.tsx
+PASS e2e/local/flows/_registry/__tests__/absorption-map.contract.test.ts
+PASS src/components/clinical/antropometria/components/__tests__/GestacaoTab.loading.test.tsx
+PASS src/components/care/views/__tests__/CareExamesView.test.tsx
+PASS prisma/seeds/fixtures/__tests__/golden-dieta-portable.contract.test.ts
+PASS src/components/clinical/prescricao/components/cards/__tests__/CardFormulacao.favoritar.contract.test.tsx
+PASS src/components/clinical/refeicoes/__tests__/RefeicoesMain.save-contract.test.tsx
+PASS src/components/clinical/refeicoes/__tests__/RefeicoesMain.favorite-identity.test.tsx
+PASS src/components/clinical/dieta/editors/__tests__/RefeicoesPanel.contract.test.tsx
+PASS src/components/features/export/__tests__/useBulkExportController.flip.test.tsx
+PASS src/components/clinical/prescricao/components/cards/__tests__/CardFormulacao.presentation.test.tsx
+PASS src/lib/clinical/__tests__/calculo-actions.persistence-roundtrip.test.ts
+PASS src/components/clinical/prescricao/__tests__/PrescricaoMain.save-boundary.test.tsx
+PASS src/components/care/export/__tests__/CareExportView.native.test.tsx
+PASS src/lib/clinical/__tests__/template-actions-importable-behavior.test.ts
+PASS src/lib/clinical/__tests__/calculo-actions.lifecycle-guard.test.ts
+PASS src/components/clinical/shared/_export/__tests__/AgendaExportAction.test.tsx
+PASS src/components/clinical/planejamento/components/__tests__/MetasRefeicaoV2.test.tsx
+PASS src/components/clinical/refeicoes/__tests__/alternativas-modal.contract.test.tsx
+PASS src/components/clinical/prescricao/__tests__/PrescricaoMain.shape-unitario.test.tsx
+PASS src/lib/admin/__tests__/explorer-actions.recover-patient.test.ts
+PASS src/lib/clinical/__tests__/exames-actions.result-set-reader.test.ts
+PASS src/components/clinical/__tests__/MainGenericEditor.clinical-readonly-rollout.test.tsx
+PASS src/components/clinical/exames/__tests__/ExamesMain.import-contract.test.tsx
+PASS src/components/clinical/prescricao/__tests__/PrescricaoMain.refetch-guard.test.tsx
+PASS src/app/(main)/(authenticated)/admin/configuracoes/_components/__tests__/SystemSettingsTab.numeric.test.tsx
+PASS src/components/clinical/cadastrados/__tests__/AlimentosReadyDashboard.selection-search.test.tsx
+PASS src/components/clinical/refeicoes/__tests__/RefeicaoCard.food-measure-wiring.test.tsx
+PASS src/components/clinical/prescricao/components/modals/__tests__/ModalAdicionarEmMassa.behavior.test.tsx
+PASS src/export/modules/__tests__/GestacaoExport.test.tsx
+PASS src/components/clinical/__tests__/MainGenericEditor.favorite-name-conflict.red.test.tsx
+PASS src/components/clinical/prescricao/cadastrados/modals/tabs/__tests__/tabs.test.tsx
+PASS src/lib/clinical/catalog-access-lock/__tests__/food-measure-backfill-runner.test.ts
+PASS src/lib/forms/__tests__/form-response-counts.database.integration.test.ts
+PASS src/components/clinical/substituicoes/__tests__/substituicoes-lista-main.contract.test.tsx
+PASS src/components/features/export/__tests__/useBulkExportController.revision.test.tsx
+PASS src/app/(main)/(authenticated)/admin/dev/selection-search-lab/_components/__tests__/SelectionSearchLab.test.tsx
+PASS src/components/layouts/__tests__/substituicoes-familia.contract.test.ts
+PASS src/lib/clinical/__tests__/calculo-actions.permanent-delete-gate.test.ts
+PASS src/components/clinical/agenda/unified-drawer/__tests__/UnifiedAgendaDrawer.creation-pattern.test.tsx
+PASS src/export/modules/__tests__/E11-factual-series.test.tsx
+PASS src/export/data/__tests__/getEvolucaoExamesExportDTO.test.ts
+PASS src/components/clinical/agenda/planejamento/__tests__/WhatsAppPreviewModal.test.tsx
+PASS src/components/clinical/__tests__/MainGenericEditor.favorite-identity-surface.red.test.tsx
+PASS src/components/clinical/forms/__tests__/FormsMain.persistence-handlers.test.tsx
+PASS scripts/__tests__/check-lifecycle-consumers.test.ts
+PASS src/lib/hooks/clinical/__tests__/useExamRepository.cache.test.tsx
+PASS src/components/care/export/__tests__/CareExportView.engine.contract.test.tsx
+PASS src/components/clinical/anamnese/components/modals/__tests__/DocumentoTextPickerModal.test.tsx
+PASS src/components/layouts/AppShell/__tests__/Breadcrumbs.back-button.test.tsx
+PASS src/components/clinical/gestacao/__tests__/GestacaoMain.invalidate-await.test.tsx
+PASS src/components/care/export/__tests__/CareExportOverlay.test.tsx
+PASS src/components/clinical/shared/_export/__tests__/ExportActionV2.copy-text.integration.test.tsx
+PASS scripts/unit-favorites/__tests__/deployment-fence.test.ts
+PASS src/lib/hooks/clinical/__tests__/useUnifiedRepository.recipe-delta.test.ts
+PASS src/components/clinical/prescricao/__tests__/PrescricaoMain.import-save-flow.test.tsx
+PASS src/components/clinical/refeicoes/__tests__/food-measure-overlay-modal.test.tsx
+PASS src/components/clinical/__tests__/MainGenericEditor.view-mode.test.tsx
+PASS src/lib/clinical/__tests__/template-actions.name-check.test.ts
+PASS e2e/factories/__tests__/isolated-professional.factory.test.ts
+PASS src/export/modules/__tests__/AnamneseEvolucaoExport.contract.test.tsx
+PASS src/components/clinical/calculo/__tests__/CalculoContext.persisted-hydration.test.tsx
+PASS src/export/modules/__tests__/DietaExport.contract.test.tsx
+PASS e2e/factories/__tests__/paciente.factory.test.ts
+PASS src/lib/clinical/__tests__/content-actions.exam-lineage-gate.test.ts
+PASS src/export/data/__tests__/care-clinical-dto.test.ts
+PASS src/lib/clinical/__tests__/numeric-read-write-boundary.test.ts
+PASS scripts/__tests__/check-golden-product-shape.test.ts
+PASS src/components/features/search/__tests__/global-search-panel.test.tsx
+PASS scripts/showcase/__tests__/verify.test.ts
+PASS src/lib/clinical/__tests__/preset-export-candidates.test.ts
+PASS src/lib/clinical/__tests__/exames-actions-create-validation.test.ts
+PASS src/components/clinical/prescricao/components/cards/__tests__/prescricao.preview.contract.test.tsx
+PASS src/components/tarefas/__tests__/TaskItemRow.test.tsx
+PASS src/lib/clinical/__tests__/getAllContentCards.calculo-wiring.test.ts
+PASS scripts/ci/__tests__/favoritos-conformance-wave92-contract.test.ts
+PASS src/export/modules/__tests__/EvolucaoExamesExport.status-motor-contract.test.tsx
+PASS src/components/clinical/antropometria/__tests__/AntropometriaMain.load-failure.test.tsx
+PASS src/components/configuracoes/__tests__/field-identity.test.tsx
+PASS src/lib/hooks/clinical/__tests__/useUnifiedRepository.custom-lane.test.ts
+PASS src/lib/hooks/clinical/__tests__/useFoodRepository.readiness.test.ts
+PASS src/lib/search/__tests__/food-ranking-wire.test.ts
+PASS src/components/clinical/anamnese/__tests__/AnamneseMain.pack-import.test.tsx
+PASS src/lib/clinical/__tests__/delete-impact-server-guards.test.ts
+PASS e2e/helpers/favorites-conformance/__tests__/favorite-creation-driver.test.ts
+PASS src/components/features/export/_registry/__tests__/bulk-registry.contract.test.ts
+PASS src/app/export/care/_registry/__tests__/build-care-exames-resultados.test.ts
+PASS src/export/modules/__tests__/EvolucaoExamesExport.contract.test.tsx
+PASS src/components/clinical/exames/evolucao/__tests__/EvolucaoExamesMain.panels.test.tsx
+PASS src/components/clinical/__tests__/MainGenericEditor.import-machine.contract.test.tsx
+PASS src/lib/clinical/__tests__/exames-actions.result-import-reader.test.ts
+PASS src/components/clinical/exames/__tests__/ExamesMain.record-transition.test.tsx
+PASS src/lib/forms/__tests__/definition-actions.open-boundary.test.ts
+PASS prisma/seeds/system/exames/scripts/__tests__/authored-subitem-keys.test.ts
+PASS src/components/clinical/receitas/__tests__/RecipeIngredientsSection.test.tsx
+PASS prisma/seeds/showcase/care/__tests__/source-selection.test.ts
+PASS src/lib/admin/__tests__/template-actions.summary-description.test.ts
+PASS src/lib/clinical/__tests__/content-actions.permanent-delete-race.test.ts
+PASS src/components/clinical/calculo/__tests__/CalculoMain.save-snapshot.test.tsx
+PASS src/components/features/favorites/identity/__tests__/FavoriteTagsPopover.trigger.test.tsx
+PASS src/lib/clinical/__tests__/exames-actions.result-set-save.test.ts
+PASS src/lib/clinical/__tests__/exames-actions-clinical-date.test.ts
+PASS src/lib/clinical/__tests__/content-actions.clinical-write-guard.test.ts
+PASS src/components/clinical/prescricao/__tests__/PrescricaoMain.daily-limits.test.tsx
+PASS scripts/__tests__/diet-product-reference.test.ts
+PASS src/lib/clinical/refeicoes/__tests__/diet-content-lifecycle-guard.test.ts
+PASS src/lib/clinical/refeicoes/__tests__/diet-save-conflict.test.ts
+PASS src/components/care/export/__tests__/CareExportView.gestacao.test.tsx
+PASS e2e/factories/__tests__/clinical-readonly.factory.test.ts
+PASS src/components/clinical/exames/__tests__/ExamesMain.load-failure.test.tsx
+PASS src/components/clinical/prescricao/cadastrados/modals/__tests__/ModalSubstanciaV2.lifecycle.test.tsx
+PASS src/components/clinical/planejamento/__tests__/PlanejamentoMain.seed-data-base.test.tsx
+PASS src/components/clinical/modals/__tests__/FavoritarModal.single-toast.test.tsx
+PASS src/lib/clinical/__tests__/cadastrado-actions-get-food-measures.test.ts
+PASS src/lib/clinical/__tests__/refeicao-actions.snapshot-writer.test.ts
+PASS src/lib/clinical/__tests__/unarchive-name-conflict.test.ts
+PASS src/components/clinical/modals/__tests__/ImportFooter.close-integration.test.tsx
+PASS src/lib/admin/__tests__/explorer-actions.food-lifecycle-axis.test.ts
+PASS src/lib/hooks/clinical/__tests__/useExamData.mutation-invalidation.test.tsx
+PASS src/lib/hooks/clinical/__tests__/useFoodData.mutation-invalidation.test.tsx
+PASS src/app/(main)/(authenticated)/admin/explorer/_components/__tests__/RegistrosTab.lifecycle.test.tsx
+PASS src/components/clinical/refeicoes/__tests__/RefeicoesMain.dirty-export.test.tsx
+PASS src/lib/clinical/__tests__/template-module-counts-document.test.ts
+PASS src/components/clinical/exames/evolucao/__tests__/ExamEvolutionView.test.tsx
+PASS src/lib/hooks/clinical/__tests__/useSubstanceCache.owner-scope.test.tsx
+PASS src/components/clinical/anamnese/evolucao/__tests__/EvolucaoAnamneseMain.empty-state.test.tsx
+PASS src/lib/clinical/catalog-access-lock/__tests__/exam-resultset-resolution.test.ts
+PASS src/lib/clinical/__tests__/exam-result-lifecycle-actions.test.ts
+PASS src/export/modules/__tests__/EvolucaoCorporalExport.contract.test.tsx
+PASS src/lib/clinical/prescricao/__tests__/substance-cache-item-wire.test.ts
+PASS src/lib/clinical/dieta/__tests__/complete-writer-ports.test.ts
+PASS src/components/clinical/exames/evolucao/__tests__/EvolucaoExamesMain.dates.test.tsx
+PASS src/lib/health/__tests__/golden-drift-check.test.ts
+PASS src/lib/clinical/__tests__/template-actions.fallback-guard.test.ts
+PASS src/lib/clinical/__tests__/archive-writers.runtime.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/apply-catalog-patch-congruence.test.ts
+PASS src/export/kit/__tests__/ExameMarkerChart.contract.test.tsx
+PASS src/components/clinical/dieta/editors/__tests__/DietaTemplateEditor.contract.test.tsx
+PASS src/export/modules/__tests__/RefeicaoExport.contract.test.tsx
+PASS src/components/crud/features/CRUDForDashboard/__tests__/view-mode-toggle.test.tsx
+PASS src/lib/clinical/__tests__/exames-actions.result-set-create.test.ts
+PASS src/lib/clinical/__tests__/template-actions.permanent-delete-race.test.ts
+PASS src/lib/clinical/__tests__/content-actions.app-publication.test.ts
+PASS src/lib/numeric/__tests__/cross-module-conformance.test.ts
+PASS src/components/features/prescricao/__tests__/DoseSuggestion.test.tsx
+PASS src/lib/clinical/__tests__/exames-evolucao-active.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/custom-catalog-write-actions.test.ts
+PASS scripts/unit-favorites/__tests__/cutover-backup.test.ts
+PASS src/lib/clinical/__tests__/content-json-contract.test.ts
+PASS src/lib/clinical/__tests__/content-actions.clinical-date-save.test.ts
+PASS src/export/data/__tests__/getRefeicaoExportDTO.test.ts
+PASS src/lib/clinical/__tests__/content-actions.permanent-delete-purge.test.ts
+PASS src/components/clinical/calculo/__tests__/CalculoMain.load-failure.test.tsx
+PASS src/lib/clinical/catalog-access-lock/__tests__/apply-catalog-patch-lock-ordering.test.ts
+PASS src/lib/clinical/__tests__/content-save-contract.test.ts
+PASS e2e/helpers/favorites-conformance/__tests__/favorite-creation-route.test.ts
+PASS src/lib/hooks/clinical/__tests__/useCurrentContentRecord.test.tsx
+PASS src/lib/admin/__tests__/dashboard-queries.content-status-decoupling.test.ts
+PASS src/export/modules/__tests__/ReceitaExport.contract.test.tsx
+PASS src/components/clinical/prescricao/__tests__/PrescricaoMain.save-collision.test.tsx
+PASS src/lib/clinical/__tests__/template-tags-subtype.test.ts
+PASS e2e/helpers/favorites-conformance/__tests__/favorite-star-locator.test.ts
+PASS src/lib/admin/__tests__/template-actions.snapshot-writer.test.ts
+PASS src/lib/clinical/content-references/__tests__/sync.test.ts
+PASS src/app/(main)/(authenticated)/admin/explorer/_components/__tests__/templates-tab-recipes-counts.test.tsx
+PASS src/lib/clinical/catalog-access-lock/__tests__/dieta-food-snapshot-reconciler.test.ts
+PASS scripts/__tests__/drop-strength-from-content.test.ts
+PASS src/components/cadastrados/__tests__/TableAlimentos.actions.test.tsx
+PASS src/components/clinical/receitas/__tests__/RecipeEditor.save-race.test.tsx
+PASS src/lib/clinical/__tests__/content-status-writers.contract.test.ts
+PASS src/components/clinical/forms/components/__tests__/FormsDashboard.counts.test.tsx
+PASS src/lib/actions/__tests__/catalog-lock-actions.apply-patch.test.ts
+PASS scripts/clinical/__tests__/prescricao-header-drain-cli.test.ts
+PASS src/components/cadastrados/__tests__/TableExames.actions.test.tsx
+PASS src/lib/clinical/__tests__/content-actions.diet-snapshot-capture.test.ts
+PASS src/lib/clinical/__tests__/exames-actions.permanent-delete-race.test.ts
+PASS src/components/clinical/agenda/unified-drawer/__tests__/UnifiedAgendaDrawer.frontier-subtitle.test.tsx
+PASS src/app/export/care/_registry/__tests__/build-care-export-action.test.ts
+PASS src/components/clinical/modals/__tests__/ImportarCrossModuleModal.destination.test.tsx
+PASS src/components/clinical/dieta/__tests__/DietaMain.subtype-draft-save.contract.test.tsx
+PASS src/lib/clinical/__tests__/content-actions.record-tags.test.ts
+PASS src/components/clinical/exames/modals/__tests__/ModalCadastrarExame.lifecycle.test.tsx
+PASS src/lib/clinical/__tests__/content-actions.clinical-date-mirror-wiring.test.ts
+PASS src/components/cadastrados/__tests__/TablePrescricao-completion-fallback.test.tsx
+PASS src/lib/clinical/refeicoes/__tests__/persist-diet-content.server.test.ts
+PASS prisma/seeds/system/foods/scripts/__tests__/generate-v5-foods-snapshot.test.ts
+PASS src/components/clinical/modals/__tests__/FavoritarModal.subtype-obrigatorio.test.tsx
+PASS src/components/clinical/exames/components/cards/__tests__/CardExamePrescricao.autocomplete-visibility.test.tsx
+PASS src/export/modules/__tests__/AntropometriaExport.test.tsx
+PASS src/components/clinical/__tests__/DashboardRegistrosGenerico.import-options.test.tsx
+PASS src/components/clinical/refeicoes/__tests__/RefeicaoCard.clinical-readonly.test.tsx
+PASS src/components/clinical/dieta/__tests__/DietaMain.complete-template-route.test.tsx
+PASS src/components/features/evolucao/__tests__/EvolucaoHeaderActions.export-v2.test.tsx
+PASS src/app/(main)/(authenticated)/admin/explorer/_components/__tests__/UsuariosTab.scope.test.tsx
+PASS src/lib/clinical/catalog-access-lock/__tests__/apply-catalog-patch-legacy-manual.test.ts
+PASS src/components/clinical/dieta/__tests__/RefeicoesTab.favorite-import.snapshot-policy.test.tsx
+PASS src/components/crud/features/CRUDForDashboard/__tests__/selection-toggle-aria.test.tsx
+PASS src/lib/admin/__tests__/dashboard-queries.engagement.test.ts
+PASS src/components/clinical/prescricao/cadastrados/modals/__tests__/PresentationTable.route-contract.test.tsx
+PASS src/app/(main)/(authenticated)/admin/dev/export-v2-lab/_data/__tests__/lab-coverage.contract.test.ts
+PASS e2e/helpers/favorites-conformance/__tests__/favorite-conformance-cases.test.ts
+PASS src/lib/clinical/unit-favorites/__tests__/prescription.test.ts
+PASS src/components/clinical/exames/__tests__/ExamesMain.unit-favorite-surface.test.tsx
+PASS src/lib/clinical/catalog-access-lock/__tests__/apply-catalog-patch-unit-favorite.test.ts
+PASS src/components/clinical/exames/__tests__/e09-comparability.test.ts
+PASS e2e/helpers/favorites-conformance/__tests__/favorite-creation-surfaces.test.ts
+PASS src/lib/admin/__tests__/dashboard-queries.patient-buckets.test.ts
+PASS src/export/data/__tests__/getAntropometriaExportDTO.test.ts
+PASS src/lib/admin/__tests__/template-actions.unit-favorites-fence.test.ts
+PASS src/lib/clinical/foods/__tests__/official-food-snapshot-fallback.behavior.test.ts
+PASS src/export/modules/__tests__/CalculoExport.test.tsx
+PASS src/components/clinical/exames/components/cards/__tests__/CardExamePrescricao.bulk-defense.test.tsx
+PASS src/lib/forms/__tests__/form-response-counts.test.ts
+PASS src/components/clinical/app/_components/__tests__/PublishToAppModal.footer.test.tsx
+PASS e2e/helpers/favorites-conformance/__tests__/favorite-creation-judge.test.ts
+PASS src/components/clinical/shared/__tests__/ModuleExportAction.view-mode.test.tsx
+PASS src/components/clinical/prescricao/cadastrados/modals/tabs/__tests__/basic-info-facets.test.ts
+PASS src/app/(main)/(authenticated)/admin/explorer/_components/__tests__/CadastradosTab.scope.test.tsx
+PASS src/components/cadastrados/__tests__/TablePrescricao.actions.test.tsx
+PASS prisma/seeds/system/substancias/scripts/__tests__/promote-golden.test.ts
+PASS src/components/clinical/modals/__tests__/FavoritarRefeicaoModal.snapshot-policy.test.tsx
+PASS src/components/layouts/AppShell/__tests__/Breadcrumbs.linha-do-tempo.test.tsx
+PASS src/lib/clinical/prescricao/__tests__/catalog-resolver-integration.test.ts
+PASS src/lib/hooks/admin/__tests__/useExplorerScope.test.tsx
+PASS src/lib/clinical/__tests__/cadastrado-actions-measure-writers.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/exames-patch-adapter.test.ts
+PASS src/components/clinical/__tests__/alternativas-totais-imunes.test.ts
+PASS src/app/(main)/(authenticated)/admin/explorer/_components/__tests__/ExplorerClient.count-errors.test.tsx
+PASS src/lib/hooks/clinical/__tests__/useContentData.freshness.test.tsx
+PASS src/lib/clinical/__tests__/cadastrados-admin-read-scope.test.ts
+PASS src/lib/admin/__tests__/dashboard-queries.document-products.test.ts
+PASS scripts/__tests__/diet-content-contract-census.test.ts
+PASS src/lib/clinical/refeicoes/__tests__/meal-item-snapshot.server.test.ts
+PASS scripts/unit-favorites/__tests__/evidence-capture.test.ts
+PASS src/lib/clinical/__tests__/food-readiness-boundary.test.ts
+PASS src/app/export/care/_registry/__tests__/build-care-evolucao.test.ts
+PASS src/lib/clinical/content-references/__tests__/extractors.test.ts
+PASS src/lib/clinical/unit-favorites/__tests__/meal.test.ts
+PASS src/lib/clinical/unit-favorites/__tests__/legacy.test.ts
+PASS src/components/clinical/prescricao/cadastrados/modals/__tests__/PresentationTable.clinical-readonly.test.tsx
+PASS src/lib/admin/__tests__/template-actions.unit-favorites.behavior.test.ts
+PASS src/lib/clinical/prescricao/__tests__/unitary-invariants.test.ts
+PASS prisma/seeds/_helpers/__tests__/unit-favorite-writer.test.ts
+PASS src/lib/admin/__tests__/explorer-actions.bulk-restore.test.ts
+PASS prisma/seeds/showcase/care/__tests__/environment.test.ts
+PASS src/lib/hooks/clinical/__tests__/useImportarCrossModule.window.test.tsx
+PASS src/lib/admin/__tests__/explorer-actions.document-products.test.ts
+PASS scripts/unit-favorites/__tests__/read-only-preflight.test.ts
+PASS src/components/cadastrados/__tests__/immutable-actions.test.tsx
+PASS src/lib/admin/__tests__/explorer-cadastrados-scope.test.ts
+PASS src/components/clinical/planejamento/components/__tests__/SliderMacrosV2.gkg.test.tsx
+PASS src/lib/clinical/refeicoes/__tests__/recompute-diet-derived-state.test.ts
+PASS src/lib/clinical/catalog-access-lock/__tests__/apply-catalog-patch-draft-resolution.test.ts
+PASS src/export/data/__tests__/exam-resultset-dto.test.ts
+PASS src/lib/clinical/unit-favorites/__tests__/exam.test.ts
+PASS src/lib/clinical/prescricao/__tests__/substance-tab-counts.test.ts
+PASS src/components/clinical/anamnese/components/composer/__tests__/AnamneseWidgetContainer.import-gate.test.tsx
+PASS src/lib/hooks/clinical/__tests__/useClinicalReaders.freshness.test.tsx
+PASS src/lib/actions/__tests__/catalog-lock-actions.draft-resolution.test.ts
+PASS src/components/clinical/modals/__tests__/FavoritarModal.prescricao-flow-a.integration.test.tsx
+PASS src/lib/admin/__tests__/recipe-actions.hard-delete-ownership.test.ts
+PASS src/export/data/__tests__/getFormsExportDTO.template-contract.test.ts
+PASS scripts/unit-favorites/__tests__/cutover-core.test.ts
+PASS src/lib/export/actions/__tests__/patient-export-policy-callers.test.ts
+PASS src/components/clinical/calculo/hooks/__tests__/useCalculoDadosPaciente.import-priority.test.tsx
+PASS src/lib/clinical/prescricao/__tests__/card-bulk-import.test.ts
+PASS src/lib/clinical/exames/__tests__/exam-golden-serialize.test.ts
+PASS src/components/clinical/exames/evolucao/hooks/__tests__/useExamesEvolucao.test.tsx
+PASS src/lib/export/__tests__/exames-series-transforms.test.ts
+PASS src/components/clinical/prescricao/hooks/__tests__/useSubstanciaSearch.test.ts
+PASS scripts/__tests__/check-runtime-snapshot-contract.test.ts
+PASS src/lib/clinical/exames/__tests__/collision-save-adapter.test.ts
+PASS src/components/ui/__tests__/NavTabs.hydration-boundary.test.tsx
+PASS prisma/seeds/system/exames/scripts/__tests__/generate-v2-exames-snapshot.test.ts
+PASS src/lib/hooks/clinical/__tests__/useExamGridData.test.ts
+PASS src/export/data/__tests__/getPrescricaoExportDTO.empty.test.ts
+PASS src/lib/clinical/foods/__tests__/foodBatchFetcher.snapshot.test.ts
+PASS src/lib/clinical/__tests__/cadastrado-actions.food-numeric.test.ts
+PASS e2e/factories/__tests__/agenda-weekday-anchor.test.ts
+PASS src/components/care/server/loaders/__tests__/exames.result-sets.test.ts
+PASS src/lib/admin/__tests__/explorer-actions.metrics.test.ts
+PASS prisma/seeds/showcase/care/__tests__/seed.test.ts
+PASS src/lib/clinical/prescricao/__tests__/substance-actions-operational-draft.test.ts
+PASS scripts/unit-favorites/__tests__/cutover-args.test.ts
+PASS src/components/features/export/__tests__/AtendimentoPresetExportAction.test.tsx
+PASS src/lib/clinical/__tests__/create-name-conflict.test.ts
+PASS scripts/unit-favorites/__tests__/cutover-inspect-read-only.test.ts
+PASS src/lib/hooks/clinical/__tests__/useDoseRange.test.ts
+PASS scripts/__tests__/backfill-content-references.test.ts
+PASS src/lib/clinical/__tests__/cadastrado-actions.permanent-delete-race.test.ts
+PASS src/app/(main)/(authenticated)/tarefas/_components/__tests__/TasksSidebarWrapper.parity.test.tsx
+PASS src/lib/clinical/foods/__tests__/itemFoodFromFetched.test.ts
+PASS src/components/clinical/calculo/__tests__/Main.planejamento-dirty-reset.test.tsx
+PASS src/components/clinical/__tests__/system-template-readonly-route.contract.test.ts
+PASS src/components/care/server/loaders/__tests__/care-loader-visibility.contract.test.ts
+PASS src/lib/clinical/food-measures/__tests__/actions.test.ts
+PASS src/app/api/admin/explorer/query/__tests__/route.test.ts
+PASS src/lib/clinical/unit-favorites/__tests__/contract.test.ts
+PASS src/lib/clinical/__tests__/golden-product-persistence-references.test.ts
+PASS src/components/layouts/AppShell/__tests__/Breadcrumbs.patient-name.test.tsx
+PASS src/lib/export/utils/__tests__/getContentForExport.test.ts
+PASS src/export/data/__tests__/exames-faixas.test.ts
+PASS src/export/data/__tests__/exames-dto.numeric-read.test.ts
+PASS src/app/(main)/(authenticated)/paciente/[patientId]/_components/__tests__/AtendimentosSection.drawer.test.tsx
+PASS src/lib/clinical/prescricao/__tests__/formulation-presentation.server.test.ts
+PASS src/lib/forms/__tests__/actions.delete-response-scope.test.ts
+PASS src/lib/clinical/food-measures/__tests__/resolver.server.test.ts
+PASS scripts/__tests__/check-golden-snapshot-sync.test.ts
+PASS src/lib/clinical/refeicoes/__tests__/revalidate-diet-snapshots.server.test.ts
+PASS src/components/clinical/receitas/__tests__/RecipeCreateModal.test.tsx
+PASS src/lib/clinical/foods/__tests__/foodBatchFetcher.query-count.test.ts
+PASS src/export/data/__tests__/exames-layer1-convergencia.test.ts
+PASS src/components/clinical/app/_components/__tests__/AppUsagePolicyTooltip.test.tsx
+PASS src/lib/hooks/admin/__tests__/useAdminTemplate.test.ts
+PASS src/lib/hooks/clinical/__tests__/useFoodGridData.test.ts
+PASS src/lib/clinical/templates/__tests__/templateIdGenerator.test.ts
+PASS src/lib/actions/__tests__/clinical-copy-actions.test.ts
+PASS src/app/(main)/_components/topbar/__tests__/TopbarUserDataClient.revalidate.test.tsx
+PASS src/export/data/__tests__/getGestacaoExportDTO.clock.test.ts
+PASS src/export/data/__tests__/getDietaExportDTO.subtype.test.ts
+PASS prisma/seeds/system/substancias/scripts/__tests__/generate-v7-snapshot.test.ts
+PASS src/lib/clinical/exames/__tests__/result-set-save.server.test.ts
+PASS src/lib/clinical/exames/__tests__/evolucao-itens.test.ts
+PASS src/lib/clinical/prescricao/__tests__/substance-actions.permanent-delete-race.test.ts
+PASS prisma/seeds/system/exames/scripts/__tests__/reconcile-exam.test.ts
+PASS src/lib/hooks/clinical/__tests__/useRefeicaoData.cache-key.test.ts
+PASS src/lib/clinical/exames/__tests__/result-set-retention.test.ts
+PASS src/components/clinical/shared/__tests__/ExportV2Action.feature-gate.test.tsx
+PASS src/app/(main)/(authenticated)/admin/dev/export-v2-lab/_data/__tests__/canonical-lab-bundle.contract.test.ts
+PASS src/lib/export/actions/__tests__/getExamesEvolucaoForExport.e09.test.ts
+PASS src/lib/clinical/foods/__tests__/official-food-measures-snapshot.test.ts
+PASS src/lib/clinical/prescricao/__tests__/collision-entry-adapter.test.ts
+PASS src/lib/clinical/exames/__tests__/result-content-codec.test.ts
+PASS src/lib/health/__tests__/post-seed-diff.test.ts
+PASS src/lib/clinical/__tests__/exames-actions-content-reference-sync.test.ts
+PASS src/lib/clinical/exames/__tests__/status-engine.test.ts
+PASS src/lib/hooks/clinical/__tests__/food-snapshot-shape.test.ts
+PASS src/lib/clinical/prescricao/__tests__/prescription-identity-key.test.ts
+PASS src/lib/clinical/exames/__tests__/catalog-value-kind.test.ts
+PASS src/components/clinical/dieta/utils/__tests__/foodOrchestrator.snapshot-first.test.ts
+PASS src/components/clinical/exames/utils/__tests__/statusBadge-veredicto.test.ts
+PASS src/lib/clinical/adapters/__tests__/exames-clinical-date.test.ts
+PASS src/lib/clinical/prescricao/__tests__/substance-mutations.client.test.ts
+PASS src/components/clinical/receitas/__tests__/add-recipe-food-item.test.ts
+PASS src/lib/clinical/__tests__/app-publication-security.test.ts
+PASS src/lib/admin/__tests__/exam-result-purge.test.ts
+PASS src/lib/export/actions/__tests__/getExamesEvolucaoForExport.marker-filter.test.ts
+PASS src/lib/clinical/exames/__tests__/exam-result-read.numeric.test.ts
+PASS src/components/features/export/__tests__/BulkExportActionV2.test.tsx
+PASS src/components/clinical/prescricao/components/cards/__tests__/CardTexto.favoritar.contract.test.tsx
+PASS src/components/clinical/catalog-lock/__tests__/useCatalogLockResolution.test.tsx
+PASS src/export/data/__tests__/getExamesExportDTO.test.ts
+PASS src/components/care/lib/__tests__/exam-collections.test.ts
+PASS src/components/care/server/adapters/__tests__/exames.test.ts
+PASS src/lib/export/actions/__tests__/getCalculoForExport.leitura.test.ts
+PASS src/lib/anamnese/evolucao/__tests__/useAnamneseEvolucao.test.ts
+PASS src/hooks/__tests__/useTemplateDuplicate.test.tsx
+PASS src/export/data/__tests__/mapExamePrescricaoToDTO.test.ts
+PASS src/app/(main)/(authenticated)/paciente/[patientId]/exames/[recordId]/__tests__/page.test.tsx
+PASS src/lib/clinical/prescricao/__tests__/identity-key-partition.test.ts
+PASS src/components/clinical/refeicoes/__tests__/useUnifiedFoodSearch.include-recipes.test.ts
+PASS src/lib/clinical/exames/__tests__/evaluate-result.test.ts
+PASS src/export/text/__tests__/serialize-lote4.test.ts
+PASS src/lib/clinical/exames/__tests__/result-set-import.test.ts
+PASS src/lib/types/__tests__/exames-autocomplete.test.ts
+PASS src/components/features/favorites/identity/__tests__/useFavoriteNameState.exclude-id.test.tsx
+PASS scripts/content/__tests__/doctor-helpers.test.ts
+PASS src/lib/hooks/clinical/__tests__/useSubstanceSearch.professional.test.tsx
+PASS src/lib/hooks/clinical/__tests__/useExamGridData.counts-search.test.tsx
+PASS scripts/__tests__/check-snapshot-id-pattern.test.ts
+PASS src/app/(main)/(authenticated)/meusconteudos/cadastrados/prescricao/_components/__tests__/prescricao-counts-search.test.tsx
+PASS src/lib/clinical/__tests__/refeicao-utils.snapshot-policy.test.ts
+PASS src/export/data/__tests__/evolucao-exames-dto.test.ts
+PASS scripts/clinical/__tests__/prescricao-header-drain-core.test.ts
+PASS src/lib/clinical/exames/__tests__/result-set-write.test.ts
+PASS src/lib/clinical/adapters/__tests__/exames-save-contract.test.ts
+PASS src/lib/clinical/exames/__tests__/collision-entry-adapter.test.ts
+PASS e2e/local/flows/proof/__tests__/clinical-readonly-matrix.test.ts
+PASS e2e/local/flows/proof/__tests__/clinical-readonly-locations.test.ts
+PASS src/lib/clinical/__tests__/app-publication-actions.bulk.test.ts
+PASS src/lib/admin/__tests__/exam-result-recovery.test.ts
+PASS src/lib/clinical/exames/__tests__/result-set-projections.test.ts
+PASS src/lib/clinical/exames/__tests__/result-set-collision.test.ts
+PASS prisma/seeds/showcase/care/__tests__/showcase-attachments.contract.test.ts
+PASS src/app/(main)/(authenticated)/paciente/[patientId]/_components/__tests__/PatientProfileContent.restore.test.tsx
+PASS src/export/data/__tests__/getDocumentosExportDTO.test.ts
+PASS src/lib/clinical/food-measures/__tests__/food-canonical-measure-compat.test.ts
+PASS src/lib/clinical/exames/__tests__/evolucao-series.test.ts
+PASS src/components/clinical/exames/__tests__/result-set-session.test.ts
+PASS src/lib/hooks/clinical/__tests__/exam-snapshot-shape.test.ts
+PASS src/components/clinical/dieta/utils/__tests__/foodOrchestrator.nutrient-hydration.test.ts
+PASS src/components/care/server/loaders/__tests__/prescricao.test.ts
+PASS src/lib/clinical/adapters/__tests__/exames-prescricao-save-contract.test.ts
+PASS src/components/features/export/_internal/__tests__/bulk-v2-strategy.test.ts
+PASS scripts/showcase/__tests__/smoke-reconcile.test.ts
+PASS src/lib/clinical/foods/__tests__/system-food-id.test.ts
+PASS src/lib/content-doctrine/__tests__/registry.test.ts
+PASS src/lib/clinical/exames/__tests__/result-set-entry.test.ts
+PASS src/lib/clinical/exames/__tests__/evolucao-presentation.test.ts
+PASS src/lib/clinical/exames/__tests__/displayed-scope.test.ts
+PASS src/app/export/care/exames/__tests__/page.test.tsx
+PASS src/components/features/export/__tests__/bulk-copy-text.test.ts
+PASS src/components/clinical/exames/__tests__/catalog-resolution-removals.test.ts
+PASS src/export/data/__tests__/getExamResultSetExportDTO.test.ts
+PASS scripts/clinical/__tests__/prescricao-header-drain-where.test.ts
+PASS src/components/clinical/exames/utils/__tests__/markerDisplay.test.ts
+PASS src/lib/clinical/exames/__tests__/resolve-exam-kind.test.ts
+PASS prisma/seeds/showcase/care/__tests__/build.test.ts
+PASS src/lib/content-doctrine/__tests__/public-snapshots-literal-sync.test.ts
+PASS src/components/clinical/receitas/__tests__/recipe-editor-save.test.ts
+PASS src/lib/clinical/exames/__tests__/result-set-presentation.test.ts
+PASS src/export/data/__tests__/getAnamneseExportDTO.clinical-date.test.ts
+PASS src/app/(main)/(authenticated)/admin/templates/favoritos/dieta/[templateId]/__tests__/page.test.ts
+PASS src/lib/hooks/clinical/__tests__/substance-snapshot-shape.test.ts
+PASS src/components/clinical/refeicoes/__tests__/RefeicoesMain.new-template.contract.test.ts
+PASS src/lib/clinical/__tests__/measure-type-create.test.ts
+PASS src/lib/clinical/exames/__tests__/favorite-import.test.ts
+PASS src/lib/clinical/__tests__/exames-resultset.terminal.integration.test.ts
+PASS scripts/__tests__/food-snapshot-version.contract.test.ts
+PASS src/components/clinical/refeicoes/__tests__/RefeicoesMain.catalog-lock-resolution.contract.test.ts
+PASS src/components/care/server/__tests__/care-data.test.ts
+PASS src/lib/clinical/__tests__/antropometriaUtils.calculo.test.ts
+PASS src/lib/clinical/content-codec/__tests__/field-classification.test.ts
+PASS src/export/data/__tests__/getCalculoExportDTO.test.ts
+PASS prisma/seeds/system/foods/scripts/__tests__/reconcile-food.test.ts
+PASS prisma/seeds/fixtures/__tests__/golden-exames-prescricao-abre.contract.test.ts
+PASS scripts/__tests__/recipe-fk-validator.test.ts
+PASS src/app/export/care/gestacao/__tests__/page.test.tsx
+PASS src/components/clinical/shared/__tests__/content-bulk-target.test.ts
+PASS prisma/seeds/_helpers/__tests__/reconcile-pattern.test.ts
+PASS src/lib/clinical/__tests__/exames-transformations.test.ts
+PASS src/components/clinical/refeicoes/__tests__/RefeicaoCard.recipe-create.contract.test.ts
+PASS src/components/clinical/antropometria/__tests__/AntropometriaEditorRouter.proof-now.test.tsx
+PASS src/app/export/care/evolucao/__tests__/page.test.tsx
+PASS src/components/clinical/refeicoes/__tests__/RefeicoesMain.export-v2.contract.test.ts
+PASS src/lib/clinical/prescricao/__tests__/system-substance-id.test.ts
+Test Suites: 3 skipped, 462 passed, 462 of 465 total
+Tests:       16 skipped, 4086 passed, 4102 total
+Snapshots:   0 total
+Time:        90.27 s, estimated 116 s
+@@local-ci-progress	1	node	review	-	stage	passed	-	Review
+==> Smoketest local verde
+@@local-ci-progress	1	node	jest	-	stage	passed	799000	Jest
