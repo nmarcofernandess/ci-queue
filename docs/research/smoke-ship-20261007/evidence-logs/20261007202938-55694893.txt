@@ -1,0 +1,74 @@
+[2026-10-07T20:29:39.791Z] queued 20261007202938-55694893 smoketest-ship codex/exames-r2-r3-20261007 b6e6d9985c2b3950dbdd359ba456383dbe44dd94
+[2026-10-07T20:29:45.564Z] running 20261007202938-55694893 npm run ci:smoketest
+[runtime] <HOME>/.local/share/dietflow-runtime/node/v24.20.0-darwin-arm64/bin/node v24.20.0; coverage=guarded-node-processes
+
+> DietFlow@0.0.1 ci:smoketest
+> bash scripts/ci/smoketest-local.sh
+
+@@local-ci-progress	1	node	static	-	stage	pending	-	Static
+@@local-ci-progress	1	node	jest	-	stage	pending	-	Jest
+==> Static gates
+@@local-ci-progress	1	node	static	-	stage	running	-	Static
+
+> DietFlow@0.0.1 ci:local
+> bash scripts/ci-local.sh
+
+
+CI local — static
+Bypass: git push --no-verify
+
+  prisma generate                         ✓
+  fumadocs .source                        ✓
+  check:use-server                        ✓
+  check:policy-write-boundaries           ✓
+  check:admin-relation-authority          ✓
+  check:zod-schema-sync                   ✓
+  check:architecture                      ✓
+  check:content-writers                   ✓
+  check:content-editor-payload            ✓
+  check:content-resource-boundaries       ✓
+  check:golden-product-shape              ✓
+  check:golden-fresh                      ✓
+  check:clinical-item-header              ✓
+  check:unit-favorite-writers             ✓
+  check:record-date-derivation            ✓
+  check:module-help-docs                  ✓
+  check:favorites-kinds                   ✓
+  check:import-surfaces                   ✓
+  check:field-adornment-contract          ✓
+  check:numeric-input-ratchet             ✓
+  check:field-identity-ratchet            ✓
+  check:context-yaml                      ✓
+  check:e2e-trigger                       ✓
+  check:fixtures                          ✓
+  check:showcase                          ✓
+  check:autofill-policy                   ✓
+  check:patient-proof-routes              ✓
+  check:proof-index-fresh                 ✓
+  check:clinical-readonly-preview-boundary✓
+  check:snapshot-sync                     ✓
+  check:snapshot-runtime                  ✓
+  check:catalog-changes                   ✓
+  check:seed-tag                          ✓
+  check:flowid-contract                   ✓
+  check:e2e-target-contract               ✓
+  check:regression-verdict-provenance     ✓
+  check:vercel-branch-policy              ✓
+  check:a4-css-sync                       ✓
+  check:a4-contract                       ✓
+  check:no-inline-search-input            ✓
+  check:single-favorite-toast             ✓
+  check:content-visibility                ✓
+  check:hard-domain-writers               ✓
+  check:lifecycle-consumers               ✗
+
+
+> DietFlow@0.0.1 check:lifecycle-consumers
+> tsx scripts/check-lifecycle-consumers.ts
+
+check:lifecycle-consumers FAILED
+  - censo − registry (2): food:read:prisma/seeds/fixtures/foods-recipes.ts#seedCustomRecipes@1, recipe:write:prisma/seeds/fixtures/foods-recipes.ts#seedCustomRecipes@1
+  - registry − censo (2): food:read:prisma/seeds/fixtures/seed.ts#seedCustomRecipes@1, recipe:write:prisma/seeds/fixtures/seed.ts#seedCustomRecipes@1
+
+Falhou em: check:lifecycle-consumers
+@@local-ci-progress	1	node	static	-	stage	failed	152000	Static

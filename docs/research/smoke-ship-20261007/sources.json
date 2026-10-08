@@ -1,0 +1,3385 @@
+{
+  "scope": "immutable primary implementations and selected literal dependencies; not a complete import/runtime graph",
+  "sources": [
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "package.json",
+      "gitBlob": "145d144997a16620552bccbec5226f4b18a83e98",
+      "sha256": "0f79c49a80be4d404b43f8d1d132d704e372c329f06d14b8ecb21abbb97d514e",
+      "bytes": 49180,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/package.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "package-lock.json",
+      "gitBlob": "e6f35cf7799e57ba2b6dadde538c6deac3b9fb80",
+      "sha256": "5575968e36470d1d3e9e433bf6e08625e6939e8f3d0f84267442c3ac841af90c",
+      "bytes": 1247180,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/package-lock.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "ci-queue.json",
+      "gitBlob": "3ae698779c86910703afe1b5d4b00ffab2fbbde5",
+      "sha256": "7a7498fbfe3c1b9e5375b6890efcd8886bb6eabed269c47e320de774c332e769",
+      "bytes": 20208,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/ci-queue.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci-local.sh",
+      "gitBlob": "4b403f0fc1e4ded4f14a529145983501e878f1e4",
+      "sha256": "c1488751d70efe58207699f2cc9d13285114a96d7a331019f6fea91b4c72deb9",
+      "bytes": 8630,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci-local.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/smoketest-local.sh",
+      "gitBlob": "2494dfd72779934c608cefa5c7a63d093a562b56",
+      "sha256": "fdfbbd819389c86b85c794539d1fb8e78f2eb3c637053f994242fa5ebf43f6b5",
+      "bytes": 1826,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/smoketest-local.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/full-local.sh",
+      "gitBlob": "da8bc43d900960c8d740805ad0fa58dca433eaba",
+      "sha256": "318769824b1b7b406ccebb2c062a4de9ea71b7deb6ac123874dd20ea021d6924",
+      "bytes": 5735,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/full-local.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/jest-scope.ts",
+      "gitBlob": "9788770da30c439d2362ff7fc71841dbb0bbdc4a",
+      "sha256": "6fe653b60f5b2d2dacb3e4e5d3abceadb5cd894c59c19a60c69a8c7f98368f67",
+      "bytes": 33695,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/jest-scope.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/catalog-proof.ts",
+      "gitBlob": "a2bcaadd19b750ab65a7149bdd5634bfbbc32a11",
+      "sha256": "91e69e97fdbb82c1399b1fa8e15472d1c7790685e1517d5e87056157bda676eb",
+      "bytes": 14478,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/catalog-proof.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "jest.config.cjs",
+      "gitBlob": "7ee35b4d6950940c1d13b1c2a4121c787f3cd4c4",
+      "sha256": "959180e0b35bb89b77c01f7200e0c23384674ef560ee010ff2b1000cc7cad97b",
+      "bytes": 7008,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/jest.config.cjs"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "jest.global-setup.cjs",
+      "gitBlob": "78063eee04fdcb926663b15ce78f488c8b187d9f",
+      "sha256": "a82d12243d358a1ec4d4965ab3ca687f520f69ed26b5198ecd74e8ef8c568414",
+      "bytes": 5985,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/jest.global-setup.cjs"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "jest.setup.js",
+      "gitBlob": "dbe2735cfd653374ae8110af394debfda2bf51bc",
+      "sha256": "089fb1001972cf2f451eb19d101383730b5d3848a26e56094bde330787e47405",
+      "bytes": 4968,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/jest.setup.js"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/jest/worker-memory-policy.cjs",
+      "gitBlob": "701a73ec2e3b5f9fc531cef7b9e64dd844b38244",
+      "sha256": "d41437341d233353215301eb94ed830c69fc8943c499e0a52efd528a179e36b3",
+      "bytes": 2043,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/jest/worker-memory-policy.cjs"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/jest-env.sh",
+      "gitBlob": "18da082b1055af456abb5cb789a1a69a2e9ade7a",
+      "sha256": "575b1933ecfd2d5f9d5a44cee9940a084b7cb0bdb2da04aa84daa289c633d0e7",
+      "bytes": 1156,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/jest-env.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/performance-measurement.sh",
+      "gitBlob": "5826cfe68a645be6f29d242be0748b9f37f93ae7",
+      "sha256": "be2f951f0447e529f4d02bf64cc1064b05155fe5bcc7955ba63ceb64a88a56c3",
+      "bytes": 3134,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/performance-measurement.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/performance-measurement.ts",
+      "gitBlob": "c8701bc5f94ef93740156ed0f81d83201571d8ae",
+      "sha256": "d6723da228f086726c7f18e1a5cc13dd3c98ef0f2c103c83a9473436233d8da1",
+      "bytes": 19262,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/performance-measurement.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/progress-emitter.sh",
+      "gitBlob": "77398a8ee7e81278c7ce877064c802479764462f",
+      "sha256": "b97a370c224207c18cc0f4a72d7f483630e08bd657225be7ac03df81de099f47",
+      "bytes": 3476,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/progress-emitter.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/typecheck-preflight.sh",
+      "gitBlob": "39bc52c888b2b6a599277999ecfa314aa55d9af3",
+      "sha256": "876a75b99c57276705ec66c065fcd68015da1cc485ce6aa1288a909a891c5471",
+      "bytes": 342,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/typecheck-preflight.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/typecheck-main.sh",
+      "gitBlob": "3e755927a780f1011c226df6432c743d06d4baf3",
+      "sha256": "971bc9d71660d1934cc2a16ee6a2ce183d74895f229b7e045cd207f00d700ea0",
+      "bytes": 473,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/typecheck-main.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/typecheck-storybook.sh",
+      "gitBlob": "e8fb1736a742c9fb38d7c15ebe3ac8cfc477b8cc",
+      "sha256": "961b896155b587836c9500cc0a4a51253fc38f7317b38b1fd1f3a9d36098c1cd",
+      "bytes": 397,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/typecheck-storybook.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/classify-pr-paths.mjs",
+      "gitBlob": "6527202ca010e49d8e6378db824e046c01a7c0b9",
+      "sha256": "9e0016ffb21d3d1953b1e14febceaee998cd82fe4cb0fa4acac74106ec87314f",
+      "bytes": 5654,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/classify-pr-paths.mjs"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/queue-ticket-contract.ts",
+      "gitBlob": "9ea079b48a9c0cefef5a705b52b6e1cc26512d99",
+      "sha256": "82011749305174848f05b7c5aac7785b51a5db2c9ebea7730c191e70b3f6c486",
+      "bytes": 13461,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/queue-ticket-contract.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ship/ship.ts",
+      "gitBlob": "7350711c0bc747f078522f917600d35aa1ae1e65",
+      "sha256": "854d42f1ad392919fe2c2091a78726195a05ce0a18016b80cf668fec731fce33",
+      "bytes": 47960,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ship/ship.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ship/remote-verdict.json",
+      "gitBlob": "5b677c609c97974255d76b0529d9b6e5dd77d8e1",
+      "sha256": "27016b4239b2ccc00f0b35406d6553ee8e3b279ab2769b579e79b7f5ed8017d4",
+      "bytes": 27,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ship/remote-verdict.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": ".github/workflows/ci.yml",
+      "gitBlob": "6760dff0f6a9c5a86219bad042e7d6ccdd38ba5a",
+      "sha256": "09c24c59a22f2a0ba84aa6bbd86d6cd79f7f9f1060cde2210b17a8d971ef7161",
+      "bytes": 8803,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/.github/workflows/ci.yml"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": ".context/patterns/ci.yaml",
+      "gitBlob": "e8d12b4a142b9cfb0dc974b37c6bccac85d8650a",
+      "sha256": "2505ebe9e0a480134ccf108f47d896ff4bdc99724dd50abdd22ce1721abe5054",
+      "bytes": 44613,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/.context/patterns/ci.yaml"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": ".claude/CLAUDE.md",
+      "gitBlob": "d2aaefa7ec7db970a82c6f9fc30305f98caf11e0",
+      "sha256": "18ddef1ff8eaf81d02d807c27b7bcd8eedd1310fd8cd6e2fc83a249759a83a2d",
+      "bytes": 21913,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/.claude/CLAUDE.md"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": ".agents/skills/dietflow-ci/SKILL.md",
+      "gitBlob": "7eb686ff1406d57ba75eeeb937bc62f8707a7cbe",
+      "sha256": "10e3971b8f096d70a9bf62b5c74d108c2326922a2cca77ce675069a76ad151ad",
+      "bytes": 15376,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/.agents/skills/dietflow-ci/SKILL.md"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "docs/ci/README.md",
+      "gitBlob": "976b892853065f97a4526355a99e0bc292e7ca65",
+      "sha256": "1f9d3653442454967ecf822993ada73f80cd1bb1b6e3c5eee2450fcd0e81406c",
+      "bytes": 2121,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/docs/ci/README.md"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "docs/ci/CI-QUEUE-CONSUMIDOR.md",
+      "gitBlob": "438185be6ca70d9d5e8d97b62856526fdf1c40b7",
+      "sha256": "4fc5ef66df3b58301e81cd403bc54290ce6e1c9c0e0177d32724cb0ac5654d84",
+      "bytes": 15004,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/docs/ci/CI-QUEUE-CONSUMIDOR.md"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "docs/ci/FLUXO-CI-GITHUB-ACTIONS.md",
+      "gitBlob": "359183eb7c10f00558401b54bf57a1276f931caf",
+      "sha256": "21675311df6f4eadaef34c102a86593deb971e4f6356a4cbb66d2e1b4811b42f",
+      "bytes": 50544,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/docs/ci/FLUXO-CI-GITHUB-ACTIONS.md"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "docs/ci/VALIDACOES-PENDENTES.md",
+      "gitBlob": "968d5820fad3d16b76ecf65aa90614dc328ba551",
+      "sha256": "f93a5c936365b9f1489af253190aa5d3a6d11ec9f26f698883a920316d77bddb",
+      "bytes": 19612,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/docs/ci/VALIDACOES-PENDENTES.md"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "docs/harness/RUNTIME-PROFILES.md",
+      "gitBlob": "df939bcd4c193d93e02946c09b7b17cdc311f424",
+      "sha256": "88f1178e34bdc0c83b6abb8cca56169e54d31bd1faf59f34188827e41939ff49",
+      "bytes": 86024,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/docs/harness/RUNTIME-PROFILES.md"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/prisma/normalize-generated-client.mjs",
+      "gitBlob": "a2fd630ffce91b2344dec642c10e95e919c517dd",
+      "sha256": "a92b98ec0857371f81c57dae9ecc04bb694ea4d2e25916fc7d69a09fbc3062f6",
+      "bytes": 868,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/prisma/normalize-generated-client.mjs"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "tsconfig.json",
+      "gitBlob": "f5f2fd8f4f2d2c74c13a2fcf1c19d32251407158",
+      "sha256": "4e6b8647e91077834f5f49271a041094891cf5343a011ba396458cbba91c1d9a",
+      "bytes": 1295,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/tsconfig.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "tsconfig.storybook.json",
+      "gitBlob": "45eb6ea89f200f6d4925172c251f3eb5aa9cf92b",
+      "sha256": "65ccaa43f303a3b2ea37a977950bd867ae7b9cd808d5ced78153bb3a061603c6",
+      "bytes": 359,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/tsconfig.storybook.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/prisma/generate-client.sh",
+      "gitBlob": "ddc6ef7b5d66648d0915b95833d449870f8c2621",
+      "sha256": "c9474ee334a8accc47dee789b4cc6886d4b5418cd6b0c9af985b2666990bacde",
+      "bytes": 769,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/prisma/generate-client.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-use-server.ts",
+      "gitBlob": "9aeb084947f566bf006f351f6f481f73f682df13",
+      "sha256": "9591f043000e6fa1e23b184aaea7cdd3079670bf1facb6d1033d70940c071ad7",
+      "bytes": 6964,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-use-server.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-policy-write-boundaries.ts",
+      "gitBlob": "0f4a566d744ff23eb86a7f2f3213f59b991cbdd1",
+      "sha256": "562bdc27a704d9387af21ed995316599f948b164b8cc4a366e7821a15bb35f6e",
+      "bytes": 7295,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-policy-write-boundaries.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "specs/086-policy-por-capacidades-unificacao-guards-retirada-semantica/WRITE-BOUNDARY-MANIFEST.json",
+      "gitBlob": "47724f2e9fec52718f1039c9e363abc6c7f59c0f",
+      "sha256": "5196f0750946f5ec1578333f19e30d57a3be5eb9002d9c25b39c66887e2df97a",
+      "bytes": 6159,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/specs/086-policy-por-capacidades-unificacao-guards-retirada-semantica/WRITE-BOUNDARY-MANIFEST.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-admin-relation-authority.ts",
+      "gitBlob": "3a9009260888c56df99f4daac64044b2c1b392f6",
+      "sha256": "5a4cca00c39c46c022e9ce2a1959e883d0fa707add5acdea2b1ada0ad1c162c4",
+      "bytes": 20188,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-admin-relation-authority.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/admin/admin-relation-authority.server.ts",
+      "gitBlob": "a4285b51df761eaf85c15ca9d437773679432a0b",
+      "sha256": "6cdedb08005b34da80135bec67ec58f7603128eea73b7d2f918c113598e637b3",
+      "bytes": 33596,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/admin/admin-relation-authority.server.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-zod-schema-sync.ts",
+      "gitBlob": "5eeea6c553e46bbe35e833e05cf1237ff9d47846",
+      "sha256": "95ef41b6c660edd2ccd33740cd564a9c7caef1b2d0853e62726a98e64415ad61",
+      "bytes": 4585,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-zod-schema-sync.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/types/calculo-db.ts",
+      "gitBlob": "1319f22f0a92e0631a87c254cfedbfbdb489adf1",
+      "sha256": "d4db6b1bfc4c83e217de67a1b8e2999293f9080e7981f131cf1bcc53f9a9d15d",
+      "bytes": 25409,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/types/calculo-db.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/schema.prisma",
+      "gitBlob": "1b2afe14bff4933a34dda50d39dcb79452aa23ea",
+      "sha256": "ff6003ae3da474ba27fb4aa96ab9742a3cdfcdcfc39dca196cddab4605ec74f8",
+      "bytes": 160525,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/schema.prisma"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-architecture-boundaries.ts",
+      "gitBlob": "36f5f673f55bdc28c9db6d4f16b0297db6ce7ef9",
+      "sha256": "afe83a198a98494a6ebb40dee05558c7d03472391ccfa9ac355de7f6feceb815",
+      "bytes": 7211,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-architecture-boundaries.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-content-writers.ts",
+      "gitBlob": "5944c0eadadf366c690a2a96e929741768651ad2",
+      "sha256": "fa6b8c8a65f3408733e8f4a45435e34d0e2557844c2081a7192496915e781f30",
+      "bytes": 8543,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-content-writers.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/data/content-write-registry.json",
+      "gitBlob": "991b1232f720bd053a85dee7c484c8964292bc84",
+      "sha256": "b9a1fe8624b487cbca8c9ecade9fd09983fc71ff851204ac6b7603beb23e35ed",
+      "bytes": 8643,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/data/content-write-registry.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-content-editor-payload.ts",
+      "gitBlob": "0df7933cd9db462542c72a0b38c5fa32e78be9b2",
+      "sha256": "c8a92b33a8ef1af0b12793304130abce7f8f0e10b1d9fff9f8372f6218658fc4",
+      "bytes": 7646,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-content-editor-payload.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/content-save-input.ts",
+      "gitBlob": "74b06e2ae4f94773a676ff308aae13a6480bf29b",
+      "sha256": "6e2fec6d620d18e47c4a79b32e1acf5cb62763afeb7f65bd6902362d45c601c4",
+      "bytes": 2351,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/content-save-input.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/content-actions.ts",
+      "gitBlob": "f1e9971576abfb8e4ce54db6205ea6e37a91d01d",
+      "sha256": "0c4083c36c925620a21ee25dd287eaee664be320c4a54cbffae6e3f569290c7c",
+      "bytes": 61621,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/content-actions.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/template-actions.ts",
+      "gitBlob": "fe0d3561a62b4b93ce2cc31c6f9aa6f24d59e87b",
+      "sha256": "8b2f7af0337317dbcb8b4eeb351a64b4eeab05768fc6d281f1641683c00d224a",
+      "bytes": 84862,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/template-actions.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-content-resource-boundaries.ts",
+      "gitBlob": "82b78071a34d5d393817945aae905d91070b38a1",
+      "sha256": "f2b860585e7cd482aa5e8eb523e843e8ee75ef4fa2e81be6528b946eba11033a",
+      "bytes": 3502,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-content-resource-boundaries.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/swr/resource-freshness.ts",
+      "gitBlob": "1c46b56d667b3fe7d555c2c267c6c23d483a57a3",
+      "sha256": "25ae1165274ce61e6a47062f47b00ba2c107210b2584897a14dadeb8de64d4c6",
+      "bytes": 11194,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/swr/resource-freshness.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/content-freshness-events.ts",
+      "gitBlob": "b7798984ecfd8f6b5b24d050ab1211c4cdf05ff5",
+      "sha256": "cc0508ed97043786eda947bb26e8f9fbcbb31c7cc28047bc0068d9f362a946ee",
+      "bytes": 3016,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/content-freshness-events.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/contexts/ResourceFreshnessContext.tsx",
+      "gitBlob": "40fe4a72fccae15dc5c33d421a90c0a470177823",
+      "sha256": "acfc21a70ce924ab918bc4aeed6e75abd06ec9e41c60a95ac020cc4af5606ee5",
+      "bytes": 4204,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/contexts/ResourceFreshnessContext.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/swr/keys/content.ts",
+      "gitBlob": "805730ba388a3e08ee44fc074ebea7412391fbdf",
+      "sha256": "b6e5fbd6c892e2a77be6349515b23fc0255e13857f0f85898afe7762789700fa",
+      "bytes": 2960,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/swr/keys/content.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/app/providers.tsx",
+      "gitBlob": "df1aba4448a4e363d4845edd4cb3944377d37173",
+      "sha256": "fe9bf30d41ef529ad808ce33d46899a914cdd479ccc9b6308fb71f736569b310",
+      "bytes": 2415,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/app/providers.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/layouts/AppShell/Sidebar/Sidebar.tsx",
+      "gitBlob": "a7c6c54dee0bc7218e1bce71318da5d66c3caa06",
+      "sha256": "81f3e1072eb33cc7cc079ee5209c709e77681d640721bfee5e43413692cb461f",
+      "bytes": 19125,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/layouts/AppShell/Sidebar/Sidebar.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/app/(main)/(authenticated)/layout.tsx",
+      "gitBlob": "fa0ff5eefebb60507a5d41f90c361db7b5569237",
+      "sha256": "a542ce9164ba9a660f292e40a70ba3eb2e8d282023b52a9f96c2a6158d896837",
+      "bytes": 15150,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/app/(main)/(authenticated)/layout.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-golden-product-shape.ts",
+      "gitBlob": "4b3228d576c945cccc031289c3ba5809f5713f77",
+      "sha256": "14f4793d8c69d496fd29256318896afe2d3885c46ac59bbe4508c1bfbc0d8cbb",
+      "bytes": 39677,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-golden-product-shape.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/anamnese/content-contract.ts",
+      "gitBlob": "4d8b10460d4858e266b184a10e4a7e4cd1c1eb83",
+      "sha256": "8eb76934335aa13c02ac74c2896385db5c0cd7cb2826f84afcfd98f4d9088bec",
+      "bytes": 2058,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/anamnese/content-contract.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/anamnese/serialization.ts",
+      "gitBlob": "1a42d98b8f0a5fa8cafd1c91004645846baeaf07",
+      "sha256": "2c2cfe65f5ed7a7f7629b2a7ec0fb850f71c622f314d98f5275a748db28b0040",
+      "bytes": 1531,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/anamnese/serialization.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/anamnese/types.ts",
+      "gitBlob": "aa0187a81d3d22cad91a578f7c4b093d831b4b4b",
+      "sha256": "944be0b4f33d93062fe9de1cf80ebd6403dfd3e91bff931dacc06d2bfa554616",
+      "bytes": 12368,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/anamnese/types.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/prescricao/core/prescricao-content.ts",
+      "gitBlob": "886bd0656e4b7caf39e53254ab766acd9116f962",
+      "sha256": "f605aca75ff55fc244b3e346f4ce28990bad9fe6d359f095fb5f1117240fb640",
+      "bytes": 24082,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/prescricao/core/prescricao-content.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/adapters/antropometria.ts",
+      "gitBlob": "a8e5eb1c1b1147f7b876b089cfa218efdd893d93",
+      "sha256": "f106d5372a003a8bb3d2b8c4579f9b0a3357213663bc0dd4a0d4c995283a9619",
+      "bytes": 21480,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/adapters/antropometria.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/calculations/antropometria/index.ts",
+      "gitBlob": "2e8432593e1a8131130648949163412e799f8a0e",
+      "sha256": "2e82ad3b4ba072febd864cb08b942e5ed29579f0a11a3e2391cbc7112231d43b",
+      "bytes": 389,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/calculations/antropometria/index.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/adapters/gestacao.ts",
+      "gitBlob": "eaf42d3d69cf7aa73f19b819873c1440475c57c7",
+      "sha256": "3031a49208e797d376ec345c853529f9d66c79a6bc2fd20d24983ca9039df434",
+      "bytes": 12245,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/adapters/gestacao.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/fixtures/diet-product-reference.ts",
+      "gitBlob": "99b52699baad1d0f636934f2f35c26c28b93c40d",
+      "sha256": "1a55222503e5de9ebe81bac695954c8475ae448748801c7ae7aaad11792e6efe",
+      "bytes": 4814,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/fixtures/diet-product-reference.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/adapters/refeicoes.ts",
+      "gitBlob": "ba7196f8f83c042e4ab0f1bc7ff40c07bab40978",
+      "sha256": "cc230792cf8eb7678fc16cc9a5de80f5ccc994e5b03c30a5e6eaef7c253e4902",
+      "bytes": 13643,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/adapters/refeicoes.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/adapters/documentos.ts",
+      "gitBlob": "43023e9a3ad98963eb14223ddef9089253dfd957",
+      "sha256": "00b26535bb1d7b54b0df539a9e63fa69c27481d5def33931f73af5f0fdf577b4",
+      "bytes": 3150,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/adapters/documentos.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/adapters/exames-prescricao.ts",
+      "gitBlob": "c9f6f27668a35b6d560de1b712e10dd3a3d0c678",
+      "sha256": "70fc60e016c05ad5d63268553821607a6410b3971768c7e8f3918b65b9023752",
+      "bytes": 12644,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/adapters/exames-prescricao.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/calculo-content-persistence.ts",
+      "gitBlob": "b698120c9f3cae937c6f46b3abcdace5239a2eae",
+      "sha256": "019897547f8a335a481053bb6819caf24e74aaef9bd385aca61b335e7157ac91",
+      "bytes": 1548,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/calculo-content-persistence.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/substituicoes-content-persistence.ts",
+      "gitBlob": "ce121cefabec92f286916748aa57ab26b604cb18",
+      "sha256": "b58839dc3d6910b3034dde7ab894a3433ce355668a09564abad79af2ca80cd70",
+      "bytes": 878,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/substituicoes-content-persistence.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/exames/result-content-codec.ts",
+      "gitBlob": "9d2270f207eb25d8f284ac79f96c1646067aeb26",
+      "sha256": "bf5a9d649f8bee9ce7e97a693dbc160bdc34ff62e773b44a3f5f6916a0609a83",
+      "bytes": 11169,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/exames/result-content-codec.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/types/index.ts",
+      "gitBlob": "4d1145291d2c5fc126ef4cbec995b304d061d603",
+      "sha256": "8fe4bc7f4154b399cb1c9ecbb6d10e47d8cafb9dabb408036ed23a425647d7f5",
+      "bytes": 8093,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/types/index.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/types/refeicoes.ts",
+      "gitBlob": "d88dca8532e151d3c5c23adcc59b23e2cf17caae",
+      "sha256": "58ad633439d662e1a4c0ca91f1dcd3800ba496668a5a05807347e8ea801b61bd",
+      "bytes": 7946,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/types/refeicoes.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/adapters/base.ts",
+      "gitBlob": "76e2a18f629a5ec02203586f1b0b923a10f63aa1",
+      "sha256": "11bc462d72254d8a8230ee2b3699b719bfd04f30238a0257ca0f6d6bd405340b",
+      "bytes": 5722,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/adapters/base.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/fixtures/golden/fixtures.json",
+      "gitBlob": "70aa1b47f025b09eb987d74293734a7ea5702d88",
+      "sha256": "039238ee8663a716a00ce05aa0a08cec684d535c9099378737265e7e6e0b0784",
+      "bytes": 1059802,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/fixtures/golden/fixtures.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-golden-fresh.ts",
+      "gitBlob": "24f9943df7f1bb2bd4eda3d3cffab0804d287762",
+      "sha256": "261dd37409a2d982d0b7a878b03d57043de6c53c7d3b3b814b10bf5746e6800a",
+      "bytes": 6548,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-golden-fresh.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/fixtures/build.ts",
+      "gitBlob": "e879c6bafb6aaf97004dc8ba441c13111723ae56",
+      "sha256": "6d6f6b35617f4b638630cf342bd85211bfa758abff365222044fb315e56e770b",
+      "bytes": 18335,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/fixtures/build.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-clinical-item-header.ts",
+      "gitBlob": "361dd38526aa1418b7b745bb4c66257e7e0f703f",
+      "sha256": "b654804b02acf0ab33cd71e6e3844f5841a15c4d3252a8cd62c0951f43b54e9d",
+      "bytes": 10563,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-clinical-item-header.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/index.ts",
+      "gitBlob": "e5c9d3818683d0ddedb4e6386a96b6b8dbe548cd",
+      "sha256": "9ac6274e6c83bda187ae18522be1afb34e606883bc6862b1b9f884754195205d",
+      "bytes": 471,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/index.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/prescricao/types.ts",
+      "gitBlob": "d3c42f6d84a00d195049cc82bebd1d8241d78cdc",
+      "sha256": "e7d577503eda3ba08524bf4e2e81851d5c5f165c9ade717c0d13884b5423b00d",
+      "bytes": 32493,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/prescricao/types.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/exames/types/prescricao.ts",
+      "gitBlob": "51ddfe19c3196320077696bb5c93d9c3ed104a28",
+      "sha256": "aded5ca3e6aabe6b4cfac72e9845861a94792c333c22441e15d191dac688898b",
+      "bytes": 3997,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/exames/types/prescricao.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/exames/types/resultado.ts",
+      "gitBlob": "54ea17cad3764c30a13c7946cf9d229af7797200",
+      "sha256": "4385a78f734eeeee020f1323c98cade39dcc85fb74590a32fba935ea666ecc39",
+      "bytes": 4054,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/exames/types/resultado.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-unit-favorite-writers.ts",
+      "gitBlob": "630407f17b8f86f4ddee682c1818d094b88f84cc",
+      "sha256": "3db668be6bba038e63e65d813317af85c09312a507a6472aa35317dadefdd87f",
+      "bytes": 26019,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-unit-favorite-writers.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/admin/template-actions.ts",
+      "gitBlob": "f19212deed679deb15550fa47c014646994e67fe",
+      "sha256": "f7ae9f049fa95376b01fc346a308ebc7e0a902cd71bf96e8b7a4b95ea50786bb",
+      "bytes": 47904,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/admin/template-actions.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/catalog-access-lock/apply-catalog-patch.ts",
+      "gitBlob": "1b7a0a7545fd65b96cf0ab83cbcdee9986177ef3",
+      "sha256": "77ad78c83ea845f23afa747e1ff675211e26fb1d088406250614a2aecf74cbd5",
+      "bytes": 22905,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/catalog-access-lock/apply-catalog-patch.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/actions/catalog-lock-actions.ts",
+      "gitBlob": "b529cc7c31cd77ca274509c38d6410c803473257",
+      "sha256": "53279b435818983833862ff87ed44b2d1a10b194f40549ae65f87678d462bb9d",
+      "bytes": 32686,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/actions/catalog-lock-actions.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/refeicoes/persist-diet-content.server.ts",
+      "gitBlob": "4f8fa65f7abcfed516c14fdc92b0caa1fda66990",
+      "sha256": "faeeec8555358451848c9e773ea22688313ac0f43bbc0c33378df84ce9ff5987",
+      "bytes": 31431,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/refeicoes/persist-diet-content.server.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/templates/seed.ts",
+      "gitBlob": "9e53739166dcdd7268df0595609e1f46636246f5",
+      "sha256": "13342168aaeb055b979a4cac41c761e8ab7194edd44159d3344372898637c971",
+      "bytes": 20122,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/templates/seed.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/fixtures/seed.ts",
+      "gitBlob": "f47106b88c2c3b5c78b92c49f7759a78424e7f3f",
+      "sha256": "48844e920004b2b27c0c650187817917bd1878e927101928ff4cd0d901c5deb5",
+      "bytes": 47973,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/fixtures/seed.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/catalog-lock-e2e-seed.ts",
+      "gitBlob": "d5442dda549e5951ab4a6051cfa5a1129fb7f7c4",
+      "sha256": "b5eb5fd819f5750077c1abda66c62efff5c982872ac5f75f555f0c5f84d9aa97",
+      "bytes": 6530,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/catalog-lock-e2e-seed.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "e2e/factories/isolated-professional.factory.ts",
+      "gitBlob": "f5fbff4afeab3283a063fde773bd167539c7511f",
+      "sha256": "0063d24b8118d6193bea8b22563d8b0cb2f8f09f3f74586302e38c8ba26f5735",
+      "bytes": 105178,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/e2e/factories/isolated-professional.factory.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "e2e/factories/worker-catalog.factory.ts",
+      "gitBlob": "e7b2d741e72463f2274328e2cbc21c5112ff5f06",
+      "sha256": "cabbae53eecda3e75493cdc755eb99c8a06c54fb2b0393ff19ce97b716554785",
+      "bytes": 111288,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/e2e/factories/worker-catalog.factory.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "e2e/factories/clinical-readonly.factory.ts",
+      "gitBlob": "ed9c6a4716ea0b5da6a4bdec942a99348d7bce81",
+      "sha256": "807223f789455f2d1e1ae129d7f633a5fe09bc798799943595c70aaaa4defc7e",
+      "bytes": 44258,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/e2e/factories/clinical-readonly.factory.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "e2e/regression/clinical/flowid/view-mode-proof.spec.ts",
+      "gitBlob": "8dc7138a822d1451a3d306fe87991efc0f171ea7",
+      "sha256": "74977603792ef4da70c0126bfc16b402933c7a4aebc9355bdb1ae5c8f7257c53",
+      "bytes": 26782,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/e2e/regression/clinical/flowid/view-mode-proof.spec.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/unit-favorites/cutover.ts",
+      "gitBlob": "2913f6d061b119442f85c09bedc7221f1a33af1e",
+      "sha256": "5bf17ff0722c1cce4075bb73f7beafdab1347b166dce7662b6d223a9dba2740b",
+      "bytes": 26567,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/unit-favorites/cutover.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/unit-favorites/rehearsal.ts",
+      "gitBlob": "2ba0817660d69f9bd2bbd9e0919cab2ad2393a45",
+      "sha256": "9306a5320a5e905ce039788faf4c3e1c22184db123110def594573099a1be8ff",
+      "bytes": 27080,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/unit-favorites/rehearsal.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/unit-favorites/c03a-public-write-fence-essay.ts",
+      "gitBlob": "a97fd9b2af34337243ed46dbd4e28fcf071f7579",
+      "sha256": "e47221d8a30f5720742697cbba1b767724f23b75431ff51da59c23e9a20f178c",
+      "bytes": 25309,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/unit-favorites/c03a-public-write-fence-essay.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/generate-metadata-for-existing.ts",
+      "gitBlob": "c1c843086e757032cd9102f0aeebc0310e4e3f33",
+      "sha256": "33a4ad571042a99796914c1de8f4636c46fecf851bbb5feba91155bb1c25879d",
+      "bytes": 4457,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/generate-metadata-for-existing.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/migrations/m3c-edqm-migrate.ts",
+      "gitBlob": "766e40278d4fb162fc2003be0ab98073a85a1482",
+      "sha256": "5a4ea44b07e17effb396c66ead4afbac4b8c66f818bb50f4b53aedb207680699",
+      "bytes": 4512,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/migrations/m3c-edqm-migrate.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/migrations/m3c-edqm-rollback.ts",
+      "gitBlob": "9737b4bb64bbf7866db6732ef3c7edaa71b78fd1",
+      "sha256": "ef6cd59b0cbcbc156e6ca891fceed4d57d6441784f8e919c69095eec9be87949",
+      "bytes": 4361,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/migrations/m3c-edqm-rollback.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/prescricao/drop-strength-from-content.ts",
+      "gitBlob": "fcc00d31d946279a92cd1009cc1e354e0f12e075",
+      "sha256": "26bd1049b316f0c39d23026f0b0950ed847f8c72325f88697fc9e21163c29e3e",
+      "bytes": 15187,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/prescricao/drop-strength-from-content.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-record-date-derivation.ts",
+      "gitBlob": "8ab8603ea868e9de4ebafd02e7e3d878bdb0cadb",
+      "sha256": "c47d56322db51d1281fd25d65c956988838f0b3a3dd290823f2f69849fa7f025",
+      "bytes": 10692,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-record-date-derivation.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-module-help-docs.ts",
+      "gitBlob": "375ad5a0a1dd1f3468acbf2be812475d0b4e1183",
+      "sha256": "9fc59b5355b9d0a9506d626309c1290ec2ba8ffcd8b208db00b147c40de424c4",
+      "bytes": 4771,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-module-help-docs.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-favorites-kinds.ts",
+      "gitBlob": "2748079d9462eac1ae38c000ce9d0d057fb89582",
+      "sha256": "05dabf401991a8795dbd221ef5da6417f9af6bc94428e058555dabe8cb62f20e",
+      "bytes": 12204,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-favorites-kinds.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/template-import-types.ts",
+      "gitBlob": "59e52c295b5dc378537edc0ba14ccb4638f97ed3",
+      "sha256": "c92c510fdf84caf0089b53b09174a6314b6c69e932485f21574e5a8441d32559",
+      "bytes": 1759,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/template-import-types.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/constants/favorites-kinds.ts",
+      "gitBlob": "ab15a37218de3d2723aa25ab992434e5e660df85",
+      "sha256": "3811b10137a1e8786ac0d8bd095418e2b284ec51dbf0cef0aa3c71cfda9ebc32",
+      "bytes": 22123,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/constants/favorites-kinds.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/constants/modules-config.ts",
+      "gitBlob": "9c68434b97d8b1915333f195b16c4d2766d96073",
+      "sha256": "1f00d67a597a7695c5dddf6740d7c157f3e8e0b82a32d6a78de6d88bccf68c2d",
+      "bytes": 46266,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/constants/modules-config.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/constants/__tests__/modules-config.import.test.ts",
+      "gitBlob": "4a47d3eb170fa42c4dd918473a048641bb3028bb",
+      "sha256": "f1bbffc20de5f7fb008eb2779923aac06767172f7e620b27532aa00a9412c15a",
+      "bytes": 2339,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/constants/__tests__/modules-config.import.test.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-import-surfaces.ts",
+      "gitBlob": "0a711c0f079e35b815811b348bcfa4fcce1a8958",
+      "sha256": "e68f5a91a1ac02a12738b367fe2eb7e9815fbbaa6227a67e4314ceab3e50be00",
+      "bytes": 9131,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-import-surfaces.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/constants/module-relations-config.ts",
+      "gitBlob": "00068c3fed67f71188b46b2bd2b713a074c4ee39",
+      "sha256": "93f8adce5de6e122083d8cd3ae974d48a2a2db81efe6f79851ea7f51c70b9c67",
+      "bytes": 21254,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/constants/module-relations-config.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/constants/clinical-modules.ts",
+      "gitBlob": "5d880b852acb9cf04b1d50774c0d62c9486e7b78",
+      "sha256": "14e407235b1df16fab90ec2f4f747abe0b5171e7d811ed7be598f644dd2bf61b",
+      "bytes": 3745,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/constants/clinical-modules.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/import/import-surface.ts",
+      "gitBlob": "e3ec70422e7df267466207085a1a14742af42c84",
+      "sha256": "534fffe1b09d10667a3606de69a8250ee4db4f7e0fe09c202d41fe34461017ef",
+      "bytes": 9748,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/import/import-surface.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/import/import-destination.ts",
+      "gitBlob": "8e178a749c3b74beab5ac605adc67dab36a41ec4",
+      "sha256": "b485508964b237a89c1cda19d68287a2a70cc35e2e966a70cdde4816b112f676",
+      "bytes": 6116,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/import/import-destination.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/search/search-surface-policy.ts",
+      "gitBlob": "60f6f89afbfc0d3436a64526fe034cfe857fb23f",
+      "sha256": "2c24c2fc3ee7f3dff1cb0821790a2bb6c3854adba970cb189c8ad4d0152ea1d4",
+      "bytes": 5274,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/search/search-surface-policy.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-field-adornment-contract.ts",
+      "gitBlob": "aedc36d20807ec9a60bd54d309a887094dfaff6a",
+      "sha256": "1b2edb49e5c2c7f746730d6fc15a3282a93e878475ff25d298e5f7ad45bc2976",
+      "bytes": 3259,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-field-adornment-contract.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-numeric-input-ratchet.ts",
+      "gitBlob": "1a75b41895c11f7a8cc1b31956e534840d896b80",
+      "sha256": "1aa2b1cc9ba7934dec4e5cefcdf0a07be373c1e80f86cdd13ef01914fba53038",
+      "bytes": 9414,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-numeric-input-ratchet.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-field-identity-ratchet.ts",
+      "gitBlob": "f20783f70e04a015b51bfc9b493ca233b6b943fc",
+      "sha256": "bbf8521e91d20abad1842ee6767420ce07cc4a9d3d8fc4cf2fecc7696d07ee06",
+      "bytes": 5616,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-field-identity-ratchet.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/field-identity/index.ts",
+      "gitBlob": "a38bbbe1cbe76d76cc34f2f8891c7182c7c66579",
+      "sha256": "0c0349b5427de4b8cf186295f1e087b5ce33bd0c2dce0a052732411f127c0e96",
+      "bytes": 478,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/field-identity/index.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/field-identity-allowlist.json",
+      "gitBlob": "d92986d6e28f50cf2c42ecade33c2e176464bbce",
+      "sha256": "a7b9c9deb87b924f2990a2b48cbfd41beabba97dd820b28443255b4c45d29985",
+      "bytes": 7526,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/field-identity-allowlist.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-context-yaml.ts",
+      "gitBlob": "ae8f59aa2eaa0c4525b506ef7cc54b3a4c5973d1",
+      "sha256": "1c4959d68238aa521ca68d3b3d7d1d5d0e86062658d8f06182865866db8084f2",
+      "bytes": 2564,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-context-yaml.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/check-e2e-trigger-coverage.ts",
+      "gitBlob": "cb74cf7ec0b0016f817d5d5245e233efaa296439",
+      "sha256": "e08e620c9fb23c531ea471bceab93aa888c88e97c68b8be98fd539a4f73a29ae",
+      "bytes": 14977,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/check-e2e-trigger-coverage.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "playwright.config.ts",
+      "gitBlob": "46e204fff34310d9b2985cfc06fb575f52665244",
+      "sha256": "7b50c0381118ac159104a0e46f05cec8e3e52a5aaf09415be28f3bd6021b1963",
+      "bytes": 10477,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/playwright.config.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-fixtures-vs-schema.sh",
+      "gitBlob": "5b2bae71b84a929c1f4565495e2aef8c65632711",
+      "sha256": "836bdd239799deb9dc85806b6ca7fcc82ec40577d90240e58d4e3252225bb93c",
+      "bytes": 7509,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-fixtures-vs-schema.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/showcase/care/check.ts",
+      "gitBlob": "9dd83e790dc73871f824e170c2c2c5c1323a4b62",
+      "sha256": "8943de59b5940d15c38af98a002acae752bcf6e14ae4d99aae658ae1a8e7572b",
+      "bytes": 1206,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/showcase/care/check.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/showcase/care/active-golden.ts",
+      "gitBlob": "d9e6403e2ea0d53afaa7e93a54c7a3391b2c869a",
+      "sha256": "18b1c486a91a61e8c10455236aaa38b5a6e32bd1b35dd6e06bc81ca69bb1c2c0",
+      "bytes": 731,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/showcase/care/active-golden.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/showcase/care/build.ts",
+      "gitBlob": "cf2a2599e2c2ae105eba8c8be5a4ec91608a4d00",
+      "sha256": "5d4c9ff0f14ff89387166946aec9eb4a701dbe5d099e1b499d9803cdb975cd7d",
+      "bytes": 7445,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/showcase/care/build.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-autofill-policy.ts",
+      "gitBlob": "c3283c88c57309fd30e075ea75d095c9a694854b",
+      "sha256": "31da69c8b31db867696efb51972d62aec94a7d9114901ce683597d3bdd466aa2",
+      "bytes": 4629,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-autofill-policy.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/forms/autofill-policy.ts",
+      "gitBlob": "e58c019c5e1de675e4e42766479fed1169d9f643",
+      "sha256": "2032e036aad7fe5514b6c78f3e8ce26a8bffe1ca4ec7b6ef9a8a159f676aca97",
+      "bytes": 2419,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/forms/autofill-policy.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-patient-proof-routes.ts",
+      "gitBlob": "eca6145c9b6fa5bdc837d3210ff2dd25af0ea81b",
+      "sha256": "1d3c12b211b229fe38a81b41c5375ab3a846b2d843270b55df2d656861e3d939",
+      "bytes": 5177,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-patient-proof-routes.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/proof/patient-route-fixtures.ts",
+      "gitBlob": "d3cd6a3d672bb2c1493f6fb7155d9de19af4d12f",
+      "sha256": "57622ed93c65a2fc0ebd2c39b3a33f1c11b51a2617bebed5718639c031232ba0",
+      "bytes": 2718,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/proof/patient-route-fixtures.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/utils/id-validation.ts",
+      "gitBlob": "6ec49dc169fac8077ffc2ea322ce5628766aeef4",
+      "sha256": "daa301efbb45d4742069c1aeaccff71eaa708628a1ca655214cf40c82e83fdc2",
+      "bytes": 2552,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/utils/id-validation.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-proof-index-fresh.ts",
+      "gitBlob": "4c40928ba6d3764bb00841f00ceb97d37b9767b6",
+      "sha256": "154543c77e93e5f53c8ff06053dbc29ff7dd5adfc4e801dbbe02d72515212ef6",
+      "bytes": 8029,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-proof-index-fresh.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/proof/pack-schema.ts",
+      "gitBlob": "64051bb1a10f40f5b4cc2250f8a2c3ced5e74e77",
+      "sha256": "d60657cd219d9c09047d76a03fdbfd41518bf4f5db8389f3b57e250bdb630c96",
+      "bytes": 57650,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/proof/pack-schema.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/proof/render-index.ts",
+      "gitBlob": "c6cc8e4380eac481ae19143268bbab986afd0512",
+      "sha256": "3633a8c25714ee3623516392e2ec17a5b405b820f027eb01aeaf9e862c7dd88b",
+      "bytes": 6830,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/proof/render-index.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "docs/proofs/CONTRATO-PROOF-PACK.md",
+      "gitBlob": "d8f98090ac20da6cb9c823e7576c96e7c5d5713a",
+      "sha256": "51c9e899da48088442b1d6a9b9c7ce99c3508a637f116000ae55260bc57a4b64",
+      "bytes": 43528,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/docs/proofs/CONTRATO-PROOF-PACK.md"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-clinical-readonly-preview-boundary.ts",
+      "gitBlob": "93cc3a7f2e983cd789257c13c14cdc734a0d080e",
+      "sha256": "b8cd05f651f85060ed835fe6f6d2c99f552d68f23e5b50d43551a2ca8168bafb",
+      "bytes": 7847,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-clinical-readonly-preview-boundary.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/export/index.ts",
+      "gitBlob": "4839f8eb9b9d0d18ee856eac730c12c5f76a292d",
+      "sha256": "39a304680a5bdc3d820b9544f8344375fba73e4f26babc0eebe10cb5adb81c57",
+      "bytes": 281,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/export/index.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/features/export/index.ts",
+      "gitBlob": "73a38f6c4b269cf842ec7b4bdf0d5cfc817b58c9",
+      "sha256": "2f860a23174e885b574f2dafbc1c5cf19408c87db915ad0e226a308b6cb2985e",
+      "bytes": 615,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/features/export/index.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/ui/EditInline.tsx",
+      "gitBlob": "fe8f5367926baa1956ebe8db5a9475c011c42f7b",
+      "sha256": "f1ea99710ef3e6479c78ed5f180abd80c21e69282e188659e065dea9966167bd",
+      "bytes": 6718,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/ui/EditInline.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/MainGenericEditor.tsx",
+      "gitBlob": "0c7d8919eee5033a89b2cad9e73e86178955ed2a",
+      "sha256": "0bba42e585deaced68c266f16decd31a1e6f19691015d576b488bc6df18d1c91",
+      "bytes": 122427,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/MainGenericEditor.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-golden-snapshot-sync.ts",
+      "gitBlob": "41c3e2d0e05286dcaf298ef21363a98a87a5dd7a",
+      "sha256": "13f7e68b2e38b0ffca50a06b21e591e2adf0a9ec098d0a29487ff6cd6161f8dc",
+      "bytes": 16191,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-golden-snapshot-sync.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/content-doctrine/id-patterns.ts",
+      "gitBlob": "baf45dbf7d23405a70a9c025375b9fa9973f66f2",
+      "sha256": "bf45003c992e005488451b4ff9db9345f543ae41a59c199aade3331c9b7332a8",
+      "bytes": 1133,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/content-doctrine/id-patterns.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/content-doctrine/public-snapshots.ts",
+      "gitBlob": "0b053c4268b2797ea1434c115a05b9999b86a43c",
+      "sha256": "15b8020d55978455a86cb77d8f2ddcee70b8b7d1f6397f1962fe47a332b03016",
+      "bytes": 1642,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/content-doctrine/public-snapshots.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/scripts/generate-v5-foods-snapshot.ts",
+      "gitBlob": "d84bbff0fcb1d517ac2b063dfd317ec267c80a39",
+      "sha256": "30b52726057e3b5d499751cb953d279f27d5e2660a521ec28b050d62b6cc8d0c",
+      "bytes": 10163,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/scripts/generate-v5-foods-snapshot.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/substancias/scripts/generate-v7-snapshot.ts",
+      "gitBlob": "ffc43dbc8e65dc36191d695cf6bc5a20ea60bef7",
+      "sha256": "69d9f5d313dad22be39dfa37a4c481a9b1a80c528199a89fc08c4804c875f04c",
+      "bytes": 5130,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/substancias/scripts/generate-v7-snapshot.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/exames/scripts/generate-v2-exames-snapshot.ts",
+      "gitBlob": "98932f8a228a6a316da1b8c5a34ea76fb4e7562b",
+      "sha256": "9028994964d0ae7819be8caa450b5b801fd8f60f82825db35d43584e23e1bf93",
+      "bytes": 4064,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/exames/scripts/generate-v2-exames-snapshot.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/substancias/data/substancias-v2-reference.json",
+      "gitBlob": "65f3f072f1eca9e44482e1293cd14d02d7c341a6",
+      "sha256": "f9257693fd2f71e34b349fc866efc0df670ff63dd454bfd45f30a37a99b355ac",
+      "bytes": 414943,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/substancias/data/substancias-v2-reference.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/foods.json",
+      "gitBlob": "ed0a060f253b81b8208856ef27a53bde00dffce9",
+      "sha256": "25defeaf409cb70426a28d4e3019b0bde0ce46b23262a7b702e3a1f2207130a7",
+      "bytes": 7180082,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/foods.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/templates/golden/templates.json",
+      "gitBlob": "2449244973bf405ce2f7a7beea00a15d14061064",
+      "sha256": "0cde352cace777ce6fe9583b0cbe620f7abd68cae0a14e55d1cea5bc3cfcc8f0",
+      "bytes": 8131,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/templates/golden/templates.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/exames/data/exames-golden.json",
+      "gitBlob": "7a7d6c28ce73449e6fe76fc9f3ad57aca8a824c2",
+      "sha256": "e9a5a1f90c53e4eed48a57b8bc9da0dc09d08780dbc330cd94922d1dfa26001d",
+      "bytes": 263745,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/exames/data/exames-golden.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/measures.json",
+      "gitBlob": "6e6c24f9d594a5b4fbc907511c8cb8d76da616b2",
+      "sha256": "b816c14ea68a417114780bade5a8c6d7bc6f18d96e3521f115faccc3434d4d5e",
+      "bytes": 12733,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/measures.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-runtime-snapshot-contract.ts",
+      "gitBlob": "d3908da5d19ceee39024e8c6ae461ae772738a54",
+      "sha256": "44b6db665b7af88a671faab410694f0dd3cf9c38a7d04ed4f41f61312fadc903",
+      "bytes": 10537,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-runtime-snapshot-contract.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/content-doctrine/snapshot-runtime-version.ts",
+      "gitBlob": "bf49fca1bfda2d3202991d5d025cbcf4680fa95f",
+      "sha256": "58bb420b07f35b186539677c9ebed03d973abe1ac1dda5fda82f548e38ab7978",
+      "bytes": 222,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/content-doctrine/snapshot-runtime-version.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/e2e-local-stack.sh",
+      "gitBlob": "fa707399695adceebfbac6731e8ceb2d2033f48a",
+      "sha256": "81933831bd2ad675ed108f11a4aa628e9f6aaef5136a1283f02f9713db626949",
+      "bytes": 34682,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/e2e-local-stack.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/build-local.sh",
+      "gitBlob": "989dc91c6ab3e7f93321cc6ba185c218c8694b88",
+      "sha256": "8bb82b66998219f831bf9589363d7604cdb7987300ec0b749f8ab199e5760b5c",
+      "bytes": 1072,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/build-local.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/vercel-build.sh",
+      "gitBlob": "6a17a3f9d33eee7cf143406a8da6d4444ade03ec",
+      "sha256": "1276997b3c52d80e79fab7073af20e5f8eeb022a5ce37ecab3161f94dea6852a",
+      "bytes": 8199,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/vercel-build.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/runtime/setup.sh",
+      "gitBlob": "a3565c6c2895fe824a5bcfd9854d85dd99d77538",
+      "sha256": "d6e89d8a450b690e05ce5b63af44f503b0fc49dc6473de002a0bf686a7d12a04",
+      "bytes": 2162,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/runtime/setup.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/worktree/dev-local.sh",
+      "gitBlob": "fe6948f114c77761cb814a1c68d20ad2604371a8",
+      "sha256": "e0fb51e56c456aab65837111ca0e76d769292e54759e6b9a48cd96d165a1c012",
+      "bytes": 748,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/worktree/dev-local.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/harness/doctor-local.sh",
+      "gitBlob": "1654489397823dbfa93c48ba5d925691679db319",
+      "sha256": "8fd500c0e3ce9c77961b24c10890bef34cf0d035cfa3cdf1c0ccf6d8c7189f7b",
+      "bytes": 6883,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/harness/doctor-local.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-catalog-changes.ts",
+      "gitBlob": "90d9cf76c269f2975acb08c38c9895de48bf49ae",
+      "sha256": "8b5a00c23eba2b086aa7382e1232ee1b8027ce1eadb22220bdbbfee6f46ac505",
+      "bytes": 4307,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-catalog-changes.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/catalog-access-lock/catalog-change-gate.ts",
+      "gitBlob": "4f95cf64213c3846c51d232b85aedef1286c1079",
+      "sha256": "925d36aa01203773c9052d9cad626fd313036282d853293a30c10b7a2b4e8409",
+      "bytes": 1223,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/catalog-access-lock/catalog-change-gate.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/catalog-access-lock/compute-catalog-diff.ts",
+      "gitBlob": "3aaf27144f07b02e14deae635ad1f8004c64713e",
+      "sha256": "66f1a22398c655f5ba94491ce93d4830572408903bce5340b0655ad7c2f8715a",
+      "bytes": 4519,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/catalog-access-lock/compute-catalog-diff.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/catalog-access-lock/git-golden-loader.ts",
+      "gitBlob": "f625048a5296324df5a4776cd7086ea8c3c434e3",
+      "sha256": "738b0accff61f2235be6ccf065eb2495f3915058002178fb91085adf28f541c5",
+      "bytes": 1986,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/catalog-access-lock/git-golden-loader.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/catalog-access-lock/manifest.ts",
+      "gitBlob": "47d4d1dc7c86484917bcbff6a4d7d93cd5032fc8",
+      "sha256": "305d191720558f5efeb97e86e8fd9201c3b3452cf8e6faae8565be51bd42f04a",
+      "bytes": 6896,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/catalog-access-lock/manifest.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/catalog-access-lock/commit-subject-policy.ts",
+      "gitBlob": "909a25a959fc3f5a82304cb4d5cd4e6f5c3aa54c",
+      "sha256": "5fe5b99e9eec7d148dc2fa5a165c2ef69fd7c0f71529999c34a5c083ea2824eb",
+      "bytes": 630,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/catalog-access-lock/commit-subject-policy.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/seed-change-policy.ts",
+      "gitBlob": "4348c5b4c62a304e73d219f4393ee396d6d8bb0b",
+      "sha256": "1265a65a4f42d369418f63cef0a621d1d1ca27df46cfd61302f12f7c48245335",
+      "bytes": 56656,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/seed-change-policy.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/seed-version.ts",
+      "gitBlob": "da1cfdf53fa9fba44fd8795dd69aa07c3ca409ec",
+      "sha256": "3ad1d503a05ecb1649b4119b78cb5fd7b724ae5fc3c34c085b989dee6d17439e",
+      "bytes": 2601,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/seed-version.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seed.ts",
+      "gitBlob": "e39c3aadde3ab596c152e884854402f954ac0f68",
+      "sha256": "e8d2b738c890f18531ed03463c67354ee017c334f3dffe0a7181974a0138b5a2",
+      "bytes": 44674,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seed.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/showcase/care/seed.ts",
+      "gitBlob": "6975be720e44060cb33a5caa47f9f89a422ceddd",
+      "sha256": "064ca0f8afb8774e7a45f7c9f00db7a0c988804215444d1a79d58fa9c23881e7",
+      "bytes": 14485,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/showcase/care/seed.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/deploy/run-seed-deploy.ts",
+      "gitBlob": "138adbbaa2ded64d0be084a16a9c7392c2e0844e",
+      "sha256": "22168674c1f757211e582da306e37e412ec6892297c86157208544d1a3eaa320",
+      "bytes": 856,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/deploy/run-seed-deploy.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/deploy/run-versioned-seed.ts",
+      "gitBlob": "a8f73c5b31a15d2c81b247a9f07f36f4cd32006e",
+      "sha256": "6ec77d866a4dd88ad96c30502b048fe9d86661aafe289a15999505f2e8094c31",
+      "bytes": 6004,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/deploy/run-versioned-seed.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/artifact-cohort-manifest-v2.schema.json",
+      "gitBlob": "46dd15b361aaaf4e55a2730d89e5ac564949f0de",
+      "sha256": "caea72983727ac5c66f8417a8ec38499004c512f964665a8b7a342b920e14486",
+      "bytes": 2727,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/artifact-cohort-manifest-v2.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/canonical-lens-record.schema.json",
+      "gitBlob": "9ddccfb2d4f8ce1063be70a4f89e8da949db3461",
+      "sha256": "b1f57dc1b295c3a5564af423aed14e53df591af5d413192c5e9f86253c369d31",
+      "bytes": 9343,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/canonical-lens-record.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/canonical-lens-contract.schema.json",
+      "gitBlob": "f4b992a31863df7874a37b1694deabd082976668",
+      "sha256": "e11e4d8fed8078fa2f9f1be7f865fd332ac134f35f671491fe8ab0c4838c3174",
+      "bytes": 4841,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/canonical-lens-contract.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/canonical-lens-report.schema.json",
+      "gitBlob": "c38f24286eed9b834bdafb67893bada1ed1cd4dd",
+      "sha256": "41515b86011dd2ff7ac4c2780c375e4c42163202d2c766d1be10d215844e05e0",
+      "bytes": 5542,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/canonical-lens-report.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/semantics/lenses/axis-contract.ts",
+      "gitBlob": "12544de9b8145594396722239d5abfd12e23275a",
+      "sha256": "6e1a06fa6dc3781c119f1d6dbe6174ca8c7f27eaa38d65fb2457a07c8c523930",
+      "bytes": 17943,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/semantics/lenses/axis-contract.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/semantics/lenses/build-canonical-lenses.ts",
+      "gitBlob": "4a21321cb5cb04946f6334c6ebbb25f9a443b127",
+      "sha256": "7ee1e3112e5ced1c03b06fdc8a7a35f1f62431d740daa7d0c83554df11dd2659",
+      "bytes": 50407,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/semantics/lenses/build-canonical-lenses.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/semantics/lenses/canonical-lenses-shadow-v1/manifest.json",
+      "gitBlob": "2a5e000094760d8eeb42ab5809fafccc115e6660",
+      "sha256": "7dc99719a3d42cf1641bdcb8a8c1811cfb686390f82a8fd385f38b6d9f17ab24",
+      "bytes": 13130,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/semantics/lenses/canonical-lenses-shadow-v1/manifest.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/identity/referee.ts",
+      "gitBlob": "ad6332b6e3266c667b4da146d36b9062c18f093a",
+      "sha256": "fbef5c0914f5aed19149ef6447f90c82738764273103bd531b445407116bec40",
+      "bytes": 30908,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/identity/referee.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/measure-source-reference-decision.schema.json",
+      "gitBlob": "b5ee393467d1caee2ff65d7fe452190aaa110ca8",
+      "sha256": "d0b0171448d0799d004213cf246939d311bc90fba46feb4eff77d9af7efc0e1f",
+      "bytes": 2284,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/measure-source-reference-decision.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/measure-applicability-disposition.schema.json",
+      "gitBlob": "a6511003c12c9e1194652080d4ad2dbcbf2cc10e",
+      "sha256": "786dcb2536d14e16a6d7e71d4a2c7ecda7124034342fe4e213c5acce8076b9dc",
+      "bytes": 3178,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/measure-applicability-disposition.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/measure-legacy-alias-disposition.schema.json",
+      "gitBlob": "fdf61e11328924eaabdacf0a337fc9dcf306414c",
+      "sha256": "7c2a8f28f6fd5ce47fe406b3ee9fd377a890fb8e4c229e61edb75582790b4e53",
+      "bytes": 1102,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/measure-legacy-alias-disposition.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/measure-identity-gate-contract.schema.json",
+      "gitBlob": "2eb9a101bda2596602d4af0943cc02db2eac8eb4",
+      "sha256": "b3ff93007eadc8fb578b67a5a53683a1b08156860a1ffb8b65b25f7ff1ebafa5",
+      "bytes": 2562,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/measure-identity-gate-contract.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/measure-identity-gate-report.schema.json",
+      "gitBlob": "ebce35a648a278dc526e4a7ac229f5e002a0236f",
+      "sha256": "76e667701cb39d5d542d72d75b7e605015d20ecd2d5b57b02a829a12d86f3bc1",
+      "bytes": 3621,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/measure-identity-gate-report.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/reviews/measure-identity-gate-v1/source-reference-decisions.jsonl",
+      "gitBlob": "7d8f22ab1eb531497bce139b74855d4884986b4a",
+      "sha256": "6123774ee21f16851b646bef7c267e7015633ceb22fd6fde38682a78493e53f9",
+      "bytes": 1619069,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/reviews/measure-identity-gate-v1/source-reference-decisions.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/reviews/measure-identity-gate-v1/applicability-dispositions.jsonl",
+      "gitBlob": "822659b660788f2676ce73be5e954e739aad7e13",
+      "sha256": "8fba2dcac20e31a0d0414c4cf896adaf0f6d4c9f0b92e9399a70e8beb0676eb9",
+      "bytes": 1965276,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/reviews/measure-identity-gate-v1/applicability-dispositions.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/reviews/measure-identity-gate-v1/legacy-alias-dispositions.jsonl",
+      "gitBlob": "d13eba43f5dd81224fc874d1624051fda8801a95",
+      "sha256": "11e0bfddd1d20ea511701477cd39d8e13c3c04df3f4f638ff8bad59d8144bd0a",
+      "bytes": 136503,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/reviews/measure-identity-gate-v1/legacy-alias-dispositions.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/reviews/measure-identity-gate-v1/contract.json",
+      "gitBlob": "8ea1247d9d146c99debb79545b771b066366f4d5",
+      "sha256": "4439afa9219a394ce4689217ec56db8e084a88bbbb4472c598ca9d635b241bee",
+      "bytes": 6611,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/reviews/measure-identity-gate-v1/contract.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/reviews/measure-identity-gate-v1/gate-report.json",
+      "gitBlob": "f83e09609a1c8f379c0e72fd3e334cf672d1f5b0",
+      "sha256": "d06441ef99b79bd70a58b518225b6680b7b0b038ad46f9a232c296e2ca1d38ea",
+      "bytes": 6928,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/reviews/measure-identity-gate-v1/gate-report.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/reviews/measure-identity-gate-v1/manifest.json",
+      "gitBlob": "45b0839d44dc1d0518bd6123631fd89969a839ec",
+      "sha256": "63ce87a27ad79779fc2e41f71ba94cef63136b858c619c73bf11061273ba3a19",
+      "bytes": 2203,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/reviews/measure-identity-gate-v1/manifest.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/reports/b09-identity-measure-applicability-gate.json",
+      "gitBlob": "f83e09609a1c8f379c0e72fd3e334cf672d1f5b0",
+      "sha256": "d06441ef99b79bd70a58b518225b6680b7b0b038ad46f9a232c296e2ca1d38ea",
+      "bytes": 6928,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/reports/b09-identity-measure-applicability-gate.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/_shared/artifact-cohort-writer.ts",
+      "gitBlob": "f0b43d4a833d1f7214186b4f4ff4d32e616c77ac",
+      "sha256": "043a3ba36cfd268bf894fac25963981af44ef2a07f27529cc1a8baa50c9dbb2e",
+      "bytes": 91024,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/_shared/artifact-cohort-writer.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/food-measure-evidence.schema.json",
+      "gitBlob": "f90fa24e55990c5707a531040ac0c08e2a68c8fe",
+      "sha256": "dd4a228b6e6381a08731aa6bc14c51c7cd7ab535b42c19a17ad699d9e7b6d55b",
+      "bytes": 4256,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/food-measure-evidence.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/canonical-measure-projection.schema.json",
+      "gitBlob": "e152d19a388ed37f4f56fcfdcd3ebcf6ee169879",
+      "sha256": "c77af9af67bcc21a291b48480f7974be6aa8a398b7c841aa83c8b4d40f798a0c",
+      "bytes": 1798,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/canonical-measure-projection.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/canonical-measure-contract.schema.json",
+      "gitBlob": "eb9619a575d4d8028e13a9311210a1be9a276ebc",
+      "sha256": "acc59e5449700f3dec0cb17bdbe2b5eccf6360ae6eba1aaf40898a380ec5f0e2",
+      "bytes": 3440,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/canonical-measure-contract.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/canonical-measure-apply-record.schema.json",
+      "gitBlob": "88727bcc63a0291a7bbab3c340cb72c7d6c14f70",
+      "sha256": "8d9244d84ae5e79a4b50dd1f4f214a4877953d2898292dd6ab37e5f3c38a1ba5",
+      "bytes": 1397,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/canonical-measure-apply-record.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/canonical-measure-report.schema.json",
+      "gitBlob": "6e0b905c1e91d32e371689c8266af36ae588e7e8",
+      "sha256": "aabf3b3f13262ea8a1a7b4d8cb5523150799f612c4d8ce7a86753eee08e8e46d",
+      "bytes": 3903,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/canonical-measure-report.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/measures/generate-measures.ts",
+      "gitBlob": "b5506e95edf6f44ca152f3109d9a7092198923f7",
+      "sha256": "dd9208082791b48b53d86769c2857ab12d6f0b1e365a7056afb796f7196722c6",
+      "bytes": 28165,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/measures/generate-measures.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-measures-shadow-v1/apply-record.json",
+      "gitBlob": "4c238e0c0a7a2948ffcf4cebad3e9e534c9dd059",
+      "sha256": "38c9ae0e177033e18c7129e8f291c601a5734c304a6b3b2b04d00964ee7e6740",
+      "bytes": 554,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-measures-shadow-v1/apply-record.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-measures-shadow-v1/contract.json",
+      "gitBlob": "48e25bdc4d2ee58e90c3c35d15c893c9e5d52e78",
+      "sha256": "2c51f0339d56b80039d9625ceb87e82b33bcd7654d192202f8984f5c03bd1183",
+      "bytes": 4181,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-measures-shadow-v1/contract.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-measures-shadow-v1/food-measures.json",
+      "gitBlob": "d9b44f8f8454199d31b84a28e2c4b8a3f5983f46",
+      "sha256": "129039c6877569c3aa316b46410ebf7d9d8166f6919b5902dae338cb271a6fa3",
+      "bytes": 3817770,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-measures-shadow-v1/food-measures.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-measures-shadow-v1/measure-evidence.jsonl",
+      "gitBlob": "77da23a8b14d8e9d661232943e4c6086b8cdfb30",
+      "sha256": "3e774ba11143130b44e3f00b6cf1e7acc89ab77ceb797f77f7490651e6c9c5cd",
+      "bytes": 12308342,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-measures-shadow-v1/measure-evidence.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-measures-shadow-v1/report.json",
+      "gitBlob": "8df224ca94a12888d94f57c69b9e9a28ae70256b",
+      "sha256": "7fd2e4ff023eb81541b86356b8a6bb4901eb3ce14634ee7598c55b4593ebd946",
+      "bytes": 4192,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-measures-shadow-v1/report.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-measures-shadow-v1/manifest.json",
+      "gitBlob": "edb64584fe45ee99932bd3a908a99e565767cd46",
+      "sha256": "930f8a436f5c16e419b108cd1426008f607238edb64b1dce01edeab1134ecbcb",
+      "bytes": 2144,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-measures-shadow-v1/manifest.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/measure-type-decision.schema.json",
+      "gitBlob": "14bbe121e1e9dea782c80418d77d8c6f6fcd0c7b",
+      "sha256": "d7b67b0c469b3fdc813521bd28965a7de7e21e1ef2431ecc99f0e19fd94109a2",
+      "bytes": 3134,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/measure-type-decision.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/measure-type-contract.schema.json",
+      "gitBlob": "fcf203f015b9539067566c55db5f2f9fde25970f",
+      "sha256": "0f58e31d702012e030ac17f12ea2aa635d01decd0c6bd2b636b0885df14dc894",
+      "bytes": 1566,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/measure-type-contract.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/measure-type-report.schema.json",
+      "gitBlob": "695a66c5f107b694c690ea85652f785b2d515340",
+      "sha256": "70d12a10f0c20ffb42fe0595b3422accbf98519c246a7bb2d713f45312c07e5c",
+      "bytes": 2834,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/measure-type-report.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/measures/classify-measure-types.ts",
+      "gitBlob": "da0f30556d0c8605474a183732df57d5b02f33e9",
+      "sha256": "4f02b696e5c9145e1d689135b2ab3a1d4958a56425e07f67a51527e78cc70d56",
+      "bytes": 27353,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/measures/classify-measure-types.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/measures/capture-measure-type-reachability.ts",
+      "gitBlob": "501524944b15730e00da3cea4c37fafd0fc85705",
+      "sha256": "749fd87f07ab32d079cf03b948667449a01b9a5c452a07a35612dc875568b8c4",
+      "bytes": 19377,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/measures/capture-measure-type-reachability.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/measures/measure-type-reachability-dev-v1/query-definition.json",
+      "gitBlob": "f2b9408cf690cd8b52a2121201c244d15f880b15",
+      "sha256": "841fb9b46a82371463d546a1a8cae351ffe44ed40b348cb7257b9ebf6f83a7e2",
+      "bytes": 1668,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/measures/measure-type-reachability-dev-v1/query-definition.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/measures/measure-type-reachability-dev-v1/report.json",
+      "gitBlob": "df9eed6d7b20fde24551fb81a13c6a6d1efee432",
+      "sha256": "d057b4bd8fce5d0f9bbc85da27babcc57312de8a15179a8a59918f3bd11ca6d4",
+      "bytes": 1881,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/measures/measure-type-reachability-dev-v1/report.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/measures/measure-type-reachability-dev-v1/snapshot.jsonl",
+      "gitBlob": "2c514ed72b6047f1d9fd5faa1c4029f2ca4cbd2e",
+      "sha256": "d63a33454737b7b19b98ff9b2678a2279f93ea01330baccca28042e8775886bb",
+      "bytes": 20343,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/measures/measure-type-reachability-dev-v1/snapshot.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/measures/measure-type-decisions-shadow-v1/contract.json",
+      "gitBlob": "cdc565d77a58f4727dcddc78564ad53b9d19da54",
+      "sha256": "e5f5fa9c250f98afd24d59178ce1edd457d2d0753f4c7e83acbbf032a5783a26",
+      "bytes": 5230,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/measures/measure-type-decisions-shadow-v1/contract.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/measures/measure-type-decisions-shadow-v1/decisions.jsonl",
+      "gitBlob": "9705580c53821eb8672aa8b3381a84a4a6fb5975",
+      "sha256": "b15ad07a69ec8d188d18ee139f7ad064dfec4f5ac760bb591d0166d02470a29c",
+      "bytes": 80274,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/measures/measure-type-decisions-shadow-v1/decisions.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/measures/measure-type-decisions-shadow-v1/report.json",
+      "gitBlob": "84e5de61baba7d47dcb45fb24b8d35c10a68d66e",
+      "sha256": "53d14bfc087d5cdf78567f39f813f5dfcb55abff92a321ee615145e26faae4f1",
+      "bytes": 6326,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/measures/measure-type-decisions-shadow-v1/report.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/measures/measure-type-decisions-shadow-v1/manifest.json",
+      "gitBlob": "13178b06a4ccc0beb6ed5639f0a424d646aed177",
+      "sha256": "8b44d037698abad6edcc6ce2453231d43e3c076736901cc581aad8ed86450919",
+      "bytes": 1483,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/measures/measure-type-decisions-shadow-v1/manifest.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/reports/measure-types.json",
+      "gitBlob": "84e5de61baba7d47dcb45fb24b8d35c10a68d66e",
+      "sha256": "53d14bfc087d5cdf78567f39f813f5dfcb55abff92a321ee615145e26faae4f1",
+      "bytes": 6326,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/reports/measure-types.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/measure-source-key-compat-disposition.schema.json",
+      "gitBlob": "fe47b54e876e962405322292e1c13a41cad77493",
+      "sha256": "af50fc24fce122ffbc8575198dd69dcd333b1e66afe63edd677c6484e48c8b23",
+      "bytes": 2286,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/measure-source-key-compat-disposition.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/measure-source-key-compat-contract.schema.json",
+      "gitBlob": "b1dd8ffe256ecc0ba0a827455e7813cbdbf7a7f1",
+      "sha256": "58ee3b3931157a2ee989b56f9cb506d8cf4f0add1e82843e7250a607a670ca27",
+      "bytes": 2101,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/measure-source-key-compat-contract.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/measure-source-key-compat-report.schema.json",
+      "gitBlob": "cfbd0c2efda47d9da773561953a253fbd0a539c4",
+      "sha256": "589fdf74a8465ed72ec6b1c1aa0fe5fd8eb8e03cd44a0e7cd4924609255189a3",
+      "bytes": 6003,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/measure-source-key-compat-report.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/compatibility/generate-measure-source-key-compat.ts",
+      "gitBlob": "a4116b0029cc24bc4875d513fbe35e3b9e659166",
+      "sha256": "18db6afd8ed1d373f43a6d99da0facbd012f3e1c39e1b3602bb908a763eb7357",
+      "bytes": 34653,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/compatibility/generate-measure-source-key-compat.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/compatibility/measure-source-key-compat-shadow-v1/contract.json",
+      "gitBlob": "2fbef28d8147899fdad1b6ee0397ef0caad5cfd2",
+      "sha256": "1a1acac0725fcfaa8b0c504e707ec16135f7a2cf4b60e8a652425f0197740460",
+      "bytes": 4139,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/compatibility/measure-source-key-compat-shadow-v1/contract.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/compatibility/measure-source-key-compat-shadow-v1/dispositions.jsonl",
+      "gitBlob": "a9c895e0c79f001056daaab7d730b9329d5e4294",
+      "sha256": "871db3901aca9d73eca7e5f943cdb1256eb5a4eb45716eaa35792538bea0b76e",
+      "bytes": 1546605,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/compatibility/measure-source-key-compat-shadow-v1/dispositions.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/compatibility/measure-source-key-compat-shadow-v1/report.json",
+      "gitBlob": "c41cafa50478ec2b8a2be1badf4bf2034f6aaf4b",
+      "sha256": "b809be0ec70cb71d300b09e6bc2469b0c1ebd274a2194fd52e312d4465da8bcd",
+      "bytes": 8159,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/compatibility/measure-source-key-compat-shadow-v1/report.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/compatibility/measure-source-key-compat-shadow-v1/manifest.json",
+      "gitBlob": "5cd2dc835869e2f93d71b6762b988fa2ef4f802a",
+      "sha256": "e138cb428a15626053e72069ac008d49390a7f7e12254fba8177d159e56b1991",
+      "bytes": 1561,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/compatibility/measure-source-key-compat-shadow-v1/manifest.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/reports/measure-source-key-compat.json",
+      "gitBlob": "c41cafa50478ec2b8a2be1badf4bf2034f6aaf4b",
+      "sha256": "b809be0ec70cb71d300b09e6bc2469b0c1ebd274a2194fd52e312d4465da8bcd",
+      "bytes": 8159,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/reports/measure-source-key-compat.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/generate-search-documents.ts",
+      "gitBlob": "9783e4950e4f05a2c589b132c32484f692d86dfb",
+      "sha256": "51eb2263ad1452da57231dafee6406d71bdf54c10b5dff60fb6bc2c4f6a7c2ee",
+      "bytes": 31524,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/generate-search-documents.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/canonical-search-cohort-profile.ts",
+      "gitBlob": "b2d4ad0dea2517de47abc50e7d8a6ef8bbedb1ad",
+      "sha256": "77a03ca507d949bada79e4fdd8592c7ff05f7cc9c3f6edaaf30c24dda4341216",
+      "bytes": 23857,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/canonical-search-cohort-profile.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-search-documents-shadow-v2/contract.json",
+      "gitBlob": "9cf7c105c6f85276a014f862df5c86e6ef1c9c7f",
+      "sha256": "e22c625d11e8b9409391b0b31aa882791c157db1420e77196a777bb8d150fcb1",
+      "bytes": 5585,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-search-documents-shadow-v2/contract.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-search-documents-shadow-v2/manifest.json",
+      "gitBlob": "7e23b58e69ccd3b3b2a24cc0d6abcbcb87820d0d",
+      "sha256": "6d3e28785c8be316225609539ffd32d0ca1d619f40c955c876a3d3e2101d65b0",
+      "bytes": 1543,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-search-documents-shadow-v2/manifest.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-search-documents-shadow-v2/report.json",
+      "gitBlob": "65332633e01802145875716ef1c0f0d7a8eb454e",
+      "sha256": "bc3dab179c6d4819cbe9b9ac1d7e901f31968b3b92da93bd30f900c680e330d1",
+      "bytes": 5313,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-search-documents-shadow-v2/report.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-search-documents-shadow-v2/search-documents.jsonl",
+      "gitBlob": "1c05ebee6cfeb51754b0bfcb3da80a75afc82d4d",
+      "sha256": "34882c6a8425f43defa14ce5e1c1107f3b4d009e4b522d8b821e8da70db98bd0",
+      "bytes": 20230723,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-search-documents-shadow-v2/search-documents.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/reports/ranking-stage-comparison.json",
+      "gitBlob": "2be1a0225b4ab622338e14dbab33fd75399f75dd",
+      "sha256": "e7ee9c57414815cf65578270c068868a594f3b88ae98cfb10af950316df9bc04",
+      "bytes": 21197,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/reports/ranking-stage-comparison.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/ranking-stage-comparison.v1.schema.json",
+      "gitBlob": "d8b07d50440361e87f7d1137aab9da1956f069ef",
+      "sha256": "30a31644b773ecf6d670f8801768d3a9812dadadcd04d53922a3362fe4f91ed7",
+      "bytes": 14204,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/ranking-stage-comparison.v1.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/ranking/stage-policy.json",
+      "gitBlob": "f85a7c33f3539c705ef8b99351756e696c3ad6a9",
+      "sha256": "886fa66ef038e1619ffbedd02b69610ecdb7b6a58869512f9143f810eabd8d61",
+      "bytes": 12079,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/ranking/stage-policy.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/ranking-stage-policy.v1.schema.json",
+      "gitBlob": "a6b4f289a733b002295e18fe9497f28ae5f30a1c",
+      "sha256": "ac14ab8a9ccca8429e21f5da6e7ed1335af16619edd1d620dc5fd92430f136d9",
+      "bytes": 13000,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/ranking-stage-policy.v1.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/__tests__/canonical-ranking-bundle.test.ts",
+      "gitBlob": "e6942b398b5cb4aec359552b79148c90576beb29",
+      "sha256": "5f05e8c7b37a357ad44e42cc681d6575f4f89f82be8cbb66381746986a614535",
+      "bytes": 7010,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/__tests__/canonical-ranking-bundle.test.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/generate-ranking-bundle.ts",
+      "gitBlob": "0832607e28c63380f4aee75b23d937830a2c8c54",
+      "sha256": "638492110d9b9531cc15f4d3a3fd1da45b8b4fd921e01fe7cc286d2c928e8eea",
+      "bytes": 27678,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/generate-ranking-bundle.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/canonical-ranking-bundle-contract.v1.schema.json",
+      "gitBlob": "165c2de555261394eb599c38050ed6f75e8588ea",
+      "sha256": "c30d0ea423687e14b04df518ea4db5c98639adb0f7f7b66755ede2cd95a0ac17",
+      "bytes": 4185,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/canonical-ranking-bundle-contract.v1.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/canonical-ranking-bundle-record.v1.schema.json",
+      "gitBlob": "6ad0b872b0ab0d54fadb3302ea99ece99897ab4f",
+      "sha256": "68b31cfdc773a8482bc1d32fd0a017c56050f662b34b714bcdcffc4c649fcadb",
+      "bytes": 9956,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/canonical-ranking-bundle-record.v1.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/canonical-ranking-bundle-report.v1.schema.json",
+      "gitBlob": "5b0769d151faf9fd449b28567617479dbd53f1d5",
+      "sha256": "5c6cf9351eb0d890233db383ef21b51c04d8752dc2d1741118e1a97ce0efaac0",
+      "bytes": 6339,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/canonical-ranking-bundle-report.v1.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-ranking-shadow-v1/contract.json",
+      "gitBlob": "151f025db6960847f9c00c9543c7b4d8e45fce99",
+      "sha256": "082eed2600d28077a5cda9d6dd7c957be134f00e2f59864366e68e505055dccf",
+      "bytes": 5155,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-ranking-shadow-v1/contract.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-ranking-shadow-v1/ranking-bundle.jsonl",
+      "gitBlob": "d8d5bd5a8f48d032d1e276b702ba3741aa250658",
+      "sha256": "f82a4473946e1cd5d57e4d98d21b00c5f8e34e36baa9af4a2f353d3368fdd1b5",
+      "bytes": 12949939,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-ranking-shadow-v1/ranking-bundle.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-ranking-shadow-v1/report.json",
+      "gitBlob": "6cda2d8d78627deaf8e80f23be76b4ff3160fd36",
+      "sha256": "0ccbf55bbe8fbab6dbd8ff3953894ad4c7e61c0b11a88f9beb9c487eff75a2b1",
+      "bytes": 7434,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-ranking-shadow-v1/report.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/canonical-ranking-shadow-v1/manifest.json",
+      "gitBlob": "8d2652eee168f283097a6f2a2e67477b42e75506",
+      "sha256": "aeb14ec98683238be0e0c03b0d82dc993208bd2fecb7e5e98fef9e81e31c57d9",
+      "bytes": 1516,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/canonical-ranking-shadow-v1/manifest.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/source-group-codebook.schema.json",
+      "gitBlob": "68a75e791bdb3c3eb6374460823e760a82406748",
+      "sha256": "642b147546778774c771cd865b8cc5c9613f9e13ded895797bbd9e13ee28a566",
+      "bytes": 5815,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/source-group-codebook.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/ibge-group-naming-contract.v1.schema.json",
+      "gitBlob": "faa3c27034aaf200b4a727b2e34ccd6fc8d84f94",
+      "sha256": "55404eb3ca27ca4b9301775682fd1997f745006763ca938b77d90cd466f4430b",
+      "bytes": 4469,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/ibge-group-naming-contract.v1.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/ibge-group-naming-record.v1.schema.json",
+      "gitBlob": "3928dcd223faab1c6270e7183133d8fb7bab3b03",
+      "sha256": "31e0d2ede96483250430d05254c43b1f8024fcc8d6b80a8ad992972db5046d50",
+      "bytes": 3029,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/ibge-group-naming-record.v1.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/ibge-group-naming-report.v1.schema.json",
+      "gitBlob": "f42b9f6b5efb81f5194e640cfb9c5f184e0ba053",
+      "sha256": "85deec5ebed64902d691b863a90ccdb526f545574d37137d853c7ec5339752bc",
+      "bytes": 7661,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/ibge-group-naming-report.v1.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/semantics/codebooks/ibge-pof-group-v1.json",
+      "gitBlob": "0df3998ae1f932d05f72067a8c5ddfe20ae8bc9c",
+      "sha256": "34e79214c176ee9ace9055a8d3be9b117947286d7d9e1435e35af1e7799c74b6",
+      "bytes": 11060,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/semantics/codebooks/ibge-pof-group-v1.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/generate-ibge-group-naming.ts",
+      "gitBlob": "6893c49eac80f807b3b70192637bffae9c69d962",
+      "sha256": "b2d35016c469638f607660dc154c1ac4f7ae546dc8e5203ae723366d78918205",
+      "bytes": 32928,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/generate-ibge-group-naming.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/ibge-pof-group-naming-shadow-v1/contract.json",
+      "gitBlob": "8638016ae14d8c894e1b7fe6f7072cefbe4b0359",
+      "sha256": "51723298311c4585c870abcd52ab946e4410de9d22e26d14c5de8b489468762c",
+      "bytes": 5785,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/ibge-pof-group-naming-shadow-v1/contract.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/ibge-pof-group-naming-shadow-v1/naming.jsonl",
+      "gitBlob": "939d9098aac0ebab5ef60a3f94f94063f0193ec7",
+      "sha256": "4c387ea0d28c2502ad1edf37db1c7f339210cb14797af39145377bff5f2d1ab6",
+      "bytes": 17371,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/ibge-pof-group-naming-shadow-v1/naming.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/ibge-pof-group-naming-shadow-v1/report.json",
+      "gitBlob": "065e4be67ce635b20d66a0b5ab39f511e8cf8ecd",
+      "sha256": "f70925534a3082a0b4bdf208263cda8af45c3e2555082d796cd35b9240cd7f56",
+      "bytes": 8139,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/ibge-pof-group-naming-shadow-v1/report.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/projections/shadow/ibge-pof-group-naming-shadow-v1/manifest.json",
+      "gitBlob": "20b4f9845083d417aa957c80a91f96a3b23fb336",
+      "sha256": "bdaf169ac661dc1cd5f98c36b0d43ab0bff612b8bffc0ac6a0408be6e9d06e1c",
+      "bytes": 1490,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/projections/shadow/ibge-pof-group-naming-shadow-v1/manifest.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/curation-cohort-manifest.schema.json",
+      "gitBlob": "fcd3f9bc2374f0f1fafc35893b620143b2a7b058",
+      "sha256": "08dca01c69a54f2f1f991fc68000006add85c68dc5ef6f46a4be39e4abae8f7e",
+      "bytes": 4457,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/curation-cohort-manifest.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/curation-human-approval.schema.json",
+      "gitBlob": "bcb3cd2251c5c430ceca9ffd1317b679c774f979",
+      "sha256": "f1f2430aac17cb75bde2c696543fefe241d735156eef1b9b48159a82d92b1f63",
+      "bytes": 1824,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/curation-human-approval.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/food-measure-authorship.schema.json",
+      "gitBlob": "63ab1fb3a7aa787cb1055833cbd257490009c496",
+      "sha256": "81afac64626340533735f22746cb444c9d30d02a815eb38f268c1490a5a2bc40",
+      "bytes": 2087,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/food-measure-authorship.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/food-safety-assertion.schema.json",
+      "gitBlob": "5da2863ef962de5c606b3e3ee5bb3e491c9306b0",
+      "sha256": "a908d1494e88a919137ddc182652ae4ed1addf520521a3ab9888929467c12a51",
+      "bytes": 1837,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/food-safety-assertion.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/curation-safety-apply-record.schema.json",
+      "gitBlob": "f7eb37a340acf4b28c664a33d6c50d191e3e9dde",
+      "sha256": "1d6e865681c4e8d493549f8e06da70cfd9fcda6db601ef6086b3557b492364c7",
+      "bytes": 2640,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/curation-safety-apply-record.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/identity/decisions/ledger.jsonl",
+      "gitBlob": "c92017901327b4daedaacb843dc0ae0fdb67f55c",
+      "sha256": "06f95add2b81c306a17f417c4db4d8b37343620fa862fc9af586269759e1d5ec",
+      "bytes": 5469881,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/identity/decisions/ledger.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/identity/decisions/human-curation-layer.jsonl",
+      "gitBlob": "e0852fad8af095a5adae2dc7e020ff21952e5360",
+      "sha256": "65d9dc9307a299a85fed5771b2b525a3f5799eded896e3d4466019815b92024c",
+      "bytes": 74961,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/identity/decisions/human-curation-layer.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/identity/curation-apply-records.jsonl",
+      "gitBlob": "d5190cb407d2b26a7a51cf9cb39b049f8b8d2515",
+      "sha256": "26a4fcd932329f15c6fde6f9478d140e4b0c3dbfbea9e87c06e898d702649cf4",
+      "bytes": 9349390,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/identity/curation-apply-records.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/food-market-classification-manifest.schema.json",
+      "gitBlob": "77f95d834f47dfa31eaff242fb4fc8d1b2fc9671",
+      "sha256": "fa77be9d67d3c8264c7c9979bbac8b5825f36c90dfa764438fa9d88850104aa0",
+      "bytes": 7092,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/food-market-classification-manifest.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/schemas/food-market-classification.schema.json",
+      "gitBlob": "10c65681cd9f341239af6ff27e7b48cb3346e6a8",
+      "sha256": "b1171caab94eab8a57cca71f76c0743a5a9fea6e42a31eca69b66f2d046ca115",
+      "bytes": 2496,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/schemas/food-market-classification.schema.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/semantics/build-market-classifications.ts",
+      "gitBlob": "f2092415e06f14f05867bf0d550666b82fb20581",
+      "sha256": "bf84dc6e6805f359e40f476b7af38da039fcb21ffc285c4a539e8a2633295b76",
+      "bytes": 38921,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/semantics/build-market-classifications.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/semantics/market/dietflow-market-v12/classifications.jsonl",
+      "gitBlob": "879140a428317cfb7eedeebfedf5862df2aa73e9",
+      "sha256": "2dab1035e7883ecfe4fda992ebaffc1be68f596644aa1461306fc9c5d3c0fcab",
+      "bytes": 4500181,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/semantics/market/dietflow-market-v12/classifications.jsonl"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/foods/canonical/semantics/market/dietflow-market-v12/manifest.json",
+      "gitBlob": "a6455664d6595e0b8930ea28131767125c49ca06",
+      "sha256": "ebe95582f45c5f24af89c2db4c5298c5af8c52369a872fe3a48d809302e9e468",
+      "bytes": 14749,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/foods/canonical/semantics/market/dietflow-market-v12/manifest.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/showcase/care/showcase-attachments.ts",
+      "gitBlob": "a722e62cf396fa606a516c20fe8ff24a0513b7bf",
+      "sha256": "bc15f508f6bdc2cf8e6da1e9a726481ce06bb134e10b4b05b7b5280c739c4f35",
+      "bytes": 6321,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/showcase/care/showcase-attachments.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/seeds/system/catalog-access-lock-manifest-source.ts",
+      "gitBlob": "d07afd6fea01cc9bbab61678c46ebd7a7bb6e86a",
+      "sha256": "02aa9106e1fbc14e6a1d01326d5bec0c86982506cf0f37e7c608a0057050b61b",
+      "bytes": 2250,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/seeds/system/catalog-access-lock-manifest-source.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/prisma/generated/index.ts",
+      "gitBlob": "3945c88f84805e091d9e5f0aa61cde3615a1ca4f",
+      "sha256": "f394ce72e9a28486749341899e7ec222f9f7f8046521f131c69c8bb73e541742",
+      "bytes": 57,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/prisma/generated/index.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "prisma/catalog-change-manifest.json",
+      "gitBlob": "85fe48841395b23aad6e729cc0fcdcbcdb0ee799",
+      "sha256": "ccf2c5de3d9aaec2c420efcde29ce547d9d454d7470d21885e2386c5a883cdd5",
+      "bytes": 4258,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/prisma/catalog-change-manifest.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-flowid-contract.ts",
+      "gitBlob": "58d5ebb136fe2943d699f06a411cebd79cad4343",
+      "sha256": "c37368d84adbafcdb5bfafd773e4d898bb0f124597388701430d198d333bc945",
+      "bytes": 3604,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-flowid-contract.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-e2e-target-contract.ts",
+      "gitBlob": "f4d004a98113747160967a5910208b4ae44c4462",
+      "sha256": "05b3e74ac9319a7132126859e6151b2c3fe7886b13de2772233910ff4da57c56",
+      "bytes": 4534,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-e2e-target-contract.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/e2e-run.sh",
+      "gitBlob": "fec1794f6e450b63e5431ae400bd26330bcc50d9",
+      "sha256": "d2b5d7358daac9556201b7844e65960d1d1eb12a75984655eb29f1bbd9f152c1",
+      "bytes": 2853,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/e2e-run.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/e2e-playwright.sh",
+      "gitBlob": "769c496e815d7678d89a2286643c8c3e1fe73c44",
+      "sha256": "26c3071a654c0374dea29b82ae59d5928e58287d5e25c64060e102dc859936bd",
+      "bytes": 641,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/e2e-playwright.sh"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/app/api/deploy-info/route.ts",
+      "gitBlob": "146a6c84af62e9b373c4fc442d5a5539ef67fc5c",
+      "sha256": "8a14901b885e8a010bf6740d92ab40611db4cc43f0f54e56f1bdbfd7115b3281",
+      "bytes": 2446,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/app/api/deploy-info/route.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "specs/056-proof-packs-warlog-ci/regression-verdict/__tests__/validate-run.adversarial.test.mjs",
+      "gitBlob": "3df779c49d1ad028397691b4bb447e766d6c5b02",
+      "sha256": "d32165ceddb2a4deb381e03d252fc016222a0689e7088401e6123416c0d22660",
+      "bytes": 28645,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/specs/056-proof-packs-warlog-ci/regression-verdict/__tests__/validate-run.adversarial.test.mjs"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "e2e/regression/_smoke/fixture.spec.ts",
+      "gitBlob": "c96e00cb0f5779be00fdb57d7a8e04b4dbc8d59d",
+      "sha256": "97f7ca50dcc7e0dd2f3ff2ebfa3b3132adc39ad5430621e4f4b730271bb5d744",
+      "bytes": 845,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/e2e/regression/_smoke/fixture.spec.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-vercel-branch-policy.ts",
+      "gitBlob": "d8ed52c1304253a0d537606bcf064ac8887e7099",
+      "sha256": "0b585678f528247d40059a0e4baecc9427aecd3d1936e919ad95b1810adab2d7",
+      "bytes": 2070,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-vercel-branch-policy.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "vercel.json",
+      "gitBlob": "54acb4caa33062159e799c1b07af7fb1f9673e1f",
+      "sha256": "4f7455bdb9209cb476e86a07cd7cd902867683636e29638073e64fb185548867",
+      "bytes": 371,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/vercel.json"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-a4-css-sync.ts",
+      "gitBlob": "490e9600d6c006942b8e55e50361e1b97fcd67d0",
+      "sha256": "15e398b1e1738b83fe481e2303662bf0acf45c079296feca437afe8610afd01a",
+      "bytes": 2309,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-a4-css-sync.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/sync-a4-contract-css.ts",
+      "gitBlob": "e3801a29e603ed260ece7f2631f4e86a185baea6",
+      "sha256": "738d1ce01ae93d43577715e95cd219b2d2c30686b457381d4925761d30886bd4",
+      "bytes": 936,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/sync-a4-contract-css.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-a4-contract.ts",
+      "gitBlob": "4ca6a7a3ec36f35406c34b36cd8705a603f8b209",
+      "sha256": "eeec65b36df0fe7e75028b4c7c8eaadfeefe1d77db40be110ae56b3e7c9deb25",
+      "bytes": 2132,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-a4-contract.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/ui/preview/a4-sheet.css",
+      "gitBlob": "92dbe9198732249291134f9191a6b40922c557f6",
+      "sha256": "73248f848762addcba3f324981e00be8d10761163c05e55ce551cbe9e9e1f597",
+      "bytes": 758,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/ui/preview/a4-sheet.css"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/export/a4-contract.ts",
+      "gitBlob": "3d2a0777d23294ce63270ee893016356c29dc8fd",
+      "sha256": "225fbd7079f77848921cdfaa184f5cae4dee0387447d6fac6be942afbc4e4db2",
+      "bytes": 350,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/export/a4-contract.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/export/utils/a4-contract-css.ts",
+      "gitBlob": "543fed7db2edddd96b18913655b49f2aa79ecd4c",
+      "sha256": "3de6ec7e7833ee23bb9555753dc6290155b2ddd200a219288915883909a9aba4",
+      "bytes": 6262,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/export/utils/a4-contract-css.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/app/export/_styles/print.css",
+      "gitBlob": "8758cbe10e795038f2b5bb092d94add9f7ffaf2f",
+      "sha256": "67f67094fd72f6a226cbdabc95855e390b9d51ad4ef5a7bbfa33c80353c3a2d0",
+      "bytes": 12864,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/app/export/_styles/print.css"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/app/api/generate-pdf/route.ts",
+      "gitBlob": "69da5b9e221593ccbe689aae5c50bbcafb632d78",
+      "sha256": "e90132990c1fcb30056bb0f99e289fc67a03ae9c974ff66136db912c508fea95",
+      "bytes": 20108,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/app/api/generate-pdf/route.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-no-inline-search-input.ts",
+      "gitBlob": "1631e6b42c8ba99d870a2f6fe6406eac2af9bbaf",
+      "sha256": "876c8c01df787d6a6e2f653cfb87a26e34b5698c486304ec1f62e2d2d1496fbe",
+      "bytes": 5038,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-no-inline-search-input.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-single-favorite-toast.ts",
+      "gitBlob": "5d9f08dd219d502e3962d0e289280aad6e0ec1fd",
+      "sha256": "7c0ba336c6b475e67b4376cb7516f049b0870a2045f2b212859bfb53930a4ff9",
+      "bytes": 14257,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-single-favorite-toast.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/modals/FavoritarModal.tsx",
+      "gitBlob": "0162532061d11298dbe79799f84ece552fe4fe77",
+      "sha256": "92b5fe46011e6a9c5d3ae5b69bed41e4afd73ee3499e0018f6b313e4eae030d0",
+      "bytes": 8345,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/modals/FavoritarModal.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/modals/FavoritarDietaModal.tsx",
+      "gitBlob": "f8ba1cf3a5b264dbf9969abef026b4b0a05d89b1",
+      "sha256": "2d5e2e034d349e4e950c048c3e43939a8cc9a6ea80eccadb4ad8fb5d314e467d",
+      "bytes": 13758,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/modals/FavoritarDietaModal.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/modals/FavoritarRefeicaoModal.tsx",
+      "gitBlob": "77906a6adb57c3ecc9fc411dc54b4b88b9507db3",
+      "sha256": "9d7b10162ff8caae9005651812fd9f7b16221122ac8a0fbcf80d50ff2847ca6c",
+      "bytes": 6720,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/modals/FavoritarRefeicaoModal.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-content-visibility.ts",
+      "gitBlob": "c74d09d3ca26ac63f04bbd435edbf066c840c0db",
+      "sha256": "4cd70c207e70b80956becc9053caa60c3c38b86a471bffe1b03b212f92de0a30",
+      "bytes": 11372,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-content-visibility.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/admin/explorer-actions.ts",
+      "gitBlob": "95847accff212a1174e884e73b576bdced2023c4",
+      "sha256": "6e3e750807a8cb0bad233efba944bd1b4f68142fe21b7b5a6564eb72ab29625a",
+      "bytes": 59871,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/admin/explorer-actions.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/admin/dashboard-queries.ts",
+      "gitBlob": "1759b7ca5da44990d7b99aba377fb5af52d6b58e",
+      "sha256": "14b18f48520388390082b8006f3d2aed9de974a2913ef020caa2284667f35ab7",
+      "bytes": 27993,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/admin/dashboard-queries.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/admin/admin-actions.ts",
+      "gitBlob": "a4cd746eba26bd0154ec38b885b06f8d15b69d67",
+      "sha256": "b310121adc90b7294f1c17bc6372482ec8ae2858a9b0ed449281abd07480f67b",
+      "bytes": 20130,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/admin/admin-actions.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/admin/hide-actions.ts",
+      "gitBlob": "d8f7b91877ea48d6f99297f15eb05dec955df6ab",
+      "sha256": "e357de9e4da792a21ff3a25780612eef6ec089d243690b95b0ff80763a6f6fdc",
+      "bytes": 16011,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/admin/hide-actions.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/admin/user-explorer-actions.ts",
+      "gitBlob": "985d8df292defe6cc44bc5d445b2a7764c90029c",
+      "sha256": "bbcdfb3595c1f13bbd0ab19fa681ed62d83debc262918b9fa9d9df6c810acd56",
+      "bytes": 7047,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/admin/user-explorer-actions.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/app/api/cron/daily-maintenance/route.ts",
+      "gitBlob": "16945b6a5b472a3fce8ff1d940fbb7b0a7d23aec",
+      "sha256": "0452a44b24743a3da15d016335065828d3a7040dae790abc864e6bf85d8056c2",
+      "bytes": 14953,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/app/api/cron/daily-maintenance/route.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/exam-result-attachment-cleanup.server.ts",
+      "gitBlob": "84bdd3c48005175d4442f14f5da0e1abd849fc7e",
+      "sha256": "1d44b7a771456e7abce2877ec70161539b756f1cba61f07c76e408a73290b25c",
+      "bytes": 8480,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/exam-result-attachment-cleanup.server.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/exames-actions.ts",
+      "gitBlob": "aff38fe0871f7880814a8814bf19b99c627d9546",
+      "sha256": "6a68e1784e98c3784697795e5118b0353b5fc8a86a28f8aa00b6c75ae4cb4557",
+      "bytes": 70845,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/exames-actions.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/duplicate-detection/active-name-conflict.ts",
+      "gitBlob": "161a7f986bca6c488fa79ee27d05f78f883d18da",
+      "sha256": "0f6799c1083edaebdb8ec22c9451f94246765e86e190534e6ca4a4e021a564f7",
+      "bytes": 10006,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/duplicate-detection/active-name-conflict.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/catalog-access-lock/cause-repository.server.ts",
+      "gitBlob": "7a061766e865e0cf0eaa7a22bb1ba8aec46fffe8",
+      "sha256": "0fc19adf194b5586b658d24728e6f91931b836dca12b6eb9af12439e97871fbf",
+      "bytes": 12066,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/catalog-access-lock/cause-repository.server.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/clinical/content-references/sync.ts",
+      "gitBlob": "dcdda3aadb30f47eb8f721c2137b6d55720d4c3b",
+      "sha256": "19c5686858e2dfa6f6065d629f964358e89bab6a98f62852767062072beaf89b",
+      "bytes": 4739,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/clinical/content-references/sync.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/forms/definition-actions.ts",
+      "gitBlob": "dc8c7c8525d21cd5b3ff6599a9790327e43c546f",
+      "sha256": "11925a1f6f1aaf38851661a30185f82785ea3061ba0bf456bd8be578e1555f4a",
+      "bytes": 31449,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/forms/definition-actions.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/forms/dual-read.ts",
+      "gitBlob": "1cb12ec1d55e9a7c9b511bb0807801dadeacff37",
+      "sha256": "0a83a776432f4dc16f2ef6d574c528c12f72b7e5379579e2e2a2bb609a3cae57",
+      "bytes": 4511,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/forms/dual-read.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/export/actions/getTemplateForExport.ts",
+      "gitBlob": "e5516549e3f28057e3c4f8c7f2353aae9e7c16ad",
+      "sha256": "d92ea1a3a7a8a15de6bc88923d0ee15a57d28250e5b8c90c8cf15270a7671a46",
+      "bytes": 4478,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/export/actions/getTemplateForExport.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/export/actions/getGestacaoForExport.ts",
+      "gitBlob": "6dcf0bd28089bed53ff1ba3eea6c0721be0f205a",
+      "sha256": "2becdaab8cddb70ed67beefea54963a8241af4b1a6edd252def340796f142480",
+      "bytes": 1339,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/export/actions/getGestacaoForExport.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/export/utils/getContentForExport.ts",
+      "gitBlob": "461ed131b4a8748595e25d9e8a3ed39f5b2c46ee",
+      "sha256": "65aad79c32a067f01238998d2957dedfbde0ecbed7cb288aeafb1283ffe1f5cf",
+      "bytes": 8271,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/export/utils/getContentForExport.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/export/data/getAntropometriaExportDTO.ts",
+      "gitBlob": "cf66fb265de66b27f9d99117e31218986fd518ef",
+      "sha256": "e0985322cfe3e97d99d3858953f33b59b9bff4879668a8f3cde6a79a01c4168c",
+      "bytes": 2284,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/export/data/getAntropometriaExportDTO.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/export/data/getGestacaoExportDTO.ts",
+      "gitBlob": "36773f72024c122e7c6deb997ef4b1733d6f72c3",
+      "sha256": "a108f4ac66b56a475f51897348104ab3c3722f73a9973e15bafb201f88f589f7",
+      "bytes": 4060,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/export/data/getGestacaoExportDTO.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/app/export/care/_registry/registry.server.ts",
+      "gitBlob": "ef1991d76b755e238cead496c14cf39c14b9f20e",
+      "sha256": "f5c34a2af74e1ede4f11cc56b07715e895920113e4ea669f42fcc98fb5f2b373",
+      "bytes": 12413,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/app/export/care/_registry/registry.server.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/utils/retry.ts",
+      "gitBlob": "65a8d5678f8039f9d21d7463504ca42a9fd5e297",
+      "sha256": "0597baeab53a93b7f0922a7b6181af7778c78601b6722b5487722e714e7bf905",
+      "bytes": 3114,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/utils/retry.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-hard-domain-writers.ts",
+      "gitBlob": "afe6b98a6644009a3c5971807705afb2e45509ab",
+      "sha256": "217b6980aac0b45c83c33d9c70938599f84f7c9dd8bbb7c6962539fb5cc650a8",
+      "bytes": 3086,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-hard-domain-writers.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-lifecycle-consumers.ts",
+      "gitBlob": "93dd31f6ea0f1241090fc3129bc6c25ef8be6efe",
+      "sha256": "be7cc3e2444d0dd0586d65ffbf64faa569501bf2017eed7be0c77c90de0ac08a",
+      "bytes": 14391,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-lifecycle-consumers.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/lifecycle/extract-consumers.mjs",
+      "gitBlob": "a41f77f12bc2167819dbe2e17857e8656f9487bf",
+      "sha256": "bae63a64951501f6c9d863a5a6759d00e16696c772e95b39f03cc5f86f071f89",
+      "bytes": 42576,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/lifecycle/extract-consumers.mjs"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/lifecycle/consumers.registry.ts",
+      "gitBlob": "e4b6ee8ad0e2dafb37ea80a1c74402174ef63f14",
+      "sha256": "a0865b4aaf524e3523d3940687c5142c5b5115fbe9bddac3bad154a12dd8cf19",
+      "bytes": 269069,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/lifecycle/consumers.registry.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-lifecycle-modal-derivation.ts",
+      "gitBlob": "57279b79ab97631346d34f573caeb0aad1129e93",
+      "sha256": "b06f3ad25186ce322738063927749c7dc09e9b8e82020e7a902a026ab60e62de",
+      "bytes": 4788,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-lifecycle-modal-derivation.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-in-document-removal.ts",
+      "gitBlob": "cb08bbe5724287eaa09448d95a7c55e53311970f",
+      "sha256": "cd6675a92241b86b2e37954f6aa9009657344162b0917e0a6fc254d324a9b07d",
+      "bytes": 7008,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-in-document-removal.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/lifecycle/in-document-removal.ts",
+      "gitBlob": "afdc88a70051ce129c691c1d93f763f8e947ce03",
+      "sha256": "a3f4b0fe11102d3180bfd3824a6ac55be46cf3419332e904937905ff87b5d698",
+      "bytes": 2961,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/lifecycle/in-document-removal.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/lifecycle/in-document-removal.server.ts",
+      "gitBlob": "1a8db6788623e86cc6d498fa40815afce0c00851",
+      "sha256": "9d6f7bf96c4bff2a173a68010c4e750093940dd5f32da795cb5dcaaff0cc6a46",
+      "bytes": 739,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/lifecycle/in-document-removal.server.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-editor-list-item-delete.ts",
+      "gitBlob": "170bb614317090fb27e1012b39263d6fa7914720",
+      "sha256": "713290b629c01cf34231c58b8e4675533436d97577c52448f89c42d29f36a50d",
+      "bytes": 88639,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-editor-list-item-delete.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/dieta/editors/RefeicoesTab.tsx",
+      "gitBlob": "537987eff7ffc58879ac6c295b880392ce5c32cb",
+      "sha256": "5f9a909493438bea39b76ac9317875116d4f9d5cb8cab639837421ce699c7119",
+      "bytes": 22040,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/dieta/editors/RefeicoesTab.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/dieta/editors/DietaTemplateEditor.tsx",
+      "gitBlob": "4c069f168a7e7a07c939aa8e055cfa22da2e98f3",
+      "sha256": "4029d77093e37963b1145ccb16bdbf4d5bb9a107f7710f5b3024f354cb0ec5e8",
+      "bytes": 12057,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/dieta/editors/DietaTemplateEditor.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/forms/components/FormsBuilder.tsx",
+      "gitBlob": "b33e97b752e606aa5ea10d031f941063c6f03125",
+      "sha256": "f994b6c69121d9892515fe8dcc5c06ff3dd6907514d34a7366c3bc2189e8bfc3",
+      "bytes": 8035,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/forms/components/FormsBuilder.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/anamnese/components/composer/AnamneseComposer.tsx",
+      "gitBlob": "2dd68d4e183f832fb466f2d9cea89f1582f83d11",
+      "sha256": "22e08596d9c826e44d185f5bbe9996d8cd1089b6708c2dd3a462c86078059221",
+      "bytes": 8402,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/anamnese/components/composer/AnamneseComposer.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/prescricao/PrescricaoMain.tsx",
+      "gitBlob": "61bb18c2040cea5fe90f4ead364bdb5108ba8060",
+      "sha256": "9c8579d742656c237ab4fe0de46f44ab9e8cad930602800413e5b6f9c9d4d72e",
+      "bytes": 72779,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/prescricao/PrescricaoMain.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/exames/ExamesMain.tsx",
+      "gitBlob": "25bc79807c101091c92d91a8f3ab7be66f2d0c07",
+      "sha256": "a4a95e7487fbac7fb0dbcc7f7ce394ce6b675a9854be023c34a6d4092e525213",
+      "bytes": 56174,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/exames/ExamesMain.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/exames/ExamResultSetMain.tsx",
+      "gitBlob": "16d59317f8b426e56e96f8ea926f98e859f338a4",
+      "sha256": "9e98635cbe6ba5fc8789420a8ed448cdb927815a54deae5517923c99534a57bb",
+      "bytes": 48142,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/exames/ExamResultSetMain.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/calculo/components/GastoEnergeticoV2/GastoMET/index.tsx",
+      "gitBlob": "6ad193177970fd597092fd6d99796442e479ce1c",
+      "sha256": "1dee97914a138eb31600d5d3edf7916edfc30c8e3b6afc23fda6e94ac1017172",
+      "bytes": 14979,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/calculo/components/GastoEnergeticoV2/GastoMET/index.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/composer-universal/ComposerUniversal.tsx",
+      "gitBlob": "bd56e88182d2f0927cee53a99a71ae07f80d0d08",
+      "sha256": "93ebc0332293c57442e2f7120b8a9417cc7ac8dfb2aecf39039086ba047e38d5",
+      "bytes": 7735,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/composer-universal/ComposerUniversal.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/composer-universal/WidgetContainer.tsx",
+      "gitBlob": "d39b759870eccaad9de3d6834d4ffd9649902d79",
+      "sha256": "f1324bab749d8bce1a180fec687631c5f999b64bc68e2ee1b27ef0e29dedf4ec",
+      "bytes": 8339,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/composer-universal/WidgetContainer.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/ui/cards/WidgetCard.tsx",
+      "gitBlob": "6ea5cf03cdf9b6cdaea174cc63788ffdfb54f7d6",
+      "sha256": "abfd36d40a1f78acadb811fc1225cebe9da4c82e554bc16be1fd69bdc08f6b2b",
+      "bytes": 12320,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/ui/cards/WidgetCard.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/anamnese/components/composer/AnamneseWidgetContainer.tsx",
+      "gitBlob": "7bac257101edba6eb88d906b1e748d868210e105",
+      "sha256": "31a9cb5a140de714f0890b2de19f3644e31859fee6db18c2fe9d7760e4d8d04b",
+      "bytes": 5742,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/anamnese/components/composer/AnamneseWidgetContainer.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/ui/cards/PrescriptionBaseCard.tsx",
+      "gitBlob": "1529378b3abf6bbfe6dbff332f00cc6b63f37620",
+      "sha256": "bb946f3662d2448f242f94f76abef0a9b7d83b4508f2a1984de222718586d776",
+      "bytes": 4753,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/ui/cards/PrescriptionBaseCard.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/ui/cards/BaseEditableCard.tsx",
+      "gitBlob": "e7e72367e39bc1e117e43626a47d857ba82e9595",
+      "sha256": "160bea695403a783a1b124aa29263be665e29f217d60a5ffca54746031dccd79",
+      "bytes": 25960,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/ui/cards/BaseEditableCard.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/ui/grid/SmartGrid.tsx",
+      "gitBlob": "303ebb96b72df5fee4d5e8de71bed9f718a946ea",
+      "sha256": "f0500cd82edc0dc7e605def632b4b89f9954b4caeb4cf64cb1efe1acb48e04f8",
+      "bytes": 17753,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/ui/grid/SmartGrid.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/refeicoes/RefeicaoCard.tsx",
+      "gitBlob": "015817c4b8df652b138517a2c455a92a6da2f7f9",
+      "sha256": "c5ac1f7cafb3a3047dbb7b0102fd27d0e5aa4b416b2b94df409fe5e78a56274b",
+      "bytes": 35413,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/refeicoes/RefeicaoCard.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/dieta/editors/RefeicoesPanel.tsx",
+      "gitBlob": "33cafa1cd24561486c05388447562a268b3671aa",
+      "sha256": "b29bf879cee113e2b740aa3971d6495e21646f6a8a3d1347f36fde483a5ad9d7",
+      "bytes": 15334,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/dieta/editors/RefeicoesPanel.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/prescricao/components/cards/CardFormulacao.tsx",
+      "gitBlob": "ca012370d71df0488adaf9ff94692c09fb834f8e",
+      "sha256": "0b2f67edaba7e8daa1bb0f25c50ff8a0f0baf832591b78bb80112c62958603e6",
+      "bytes": 99332,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/prescricao/components/cards/CardFormulacao.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/prescricao/components/cards/CardSuplemento.tsx",
+      "gitBlob": "3035dd94b4f05cfe3d5b7d36dfd517f820a2c28d",
+      "sha256": "6b3276de29e29d0da5c2c47cc5760001384e2fec93fb2be6e90d24ff20c1b552",
+      "bytes": 8757,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/prescricao/components/cards/CardSuplemento.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/prescricao/components/cards/CardTexto.tsx",
+      "gitBlob": "0b07aad911352f09d4254dc8e1e280268bded452",
+      "sha256": "5d9ee81f08d76caf0d8d2a60205b1ff09836473c606e19f0ae6bf6a4d940800b",
+      "bytes": 6874,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/prescricao/components/cards/CardTexto.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/exames/components/cards/CardExamePrescricao.tsx",
+      "gitBlob": "63839ae007a9fcadd4d4e2a5e018afa034e585a3",
+      "sha256": "100d24e35a3cd8c31113f5d48120025fd04911da680669b570812607b824ace5",
+      "bytes": 36898,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/exames/components/cards/CardExamePrescricao.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/exames/components/cards/CardExamResultSet.tsx",
+      "gitBlob": "aaff329388d7409d05aad5749389a83b94c52306",
+      "sha256": "c3cdd8f40ff08fd25ee19bff175516aa35c6a86854c404e28c20b314a02ba012",
+      "bytes": 12151,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/exames/components/cards/CardExamResultSet.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/calculo/components/GastoEnergeticoV2/GastoMET/CardSessaoTreino/CardSessaoTreino.tsx",
+      "gitBlob": "4cf7079a26784d7f4948c3218644633d3a27ea8e",
+      "sha256": "00f078ddac31b15917de928298be2356840e8ecc1682c6f7c558f7c1c8ac6002",
+      "bytes": 2878,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/calculo/components/GastoEnergeticoV2/GastoMET/CardSessaoTreino/CardSessaoTreino.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/agenda/list-view/ProgramacaoView.tsx",
+      "gitBlob": "d221560e97781eac0e27b622075e2b64625670ba",
+      "sha256": "1c077caec4cee5f804cd12ee632bb207fff8cf7823e47821c8c4ec4c1dd796f6",
+      "bytes": 14062,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/agenda/list-view/ProgramacaoView.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/modals/ImportModalUI.tsx",
+      "gitBlob": "40e7457a371e47a2de28b81dc3b2420839a219f5",
+      "sha256": "a7fa6aa8d6f7038ae22d2935e4c51bc70b8d9b48d0e50cb86b89604afcf5721c",
+      "bytes": 15565,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/modals/ImportModalUI.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/composer-universal/index.ts",
+      "gitBlob": "d3e02e0524c934bd9eb22e07b4690ef7da127d60",
+      "sha256": "38c2c9d81a0a53ebfb43000928a9bd2a70070c5260efbc6577d5f3b6928554dc",
+      "bytes": 478,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/composer-universal/index.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/ui/cards/index.ts",
+      "gitBlob": "a339aadf5b439cda7208bf57544c520aea2ae22e",
+      "sha256": "895efd04cb9e9f8a3dc3b4d83a2659126da3ea1f77fef0cec214a44d4e53c8f6",
+      "bytes": 2205,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/ui/cards/index.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/hooks/useEditorDeleteController.ts",
+      "gitBlob": "d749eb7b4404b06a003a37be45948c13b9f287cc",
+      "sha256": "ce60d5229a762b73d7301e841c7de87c7c1fd5bf0ee86a8cb87c49d78e2eda7d",
+      "bytes": 4956,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/hooks/useEditorDeleteController.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/ui/grid/index.ts",
+      "gitBlob": "dc3ce25bc3927c14827c9d64602d2195c5135e9c",
+      "sha256": "4e71ce214ee44c1a4c94cc95c18152b26a5a2b8d01bf11cd669424e78e3e570b",
+      "bytes": 542,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/ui/grid/index.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/ui/typography/index.ts",
+      "gitBlob": "ba1e6d11ff4380ef87a1269ca4881a13f9293e76",
+      "sha256": "1a357118b2053c604dbb7ca8e0f8a3ca17a008b0b2d86abb47d43b4ba0bf1e9d",
+      "bytes": 68,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/ui/typography/index.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-calculo-card-shell.ts",
+      "gitBlob": "52d55613956cc5bfca33ca1f6f12df00d20491ba",
+      "sha256": "955f74d3c7e5b681ce5b234352455cb03803eccd60681a526ff2d82c7ee19148",
+      "bytes": 61694,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-calculo-card-shell.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/constants/messages/fields.ts",
+      "gitBlob": "4b0749a434d9f525150b21b766baff767f9283ab",
+      "sha256": "c2a497c760ffdc74beb8e31767fe6a935a20a03b5574bc280ebc7e7b2e711f23",
+      "bytes": 135129,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/constants/messages/fields.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/ui/cards/BaseCard.tsx",
+      "gitBlob": "ca0a1f22c6766cf30ad4cece7cfb54a98691de75",
+      "sha256": "3ac8a0d4255296adab92f51e8ab0ea9b76ac57e6737c670a392dc7252353d2a7",
+      "bytes": 7479,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/ui/cards/BaseCard.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/ui/cards/ExternalControls.tsx",
+      "gitBlob": "ba797a7c7cb64b4bb9f613f66884f948f03bb54e",
+      "sha256": "c5f6ee390758be1ec04a8ef4e1475e8fa73fc52786f65caa32132f55fa10033b",
+      "bytes": 4598,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/ui/cards/ExternalControls.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/components/clinical/calculo/components/GastoEnergeticoV2/index.tsx",
+      "gitBlob": "1bfe09566073d4147b5940975d5129731ac25a09",
+      "sha256": "7e18afa1799c398e7c9e73731c6d0757a028e5f79af43f2af74975e10c57e869",
+      "bytes": 16769,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/components/clinical/calculo/components/GastoEnergeticoV2/index.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-dirty-source-ownership.ts",
+      "gitBlob": "4bfc544278bebd64d1573d54addefac9a9f76669",
+      "sha256": "7659f2e8e628876d770967c81f6d97158a3626a7dce2957cf1c133f660c87d6e",
+      "bytes": 4115,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-dirty-source-ownership.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/contexts/UnsavedChangesContext.tsx",
+      "gitBlob": "68d55df304a08c6194ee1c98a1dfc92161d0278b",
+      "sha256": "72db64c8353771a44688a70472425d8e44a063be45c1036d4bc74330d7e1a2a5",
+      "bytes": 10734,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/contexts/UnsavedChangesContext.tsx"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-patient-visibility.ts",
+      "gitBlob": "045d2eb14368b7b88a12c380ea9638ace1101a8a",
+      "sha256": "ff850dadf090cb1838642b0de9a9ed6f55f5afbdad6f666e9a8346eefc89f732",
+      "bytes": 5475,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-patient-visibility.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "src/lib/admin/patient-restore.ts",
+      "gitBlob": "767233ceb4269af34060229329c35d01c0ed1b94",
+      "sha256": "348bd478114bb2a10f9191cf6075e740c3cc923fbc130eac3781762395173145",
+      "bytes": 6746,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/src/lib/admin/patient-restore.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-location-visibility.ts",
+      "gitBlob": "f077a437f68a9af4e8ea18cbf53baa0051e7da22",
+      "sha256": "eba4fb2e80dae6f55877f3c8a3e79484ba112773fdf66f8cf857c14841efb51c",
+      "bytes": 4205,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-location-visibility.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-plano-visibility.ts",
+      "gitBlob": "608df94e066029093cde3abbb9361edd4a6183b5",
+      "sha256": "e5fecbd5d7648c3a40a59b5feaa36c601c28ac413a9847a408a59989c6c35866",
+      "bytes": 5126,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-plano-visibility.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-recipe-visibility.ts",
+      "gitBlob": "4ba8da56d02f3b98e15fefad72ebe547b9a7a969",
+      "sha256": "807071bc89e419043c176c291a7ee53c93f7824f63855ba727d85c8971465ff7",
+      "bytes": 5304,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-recipe-visibility.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-substance-visibility.ts",
+      "gitBlob": "34358c8d716184a97cbb54a9e9202c7b419be4dc",
+      "sha256": "cd310f741a8d6a6012d0329b53e35112e9a111df6dc814c4e1aaf3a7aa0f6bab",
+      "bytes": 5088,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-substance-visibility.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/check-exam-visibility.ts",
+      "gitBlob": "da55cf68b160e082866167127be45cfe94283ced",
+      "sha256": "6c4da9fd456445e072553ab182f977bd47cdaa0e0c50c3870abfb96e5c627eda",
+      "bytes": 4953,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/check-exam-visibility.ts"
+    },
+    {
+      "repository": "dietflowoficial/Dietflow-app",
+      "commit": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+      "path": "scripts/ci/lint-ratchet.sh",
+      "gitBlob": "76a9176ee4cdcd5b1a168b6313a50b1c15eb98c3",
+      "sha256": "8ebba06c0cd27208a8ff2fbd25073eaf6286dfa5141ade7a5fb3949e97ab0365",
+      "bytes": 2206,
+      "url": "https://github.com/dietflowoficial/Dietflow-app/blob/0907cd94fac6b483c5f8a48038d037d2297e2c73/scripts/ci/lint-ratchet.sh"
+    }
+  ],
+  "queueSources": [
+    {
+      "commit": "16f3a275688e0f977b7982ca53035001c045d4da",
+      "path": "AGENTS.md",
+      "url": "https://github.com/nmarcofernandess/ci-queue/blob/16f3a275688e0f977b7982ca53035001c045d4da/AGENTS.md"
+    },
+    {
+      "commit": "16f3a275688e0f977b7982ca53035001c045d4da",
+      "path": "docs/README.md",
+      "url": "https://github.com/nmarcofernandess/ci-queue/blob/16f3a275688e0f977b7982ca53035001c045d4da/docs/README.md"
+    },
+    {
+      "commit": "16f3a275688e0f977b7982ca53035001c045d4da",
+      "path": "docs/CONTRACTS.md",
+      "url": "https://github.com/nmarcofernandess/ci-queue/blob/16f3a275688e0f977b7982ca53035001c045d4da/docs/CONTRACTS.md"
+    },
+    {
+      "commit": "16f3a275688e0f977b7982ca53035001c045d4da",
+      "path": "docs/TESTING-METHOD.md",
+      "url": "https://github.com/nmarcofernandess/ci-queue/blob/16f3a275688e0f977b7982ca53035001c045d4da/docs/TESTING-METHOD.md"
+    },
+    {
+      "commit": "16f3a275688e0f977b7982ca53035001c045d4da",
+      "path": "docs/RUNTIME-ISOLATION.md",
+      "url": "https://github.com/nmarcofernandess/ci-queue/blob/16f3a275688e0f977b7982ca53035001c045d4da/docs/RUNTIME-ISOLATION.md"
+    },
+    {
+      "commit": "16f3a275688e0f977b7982ca53035001c045d4da",
+      "path": ".github/workflows/ci.yml",
+      "url": "https://github.com/nmarcofernandess/ci-queue/blob/16f3a275688e0f977b7982ca53035001c045d4da/.github/workflows/ci.yml"
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+[2026-10-07T20:23:54.378Z] queued 20261007202354-f4e085c7 smoketest-ship codex/exames-r2-r3-20261007 8766d0ea8ad69f020834a30f978e61bf21dcca78
+[2026-10-07T20:23:56.885Z] running 20261007202354-f4e085c7 npm run ci:smoketest
+[runtime] <HOME>/.local/share/dietflow-runtime/node/v24.20.0-darwin-arm64/bin/node v24.20.0; coverage=guarded-node-processes
+
+> DietFlow@0.0.1 ci:smoketest
+> bash scripts/ci/smoketest-local.sh
+
+@@local-ci-progress	1	node	static	-	stage	pending	-	Static
+@@local-ci-progress	1	node	jest	-	stage	pending	-	Jest
+==> Static gates
+@@local-ci-progress	1	node	static	-	stage	running	-	Static
+
+> DietFlow@0.0.1 ci:local
+> bash scripts/ci-local.sh
+
+
+CI local — static
+Bypass: git push --no-verify
+
+  prisma generate                         ✓
+  fumadocs .source                        ✓
+  check:use-server                        ✓
+  check:policy-write-boundaries           ✓
+  check:admin-relation-authority          ✓
+  check:zod-schema-sync                   ✓
+  check:architecture                      ✓
+  check:content-writers                   ✓
+  check:content-editor-payload            ✓
+  check:content-resource-boundaries       ✓
+  check:golden-product-shape              ✓
+  check:golden-fresh                      ✓
+  check:clinical-item-header              ✓
+  check:unit-favorite-writers             ✓
+  check:record-date-derivation            ✓
+  check:module-help-docs                  ✓
+  check:favorites-kinds                   ✓
+  check:import-surfaces                   ✓
+  check:field-adornment-contract          ✓
+  check:numeric-input-ratchet             ✓
+  check:field-identity-ratchet            ✓
+  check:context-yaml                      ✓
+  check:e2e-trigger                       ✓
+  check:fixtures                          ✓
+  check:showcase                          ✓
+  check:autofill-policy                   ✓
+  check:patient-proof-routes              ✓
+  check:proof-index-fresh                 ✓
+  check:clinical-readonly-preview-boundary✓
+  check:snapshot-sync                     ✓
+  check:snapshot-runtime                  ✓
+  check:catalog-changes                   ✗
+
+
+> DietFlow@0.0.1 check:catalog-changes
+> tsx scripts/check-catalog-changes.ts
+
+  Golden files touched: prisma/seeds/system/exames/data/exames-golden.json
+
+📋 Catalog diff (93fc3149e0f4… → HEAD)
+  exames: 4 targetId(s) changed
+    - exm-sys-eas-urina-tipo-i
+    - exm-sys-eletroforese-de-proteinas
+    - exm-sys-hemograma-completo
+    - exm-sys-totg-75g-curva-glicemica
+  Total: 4 targetId(s)
+
+  Rich changes: 4
+
+  HEAD subject: "docs(exames): clarify current test impact evidence reuse limits"
+  Tags: [check]=false [seed]=false
+
+❌ Catalog golden diff detected. Add [check] to the final HEAD subject after reviewing the current manifest.
+
+Falhou em: check:catalog-changes
+@@local-ci-progress	1	node	static	-	stage	failed	134000	Static

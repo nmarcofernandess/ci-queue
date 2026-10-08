@@ -18,3 +18,7 @@ Reconciliado em 19/09/2026 a partir de `dev` em `5a9268e41e27644362dfd9e5cd4e163
 README, AGENTS e `.context` apontam para os donos acima. Skills consumidoras documentam a porta operacional do próprio projeto, sem copiar um motor de ship nem todo este manual. Ao adotar em outro projeto, atualizar explicitamente seu AGENTS (ou alvo do symlink) e sua skill/instrução versionada.
 
 Specs, planos e relatos de campanhas preservam decisões históricas. Não prevalecem sobre código/testes atuais nem devem ser reescritos para parecer execução atual. O manual é ensino, não proof de runtime ou certificado de login/boot.
+
+## Estudos documentais
+
+- [Static/Jest DietFlow e Smoke → Ship — coleta de 07/10/2026](research/smoke-ship-20261007/README.md): fontes imutáveis, 58 gates, tickets e medições existentes; estudo sem alteração de política ou execução nova.
