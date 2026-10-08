@@ -17,6 +17,8 @@ Use o bundle efetivamente produzido, não um nome inventado. Manifest registra v
 
 Prefixo usual: `~/.local/share/ci-queue`. State novo usual: `~/.local/state/ci-queue`; instalação existente pode usar `~/.local/state/local-ci/queue`. Leia `installation.json` e mantenha o state real da máquina, CLI, worker e API. Não criar outra fila por copiar o exemplo.
 
+No macOS, `ci-queue` sem argumentos abre o dashboard em `http://127.0.0.1:8765/dashboard` no navegador padrão. O serviço do dashboard precisa estar ativo; os subcomandos continuam encaminhados à CLI.
+
 O launcher escrito em `~/.local/bin/ci-queue` (ou `--command`) exporta `CI_QUEUE_STATE_DIR` para o state passado em `install`/`update` quando a variável ainda não está no ambiente. Assim `observe`, `history`, worker e API usam o mesmo root — inclusive `<state>/observations/` — sem depender do fallback legado.
 
 Sem `--activate`, o instalador copia/registra a release, sem provar serviços carregados:
