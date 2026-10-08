@@ -79,6 +79,36 @@ test("installs a verified immutable release and preserves state on uninstall", (
   }
 })
 
+
+test("macOS launcher opens the dashboard only without arguments and preserves CLI forwarding", () => {
+  const root = sourceFixture()
+  try {
+    const tools = join(root, "fake-tools")
+    mkdirSync(tools)
+    for (const [name, body] of Object.entries({
+      uname: 'echo Darwin',
+      open: 'printf "%s\\n" "$@"; exit "${OPEN_EXIT_CODE:-0}"',
+      node: 'printf "%s\\n" "$CI_QUEUE_STATE_DIR" "$@"',
+    })) writeFileSync(join(tools, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 })
+    const { destination } = buildRelease({ root, outputDir: join(root, "bundles"), revision: "a".repeat(40) })
+    const command = join(root, "command")
+    const state = join(root, "operator state")
+    const installed = installRelease({
+      bundle: destination, prefix: join(root, "prefix"), stateRoot: state,
+      nodePath: join(tools, "node"), commandPath: command,
+    })
+    const env = { ...process.env, PATH: `${tools}:${process.env.PATH}` }
+    delete env.CI_QUEUE_STATE_DIR
+    const run = (args, overrides = {}) => execFileSync(command, args, { env: { ...env, ...overrides }, encoding: "utf8", cwd: tmpdir() })
+    assert.equal(run([]), "http://127.0.0.1:8765/dashboard\n")
+    assert.equal(run(["status", "--json"]), `${state}\n${join(installed.releasePath, "bin", "ci-queue.mjs")}\nstatus\n--json\n`)
+    assert.equal(run(["logs", "a ticket"], { CI_QUEUE_STATE_DIR: "/custom state" }), `/custom state\n${join(installed.releasePath, "bin", "ci-queue.mjs")}\nlogs\na ticket\n`)
+    assert.throws(() => run([], { OPEN_EXIT_CODE: "7" }), (error) => error.status === 7)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test("refuses update and uninstall when a queue owner is uncertain", () => {
   const root = sourceFixture()
   const prefix = join(root, "prefix")
