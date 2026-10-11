@@ -4,6 +4,11 @@ CI Queue is an independent local CI executor and observability product. It owns
 its CLI, queue, supervisor, records, API, dashboard, installation and product
 tests. A consuming project owns its recipes, preparation and test harness.
 
+For the boundary between planned authorship and integration, follow the
+consumer's instructions and `docs/TESTING-METHOD.md#fechamento-depois-da-autoria`.
+Keep execution state in the consumer's selected record; queue observability
+does not reopen its plan or declare integration/deploy complete.
+
 ## Integration documentation
 
 The generic entry is `docs/CONSUMER-QUICKSTART.md`; the complete offline teaching
