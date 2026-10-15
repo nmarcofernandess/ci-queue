@@ -293,7 +293,7 @@ describe("queue lifecycle", () => {
     expect(listHistoryJobs(state)[0]).toMatchObject({ id: ticket.id, status: "passed" })
   })
 
-  it("retains declared artifacts from a failed recipe without changing its verdict", async () => {
+  it("leaves consumer evidence in place after failure without snapshotting", async () => {
     const { project, state } = fixture(
       {
         badWithArtifact: {
@@ -308,8 +308,7 @@ describe("queue lifecycle", () => {
             ].join("; "),
           ],
         },
-      },
-      { artifacts: ["test-results"] }
+      }
     )
     const ticket = enqueueTicket({
       preset: "badWithArtifact",
@@ -324,9 +323,9 @@ describe("queue lifecycle", () => {
       id: ticket.id,
       status: "failed",
       exitCode: 7,
-      artifactsPath,
     })
-    expect(readFileSync(join(artifactsPath, "test-results", "result.txt"), "utf8")).toBe(
+    expect(existsSync(artifactsPath)).toBe(false)
+    expect(readFileSync(join(project, "test-results", "result.txt"), "utf8")).toBe(
       "failure evidence"
     )
   })

@@ -1,10 +1,14 @@
 import { existsSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { readQueueConfig, resolveRecipeArtifacts, type ResolvedQueueConfig } from "../contracts/config.js"
+import { readQueueConfig, type ResolvedQueueConfig } from "../contracts/config.js"
 import {
   TICKET_SCHEMA_VERSION,
   normalizeTicketFlags,
+  normalizeFinalization,
+  finalizationDigest,
+  rejectArtifactSnapshots,
+  type FinalizationSpec,
   type QueueTicket,
   type RequestContext,
   type RunVariant,
@@ -38,6 +42,7 @@ export type ExplicitEnqueueInput = {
   stateRoot: string
   baseRef?: string
   artifacts?: string[]
+  finalization?: FinalizationSpec
   flags?: QueueTicket["flags"]
   requestedBy?: string
   requestContext?: RequestContext
@@ -50,6 +55,9 @@ export function buildTicket(input: EnqueueInput, resolved?: ResolvedQueueConfig)
   const preset = configuration.config.presets[input.preset]
   if (!preset) throw new Error(`preset desconhecido: ${input.preset}`)
   if (!existsSync(configuration.executionCwd)) throw new Error(`repository.path inexistente: ${configuration.executionCwd}`)
+  rejectArtifactSnapshots(configuration.config.artifacts)
+  rejectArtifactSnapshots(preset.artifacts, "preset.artifacts")
+  const finalization = normalizeFinalization(preset.finalization)
   const paths = ensureQueueDirs(input.stateRoot)
   const now = input.now ?? new Date()
   const id = generateJobId(now)
@@ -59,7 +67,6 @@ export function buildTicket(input: EnqueueInput, resolved?: ResolvedQueueConfig)
   const baseRef = preset.fetchBase ?? (git?.baseSha || undefined)
   const extraArgs = input.extraArgs ?? []
   const argv = extraArgs.length ? [...preset.argv, "--", ...extraArgs] : [...preset.argv]
-  const artifacts = resolveRecipeArtifacts(configuration.config.artifacts, preset.artifacts)
   return {
     id,
     createdAt: now.toISOString(),
@@ -85,7 +92,7 @@ export function buildTicket(input: EnqueueInput, resolved?: ResolvedQueueConfig)
       ...(preset.progress !== undefined ? { progressEnabled: preset.progress } : {}),
     },
     ...(baseRef ? { baseRef } : {}),
-    ...(configuration.config.artifacts !== undefined || preset.artifacts !== undefined ? { artifacts } : {}),
+    ...(finalization ? { finalization, finalizationDigest: finalizationDigest(finalization) } : {}),
     projectId: configuration.config.project.id,
     projectName: configuration.config.project.name,
     ...(input.requestContext ? { requestContext: input.requestContext } : {}),
@@ -106,6 +113,8 @@ export function enqueueExplicitTicket(input: ExplicitEnqueueInput): QueueTicket 
   }
   if (!input.projectId || !input.projectName) throw new Error("projectId e projectName são obrigatórios")
   if (!existsSync(input.cwd)) throw new Error(`cwd inexistente: ${input.cwd}`)
+  rejectArtifactSnapshots(input.artifacts)
+  const finalization = normalizeFinalization(input.finalization)
   const now = input.now ?? new Date()
   const paths = ensureQueueDirs(input.stateRoot)
   const flags = normalizeTicketFlags(input.flags)
@@ -127,7 +136,7 @@ export function enqueueExplicitTicket(input: ExplicitEnqueueInput): QueueTicket 
     argv: [...input.argv],
     flags,
     ...(input.baseRef ? { baseRef: input.baseRef } : {}),
-    ...(input.artifacts?.length ? { artifacts: [...input.artifacts] } : {}),
+    ...(finalization ? { finalization, finalizationDigest: finalizationDigest(finalization) } : {}),
     projectId: input.projectId,
     projectName: input.projectName,
     ...(input.requestContext ? { requestContext: input.requestContext } : {}),

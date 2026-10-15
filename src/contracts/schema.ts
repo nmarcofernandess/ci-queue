@@ -1,13 +1,104 @@
+import { createHash } from "node:crypto"
 import type { RuntimeReceipt } from "./runtime.js"
 
 /**
- * Contratos persistidos do CI Queue. Os tickets v1, v2 e v3 continuam
+ * Contratos persistidos do CI Queue. Os tickets v1, v2, v3 e v4 continuam
  * legíveis porque o worker decide a forma executável no momento do claim.
  */
 
 export const API_VERSION = 1 as const
-export const TICKET_SCHEMA_VERSION = 3 as const
-export const RECIPE_ARTIFACTS_CAPABILITY = "recipe-artifacts-v1" as const
+export const TICKET_SCHEMA_VERSION = 4 as const
+export const TERMINAL_FINALIZATION_CAPABILITY = "terminal-finalization-v1" as const
+export const NO_ARTIFACT_SNAPSHOTS_CAPABILITY = "no-artifact-snapshots-v1" as const
+export const FINALIZATION_JSON_MAX_BYTES = 64 * 1024
+
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
+export type FinalizationSpec = {
+  schemaVersion: 1
+  argv: string[]
+  timeoutMs: number
+  contract: JsonValue
+  contractDigest: string
+}
+export type FinalizationPhase = "pending" | "running" | "passed" | "failed" | "interrupted"
+export type FinalizationResult = {
+  schemaVersion: 1
+  cleanup: "confirmed" | "not-required" | "uncertain"
+  outputs: { path: string; sha256: string; role: string }[]
+  error?: string
+}
+export type FinalizationRecord = {
+  schemaVersion: 1
+  ticketId: string
+  ticketDigest: string
+  finalizationDigest: string
+  phase: FinalizationPhase
+  attempt: number
+  startedAt?: string
+  finishedAt?: string
+  processGroupIdentity?: ProcessGroupIdentity
+  exitCode?: number | null
+  failureReason?: string
+  result?: FinalizationResult
+}
+
+/** Canonical JSON shared by the producer, persisted-ticket reader and supervisor. */
+export function canonicalJson(value: unknown): string {
+  const ancestors = new Set<object>()
+  function serialize(item: unknown): string {
+    if (item === null || typeof item === "boolean" || typeof item === "string") return JSON.stringify(item)
+    if (typeof item === "number" && Number.isFinite(item)) return JSON.stringify(item)
+    if (!item || typeof item !== "object" || ancestors.has(item)) throw new Error("contract precisa ser JSON finito sem ciclos")
+    if (!Array.isArray(item) && Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null) {
+      throw new Error("contract precisa ser JSON simples")
+    }
+    ancestors.add(item)
+    try {
+      if (Array.isArray(item)) {
+        return `[${Array.from({ length: item.length }, (_, index) => serialize(item[index])).join(",")}]`
+      }
+      return `{${Object.keys(item).sort().map((key) => `${JSON.stringify(key)}:${serialize((item as Record<string, unknown>)[key])}`).join(",")}}`
+    } finally {
+      ancestors.delete(item)
+    }
+  }
+  return serialize(value)
+}
+
+function sha256(value: string): string { return createHash("sha256").update(value).digest("hex") }
+
+export function normalizeFinalization(value: unknown): FinalizationSpec | undefined {
+  if (value === undefined) return undefined
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("finalization precisa ser objeto")
+  const raw = value as Record<string, unknown>
+  if (raw.schemaVersion !== 1) throw new Error("finalization.schemaVersion precisa ser 1")
+  if (!isValidPresetArgv(raw.argv)) throw new Error("finalization.argv precisa ser não vazio e válido")
+  if (typeof raw.timeoutMs !== "number" || !Number.isSafeInteger(raw.timeoutMs) || raw.timeoutMs < 1 || raw.timeoutMs > 2_147_483_647) {
+    throw new Error("finalization.timeoutMs inválido")
+  }
+  const contractJson = canonicalJson(raw.contract)
+  if (Buffer.byteLength(contractJson, "utf8") > FINALIZATION_JSON_MAX_BYTES) throw new Error("finalization.contract excede 64 KiB")
+  if (raw.contractDigest !== sha256(contractJson)) throw new Error("finalization.contractDigest inválido")
+  return {
+    schemaVersion: 1,
+    argv: [...raw.argv],
+    timeoutMs: raw.timeoutMs,
+    contract: JSON.parse(contractJson) as JsonValue,
+    contractDigest: raw.contractDigest as string,
+  }
+}
+
+/** Seals the complete finalization request, including argv and its independent deadline. */
+export function finalizationDigest(spec: FinalizationSpec): string {
+  return sha256(canonicalJson(spec))
+}
+
+export function rejectArtifactSnapshots(value: unknown, owner = "artifacts"): void {
+  if (value === undefined) return
+  if (!Array.isArray(value) || value.length !== 0) {
+    throw new Error(`${owner}: artifacts não é mais suportado; migre a publicação para finalization e mantenha os outputs no consumidor`)
+  }
+}
 
 export const TERMINAL_STATUSES = ["passed", "failed", "cancelled", "interrupted"] as const
 export const JOB_STATUSES = ["queued", "running", ...TERMINAL_STATUSES] as const
@@ -192,7 +283,7 @@ export type RequestContext = {
   sourceRevision?: string
 }
 
-/** Persisted ticket: fields added in v2/v3 remain optional for v1 readers. */
+/** Persisted ticket: fields added in v2–v4 remain optional for historical readers. */
 export type RunVariant = "custom" | "focal"
 
 export const RUN_VARIANTS = ["custom", "focal"] as const
@@ -237,6 +328,8 @@ export type QueueTicket = {
   flags?: TicketFlags
   baseRef?: string
   artifacts?: string[]
+  finalization?: FinalizationSpec
+  finalizationDigest?: string
   source?: TicketSource
   projectId?: string
   projectName?: string
@@ -253,6 +346,7 @@ export type QueueTicket = {
 export type ProjectPreset = TicketFlags & {
   argv: string[]
   artifacts?: string[]
+  finalization?: FinalizationSpec
   note?: string
   /** Project-local declaration; persisted as flags.progressEnabled on the ticket. */
   progress?: boolean

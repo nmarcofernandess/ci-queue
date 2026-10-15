@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process"
-import { cpSync, existsSync, mkdirSync, renameSync, rmSync, statSync, unlinkSync } from "node:fs"
-import { basename, isAbsolute, join, relative, resolve } from "node:path"
+import { existsSync, renameSync, rmSync, statSync, unlinkSync } from "node:fs"
+import { basename, isAbsolute, join } from "node:path"
 
 import { prepareJobRuntime, RuntimeError, discardRuntimeDirectory, type RuntimeSession } from "./runtime.js"
 import { RUNTIME_CAPABILITY } from "../contracts/runtime.js"
@@ -37,7 +37,7 @@ import type {
   TerminalStatus,
   TicketFlags,
 } from "../contracts/schema.js"
-import { isTerminalStatus, TICKET_SCHEMA_VERSION } from "../contracts/schema.js"
+import { isTerminalStatus, TICKET_SCHEMA_VERSION, normalizeFinalization, finalizationDigest } from "../contracts/schema.js"
 
 export type ParsedTicket = { ticket: QueueTicket; argv: string[]; flags: TicketFlags }
 export type TicketRejection = { rejectReason: string }
@@ -125,6 +125,15 @@ export function parseTicket(raw: QueueTicket): ParsedTicket | TicketRejection {
   if (!raw || typeof raw !== "object" || !raw.id || !raw.cwd || !raw.logPath || !raw.preset) return { rejectReason: "ticket sem campos obrigatórios" }
   if (raw.schemaVersion !== undefined && (!Number.isSafeInteger(raw.schemaVersion) || raw.schemaVersion < 1)) return { rejectReason: "schemaVersion inválido" }
   if ((raw.schemaVersion ?? 1) > TICKET_SCHEMA_VERSION) return { rejectReason: `ticket schemaVersion ${raw.schemaVersion} é mais novo que o worker` }
+  if (raw.finalization !== undefined || raw.finalizationDigest !== undefined) {
+    if (raw.schemaVersion !== 4) return { rejectReason: "finalization exige ticket v4" }
+    try {
+      const spec = normalizeFinalization(raw.finalization)
+      if (!spec || raw.finalizationDigest !== finalizationDigest(spec)) return { rejectReason: "finalizationDigest inválido" }
+    } catch (error) {
+      return { rejectReason: error instanceof Error ? error.message : String(error) }
+    }
+  }
   const deadlineError = validateQueuedDeadline(raw)
   if (deadlineError) return { rejectReason: deadlineError }
   if (Array.isArray(raw.argv) && raw.argv.length > 0 && raw.argv.every((item) => typeof item === "string" && item)) return { ticket: raw, argv: raw.argv, flags: raw.flags ?? {} }
@@ -266,29 +275,6 @@ function verifyGitStability(
   return { postflight }
 }
 
-function relativeArtifact(path: string): boolean {
-  return !isAbsolute(path) && !path.split(/[\\/]/).includes("..")
-}
-
-function copyArtifacts(root: string, ticket: QueueTicket): string | undefined {
-  if (!ticket.artifacts?.length) return undefined
-  const target = join(queuePaths(root).artifacts, ticket.id)
-  let copied = false
-  for (const entry of ticket.artifacts) {
-    if (!relativeArtifact(entry)) {
-      appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] artifact ignorado (fora do projeto): ${entry}\n`)
-      continue
-    }
-    const source = resolve(ticket.cwd, entry)
-    if (!source.startsWith(`${resolve(ticket.cwd)}/`) || !existsSync(source)) continue
-    const destination = join(target, entry)
-    mkdirSync(join(destination, ".."), { recursive: true })
-    cpSync(source, destination, { recursive: true, dereference: false, force: true })
-    copied = true
-  }
-  return copied ? target : undefined
-}
-
 function publishArtifactNode(collector: ProgressCollector, artifactStatus: "running" | "passed" | "failed" | "skipped"): void {
   collector.ingest(`${"@@ci-queue-progress"}\t1\tnode\tartifacts\t-\tartifact\t${artifactStatus}\t-\tArtefatos`)
 }
@@ -302,7 +288,7 @@ function withFinalProgress(
 ): QueueTicket {
   const active = collector ?? new ProgressCollector(root, ticket.id)
   if (options.publishSkippedArtifacts) {
-    // Skipped without a copy attempt: terminal without running → honest missing-start, never 0 ms.
+    // No Queue snapshot: terminal without running → honest missing-start, never 0 ms.
     publishArtifactNode(active, "skipped")
   }
   const progress = active.finalize()
@@ -752,21 +738,6 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     ? { state: "completed" as const, timeoutMs: deadline.timeoutMs, armedAt: deadline.armedAt, expiresAt: deadline.expiresAt }
     : deadline
   const observation = readProcessObservation(identity, { capture: "end", cwd: ticket.cwd, jobId: ticket.id, exitedBeforeObservation: true })
-  let artifactsPath: string | undefined
-  let publishSkippedArtifacts = false
-  if (ticket.artifacts?.length) {
-    // R04: measure only the existing copy on the same collector (running → terminal).
-    publishArtifactNode(collector, "running")
-    try {
-      artifactsPath = copyArtifacts(root, ticket)
-      publishArtifactNode(collector, artifactsPath ? "passed" : "skipped")
-    } catch (error) {
-      publishArtifactNode(collector, "failed")
-      appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] cópia de artefatos falhou: ${error instanceof Error ? error.message : String(error)}\n`)
-    }
-  } else {
-    publishSkippedArtifacts = true
-  }
   const candidate = withFinalProgress(root, {
     ...ticket,
     ...(latest?.cancelRequestedAt ? { cancelRequestedAt: latest.cancelRequestedAt } : {}),
@@ -775,11 +746,10 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     durationMs: Date.now() - Date.parse(ticket.startedAt ?? ticket.createdAt),
     exitCode,
     ...(failureReason ? { failureReason } : {}),
-    ...(artifactsPath ? { artifactsPath } : {}),
     ...(completedDeadline ? { executionDeadline: completedDeadline } : {}),
     ...(postflight ? { postflight } : {}),
     processObservations: [...(ticket.processObservations ?? []), observation],
-  }, collector, { publishSkippedArtifacts })
+  }, collector, { publishSkippedArtifacts: true })
   hooks.onChildPid?.(undefined)
   hooks.onJob?.(undefined)
   return closeAndMaybeDropSidecar(root, candidate, runtime.directory)

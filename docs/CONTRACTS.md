@@ -1,12 +1,12 @@
 # Contratos do CI Queue
 
-Referência reconciliada com `dev` em `5a9268e41e27644362dfd9e5cd4e163813f5e1a1` (19/09/2026). A entrada de adoção é [CONSUMER-QUICKSTART](CONSUMER-QUICKSTART.md); exemplos completos e diagramas estão no [manual offline](GUIA-INTEGRACAO-CI-QUEUE.html). Código e testes prevalecem sobre snapshots históricos.
+A entrada de adoção é [CONSUMER-QUICKSTART](CONSUMER-QUICKSTART.md); exemplos completos e diagramas estão no [manual offline](GUIA-INTEGRACAO-CI-QUEUE.html). Código e testes prevalecem sobre snapshots históricos.
 
 ## Fronteiras
 
 O consumidor declara preparação, receitas, test runners e política. Seus comandos permanecem executáveis sem CI Queue; ao ser escolhida, a Queue executa argv no cwd, supervisiona processos, conserva registros e projeta observabilidade. O worker/runner nunca importa `src/ship` nem mergeia. O ship genérico é um controller separado; `passed` não o dispara. Dashboard não tem botão de merge.
 
-Fonte do formato: `src/contracts/schema.ts` e `config.ts`. Tickets v1/v2/v3 continuam legíveis segundo o parser; tickets novos usam schemaVersion 3. API pública/CLI: apiVersion 1. Catálogo: schemaVersion 1. Versão do protocolo progress é outro eixo: 1.
+Fonte do formato: `src/contracts/schema.ts` e `config.ts`. Tickets v1/v2/v3/v4 continuam legíveis segundo o parser; tickets novos usam schemaVersion 4. API pública/CLI: apiVersion 1. Catálogo: schemaVersion 1. Versão do protocolo progress é outro eixo: 1.
 
 ## Catálogo
 
@@ -24,7 +24,8 @@ Fonte do formato: `src/contracts/schema.ts` e `config.ts`. Tickets v1/v2/v3 cont
 | `executionTimeoutMs` | Prazo opcional positivo de execução, limitado pelo parser; armado após captura de identidade do processo. Não é timeout de espera da CLI. |
 | `abortOnStaleBase` | Política de gasto do worker; true exige fetchBase. Base remota comprovadamente não ancestral pode encerrar com `stale-base`. Observação indisponível não prova stale. |
 | `progress` | Declaração da receita, persistida em `flags.progressEnabled`; nunca gate de ship. |
-| `artifacts` | Diretórios relativos do consumidor para publicação ao final. Uma linha TSV não cria arquivo. |
+| `artifacts` | Compatibilidade de adoção: somente ausência ou `[]`. Nova seleção global, por receita ou CLI é recusada com orientação de migração para `finalization`. Tickets antigos mantêm os campos históricos, mas o worker novo nunca copia arquivos. |
+| `finalization` | Hook obrigatório quando presente: `schemaVersion: 1`, `argv` não vazio, `timeoutMs` inteiro de 1 a 2.147.483.647, `contract` JSON finito até 64 KiB UTF-8 e `contractDigest` SHA-256 canônico. O enqueue congela o hook e seu `finalizationDigest` no ticket v4; o worker não relê o catálogo. |
 | `note` | Documentação, não política executável. |
 | `ship.acceptedPresets` | Lista não vazia/única de receitas existentes e ship-bound. É OR; sem prova reutilizável usa a primeira. |
 | `ship.attestationContext` | Contexto remoto da atestação do ship genérico. Não é nome de teste. |
@@ -40,17 +41,44 @@ Avançar a base remota não recusa automaticamente uma receita sem `fetchBase`; 
 
 `ci-queue enqueue <preset> --config /projeto/ci-queue.json --state /estado` congela o pedido. O worker é dono do claim e executa argv/cwd do ticket, não relê internals de DietFlow. Estados: queued, running, passed, failed, cancelled, interrupted. Exit code, runtime e verificações Git podem determinar falha; progress não fabrica sucesso.
 
+### Finalização terminal (`terminal-finalization-v1`)
+
+A CLI mantém API 1 e anuncia `terminal-finalization-v1`,
+`no-artifact-snapshots-v1` e `v4-ticket-read`; não anuncia `recipe-artifacts-v1`.
+Um worker antigo recusa tickets v4. O consumidor deve conferir as capacidades
+antes do enqueue e a identidade efetiva do worker antes de produzir outputs.
+
+O catálogo declara `presets.<nome>.finalization`; o enqueue explícito aceita
+`--finalization-json` com o mesmo objeto. `--artifacts-json` aceita somente `[]`
+durante adoção. A Queue não interpreta o domínio do contrato nem publica no Git.
+O hook recebe argv congelado, sem interpolação de shell, e prazo próprio.
+Ausência de hook não exige arquivos de finalização.
+
+`contractDigest` é SHA-256 do contrato serializado com chaves de objeto ordenadas
+recursivamente e ordem de arrays preservada. `finalizationDigest` usa a mesma
+serialização sobre o objeto completo `FinalizationSpec`, incluindo argv, prazo
+e digest do contrato. Valores não JSON, ciclos e números não finitos são inválidos.
+
+O resultado do teste após postflight permanece imutável em `history/<id>.json`.
+O supervisor é o único writer de `finalization/<id>.json`: fase
+pending/running/passed/failed/interrupted, identidade temporal do grupo, tentativa,
+digests e resultado. O hook entrega `FinalizationResult` schema 1 com
+`cleanup` confirmed/not-required/uncertain e `outputs` como referências
+`{path, sha256, role}` relativas ao cwd do consumidor; não entrega mídia ao state.
+A validação do resultado (até 64 KiB), supervisão e recuperação pertencem ao
+supervisor. A finalização não converte teste reprovado em aprovado.
+
 ## Método de teste adotado pelo consumidor
 
 O método de feedback/prova e seus templates de adoção estão em
 [TESTING-METHOD](TESTING-METHOD.md). O mapa do consumidor é apenas navegação;
 `ci-queue.json` continua sendo a autoridade executável de receitas, flags e
-artefatos. `feedback.available: false` significa que não existe receita de
+finalização. `feedback.available: false` significa que não existe receita de
 feedback adotada. Feedback não é prova final nem entra em ship por progresso;
 `ship.acceptedPresets` continua definindo as receitas aceitas, com semântica
 OR.
 
-State: `jobs/`, `running.json`, `history/`, `logs/`, `artifacts/`, `progress/`, `observations/`. Registro terminal em history é autoritativo para tickets de fila. Sidecar progress é consolidado no ticket ao fim e removido. Logs/artefatos usam caminhos do ticket. Ausência de log é indisponibilidade, não conteúdo vazio bem-sucedido.
+State: `jobs/`, `running.json`, `history/`, `logs/`, `artifacts/`, `progress/`, `observations/`. Registro terminal em history é autoritativo para tickets de fila. Sidecar progress é consolidado no ticket ao fim e removido. Logs usam o caminho do ticket. `artifacts/` conserva somente snapshots históricos: não há novas cópias nem limpeza automática desses dados. Ausência de log é indisponibilidade, não conteúdo vazio bem-sucedido.
 
 O state explícito/ambiente deve ser o mesmo da API/worker. Sem override, o caminho compatível `~/.local/state/local-ci/queue`, se presente, é preservado; não criar outra fila ao copiar um comando de instalação nova. O launcher instalado exporta `CI_QUEUE_STATE_DIR` para o state registrado; CLI, worker e API leem o mesmo root.
 

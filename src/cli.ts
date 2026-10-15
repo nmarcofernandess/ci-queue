@@ -7,10 +7,14 @@ import { existsSync, readFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import {
   API_VERSION,
+  TICKET_SCHEMA_VERSION,
   normalizeTicketFlags,
+  normalizeFinalization,
+  rejectArtifactSnapshots,
   parseRequestContext,
   parseRunVariant,
-  RECIPE_ARTIFACTS_CAPABILITY,
+  TERMINAL_FINALIZATION_CAPABILITY,
+  NO_ARTIFACT_SNAPSHOTS_CAPABILITY,
   type CliFailure,
   type CliResult,
   type CliSuccess,
@@ -82,7 +86,7 @@ function splitExtra(args: string[]): string[] {
 }
 
 function enqueuePreset(args: string[]): string | undefined {
-  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--flags-json", "--timeout-ms", "--request-context", "--run-variant"])
+  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--finalization-json", "--flags-json", "--timeout-ms", "--request-context", "--run-variant"])
   for (let index = 0; index < args.length; index += 1) {
     const value = args[index]
     if (value === "--") return undefined
@@ -163,8 +167,8 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           revision: manifest?.revision ?? null,
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
           apiVersion: API_VERSION,
-          ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, RECIPE_ARTIFACTS_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          ticketSchemaVersion: TICKET_SCHEMA_VERSION,
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read", "v4-ticket-read"],
         })
       }
       case "observe": {
@@ -276,6 +280,14 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         } else {
           runVariant = undefined
         }
+        const finalizationJson = optionValue(args.rest, "--finalization-json")
+        if (args.rest.includes("--finalization-json") && (!recipe || !finalizationJson)) {
+          return failure("USAGE", "--finalization-json requer --recipe e JSON válido")
+        }
+        const finalization = finalizationJson === undefined ? undefined : normalizeFinalization(JSON.parse(finalizationJson))
+        if (args.rest.includes("--artifacts-json")) {
+          rejectArtifactSnapshots(parseJsonArray(optionValue(args.rest, "--artifacts-json"), "--artifacts-json"), "--artifacts-json")
+        }
         const ticket = recipe
           ? enqueueExplicitTicket({
             recipe,
@@ -288,6 +300,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
             ...(optionValue(args.rest, "--artifacts-json") ? { artifacts: parseJsonArray(optionValue(args.rest, "--artifacts-json"), "--artifacts-json") } : {}),
             ...(optionValue(args.rest, "--flags-json") ? { flags: parseFlags(optionValue(args.rest, "--flags-json")) } : {}),
             requestContext,
+            ...(finalization ? { finalization } : {}),
             ...(runVariant ? { runVariant } : {}),
           })
           : enqueueTicket({ preset: preset!, stateRoot: root, cwd: args.cwd, configPath: args.configPath, extraArgs: splitExtra(args.rest), requestContext })
