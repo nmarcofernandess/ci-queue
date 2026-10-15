@@ -179,6 +179,7 @@ function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pytho
         ProgramArguments: [nodePath, join(releasePath, "bin", "ci-queue.mjs"), "worker", "--state", stateRoot],
         EnvironmentVariables: environment,
         QueueDirectories: [join(stateRoot, "jobs")],
+        StartInterval: 3600,
         ProcessType: "Standard",
       },
     },
@@ -205,6 +206,7 @@ function plistValue(value) {
   if (Array.isArray(value)) return `<array>${value.map(plistValue).join("")}</array>`
   if (typeof value === "object" && value) return `<dict>${Object.entries(value).map(([key, item]) => `<key>${xmlEscape(key)}</key>${plistValue(item)}`).join("")}</dict>`
   if (typeof value === "boolean") return value ? "<true/>" : "<false/>"
+  if (typeof value === "number" && Number.isSafeInteger(value)) return `<integer>${value}</integer>`
   return `<string>${xmlEscape(value)}</string>`
 }
 
@@ -226,6 +228,9 @@ function writeCommandLauncher(path, nodePath, releasePath, stateRoot) {
   const shellQuote = (value) => `'${String(value).replaceAll("'", `'"'"'`)}'`
   const body = [
     "#!/bin/sh",
+    'if [ "$#" -eq 0 ] && [ "$(uname -s)" = "Darwin" ]; then',
+    '  exec open "http://127.0.0.1:8765/dashboard"',
+    "fi",
     `if [ -z "\${CI_QUEUE_STATE_DIR:-}" ]; then`,
     `  export CI_QUEUE_STATE_DIR=${shellQuote(resolve(stateRoot))}`,
     "fi",

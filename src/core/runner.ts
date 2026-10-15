@@ -1,3 +1,4 @@
+import { ARTIFACT_RETENTION_MS } from "./artifact-retention.js"
 import { spawn, spawnSync } from "node:child_process"
 import { cpSync, existsSync, mkdirSync, renameSync, rmSync, statSync, unlinkSync } from "node:fs"
 import { basename, isAbsolute, join, relative, resolve } from "node:path"
@@ -434,6 +435,7 @@ export async function reconcileInterruptedJob(root: string): Promise<{ state: "n
     finishedAt: new Date().toISOString(),
     exitCode: null,
     failureReason: "worker interrompido; processo filho encerrado durante a recuperação",
+    ...(running.artifactRetention ? { artifactRetention: { expiresAt: new Date(Date.now() + ARTIFACT_RETENTION_MS).toISOString() } } : {}),
   }, collector, { publishSkippedArtifacts: true })
   const terminal = await closeAndMaybeDropSidecar(root, withProgress)
   return { state: "reconciled", job: terminal }
@@ -755,6 +757,8 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   let artifactsPath: string | undefined
   let publishSkippedArtifacts = false
   if (ticket.artifacts?.length) {
+    // Persist ownership before copying so a killed collector is recoverable.
+    ticket = mergeRunning(root, { ...ticket, artifactRetention: { expiresAt: new Date(Date.now() + ARTIFACT_RETENTION_MS).toISOString() } })
     // R04: measure only the existing copy on the same collector (running → terminal).
     publishArtifactNode(collector, "running")
     try {
@@ -776,6 +780,9 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     exitCode,
     ...(failureReason ? { failureReason } : {}),
     ...(artifactsPath ? { artifactsPath } : {}),
+    ...(existsSync(join(queuePaths(root).artifacts, ticket.id)) ? {
+      artifactRetention: { expiresAt: new Date(Date.now() + ARTIFACT_RETENTION_MS).toISOString() },
+    } : {}),
     ...(completedDeadline ? { executionDeadline: completedDeadline } : {}),
     ...(postflight ? { postflight } : {}),
     processObservations: [...(ticket.processObservations ?? []), observation],

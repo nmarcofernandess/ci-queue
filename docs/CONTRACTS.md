@@ -78,6 +78,38 @@ ci-queue history --include-observed --project PROJECT_ID --state "$STATE" --json
 
 Schema: `src/contracts/execution-observation.ts` (`kind=ci-execution-observation`, schemaVersion 1). Grava em `<state>/observations/`; **não** cria ticket, **não** toca `jobs/` / `running.json` / `history/` de fila, **não** controla o processo da receita e **não** é prova de ship, Meta, last-green nem advisory. `history` sem `--include-observed` permanece só tickets. A superfície humana do Histórico une tickets e observações; contagens de Análise/prova continuam só com tickets. Observação sem log local do produto é ausência legítima — o consumidor publicou metadados, não stdout bruto.
 
+## Retenção dos snapshots de artefatos
+
+Explicação visual: [por que gerar artefatos e quando descartá-los](RETENCAO-ARTEFATOS.html).
+
+Capability `artifact-retention-v1`. `artifacts` é uma seleção explícita do
+consumidor: lista efetiva vazia não gera uma cópia; receita sem override herda
+a lista global. O runner não inventa
+screenshots, vídeo ou arquivos de teste. Receita com `artifacts` substitui a
+lista global; prefira a saída da execução atual, nunca uma biblioteca histórica.
+
+Novos snapshots copiados pela fila são **staging por 48 horas**, contadas do
+fim da coleta, tanto para sucesso quanto falha/cancelamento. O ticket registra
+`artifactRetention.expiresAt`; após limpeza, `expiredAt`. O resultado, identidade,
+history e logs permanecem intactos. `artifactsPath` é referência histórica,
+não promessa de disponibilidade depois da expiração. Proofs publicados pelo
+consumidor no Git não pertencem a esse staging e nunca são removidos pelo worker.
+Publicadores precisam consumir a origem nessa janela; expirou sem publicação,
+é necessário regenerar a evidência, nunca fabricar uma prova.
+
+O worker limpa snapshots vencidos ao acordar e após cada execução. No macOS,
+o envelope existente acorda a cada hora (`StartInterval=3600`), inclusive com
+fila vazia; continua existindo um único worker sob o lock canônico. Em outros
+hosts, o supervisor deve chamar o worker periodicamente para expirar em ociosidade.
+
+`ci-queue artifacts cleanup --dry-run --json` inspeciona; sem `--dry-run`,
+aplica a mesma política. Limpeza é serializada pelo lock de cada ticket; não
+remove a origem no checkout, volumes, arquivos versionados ou snapshots de job
+ativo. Falhas aparecem no relatório/erro da CLI, sem alterar o veredito do teste.
+Snapshots antigos sem prazo explícito são preservados: migrá-los exige conferir
+publicação e consumidores, não inferir descarte só pela idade. Não há coleta
+retroativa automática das evidências antigas.
+
 ## Progress TSV v1
 
 Separador é TAB real, não espaços ou caracteres literais barra-t. O manual contém blocos copiáveis com TAB.

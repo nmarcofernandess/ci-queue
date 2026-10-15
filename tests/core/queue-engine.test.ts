@@ -499,6 +499,7 @@ describe("queue lifecycle", () => {
       workerPid: 999_999,
       childPid: child.pid,
       processGroupIdentity: identity,
+      artifactRetention: { expiresAt: new Date(0).toISOString() },
       projectId: "fixture-project",
       projectName: "Fixture project",
     }
@@ -513,6 +514,7 @@ describe("queue lifecycle", () => {
     expect(report.reconciliation).toBe("reconciled")
     expect(report.processed).toEqual([])
     expect(listHistoryJobs(state)[0]).toMatchObject({ id, status: "interrupted" })
+    expect(Date.parse(listHistoryJobs(state)[0]!.artifactRetention!.expiresAt)).toBeGreaterThan(Date.now() + 47 * 60 * 60_000)
     expect(readRunningJob(state)).toBeUndefined()
     expect(existsSync(claimPath(state, id))).toBe(false)
   }, 15_000)

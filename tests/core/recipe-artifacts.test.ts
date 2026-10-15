@@ -97,6 +97,7 @@ describe("recipe-specific artifacts", () => {
     const snapshot = join(state, "artifacts", ticket.id)
     expect(terminal).toMatchObject({ id: ticket.id, status: "passed", artifactsPath: snapshot })
     expect(readFileSync(join(snapshot, "current-proof", "receipt.txt"), "utf8")).toBe("current receipt\n")
+    expect(Date.parse(terminal!.artifactRetention!.expiresAt) - Date.parse(terminal!.finishedAt!)).toBeGreaterThanOrEqual(48 * 60 * 60_000)
     expect(existsSync(join(snapshot, "old-proofs", "sentinel.txt"))).toBe(false)
   })
 

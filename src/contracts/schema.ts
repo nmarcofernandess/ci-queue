@@ -218,6 +218,8 @@ export type QueueTicket = {
   logPath: string
   extraArgs?: string[]
   artifactsPath?: string
+  /** Queue snapshot staging lifetime; published consumer proofs live elsewhere. */
+  artifactRetention?: { expiresAt: string; expiredAt?: string }
   startedAt?: string
   finishedAt?: string
   durationMs?: number

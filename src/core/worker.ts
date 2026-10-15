@@ -1,3 +1,4 @@
+import { cleanupExpiredArtifacts, type ArtifactCleanupReport } from "./artifact-retention.js"
 import { readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
@@ -25,6 +26,7 @@ export type WorkerReport = {
   rejected: string[]
   reconciliation: "none" | "active" | "reconciled" | "blocked"
   busy: boolean
+  artifactCleanup?: ArtifactCleanupReport
 }
 
 function fileAge(path: string): number | undefined {
@@ -104,6 +106,7 @@ export async function runWorker(root: string): Promise<WorkerReport> {
     const reconciliation = await reconcileInterruptedJob(root)
     report.reconciliation = reconciliation.state
     if (reconciliation.state === "active" || reconciliation.state === "blocked") return report
+    report.artifactCleanup = await cleanupExpiredArtifacts(root)
     recoverProgressTemporaries(root)
     recoverClaims(root)
     report.rejected.push(...await sweepInvalidTickets(root))
@@ -133,6 +136,7 @@ export async function runWorker(root: string): Promise<WorkerReport> {
         interruptedReason: () => interrupted ? "worker interrompido por sinal" : undefined,
       })
       report.processed.push(terminal.id)
+      report.artifactCleanup = await cleanupExpiredArtifacts(root)
     }
     return report
   } finally {

@@ -48,7 +48,7 @@ Worker recebe state e executa tickets completos; dashboard recebe catálogo de b
 
 ## Ignição e login: o que o código garante e o que verificar
 
-O envelope do worker usa QueueDirectories para jobs e executa sob demanda. Fila vazia sem PID de worker pode ser normal. O dashboard tem envelope separado. Não iniciar outro worker porque não há processo idle.
+O envelope do worker usa QueueDirectories para jobs e StartInterval de uma hora para expirar staging de artefatos mesmo em ociosidade. Executa sob demanda ou nesse despertar periódico. Fila vazia sem PID de worker pode ser normal. O dashboard tem envelope separado. Não iniciar outro worker porque não há processo idle.
 
 O instalador observado gera envelopes sob a release e chama `launchctl bootstrap` no domínio GUI da sessão. Isso comprova o mecanismo de ativação **no código**, não comprova retorno após logout/login/reboot em uma máquina concreta. Esta reconciliação não observou boot nem state do Mac. Não declarar login automático provado com base em checkout ou receipt antigo.
 

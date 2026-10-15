@@ -121,6 +121,7 @@ test("activation publishes owned regular canonical envelopes in an isolated HOME
     const worker = readFileSync(installation.services.find(({ label }) => label.endsWith("worker")).file, "utf8")
     const dashboard = readFileSync(installation.services.find(({ label }) => label.endsWith("dashboard")).file, "utf8")
     assert.match(worker, /<key>QueueDirectories<\/key>/)
+    assert.match(worker, /<key>StartInterval<\/key><integer>3600<\/integer>/)
     assert.doesNotMatch(worker, /<key>KeepAlive<\/key>/)
     assert.match(dashboard, /<key>KeepAlive<\/key><true\/>/)
     assert.equal(launchctl.calls.filter(([command]) => command === "bootstrap").length, 2)

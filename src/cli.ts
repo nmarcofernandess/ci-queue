@@ -1,3 +1,4 @@
+import { ARTIFACT_RETENTION_CAPABILITY, cleanupExpiredArtifacts } from "./core/artifact-retention.js"
 import { readQueueConfig } from "./contracts/config.js"
 import { InitError, initProject } from "./ship/init.js"
 import { ShipError } from "./ship/ops.js"
@@ -131,6 +132,7 @@ function usage(): string {
     "  enqueue <preset> [--wait] [--timeout-ms N] [-- <args da receita>]",
     "  enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH [--flags-json JSON]",
     "  worker",
+    "  artifacts cleanup [--dry-run]",
     "  status",
     "  observe --stdin [--json]",
     "  history [--project ID] [--legacy]",
@@ -164,7 +166,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
           apiVersion: API_VERSION,
           ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, RECIPE_ARTIFACTS_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, RECIPE_ARTIFACTS_CAPABILITY, ARTIFACT_RETENTION_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
         })
       }
       case "observe": {
@@ -184,6 +186,14 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           executionId: stored.executionId,
           outcome: stored.outcome,
         })
+      }
+      case "artifacts": {
+        if (args.rest[0] !== "cleanup" || args.rest.slice(1).some(arg => arg !== "--dry-run")) {
+          return failure("USAGE", "use artifacts cleanup [--dry-run]")
+        }
+        const report = await cleanupExpiredArtifacts(root, Date.now(), args.rest.includes("--dry-run"))
+        if (report.errors.length) return failure("ARTIFACT_CLEANUP_INCOMPLETE", "snapshots preservados por erro de limpeza", { ...report })
+        return success(report)
       }
       case "init": {
         const argvText = optionValue(args.rest, "--argv-json")
