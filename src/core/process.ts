@@ -32,11 +32,6 @@ export function probeWorkerIdentity(pid = process.pid): WorkerIdentity | undefin
     : undefined
 }
 
-export function workerIdentityIsCurrent(identity: WorkerIdentity | undefined): boolean {
-  if (!identity || identity.hostname !== hostname()) return false
-  return probeWorkerIdentity(identity.pid)?.startedAt === identity.startedAt
-}
-
 export function observeWorkerIdentity(identity: WorkerIdentity | undefined): ProcessGroupState {
   if (!identity || identity.schemaVersion !== 1 || identity.hostname !== hostname() || !Number.isSafeInteger(identity.pid) || identity.pid <= 0 || !identity.startedAt) return { state: "uncertain", reason: "host/identidade do supervisor incerto" }
   const actual = probeWorkerIdentity(identity.pid)

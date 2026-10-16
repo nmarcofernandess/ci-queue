@@ -14,6 +14,13 @@ const digest = (bytes: string | Buffer) => createHash("sha256").update(bytes).di
 const smallError = (error: unknown) => redactLogText(error instanceof Error ? error.message : String(error)).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "").slice(0, 2_048)
 const log = (ticket: QueueTicket, text: string) => appendLog(ticket.logPath, `[finalization] ${redactLogText(text)}\n`)
 
+function hasSupportedFinalization(ticket: QueueTicket): boolean {
+  try {
+    const spec = normalizeFinalization(ticket.finalization)
+    return ticket.schemaVersion === 4 && Boolean(spec && finalizationDigest(spec) === ticket.finalizationDigest)
+  } catch { return false }
+}
+
 function transientPath(root: string, id: string, kind: "input" | "result"): string {
   const path = finalizationPath(root, id).replace(/\.json$/, `.${kind}.json`)
   try { if (lstatSync(path).isSymbolicLink()) throw new Error(`symlink recusado na finalização: ${path}`) }
@@ -46,7 +53,7 @@ function readResult(root: string, ticket: QueueTicket): FinalizationResult {
   try { raw = JSON.parse(bytes.toString("utf8")) } catch { throw new Error("resultado da finalização não é JSON válido") }
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("resultado da finalização inválido")
   const value = raw as Record<string, unknown>
-  if (Object.keys(value).some(key => !["schemaVersion", "cleanup", "outputs", "error"].includes(key)) || value.schemaVersion !== 1 || !["confirmed", "not-required", "uncertain"].includes(String(value.cleanup)) || !Array.isArray(value.outputs) || (value.error !== undefined && typeof value.error !== "string")) throw new Error("resultado da finalização inválido")
+  if (Object.keys(value).some(key => !["schemaVersion", "cleanup", "outputs", "error"].includes(key)) || value.schemaVersion !== 1 || typeof value.cleanup !== "string" || !["confirmed", "not-required", "uncertain"].includes(value.cleanup) || !Array.isArray(value.outputs) || (value.error !== undefined && typeof value.error !== "string")) throw new Error("resultado da finalização inválido")
   const outputs: FinalizationResult["outputs"] = value.outputs.map((output: unknown) => {
     if (!output || typeof output !== "object" || Array.isArray(output)) throw new Error("resultado outputs inválido")
     const item = output as Record<string, unknown>
@@ -96,7 +103,7 @@ export async function runFinalization(root: string, ticket: QueueTicket): Promis
   const sourceBytes = readFileSync(sourcePath)
   const terminal = JSON.parse(sourceBytes.toString("utf8")) as QueueTicket
   const spec = normalizeFinalization(terminal.finalization)
-  if (!isTerminalStatus(terminal.status) || terminal.id !== ticket.id || !spec || terminal.finalizationDigest !== finalizationDigest(spec) || terminal.finalizationDigest !== ticket.finalizationDigest) throw new Error("finalização exige terminal autêntico e contrato correspondente")
+  if (!isTerminalStatus(terminal.status) || terminal.id !== ticket.id || !spec || !hasSupportedFinalization(terminal) || terminal.finalizationDigest !== ticket.finalizationDigest) throw new Error("finalização exige terminal autêntico e contrato correspondente")
   let record = readFinalization(root, ticket.id) ?? preparePendingFinalization(root, terminal)!
   if (record.ticketId !== terminal.id || record.finalizationDigest !== terminal.finalizationDigest) throw new Error("registro/contrato de finalização divergente; reserva preservada")
   const lock = acquireDirectoryLock(join(queuePaths(root).jobLocks, `${ticket.id}.finalization`))
@@ -200,7 +207,9 @@ export async function runFinalization(root: string, ticket: QueueTicket): Promis
 
 export async function reconcileFinalizations(root: string): Promise<{ blocked: string[]; reconciled: string[] }> {
   const report = { blocked: [] as string[], reconciled: [] as string[] }
-  const tickets = listHistoryJobs(root).filter(ticket => ticket.finalization)
+  // Rejected future/malformed protocol fields confer no execution authority.
+  // Their original rejection remains in history/log, without holding new jobs.
+  const tickets = listHistoryJobs(root).filter(hasSupportedFinalization)
   const ids = new Set(tickets.map(ticket => ticket.id))
   const directory = dirname(finalizationPath(root, "reconciliation"))
   if (existsSync(directory)) for (const name of readdirSync(directory)) {

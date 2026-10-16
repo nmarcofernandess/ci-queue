@@ -60,13 +60,36 @@ serialização sobre o objeto completo `FinalizationSpec`, incluindo argv, prazo
 e digest do contrato. Valores não JSON, ciclos e números não finitos são inválidos.
 
 O resultado do teste após postflight permanece imutável em `history/<id>.json`.
-O supervisor é o único writer de `finalization/<id>.json`: fase
+O supervisor é o único writer de `state/finalization/<id>.json`: fase
 pending/running/passed/failed/interrupted, identidade temporal do grupo, tentativa,
 digests e resultado. O hook entrega `FinalizationResult` schema 1 com
 `cleanup` confirmed/not-required/uncertain e `outputs` como referências
 `{path, sha256, role}` relativas ao cwd do consumidor; não entrega mídia ao state.
 A validação do resultado (até 64 KiB), supervisão e recuperação pertencem ao
 supervisor. A finalização não converte teste reprovado em aprovado.
+
+Antes de publicar history, o runner preserva sua candidata terminal em running
+(ou no claim de cancelamento queued) e cria pending. O `ticketDigest` sela os
+bytes reais de `history/<id>.json`; a recuperação nunca reescreve esse terminal
+nem repete o teste. Só o pending ainda não iniciado pode reconciliar seu digest
+com os bytes efetivamente publicados. Um protocolo recusado ou de schema futuro
+não autoriza executar hook durante a recuperação.
+
+O hook recebe `CI_QUEUE_FINALIZATION_INPUT`, caminho de
+`state/finalization/<id>.input.json`, contendo schemaVersion 1, ticketPath,
+ticketDigest, finalizationDigest, contract, resultPath e workerIdentity. Ele grava
+atomicamente seu resultado em resultPath. Input/result são transitórios,
+removidos pelo supervisor após consumo; o registro e o log são duráveis.
+`state/worker.json`, o envelope e `CI_QUEUE_WORKER_IDENTITY` expõem a identidade
+real do supervisor (host, PID, nascimento por ps e capacidades); variáveis
+herdadas não criam autoridade de execução.
+
+O runner permanece serializado durante o hook. Cancel nessa fase registra a
+solicitação e deixa publicação/cleanup encerrar sob o prazo independente. Grupo
+vivo ou ownership incerto preserva reserva e razão visível; PID reutilizado ou
+host divergente nunca autoriza sinalização. Depois de morte comprovada, cada
+acionamento pode reentrar uma vez no hook idempotente do consumidor, que decide
+sua transação/journal. Falha terminal sem produtor vivo/incerto libera a fila.
 
 ## Método de teste adotado pelo consumidor
 

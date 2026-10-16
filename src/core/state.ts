@@ -123,7 +123,7 @@ function rejectSymlinks(paths: string[]): void {
 
 /** Bounded, no-follow reads for the supervisor's small protocol files. */
 export function readBoundedFile(path: string, maxBytes: number): Buffer {
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW)
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
   try {
     const stat = fstatSync(fd)
     if (!stat.isFile()) throw new Error("arquivo não é regular")

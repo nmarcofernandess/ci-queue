@@ -101,6 +101,7 @@ describe("post-terminal finalization", () => {
     { name: "cleanup uncertain", code: `${readInput}; ${writeResult("uncertain")}`, reason: "cleanup" },
     { name: "missing result", code: "process.exit(0)", reason: "resultado" },
     { name: "invalid result", code: `${readInput}; fs.writeFileSync(input.resultPath, '{')`, reason: "resultado" },
+    { name: "non-string cleanup", code: `${readInput}; fs.writeFileSync(input.resultPath, JSON.stringify({schemaVersion:1,cleanup:['confirmed'],outputs:[]}))`, reason: "resultado" },
     { name: "oversized result", code: `${readInput}; fs.writeFileSync(input.resultPath, ' '.repeat(65537))`, reason: "64 KiB" },
     { name: "escaping output", code: `${readInput}; fs.writeFileSync(input.resultPath, JSON.stringify({schemaVersion:1,cleanup:'confirmed',outputs:[{path:'../foreign',sha256:'a'.repeat(64),role:'proof'}]}))`, reason: "path" },
     { name: "nonzero hook", code: `${readInput}; ${writeResult()}; process.exit(4)`, reason: "código 4" },
@@ -189,6 +190,19 @@ describe("post-terminal finalization", () => {
     expect(existsSync(join(f.state, "state", "finalization"))).toBe(false)
   })
 
+  it.each(["future schema", "invalid finalization digest"])("never executes a rejected %s ticket's hook during recovery", async kind => {
+    const f = fixture()
+    const ticket = enqueue(f, "process.exit(0)", hook(`${readInput};fs.writeFileSync(${JSON.stringify(f.events)},'hook');${writeResult()}`))
+    atomicWriteJson(jobPath(f.state, ticket.id), { ...ticket, ...(kind === "future schema" ? { schemaVersion: 5 } : { finalizationDigest: "0".repeat(64) }) })
+    const next = enqueue(f, "process.exit(0)", undefined, undefined, 1)
+    await runWorker(f.state)
+    const report = await runWorker(f.state)
+    expect(existsSync(f.events)).toBe(false)
+    expect(report.reconciliation).not.toBe("blocked")
+    expect(readJsonFile<QueueTicket>(historyPath(f.state, ticket.id))).toMatchObject({ status: "failed", failureReason: expect.stringContaining("ticket rejeitado") })
+    expect(readJsonFile<QueueTicket>(historyPath(f.state, next.id))).toMatchObject({ status: "passed" })
+  })
+
   it("refuses a symlinked history before writing terminal bytes outside its state", async () => {
     const f = fixture()
     enqueue(f, "process.exit(0)", hook(`${readInput}; ${writeResult()}`))
@@ -198,6 +212,33 @@ describe("post-terminal finalization", () => {
     symlinkSync(foreign, queuePaths(f.state).history)
     await expect(runWorker(f.state)).rejects.toThrow("symlink")
     expect(readdirSync(foreign)).toEqual([])
+  })
+
+  it("does not remove a worker identity or legacy PID replaced by another owner", async () => {
+    const f = fixture()
+    const replacement = { schemaVersion: 1, hostname: "other-host.invalid", pid: 999_999, startedAt: "foreign-birth", capabilities: [] }
+    enqueue(f, `const fs=require('node:fs');fs.writeFileSync(${JSON.stringify(join(f.state, "state", "worker.json"))},${JSON.stringify(JSON.stringify(replacement))});fs.writeFileSync(${JSON.stringify(join(f.state, "state", "worker.pid"))},'999999\\n')`)
+    await runWorker(f.state)
+    expect(readJsonFile(join(f.state, "state", "worker.json"))).toEqual(replacement)
+    expect(readFileSync(join(f.state, "state", "worker.pid"), "utf8")).toBe("999999\n")
+    expect(await runWorker(f.state)).toMatchObject({ reconciliation: "blocked" })
+    expect(readFileSync(join(f.state, "state", "worker.pid"), "utf8")).toBe("999999\n")
+  })
+
+  it("rejects a FIFO result without blocking the supervisor", async () => {
+    const f = fixture()
+    const ticket = enqueue(f, "process.exit(0)", hook(`${readInput};require('node:child_process').execFileSync('mkfifo',[input.resultPath])`))
+    const worker = spawnWorker(f)
+    try {
+      await waitFor(() => Boolean(record(f.state, ticket.id)?.finishedAt), 2_000)
+      expect(record(f.state, ticket.id)).toMatchObject({ phase: "failed", failureReason: expect.stringContaining("regular") })
+    } finally {
+      if (worker.exitCode === null && worker.signalCode === null) {
+        const closed = new Promise<void>(resolve => worker.once("close", () => resolve()))
+        worker.kill("SIGKILL")
+        await closed
+      }
+    }
   })
 })
 

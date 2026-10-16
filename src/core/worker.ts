@@ -157,9 +157,10 @@ export async function runWorker(root: string): Promise<WorkerReport> {
   } finally {
     process.removeListener("SIGINT", handleSignal)
     process.removeListener("SIGTERM", handleSignal)
-    if (publishedWorkerPid) removeFile(paths.workerPid)
     const owner = readJsonFile<WorkerIdentity>(paths.workerIdentity)
-    if (identity && owner?.pid === identity.pid && owner.hostname === identity.hostname && owner.startedAt === identity.startedAt) removeFile(paths.workerIdentity)
+    const ownsIdentity = identity && owner?.pid === identity.pid && owner.hostname === identity.hostname && owner.startedAt === identity.startedAt
+    if (publishedWorkerPid && readJsonFile(paths.workerPid) === process.pid && (!owner || ownsIdentity)) removeFile(paths.workerPid)
+    if (ownsIdentity) removeFile(paths.workerIdentity)
     lock.release()
   }
 }

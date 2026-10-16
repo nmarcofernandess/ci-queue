@@ -1,12 +1,12 @@
 import { spawn, spawnSync } from "node:child_process"
-import { existsSync, readdirSync, renameSync, rmSync, statSync, unlinkSync } from "node:fs"
-import { basename, isAbsolute, join } from "node:path"
+import { existsSync, readdirSync, renameSync } from "node:fs"
+import { isAbsolute, join } from "node:path"
 
 import { prepareJobRuntime, RuntimeError, discardRuntimeDirectory, type RuntimeSession } from "./runtime.js"
 import { RUNTIME_CAPABILITY } from "../contracts/runtime.js"
 
 import { initialExecutionDeadline, captureExecutionDeadline, validateQueuedDeadline } from "./deadline.js"
-import { ProgressCollector, attachProgressToTicket, removeProgressSnapshot } from "./progress.js"
+import { ProgressCollector, removeProgressSnapshot } from "./progress.js"
 import { probeProcessGroupIdentity, probeWorkerIdentity, readProcessObservation, terminateVerifiedProcessGroup } from "./process.js"
 import { preparePendingFinalization, runFinalization } from "./finalization.js"
 import {
