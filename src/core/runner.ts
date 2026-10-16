@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process"
-import { existsSync, renameSync, rmSync, statSync, unlinkSync } from "node:fs"
+import { existsSync, readdirSync, renameSync, rmSync, statSync, unlinkSync } from "node:fs"
 import { basename, isAbsolute, join } from "node:path"
 
 import { prepareJobRuntime, RuntimeError, discardRuntimeDirectory, type RuntimeSession } from "./runtime.js"
@@ -7,7 +7,8 @@ import { RUNTIME_CAPABILITY } from "../contracts/runtime.js"
 
 import { initialExecutionDeadline, captureExecutionDeadline, validateQueuedDeadline } from "./deadline.js"
 import { ProgressCollector, attachProgressToTicket, removeProgressSnapshot } from "./progress.js"
-import { probeProcessGroupIdentity, readProcessObservation, terminateVerifiedProcessGroup } from "./process.js"
+import { probeProcessGroupIdentity, probeWorkerIdentity, readProcessObservation, terminateVerifiedProcessGroup } from "./process.js"
+import { preparePendingFinalization, runFinalization } from "./finalization.js"
 import {
   decideSpendAbort,
   observeRemoteBase,
@@ -20,10 +21,12 @@ import {
   claimPath,
   ensureQueueDirs,
   findJobById,
+  finalizationPath,
   historyPath,
   jobPath,
   queuePaths,
   readHistoryJob,
+  readFinalization,
   readJsonFile,
   readRunningJob,
   removeFile,
@@ -93,7 +96,7 @@ function appendRedactedLog(path: string, text: string): void {
  * Holds an unfinished line so a credential split over stdout/stderr chunks
  * cannot be written before its value is recognized and masked.
  */
-class LogRedactor {
+export class LogRedactor {
   #pending = ""
 
   push(chunk: string): string {
@@ -312,16 +315,27 @@ export type CloseTicketResult = { ticket: QueueTicket; authoritative: boolean }
 export async function closeRunningTicket(root: string, candidate: QueueTicket): Promise<CloseTicketResult> {
   const terminal = await withTicketLock(root, candidate.id, () => {
     const existing = readHistoryJob(root, candidate.id)
-    if (existing) return existing
+    if (existing) {
+      if (readRunningJob(root)?.id === candidate.id) removeFile(queuePaths(root).running)
+      removeFile(claimPath(root, candidate.id))
+      removeFile(jobPath(root, candidate.id))
+      return existing
+    }
     const running = readRunningJob(root)
+    if (running && running.id !== candidate.id) throw new Error("outro ticket mantém a reserva do runner")
     const merged = running?.id === candidate.id && running.cancelRequestedAt && !candidate.cancelRequestedAt
       ? { ...candidate, cancelRequestedAt: running.cancelRequestedAt }
       : candidate
+    // Keep the completed candidate in the existing reservation across a crash
+    // between pending and history, so recovery preserves its original verdict.
+    atomicWriteJson(queuePaths(root).running, merged)
+    preparePendingFinalization(root, merged)
     atomicWriteJson(historyPath(root, candidate.id), merged)
-    if (running?.id === candidate.id) removeFile(queuePaths(root).running)
+    if (readRunningJob(root)?.id === candidate.id) removeFile(queuePaths(root).running)
     // A crash may leave the short-lived claim beside running.json. Once a
     // terminal record is authoritative, that claim can only relaunch work.
     removeFile(claimPath(root, candidate.id))
+    removeFile(jobPath(root, candidate.id))
     return merged
   })
   if (terminal === undefined) {
@@ -336,6 +350,7 @@ async function closeAndMaybeDropSidecar(root: string, candidate: QueueTicket, ru
   if (authoritative) {
     removeProgressSnapshot(root, ticket.id)
     discardRuntimeDirectory(runtimeDirectory)
+    if (ticket.finalization) await runFinalization(root, ticket)
   }
   return ticket
 }
@@ -383,11 +398,23 @@ export async function cancelQueuedOrRunningTicket(root: string, id: string): Pro
   const result = await withTicketLock(root, id, async () => {
     const found = findJobById(root, id)
     if (!found) return { kind: "missing" } as const
-    if (found.location === "history") return { kind: "terminal", job: found.ticket } as const
+    if (found.location === "history") {
+      const finalization = readFinalization(root, id)
+      if (finalization && !finalization.finishedAt) {
+        atomicWriteJson(finalizationPath(root, id), { ...finalization, cancelRequestedAt: finalization.cancelRequestedAt ?? new Date().toISOString() })
+        appendRedactedLog(found.ticket.logPath, `[finalization] cancelamento registrado; operação permanece sob seu prazo\n`)
+      }
+      return { kind: "terminal", job: found.ticket } as const
+    }
     if (found.location === "queued") {
       const terminal: QueueTicket = { ...found.ticket, status: "cancelled", cancelledAt: new Date().toISOString(), finishedAt: new Date().toISOString(), exitCode: null }
+      // Cancellation cannot overwrite another job's global running slot.
+      // Its existing per-ticket claim is the crash-safe terminal candidate.
+      atomicWriteJson(claimPath(root, id), terminal)
+      preparePendingFinalization(root, terminal)
       removeFile(found.path)
       atomicWriteJson(historyPath(root, id), terminal)
+      removeFile(claimPath(root, id))
       appendRedactedLog(terminal.logPath, `[${new Date().toISOString()}] cancelado antes de iniciar\n`)
       return { kind: "queued", job: terminal } as const
     }
@@ -403,6 +430,10 @@ export async function cancelQueuedOrRunningTicket(root: string, id: string): Pro
 export async function reconcileInterruptedJob(root: string): Promise<{ state: "none" | "active" | "reconciled" | "blocked"; job?: QueueTicket }> {
   const running = readRunningJob(root)
   if (!running) return { state: "none" }
+  if (isTerminalStatus(running.status)) {
+    const terminal = await closeAndMaybeDropSidecar(root, running)
+    return { state: "reconciled", job: terminal }
+  }
   if (running.workerPid && running.workerPid !== process.pid) {
     try { process.kill(running.workerPid, 0); return { state: "active", job: running } } catch { /* dead owner */ }
   }
@@ -425,6 +456,19 @@ export async function reconcileInterruptedJob(root: string): Promise<{ state: "n
   return { state: "reconciled", job: terminal }
 }
 
+/** Terminal cancellation claims are never restored as executable queue jobs. */
+export async function reconcileTerminalClaims(root: string): Promise<string[]> {
+  const reconciled: string[] = []
+  for (const name of readdirSync(queuePaths(root).claims)) {
+    if (!name.endsWith(".json")) continue
+    const candidate = readJsonFile<QueueTicket>(join(queuePaths(root).claims, name))
+    if (!candidate || `${candidate.id}.json` !== name || !isTerminalStatus(candidate.status)) continue
+    const terminal = await closeAndMaybeDropSidecar(root, candidate)
+    reconciled.push(terminal.id)
+  }
+  return reconciled
+}
+
 export function buildJobEnv(root: string, ticket: QueueTicket): NodeJS.ProcessEnv {
   const headSha = ticket.headSha || ticket.preflight?.headSha || ""
   const baseSha = ticket.preflight?.baseSha ?? ""
@@ -439,6 +483,8 @@ export function buildJobEnv(root: string, ticket: QueueTicket): NodeJS.ProcessEn
     CI_QUEUE_STATE_DIR: root,
     CI_QUEUE_PRESET: ticket.preset,
     CI_QUEUE_RUN_VARIANT: ticket.runVariant ?? "",
+    CI_QUEUE_WORKER_IDENTITY: JSON.stringify(probeWorkerIdentity() ?? null),
+    CI_QUEUE_FINALIZATION_INPUT: "",
     // v1 compatibility aliases remain necessary while existing project
     // recipes/proofs migrate to the product-named environment.
     DIETFLOW_CI_QUEUE_DIR: root,

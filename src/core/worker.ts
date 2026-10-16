@@ -1,8 +1,9 @@
 import { readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { parseTicket, claimQueuedTicket, reconcileInterruptedJob, rejectQueuedTicket, runJob } from "./runner.js"
-import { terminateVerifiedProcessGroup } from "./process.js"
+import { parseTicket, claimQueuedTicket, reconcileInterruptedJob, reconcileTerminalClaims, rejectQueuedTicket, runJob } from "./runner.js"
+import { observeWorkerIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "./process.js"
+import { reconcileFinalizations } from "./finalization.js"
 import {
   acquireRunnerLock,
   appendLog,
@@ -13,10 +14,12 @@ import {
   isPidAlive,
   queuePaths,
   readRunningJob,
+  readFinalization,
+  readJsonFile,
   recoverClaims,
   removeFile,
 } from "./state.js"
-import type { QueueTicket } from "../contracts/schema.js"
+import type { QueueTicket, WorkerIdentity } from "../contracts/schema.js"
 
 export const STALE_TMP_MAX_AGE_MS = 5 * 60_000
 
@@ -90,6 +93,8 @@ export async function runWorker(root: string): Promise<WorkerReport> {
   const paths = queuePaths(root)
   const report: WorkerReport = { processed: [], rejected: [], reconciliation: "none", busy: false }
   let current: QueueTicket | undefined
+  let identity: WorkerIdentity | undefined
+  let publishedWorkerPid = false
   let interrupted = false
   const handleSignal = () => {
     interrupted = true
@@ -100,10 +105,22 @@ export async function runWorker(root: string): Promise<WorkerReport> {
   try {
     // Keep the legacy decimal form while old consumers may still inspect the
     // shared lock during the one-time external cutover.
+    const previousIdentity = readJsonFile<WorkerIdentity>(paths.workerIdentity)
+    identity = probeWorkerIdentity()
+    if (previousIdentity && (!identity || previousIdentity.pid !== identity.pid || previousIdentity.startedAt !== identity.startedAt || previousIdentity.hostname !== identity.hostname)) {
+      const previous = observeWorkerIdentity(previousIdentity)
+      if (previous.state !== "dead") return { ...report, reconciliation: previous.state === "alive" ? "active" : "blocked", busy: true }
+    }
     writeFileSync(paths.workerPid, `${process.pid}\n`, { encoding: "utf8", mode: 0o600 })
+    publishedWorkerPid = true
+    if (identity) atomicWriteJson(paths.workerIdentity, identity)
     const reconciliation = await reconcileInterruptedJob(root)
     report.reconciliation = reconciliation.state
     if (reconciliation.state === "active" || reconciliation.state === "blocked") return report
+    if ((await reconcileTerminalClaims(root)).length) report.reconciliation = "reconciled"
+    const finalizations = await reconcileFinalizations(root)
+    if (finalizations.blocked.length) return { ...report, reconciliation: "blocked" }
+    if (finalizations.reconciled.length) report.reconciliation = "reconciled"
     recoverProgressTemporaries(root)
     recoverClaims(root)
     report.rejected.push(...await sweepInvalidTickets(root))
@@ -133,12 +150,16 @@ export async function runWorker(root: string): Promise<WorkerReport> {
         interruptedReason: () => interrupted ? "worker interrompido por sinal" : undefined,
       })
       report.processed.push(terminal.id)
+      const finalization = readFinalization(root, terminal.id)
+      if (finalization && !finalization.finishedAt) { report.reconciliation = "blocked"; break }
     }
     return report
   } finally {
     process.removeListener("SIGINT", handleSignal)
     process.removeListener("SIGTERM", handleSignal)
-    removeFile(paths.workerPid)
+    if (publishedWorkerPid) removeFile(paths.workerPid)
+    const owner = readJsonFile<WorkerIdentity>(paths.workerIdentity)
+    if (identity && owner?.pid === identity.pid && owner.hostname === identity.hostname && owner.startedAt === identity.startedAt) removeFile(paths.workerIdentity)
     lock.release()
   }
 }

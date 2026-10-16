@@ -37,6 +37,8 @@ export type FinalizationRecord = {
   startedAt?: string
   finishedAt?: string
   processGroupIdentity?: ProcessGroupIdentity
+  supervisorIdentity?: WorkerIdentity
+  cancelRequestedAt?: string
   exitCode?: number | null
   failureReason?: string
   result?: FinalizationResult
@@ -191,10 +193,20 @@ export type ExecutionDeadline =
   | { state: "expired"; timeoutMs: number; armedAt: string; expiresAt: string; expiredAt: string }
 
 export type ProcessGroupIdentity = {
+  /** Present on new observations; a different host never owns this group. */
+  hostname?: string
   leaderPid: number
   pgid: number
   /** Saída de ps lstart em locale C; protege contra reutilização de PID. */
   startedAt: string
+}
+
+export type WorkerIdentity = {
+  schemaVersion: 1
+  hostname: string
+  pid: number
+  startedAt: string
+  capabilities: string[]
 }
 
 export type ProcessObservationItem = {
