@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs"
+import { readFileSync, readdirSync, renameSync, statSync } from "node:fs"
 import { join } from "node:path"
 
 import { parseTicket, claimQueuedTicket, reconcileInterruptedJob, reconcileTerminalClaims, rejectQueuedTicket, runJob } from "./runner.js"
@@ -7,6 +7,7 @@ import { reconcileFinalizations } from "./finalization.js"
 import {
   acquireRunnerLock,
   appendLog,
+  assertWorkerStatePaths,
   atomicWriteJson,
   ensureQueueDirs,
   historyPath,
@@ -14,8 +15,9 @@ import {
   isPidAlive,
   queuePaths,
   readRunningJob,
+  readBoundedFile,
   readFinalization,
-  readJsonFile,
+  readWorkerOwnership,
   recoverClaims,
   removeFile,
 } from "./state.js"
@@ -28,6 +30,7 @@ export type WorkerReport = {
   rejected: string[]
   reconciliation: "none" | "active" | "reconciled" | "blocked"
   busy: boolean
+  blockingReason?: string
 }
 
 function fileAge(path: string): number | undefined {
@@ -105,27 +108,50 @@ export async function runWorker(root: string): Promise<WorkerReport> {
   try {
     // Keep the legacy decimal form while old consumers may still inspect the
     // shared lock during the one-time external cutover.
-    const previousIdentity = readJsonFile<WorkerIdentity>(paths.workerIdentity)
-    if (!previousIdentity && existsSync(paths.workerIdentity)) return { ...report, reconciliation: "blocked", busy: true }
+    const ownership = readWorkerOwnership(root)
+    if (ownership.state === "invalid") {
+      report.reconciliation = "blocked"; report.busy = true; report.blockingReason = ownership.reason
+      return report
+    }
+    const previousIdentity = ownership.state === "valid" ? ownership.identity : undefined
     identity = probeWorkerIdentity()
     if (previousIdentity && (!identity || previousIdentity.pid !== identity.pid || previousIdentity.startedAt !== identity.startedAt || previousIdentity.hostname !== identity.hostname)) {
       const previous = observeWorkerIdentity(previousIdentity)
-      if (previous.state !== "dead") return { ...report, reconciliation: previous.state === "alive" ? "active" : "blocked", busy: true }
+      if (previous.state !== "dead") {
+        report.reconciliation = previous.state === "alive" ? "active" : "blocked"; report.busy = true; report.blockingReason = previous.reason
+        return report
+      }
     }
-    writeFileSync(paths.workerPid, `${process.pid}\n`, { encoding: "utf8", mode: 0o600 })
+    assertWorkerStatePaths(root)
+    atomicWriteJson(paths.workerPid, process.pid)
     publishedWorkerPid = true
     if (identity) atomicWriteJson(paths.workerIdentity, identity)
     const reconciliation = await reconcileInterruptedJob(root)
     report.reconciliation = reconciliation.state
-    if (reconciliation.state === "active" || reconciliation.state === "blocked") return report
+    if (reconciliation.state === "active" || reconciliation.state === "blocked") {
+      report.blockingReason = reconciliation.job?.cleanupBlockedReason
+      return report
+    }
     if ((await reconcileTerminalClaims(root)).length) report.reconciliation = "reconciled"
-    const finalizations = await reconcileFinalizations(root)
-    if (finalizations.blocked.length) return { ...report, reconciliation: "blocked" }
-    if (finalizations.reconciled.length) report.reconciliation = "reconciled"
     recoverProgressTemporaries(root)
     recoverClaims(root)
     report.rejected.push(...await sweepInvalidTickets(root))
     for (;;) {
+      const currentOwnership = readWorkerOwnership(root)
+      if (currentOwnership.state === "invalid") {
+        report.reconciliation = "blocked"; report.blockingReason = currentOwnership.reason
+        break
+      }
+      if (currentOwnership.state === "valid" && (!identity || currentOwnership.identity.pid !== identity.pid || currentOwnership.identity.hostname !== identity.hostname || currentOwnership.identity.startedAt !== identity.startedAt)) {
+        report.reconciliation = "blocked"; report.blockingReason = "identidade do worker substituída durante a drenagem"
+        break
+      }
+      // A queued cancellation can publish a terminal while the previous test
+      // is active. Drain that work before another claim, including empty exit.
+      if ((await reconcileTerminalClaims(root)).length) report.reconciliation = "reconciled"
+      const finalizations = await reconcileFinalizations(root)
+      if (finalizations.blocked.length) { report.reconciliation = "blocked"; break }
+      if (finalizations.reconciled.length) report.reconciliation = "reconciled"
       if (interrupted) break
       if (readRunningJob(root)) break
       const candidate = listQueuedJobs(root)[0]
@@ -151,6 +177,11 @@ export async function runWorker(root: string): Promise<WorkerReport> {
         interruptedReason: () => interrupted ? "worker interrompido por sinal" : undefined,
       })
       report.processed.push(terminal.id)
+      const reserved = readRunningJob(root)
+      if (reserved?.cleanupBlockedReason) {
+        report.reconciliation = "blocked"; report.blockingReason = reserved.cleanupBlockedReason
+        break
+      }
       const finalization = readFinalization(root, terminal.id)
       if (finalization && !finalization.finishedAt) { report.reconciliation = "blocked"; break }
     }
@@ -158,10 +189,19 @@ export async function runWorker(root: string): Promise<WorkerReport> {
   } finally {
     process.removeListener("SIGINT", handleSignal)
     process.removeListener("SIGTERM", handleSignal)
-    const owner = readJsonFile<WorkerIdentity>(paths.workerIdentity)
-    const ownsIdentity = identity && owner?.pid === identity.pid && owner.hostname === identity.hostname && owner.startedAt === identity.startedAt
-    if (publishedWorkerPid && readJsonFile(paths.workerPid) === process.pid && (!owner || ownsIdentity)) removeFile(paths.workerPid)
-    if (ownsIdentity) removeFile(paths.workerIdentity)
-    lock.release()
+    try {
+      const ownership = readWorkerOwnership(root)
+      if (ownership.state === "invalid") {
+        report.reconciliation = "blocked"; report.blockingReason = ownership.reason
+      } else {
+        const owner = ownership.state === "valid" ? ownership.identity : undefined
+        const ownsIdentity = identity && owner?.pid === identity.pid && owner.hostname === identity.hostname && owner.startedAt === identity.startedAt
+        let legacyPid: unknown
+        try { legacyPid = JSON.parse(readBoundedFile(paths.workerPid, 32).toString("utf8")) } catch { /* never remove an unreadable/replaced legacy owner */ }
+        assertWorkerStatePaths(root)
+        if (publishedWorkerPid && legacyPid === process.pid && (!owner || ownsIdentity)) removeFile(paths.workerPid)
+        if (ownsIdentity) removeFile(paths.workerIdentity)
+      }
+    } finally { lock.release() }
   }
 }

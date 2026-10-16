@@ -1,13 +1,13 @@
 import { spawn, spawnSync } from "node:child_process"
 import { existsSync, readdirSync, renameSync } from "node:fs"
-import { isAbsolute, join } from "node:path"
+import { basename, dirname, isAbsolute, join, resolve } from "node:path"
 
 import { prepareJobRuntime, RuntimeError, discardRuntimeDirectory, type RuntimeSession } from "./runtime.js"
 import { RUNTIME_CAPABILITY } from "../contracts/runtime.js"
 
 import { initialExecutionDeadline, captureExecutionDeadline, validateQueuedDeadline } from "./deadline.js"
 import { ProgressCollector, removeProgressSnapshot } from "./progress.js"
-import { probeProcessGroupIdentity, probeWorkerIdentity, readProcessObservation, terminateVerifiedProcessGroup } from "./process.js"
+import { observeTestProducer, probeProcessGroupIdentity, probeWorkerIdentity, readProcessObservation, terminateVerifiedProcessGroup } from "./process.js"
 import { preparePendingFinalization, runFinalization } from "./finalization.js"
 import {
   decideSpendAbort,
@@ -17,6 +17,7 @@ import {
 } from "./spend-abort.js"
 import {
   appendLog,
+  assertNoSymlinkPaths,
   atomicWriteJson,
   claimPath,
   ensureQueueDirs,
@@ -348,8 +349,21 @@ export async function closeRunningTicket(root: string, candidate: QueueTicket): 
 async function closeAndMaybeDropSidecar(root: string, candidate: QueueTicket, runtimeDirectory?: string): Promise<QueueTicket> {
   const { ticket, authoritative } = await closeRunningTicket(root, candidate)
   if (authoritative) {
+    const producer = observeTestProducer(ticket)
+    if (producer.state !== "dead") {
+      atomicWriteJson(queuePaths(root).running, { ...ticket, cleanupBlockedReason: producer.reason })
+      appendRedactedLog(ticket.logPath, `[finalization] ${producer.reason}; reserva preservada\n`)
+      if (ticket.finalization) await runFinalization(root, ticket)
+      return ticket
+    }
     removeProgressSnapshot(root, ticket.id)
-    discardRuntimeDirectory(runtimeDirectory)
+    const directory = runtimeDirectory ?? (ticket.runtime?.evidencePath ? dirname(ticket.runtime.evidencePath) : undefined)
+    if (directory) {
+      const path = resolve(directory)
+      if (dirname(path) !== resolve(root, "runtime") || !/^job-[A-Za-z0-9]+$/.test(basename(path))) throw new Error("runtime do teste fora da raiz reservada")
+      assertNoSymlinkPaths([root, join(root, "runtime"), directory])
+      discardRuntimeDirectory(directory)
+    }
     if (ticket.finalization) await runFinalization(root, ticket)
   }
   return ticket
@@ -432,7 +446,10 @@ export async function reconcileInterruptedJob(root: string): Promise<{ state: "n
   if (!running) return { state: "none" }
   if (isTerminalStatus(running.status)) {
     const terminal = await closeAndMaybeDropSidecar(root, running)
-    return { state: "reconciled", job: terminal }
+    const reserved = readRunningJob(root)
+    return reserved?.id === terminal.id && reserved.cleanupBlockedReason
+      ? { state: "blocked", job: reserved }
+      : { state: "reconciled", job: terminal }
   }
   if (running.workerPid && running.workerPid !== process.pid) {
     try { process.kill(running.workerPid, 0); return { state: "active", job: running } } catch { /* dead owner */ }

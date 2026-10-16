@@ -1,7 +1,7 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process"
 import { createHash } from "node:crypto"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { hostname, tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import { afterEach, describe, expect, it } from "vitest"
@@ -9,8 +9,9 @@ import { afterEach, describe, expect, it } from "vitest"
 import type { FinalizationRecord, FinalizationSpec, QueueTicket, WorkerIdentity } from "../../src/contracts/schema.js"
 import { enqueueExplicitTicket } from "../../src/core/enqueue.js"
 import { cancelQueuedOrRunningTicket, closeRunningTicket } from "../../src/core/runner.js"
-import { reconcileFinalizations } from "../../src/core/finalization.js"
-import { probeProcessGroupIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "../../src/core/process.js"
+import { reconcileFinalizations, runFinalization } from "../../src/core/finalization.js"
+import { observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "../../src/core/process.js"
+import { registerProjectRuntime } from "../../src/core/runtime.js"
 import { atomicWriteJson, historyPath, jobPath, queuePaths, readJsonFile, readRunningJob } from "../../src/core/state.js"
 import { runWorker } from "../../src/core/worker.js"
 
@@ -464,8 +465,177 @@ describe("finalization recovery and ownership", () => {
   }, 10_000)
 })
 
-function spawnWorker(f: ReturnType<typeof fixture>) {
-  const worker = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `const {runWorker}=await import('./src/core/worker.ts'); await runWorker(${JSON.stringify(f.state)})`], { cwd: process.cwd(), stdio: "ignore" })
+describe("Task2 fix round 1", () => {
+  it.each([false, true])("finalizes a queued cancellation arriving during an active test before next claim or exit (next=%s)", async next => {
+    const f = fixture()
+    const first = enqueue(f, `require('node:fs').appendFileSync(${JSON.stringify(f.events)},'test-A\\n');setTimeout(()=>process.exit(0),250)`)
+    const cancelled = enqueue(f, "process.exit(9)", hook(`${readInput};fs.appendFileSync(${JSON.stringify(f.events)},'finalizer-B\\n');${writeResult("not-required")}`), undefined, 1)
+    const third = next ? enqueue(f, `const fs=require('node:fs');if(!fs.readFileSync(${JSON.stringify(f.events)},'utf8').includes('finalizer-B'))process.exit(8);fs.appendFileSync(${JSON.stringify(f.events)},'test-C\\n')`, undefined, undefined, 2) : undefined
+    const worker = runWorker(f.state)
+    try {
+      await waitFor(() => readRunningJob(f.state)?.id === first.id && existsSync(f.events))
+      await cancelQueuedOrRunningTicket(f.state, cancelled.id)
+      await worker
+      expect(record(f.state, cancelled.id)).toMatchObject({ phase: "passed", result: { cleanup: "not-required" } })
+      expect(readFileSync(f.events, "utf8").trim().split("\n")).toEqual(next ? ["test-A", "finalizer-B", "test-C"] : ["test-A", "finalizer-B"])
+      expect(readJsonFile<QueueTicket>(historyPath(f.state, cancelled.id))).toMatchObject({ status: "cancelled", exitCode: null })
+      if (third) expect(readJsonFile<QueueTicket>(historyPath(f.state, third.id))).toMatchObject({ status: "passed" })
+    } finally { await worker }
+  })
+
+  it.each(["startup", "finally"])("preserves a FIFO worker owner without blocking at %s", async phase => {
+    const f = fixture()
+    const ownerPath = join(f.state, "state", "worker.json")
+    const pidPath = join(f.state, "state", "worker.pid")
+    const reportPath = join(f.root, "worker-report.json")
+    const ticket = enqueue(f, phase === "finally" ? `const fs=require('node:fs');fs.unlinkSync(${JSON.stringify(ownerPath)});require('node:child_process').execFileSync('mkfifo',[${JSON.stringify(ownerPath)}])` : "process.exit(0)")
+    const next = phase === "finally" ? enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(f.events)},'claimed-next')`, undefined, undefined, 1) : undefined
+    if (phase === "startup") {
+      execFileSync("mkfifo", [ownerPath])
+      writeFileSync(pidPath, "999999\n")
+    }
+    const worker = spawnWorker(f, reportPath)
+    try {
+      await waitFor(() => existsSync(reportPath), 2_000)
+      expect(readJsonFile(reportPath)).toMatchObject({ reconciliation: "blocked", blockingReason: expect.any(String) })
+      expect(lstatSync(ownerPath).isFIFO()).toBe(true)
+      expect(readFileSync(pidPath, "utf8")).toBe(`${phase === "startup" ? 999999 : worker.pid}\n`)
+      if (phase === "startup") expect(existsSync(jobPath(f.state, ticket.id))).toBe(true)
+      if (next) {
+        expect(existsSync(jobPath(f.state, next.id))).toBe(true)
+        expect(existsSync(f.events)).toBe(false)
+      }
+    } finally { await stopFixtureChild(worker) }
+  })
+
+  it.each(["worker.json", "worker.pid", "state component"])("refuses symlink ownership at %s before related writes", async kind => {
+    const f = fixture()
+    const ticket = enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(f.events)},'claimed')`)
+    const state = join(f.state, "state")
+    const foreign = join(f.root, "foreign")
+    const deadOwner = { schemaVersion: 1, hostname: hostname(), pid: 999999, startedAt: "dead-owner", capabilities: [] }
+    let sentinel: string
+    let bytes: string
+    if (kind === "state component") {
+      mkdirSync(foreign)
+      sentinel = join(foreign, "worker.pid")
+      bytes = "preserve"
+      writeFileSync(sentinel, bytes)
+      rmSync(state, { recursive: true })
+      symlinkSync(foreign, state)
+    } else {
+      sentinel = foreign
+      bytes = kind === "worker.json" ? JSON.stringify(deadOwner) : "preserve"
+      writeFileSync(sentinel, bytes)
+      symlinkSync(foreign, join(state, kind))
+    }
+    const report = await runWorker(f.state)
+    expect(report).toMatchObject({ reconciliation: "blocked", blockingReason: expect.stringContaining("symlink") })
+    expect(readFileSync(sentinel, "utf8")).toBe(bytes)
+    expect(existsSync(jobPath(f.state, ticket.id))).toBe(true)
+    expect(existsSync(f.events)).toBe(false)
+  })
+
+  it("bounds a regular worker ownership file without replacing its uncertain owner", async () => {
+    const f = fixture()
+    const ticket = enqueue(f, "process.exit(0)")
+    const bytes = JSON.stringify({ schemaVersion: 1, hostname: hostname(), pid: 999999, startedAt: "dead-owner", capabilities: ["x".repeat(65536)] })
+    writeFileSync(join(f.state, "state", "worker.json"), bytes)
+    const report = await runWorker(f.state)
+    expect(report).toMatchObject({ reconciliation: "blocked", blockingReason: expect.stringContaining("limite") })
+    expect(readFileSync(join(f.state, "state", "worker.json"), "utf8")).toBe(bytes)
+    expect(existsSync(jobPath(f.state, ticket.id))).toBe(true)
+  })
+
+  it("keeps completed finalization immutable when an original PID is later reused", async () => {
+    const f = fixture()
+    const foreign = await ownProcess(f.cwd)
+    try {
+      const queued = enqueue(f, "process.exit(0)", hook(`${readInput};fs.writeFileSync(${JSON.stringify(f.events)},'rerun');${writeResult()}`))
+      rmSync(jobPath(f.state, queued.id))
+      const terminal: QueueTicket = { ...queued, status: "passed", exitCode: 0, finishedAt: new Date().toISOString(), childPid: foreign.child.pid, processGroupIdentity: { ...foreign.group, startedAt: "historical-birth" } }
+      await closeRunningTicket(f.state, terminal)
+      saveRecord(f, terminal, { phase: "passed", attempt: 1, finishedAt: new Date().toISOString(), result: { schemaVersion: 1, cleanup: "confirmed", outputs: [] } })
+      const before = readFileSync(recordPath(f.state, terminal.id), "utf8")
+      expect(await reconcileFinalizations(f.state)).toEqual({ reconciled: [], blocked: [] })
+      expect(readFileSync(recordPath(f.state, terminal.id), "utf8")).toBe(before)
+      expect(existsSync(f.events)).toBe(false)
+      expect(foreign.child.signalCode).toBeNull()
+    } finally { await foreign.stop() }
+  })
+
+  it("preserves original producer reservation and runtime while a descendant outlives its test leader", async () => {
+    const f = fixture()
+    const ownerPath = join(f.root, "descendant-owner.json")
+    const nextMarker = join(f.root, "next-job")
+    const cancelledMarker = join(f.root, "cancelled-hook")
+    const descendant = [
+      "const fs=require('node:fs')",
+      "const ps=require('node:child_process').spawnSync('ps',['-o','lstart=','-p',String(process.pid)],{encoding:'utf8',env:{...process.env,LC_ALL:'C',LANG:'C'}})",
+      "if(ps.status!==0)process.exit(3)",
+      `fs.writeFileSync(${JSON.stringify(ownerPath)},JSON.stringify({schemaVersion:1,hostname:require('node:os').hostname(),pid:process.pid,startedAt:ps.stdout.trim(),capabilities:[]}))`,
+      "setInterval(()=>{},1000)",
+    ].join(";")
+    registerProjectRuntime(f.state, { projectId: "fixture", node: process.execPath })
+    const ticket = enqueue(f, `require('node:fs').appendFileSync(${JSON.stringify(f.events)},'test\\n');const child=require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(descendant)}],{stdio:'ignore'});child.unref();setTimeout(()=>process.exit(0),150)`, hook(`${readInput};fs.writeFileSync(${JSON.stringify(f.hashes)},'hook');${writeResult()}`))
+    const cancelled = enqueue(f, "process.exit(9)", hook(`${readInput};fs.writeFileSync(${JSON.stringify(cancelledMarker)},'cleanup');${writeResult("not-required")}`), undefined, 1)
+    const next = enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(nextMarker)},'next')`, undefined, undefined, 2)
+    const worker = runWorker(f.state)
+    let identity: WorkerIdentity | undefined
+    try {
+      await waitFor(() => existsSync(ownerPath))
+      identity = readJsonFile<WorkerIdentity>(ownerPath)!
+      expect(observeWorkerIdentity(identity).state).toBe("alive")
+      const report = await worker
+      const before = sha256(readFileSync(historyPath(f.state, ticket.id)))
+      const terminal = readJsonFile<QueueTicket>(historyPath(f.state, ticket.id))!
+      expect(report).toMatchObject({ reconciliation: "blocked" })
+      expect(readRunningJob(f.state)).toMatchObject({ id: ticket.id, cleanupBlockedReason: expect.any(String) })
+      expect(record(f.state, ticket.id)).toMatchObject({ phase: "interrupted", attempt: 0, failureReason: expect.stringContaining("produtor do teste") })
+      expect(existsSync(terminal.runtime!.evidencePath!)).toBe(true)
+      expect(existsSync(f.hashes)).toBe(false)
+      expect(existsSync(nextMarker)).toBe(false)
+      expect(existsSync(jobPath(f.state, next.id))).toBe(true)
+      await cancelQueuedOrRunningTicket(f.state, cancelled.id)
+      await runFinalization(f.state, readJsonFile<QueueTicket>(historyPath(f.state, cancelled.id))!)
+      expect(existsSync(cancelledMarker)).toBe(false)
+      expect((await reconcileFinalizations(f.state)).blocked).toContain(ticket.id)
+      expect(await runWorker(f.state)).toMatchObject({ reconciliation: "blocked" })
+      expect(existsSync(f.hashes)).toBe(false)
+      await stopFixtureDescendant(identity)
+      await runWorker(f.state)
+      expect(record(f.state, ticket.id)).toMatchObject({ phase: "passed", attempt: 1 })
+      expect(readFileSync(f.hashes, "utf8")).toBe("hook")
+      expect(readFileSync(nextMarker, "utf8")).toBe("next")
+      expect(readFileSync(cancelledMarker, "utf8")).toBe("cleanup")
+      expect(readFileSync(f.events, "utf8").trim().split("\n")).toEqual(["test"])
+      expect(sha256(readFileSync(historyPath(f.state, ticket.id)))).toBe(before)
+      expect(existsSync(terminal.runtime!.evidencePath!)).toBe(false)
+    } finally {
+      identity ??= readJsonFile<WorkerIdentity>(ownerPath)
+      if (identity) await stopFixtureDescendant(identity)
+      await worker
+    }
+  }, 10_000)
+})
+
+async function stopFixtureChild(child: ChildProcess) {
+  if (child.exitCode !== null || child.signalCode !== null) return
+  const closed = new Promise<void>(resolve => child.once("close", () => resolve()))
+  child.kill("SIGKILL")
+  await closed
+}
+
+async function stopFixtureDescendant(identity: WorkerIdentity) {
+  const state = observeWorkerIdentity(identity)
+  if (state.state === "dead") return
+  if (state.state !== "alive") throw new Error(`own descendant identity uncertain: ${state.reason}`)
+  process.kill(identity.pid, "SIGTERM")
+  await waitFor(() => observeWorkerIdentity(identity).state === "dead")
+}
+
+function spawnWorker(f: ReturnType<typeof fixture>, reportPath?: string) {
+  const worker = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `const {runWorker}=await import('./src/core/worker.ts'); const report=await runWorker(${JSON.stringify(f.state)});${reportPath ? `const fs=await import('node:fs');fs.writeFileSync(${JSON.stringify(reportPath)},JSON.stringify(report))` : ""}`], { cwd: process.cwd(), stdio: "ignore" })
   children.push(worker)
   return worker
 }

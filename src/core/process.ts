@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process"
 import { hostname } from "node:os"
 
-import { NO_ARTIFACT_SNAPSHOTS_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, type WorkerIdentity, type ProcessGroupIdentity, type ProcessObservation, type ProcessObservationItem } from "../contracts/schema.js"
+import { NO_ARTIFACT_SNAPSHOTS_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, type WorkerIdentity, type ProcessGroupIdentity, type ProcessObservation, type ProcessObservationItem, type QueueTicket } from "../contracts/schema.js"
 
 const C_ENV = { ...process.env, LC_ALL: "C", LANG: "C" }
 
@@ -45,6 +45,13 @@ export function observeWorkerIdentity(identity: WorkerIdentity | undefined): Pro
 }
 
 export type ProcessGroupState = { state: "alive" | "dead" | "uncertain"; reason: string }
+
+/** Claims/preflight are not processes; a started test needs its whole group gone. */
+export function observeTestProducer(ticket: Pick<QueueTicket, "childPid" | "processGroupIdentity">): ProcessGroupState {
+  if (ticket.childPid === undefined && !ticket.processGroupIdentity) return { state: "dead", reason: "processo de teste não iniciado" }
+  const group = observeProcessGroup(ticket.processGroupIdentity)
+  return { ...group, reason: `produtor do teste: ${group.reason}` }
+}
 
 /** A missing leader alone cannot prove that its detached descendants exited. */
 export function observeProcessGroup(identity: ProcessGroupIdentity | undefined): ProcessGroupState {

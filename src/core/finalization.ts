@@ -5,10 +5,10 @@ import { hostname } from "node:os"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 
 import { FINALIZATION_JSON_MAX_BYTES, finalizationDigest, isTerminalStatus, normalizeFinalization, type FinalizationRecord, type FinalizationResult, type ProcessGroupIdentity, type QueueTicket } from "../contracts/schema.js"
-import { observeProcessGroup, observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "./process.js"
+import { observeProcessGroup, observeTestProducer, observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "./process.js"
 import { buildJobEnv, LogRedactor, redactLogText } from "./runner.js"
 import { discardRuntimeDirectory, prepareJobRuntime, type RuntimeSession } from "./runtime.js"
-import { acquireDirectoryLock, appendLog, atomicWriteJson, finalizationPath, historyPath, listHistoryJobs, queuePaths, readBoundedFile, readFinalization, serializedJson, withTicketLock } from "./state.js"
+import { acquireDirectoryLock, appendLog, atomicWriteJson, finalizationPath, historyPath, listHistoryJobs, queuePaths, readBoundedFile, readFinalization, readRunningJob, serializedJson, withTicketLock } from "./state.js"
 
 const digest = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex")
 const smallError = (error: unknown) => redactLogText(error instanceof Error ? error.message : String(error)).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "").slice(0, 2_048)
@@ -19,6 +19,16 @@ function hasSupportedFinalization(ticket: QueueTicket): boolean {
     const spec = normalizeFinalization(ticket.finalization)
     return ticket.schemaVersion === 4 && Boolean(spec && finalizationDigest(spec) === ticket.finalizationDigest)
   } catch { return false }
+}
+
+function blockingTestProducer(root: string, terminal?: QueueTicket): { id: string; reason: string } | undefined {
+  const running = readRunningJob(root)
+  const candidates = terminal ? [terminal, ...(running && running.id !== terminal.id ? [running] : [])] : running ? [running] : []
+  for (const ticket of candidates) {
+    const producer = observeTestProducer(ticket)
+    if (producer.state !== "dead") return { id: ticket.id, reason: `${producer.reason} (${ticket.id})` }
+  }
+  return undefined
 }
 
 function transientPath(root: string, id: string, kind: "input" | "result"): string {
@@ -118,6 +128,8 @@ export async function runFinalization(root: string, ticket: QueueTicket): Promis
       return await save(root, { ...record, phase: uncertain ? "interrupted" : "failed", ...(!uncertain ? { finishedAt: new Date().toISOString() } : {}), failureReason: "ticket digest divergiu após início da finalização; execução recusada" })
     }
     if (record.phase === "passed" || record.phase === "failed") return record
+    const producer = blockingTestProducer(root, terminal)
+    if (producer) return await save(root, { ...record, phase: "interrupted", finishedAt: undefined, failureReason: producer.reason })
     if (record.attempt > 0) {
       const owner = observeWorkerIdentity(record.supervisorIdentity)
       if (owner.state === "uncertain" || (owner.state === "alive" && record.supervisorIdentity?.pid !== process.pid)) {
@@ -207,6 +219,8 @@ export async function runFinalization(root: string, ticket: QueueTicket): Promis
 
 export async function reconcileFinalizations(root: string): Promise<{ blocked: string[]; reconciled: string[] }> {
   const report = { blocked: [] as string[], reconciled: [] as string[] }
+  const producer = blockingTestProducer(root)
+  if (producer) return { ...report, blocked: [producer.id] }
   // Rejected future/malformed protocol fields confer no execution authority.
   // Their original rejection remains in history/log, without holding new jobs.
   const tickets = listHistoryJobs(root).filter(hasSupportedFinalization)

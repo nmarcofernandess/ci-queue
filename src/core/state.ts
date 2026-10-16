@@ -19,7 +19,7 @@ import {
 import { homedir } from "node:os"
 import { basename, join } from "node:path"
 
-import { FINALIZATION_JSON_MAX_BYTES, type FinalizationRecord, type QueueTicket } from "../contracts/schema.js"
+import { FINALIZATION_JSON_MAX_BYTES, type FinalizationRecord, type QueueTicket, type WorkerIdentity } from "../contracts/schema.js"
 
 export type QueuePaths = ReturnType<typeof queuePaths>
 
@@ -114,11 +114,44 @@ export function serializedJson(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`
 }
 
-function rejectSymlinks(paths: string[]): void {
+export function assertNoSymlinkPaths(paths: string[]): void {
   for (const path of paths) {
     try { if (lstatSync(path).isSymbolicLink()) throw new Error(`symlink recusado no state: ${path}`) }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error }
   }
+}
+
+export type WorkerOwnership =
+  | { state: "absent" }
+  | { state: "valid"; identity: WorkerIdentity }
+  | { state: "invalid"; reason: string }
+
+/** Every component is checked before either legacy PID or identity is written. */
+export function assertWorkerStatePaths(root: string): void {
+  const paths = queuePaths(root)
+  assertNoSymlinkPaths([root, paths.state, paths.workerIdentity, paths.workerPid])
+  for (const path of [paths.workerIdentity, paths.workerPid]) {
+    try { if (!lstatSync(path).isFile()) throw new Error("ownership do worker não é arquivo regular") }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error }
+  }
+}
+
+/** Invalid/existing is distinct from absent and is never an execution authority. */
+export function readWorkerOwnership(root: string): WorkerOwnership {
+  try { assertWorkerStatePaths(root) }
+  catch (error) { return { state: "invalid", reason: (error as Error).message.slice(0, 512) } }
+  let bytes: Buffer
+  try { bytes = readBoundedFile(queuePaths(root).workerIdentity, FINALIZATION_JSON_MAX_BYTES) }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { state: "absent" }
+    return { state: "invalid", reason: error instanceof RangeError ? "ownership do worker excede limite de bytes" : "ownership do worker ilegível ou não regular" }
+  }
+  let identity: WorkerIdentity
+  try { identity = JSON.parse(bytes.toString("utf8")) as WorkerIdentity }
+  catch { return { state: "invalid", reason: "ownership do worker não é JSON válido" } }
+  return identity?.schemaVersion === 1 && typeof identity.hostname === "string" && Boolean(identity.hostname) && Number.isSafeInteger(identity.pid) && identity.pid > 0 && typeof identity.startedAt === "string" && Boolean(identity.startedAt) && Array.isArray(identity.capabilities) && identity.capabilities.every(item => typeof item === "string")
+    ? { state: "valid", identity }
+    : { state: "invalid", reason: "identidade persistida do worker inválida" }
 }
 
 /** Bounded, no-follow reads for the supervisor's small protocol files. */
@@ -145,7 +178,7 @@ export function finalizationPath(root: string, id: string): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)) throw new Error("id de finalização inválido")
   const directory = join(queuePaths(root).state, "finalization")
   const file = join(directory, `${id}.json`)
-  rejectSymlinks([root, queuePaths(root).state, directory, file])
+  assertNoSymlinkPaths([root, queuePaths(root).state, directory, file])
   return file
 }
 
@@ -176,7 +209,7 @@ export function claimPath(root: string, id: string): string {
 
 export function historyPath(root: string, id: string): string {
   const path = join(queuePaths(root).history, `${id}.json`)
-  rejectSymlinks([root, queuePaths(root).history, path])
+  assertNoSymlinkPaths([root, queuePaths(root).history, path])
   return path
 }
 
@@ -227,7 +260,7 @@ export function attributeLegacy(root: string, ticket: QueueTicket, ledger = read
 }
 
 export function listHistoryJobs(root: string, projectId?: string): QueueTicket[] {
-  rejectSymlinks([root, queuePaths(root).history])
+  assertNoSymlinkPaths([root, queuePaths(root).history])
   const ledger = readJsonFile<LegacyLedger>(join(root, "state", "legacy-projects.json")) ?? { schemaVersion: 1, assignments: {} }
   return readTickets(queuePaths(root).history)
     .map((ticket) => attributeLegacy(root, ticket, ledger))
