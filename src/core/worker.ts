@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { parseTicket, claimQueuedTicket, reconcileInterruptedJob, reconcileTerminalClaims, rejectQueuedTicket, runJob } from "./runner.js"
@@ -106,6 +106,7 @@ export async function runWorker(root: string): Promise<WorkerReport> {
     // Keep the legacy decimal form while old consumers may still inspect the
     // shared lock during the one-time external cutover.
     const previousIdentity = readJsonFile<WorkerIdentity>(paths.workerIdentity)
+    if (!previousIdentity && existsSync(paths.workerIdentity)) return { ...report, reconciliation: "blocked", busy: true }
     identity = probeWorkerIdentity()
     if (previousIdentity && (!identity || previousIdentity.pid !== identity.pid || previousIdentity.startedAt !== identity.startedAt || previousIdentity.hostname !== identity.hostname)) {
       const previous = observeWorkerIdentity(previousIdentity)

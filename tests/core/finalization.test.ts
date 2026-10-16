@@ -225,6 +225,19 @@ describe("post-terminal finalization", () => {
     expect(readFileSync(join(f.state, "state", "worker.pid"), "utf8")).toBe("999999\n")
   })
 
+  it("preserves an unreadable worker owner instead of overwriting it or claiming jobs", async () => {
+    const f = fixture()
+    const ticket = enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(f.events)},'claimed')`)
+    writeFileSync(join(f.state, "state", "worker.json"), "{")
+    writeFileSync(join(f.state, "state", "worker.pid"), "999999\n")
+    const report = await runWorker(f.state)
+    expect(report).toMatchObject({ reconciliation: "blocked", busy: true, processed: [] })
+    expect(readFileSync(join(f.state, "state", "worker.json"), "utf8")).toBe("{")
+    expect(readFileSync(join(f.state, "state", "worker.pid"), "utf8")).toBe("999999\n")
+    expect(existsSync(jobPath(f.state, ticket.id))).toBe(true)
+    expect(existsSync(f.events)).toBe(false)
+  })
+
   it("rejects a FIFO result without blocking the supervisor", async () => {
     const f = fixture()
     const ticket = enqueue(f, "process.exit(0)", hook(`${readInput};require('node:child_process').execFileSync('mkfifo',[input.resultPath])`))
