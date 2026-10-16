@@ -48,6 +48,19 @@ export type ProgressSummary = {
 
 export type RunVariant = "custom" | "focal"
 
+/** Sanitized API projection; no hook argv, environment or private record paths. */
+export type JobCompletion = {
+  state: "running" | "complete" | "failed" | "legacy"
+  eligible: boolean
+  testStatus: JobStatus | null
+  reason?: "finalization-contract-invalid" | "finalization-unverified" | "finalization-failed" | "cleanup-uncertain"
+  finalization?: {
+    phase: "pending" | "running" | "passed" | "failed" | "interrupted"
+    cleanup?: "confirmed" | "not-required" | "uncertain"
+    error?: "finalization-failed"
+  }
+}
+
 /** Browser-safe job projection. Process arguments and environment stay private. */
 export type JobRecord = {
   id: string
@@ -55,6 +68,7 @@ export type JobRecord = {
   projectName?: string
   preset?: string
   status?: JobStatus
+  completion?: JobCompletion
   exitCode?: number | null
   branch?: string
   headSha?: string

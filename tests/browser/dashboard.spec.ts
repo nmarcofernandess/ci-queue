@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
+import type { JobRecord } from '../../ui/src/lib/types'
 import type { DashboardProjectState } from '../../ui/src/lib/types'
 
 const fixtureProjects = {
@@ -842,3 +844,124 @@ test('all greens explain stale and invalid Git coverage beside valid greens in b
   }
   expect(requests.every(url => url.searchParams.get('context') === 'all' && !url.searchParams.has('projectId'))).toBe(true)
 })
+
+
+// Exercise the current Python public reader, including verification of record joins.
+const completionViewerJobs: Record<string, JobRecord> = JSON.parse(execFileSync('python3', ['-c', `
+import json, sys, tempfile
+from pathlib import Path
+sys.path.insert(0, 'backend')
+from ci_queue_api.records import read_history, public_job
+cases = json.loads(Path('tests/fixtures/finalization-completion.json').read_text())
+selected = {'confirmed', 'pending', 'running', 'failed', 'uncertain', 'failed-test', 'legacy-3', 'missing-record', 'wrong-ticket', 'invalid-result-outputs'}
+projected = {}
+for case in cases:
+    if case['name'] not in selected:
+        continue
+    with tempfile.TemporaryDirectory(prefix='ci-queue-viewer-') as directory:
+        root = Path(directory)
+        (root / 'history').mkdir()
+        (root / 'state/finalization').mkdir(parents=True)
+        (root / 'history/job-1.json').write_text(case['terminalBytes'])
+        if case['record']:
+            (root / 'state/finalization/job-1.json').write_text(json.dumps(case['record']))
+        projected[case['name']] = public_job(read_history(root)[0])
+print(json.dumps(projected))
+`], { encoding: 'utf8' }))
+
+for (const theme of ['light', 'dark'] as const) {
+  for (const width of [390, 820, 1440]) {
+    test(`completion viewer composition ${theme} at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 })
+      await page.addInitScript((theme) => localStorage.setItem('ci-queue-theme', theme), theme)
+      const jobs = Object.entries(completionViewerJobs).map(([name, publicJob]) => ({
+        ...baseJob, ...publicJob, id: name, preset: name, projectId: 'example', projectName: 'Example',
+        ...(name === 'failed-test' ? { failureReason: 'Original test assertion failed' } : {}),
+      }))
+      let detailMode: 'data' | 'loading' | 'error' = 'data'
+      let detailCompleted = false
+      let historyEmpty = false
+      let detailReads = 0
+      await page.route('**/api/**', async route => {
+        const url = new URL(route.request().url())
+        if (url.pathname === '/api/job') {
+          detailReads++
+          if (detailMode === 'loading') return
+          if (detailMode === 'error') {
+            await route.fulfill({ status: 503, json: { error: 'Fixture detail unavailable' } })
+            return
+          }
+          const selected = jobs.find(job => job.id === url.searchParams.get('jobId'))!
+          await route.fulfill({ json: selected.id === 'pending' && detailCompleted ? { ...selected, completion: completionViewerJobs.confirmed.completion } : selected })
+          return
+        }
+        const data: Record<string, unknown> = {
+          '/api/projects': fixtureProjects,
+          '/api/status': { project: { id: 'example', name: 'Example' }, running: { ...baseJob, id: 'live', preset: 'running-test', status: 'running', completion: { state: 'running', eligible: false, testStatus: 'running' }, progressSummary: { available: true, schemaVersion: 1, nodes, roots: [nodes[0]], active: nodes } }, queued: [], globalOccupancy: true },
+          '/api/session': { csrfToken: 'fixture', canReveal: false },
+          '/api/executions': { jobs: historyEmpty ? [] : jobs, hasMore: false, coverage: { unattributedRecords: 0 } },
+          '/api/dashboard-state': { revision: 0, presets: ['check'], meta: null, pending: [] },
+          '/api/machine': {},
+        }
+        await route.fulfill({ json: data[url.pathname] ?? {} })
+      })
+      await page.goto('/#status')
+      await expect(page.locator('html')).toHaveClass(new RegExp(theme))
+      await expect(page.getByLabel('Em execução · Flaky detectado', { exact: true })).toBeVisible()
+      const labels: Record<string, string> = {
+        confirmed: 'Passou · Finalização concluída', pending: 'Finalizando · Teste passou', running: 'Finalizando · Teste passou',
+        failed: 'Falha na finalização · Teste passou; entrega incompleta',
+        uncertain: 'Limpeza não confirmada · Teste passou; entrega incompleta · O finalizador não confirmou a limpeza',
+        'failed-test': 'Falhou · Finalização concluída', 'legacy-3': 'Passou',
+        'missing-record': 'Finalizando · Teste passou · Finalização não verificada',
+        'wrong-ticket': 'Finalizando · Teste passou · Finalização não verificada',
+        'invalid-result-outputs': 'Falha na finalização · Teste passou; entrega incompleta',
+      }
+      for (const job of jobs) {
+        const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: job.preset, exact: true }) })
+        await expect(row.getByRole('img', { name: labels[job.id], exact: true })).toBeVisible()
+        if (job.completion?.state === 'running') await expect(row.getByRole('img')).not.toHaveClass(/text-success/)
+        await row.getByRole('button', { name: job.preset, exact: true }).click()
+        const drawer = page.getByRole('dialog')
+        await expect(drawer.getByRole('img', { name: labels[job.id], exact: true }).first()).toBeVisible()
+        const facts = drawer.getByRole('list', { name: 'Resultado, finalização e limpeza' })
+        await expect(facts.locator('[data-slot=item]')).toHaveCount(3)
+        await expect(facts).toContainText(job.status === 'failed' ? 'Teste falhou' : 'Teste passou')
+        if (job.id === 'legacy-3') await expect(facts).toContainText('Sem registro de finalização')
+        if (job.id === 'uncertain') await expect(facts).toContainText('Finalizador encerrado; entrega incompleta')
+        if (job.id === 'failed-test') await expect(drawer).toContainText('Original test assertion failed')
+        const bounds = await drawer.boundingBox()
+        expect(bounds!.width).toBeLessThanOrEqual(width)
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+        await drawer.getByRole('button', { name: 'Fechar execução' }).click()
+        await expect(drawer).toHaveCount(0)
+      }
+      // A terminal test must continue polling its independent finalization.
+      await page.getByRole('button', { name: 'pending', exact: true }).click()
+      await expect(page.getByRole('dialog').getByLabel(labels.pending, { exact: true })).toBeVisible()
+      detailCompleted = true
+      await expect(page.getByRole('dialog').getByLabel(labels.confirmed, { exact: true })).toBeVisible({ timeout: 5000 })
+      const completedReads = detailReads
+      await page.waitForTimeout(2200)
+      expect(detailReads).toBe(completedReads)
+      await page.getByRole('button', { name: 'Fechar execução' }).click()
+
+      // New document avoids reusing the legitimately cached successful detail.
+      await page.reload()
+      await expect(page.getByRole('button', { name: 'confirmed', exact: true })).toBeVisible()
+      detailMode = 'loading'
+      await page.getByRole('button', { name: 'confirmed', exact: true }).click()
+      await expect(page.getByRole('dialog').locator('[data-slot=skeleton]').first()).toBeVisible()
+      await expect(page.getByRole('dialog').locator('[data-slot=status-indicator]')).toHaveCount(0)
+      await page.getByRole('button', { name: 'Fechar execução' }).click()
+      detailMode = 'error'
+      await page.getByRole('button', { name: 'failed', exact: true }).click()
+      await expect(page.getByRole('dialog')).toContainText('Não foi possível carregar a execução')
+      await expect(page.getByRole('dialog').locator('[data-slot=status-indicator]')).toHaveCount(0)
+      await page.getByRole('button', { name: 'Fechar execução' }).click()
+      historyEmpty = true
+      await page.getByRole('textbox', { name: 'Buscar por preset, branch, SHA ou ticket' }).fill('empty')
+      await expect(page.getByText('Nenhuma execução corresponde aos filtros')).toBeVisible()
+    })
+  }
+}

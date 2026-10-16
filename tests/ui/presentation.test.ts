@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   describeJobState,
   describeExecutionState,
+  describeCompletionFacts,
+  executionIsLive,
   describeProgressState,
   elapsedPresentation,
   inspectPresentation,
@@ -9,6 +11,7 @@ import {
   progressSurface,
   unconfiguredProgressCopy,
 } from '../../ui/src/features/shared/presentation'
+import type { JobRecord } from '../../ui/src/lib/types'
 import { projectChipVisible } from '../../ui/src/features/shared/project-chip-model'
 
 describe('presentation preserves published semantics', () => {
@@ -111,5 +114,81 @@ describe('presentation preserves published semantics', () => {
       status: 'failed',
     })).toBe('unconfigured')
     expect(unconfiguredProgressCopy.variant).not.toBe('destructive')
+  })
+})
+
+
+describe('public terminal completion presentation', () => {
+  const job = (completion: JobRecord['completion'], status: JobRecord['status'] = 'passed') => ({ status, completion })
+  for (const phase of ['pending', 'running'] as const) {
+    it(`keeps a passed test neutral while finalization is ${phase}`, () => {
+      expect(describeExecutionState(job({ state: 'running', eligible: false, testStatus: 'passed', finalization: { phase } })))
+        .toMatchObject({ label: 'Finalizando', detail: 'Teste passou', animated: true, colorClass: 'text-muted-foreground' })
+    })
+  }
+  it('keeps unverified finalization neutral and explains the safe reason', () => {
+    expect(describeExecutionState(job({ state: 'running', eligible: false, testStatus: 'passed', reason: 'finalization-unverified' })))
+      .toMatchObject({ label: 'Finalizando', detail: 'Teste passou · Finalização não verificada', colorClass: 'text-muted-foreground' })
+  })
+  it('reports failed hook without replacing the passed test', () => {
+    const state = describeExecutionState(job({ state: 'failed', eligible: false, testStatus: 'passed', reason: 'finalization-failed', finalization: { phase: 'failed', cleanup: 'confirmed', error: 'finalization-failed' } }))
+    expect(state).toMatchObject({ label: 'Falha na finalização', animated: false, colorClass: 'text-destructive' })
+    expect(state.detail).toContain('Teste passou; entrega incompleta')
+  })
+  it('reports invalid contracts as a finalization failure, never a green test result', () => {
+    expect(describeExecutionState(job({ state: 'failed', eligible: false, testStatus: 'passed', reason: 'finalization-contract-invalid' })))
+      .toMatchObject({ label: 'Falha na finalização', detail: 'Teste passou; entrega incompleta · Contrato de finalização inválido', colorClass: 'text-destructive' })
+  })
+  it('gives uncertain cleanup its literal label and safe reason', () => {
+    expect(describeExecutionState(job({ state: 'failed', eligible: false, testStatus: 'passed', reason: 'cleanup-uncertain', finalization: { phase: 'passed', cleanup: 'uncertain' } })))
+      .toMatchObject({ label: 'Limpeza não confirmada', detail: 'Teste passou; entrega incompleta · O finalizador não confirmou a limpeza', colorClass: 'text-destructive' })
+  })
+  for (const status of ['passed', 'failed', 'cancelled', 'interrupted'] as const) {
+    it(`preserves ${status} after confirmed cleanup and successful finalization`, () => {
+      const state = describeExecutionState(job({ state: 'complete', eligible: status === 'passed', testStatus: status, finalization: { phase: 'passed', cleanup: 'confirmed' } }, status))
+      expect(state).toMatchObject({ ...describeJobState(status), detail: 'Finalização concluída' })
+    })
+  }
+  it('does not invent a finalization for legacy or absent completion', () => {
+    expect(describeExecutionState(job(undefined))).toEqual(describeJobState('passed'))
+    expect(describeExecutionState(job({ state: 'legacy', eligible: true, testStatus: 'passed' }))).toEqual(describeJobState('passed'))
+  })
+  it('preserves flaky facts while finalization is incomplete', () => {
+    expect(describeExecutionState({ ...job({ state: 'running', eligible: false, testStatus: 'passed', finalization: { phase: 'pending' } }), hasRetries: true }))
+      .toMatchObject({ label: 'Finalizando', colorClass: 'text-muted-foreground', detail: 'Teste passou · Flaky detectado' })
+  })
+  it('preserves the failed test while finalization is pending', () => {
+    expect(describeExecutionState(job({ state: 'running', eligible: false, testStatus: 'failed', finalization: { phase: 'pending' } }, 'failed')))
+      .toMatchObject({ label: 'Finalizando', detail: 'Teste falhou', colorClass: 'text-muted-foreground' })
+  })
+})
+
+
+describe('independent completion facts and detail refresh', () => {
+  it('does not equate a passed finalizer process with a completed delivery', () => {
+    expect(describeCompletionFacts({ status: 'passed', completion: { state: 'failed', eligible: false, testStatus: 'passed', reason: 'cleanup-uncertain', finalization: { phase: 'passed', cleanup: 'uncertain' } } }))
+      .toEqual([
+        { label: 'Resultado do teste', value: 'Teste passou' },
+        { label: 'Finalização', value: 'Finalizador encerrado; entrega incompleta · O finalizador não confirmou a limpeza' },
+        { label: 'Limpeza', value: 'Limpeza não confirmada · O finalizador não confirmou a limpeza' },
+      ])
+  })
+  it('separates failed tests, successful finalization and confirmed cleanup', () => {
+    expect(describeCompletionFacts({ status: 'failed', completion: { state: 'complete', eligible: false, testStatus: 'failed', finalization: { phase: 'passed', cleanup: 'confirmed' } } }))
+      .toEqual([
+        { label: 'Resultado do teste', value: 'Teste falhou' },
+        { label: 'Finalização', value: 'Finalização concluída' },
+        { label: 'Limpeza', value: 'Limpeza confirmada' },
+      ])
+  })
+  it('explains absent legacy evidence only in inspected facts', () => {
+    expect(describeCompletionFacts({ status: 'passed' })).toContainEqual({ label: 'Finalização', value: 'Sem registro de finalização' })
+    expect(describeCompletionFacts({ status: 'passed' })).toContainEqual({ label: 'Limpeza', value: 'Sem confirmação de limpeza' })
+  })
+  it('refreshes terminal test details until the finalizer reaches a composed terminal state', () => {
+    expect(executionIsLive({ status: 'passed', completion: { state: 'running', eligible: false, testStatus: 'passed' } })).toBe(true)
+    expect(executionIsLive({ status: 'passed', completion: { state: 'complete', eligible: true, testStatus: 'passed' } })).toBe(false)
+    expect(executionIsLive({ status: 'passed', completion: { state: 'failed', eligible: false, testStatus: 'passed' } })).toBe(false)
+    expect(executionIsLive({ status: 'passed' })).toBe(false)
   })
 })

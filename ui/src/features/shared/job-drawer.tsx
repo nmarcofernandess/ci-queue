@@ -31,6 +31,8 @@ import {
 import { FactsTable } from "./facts-table"
 import {
   describeExecutionState,
+  describeCompletionFacts,
+  executionIsLive,
   observedProgressCopy,
   progressSurface,
   unconfiguredProgressCopy,
@@ -46,6 +48,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
@@ -184,6 +187,16 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
   const surface = progressSurface(job.data)
   return (
     <div className="flex flex-col gap-5">
+      <ItemGroup aria-label="Resultado, finalização e limpeza">
+        {describeCompletionFacts(job.data).map((fact) => (
+          <Item key={fact.label} size="sm">
+            <ItemContent>
+              <ItemTitle>{fact.label}</ItemTitle>
+              <ItemDescription>{fact.value}</ItemDescription>
+            </ItemContent>
+          </Item>
+        ))}
+      </ItemGroup>
       <JobDetailsTable job={job.data} />
       {job.data.failureReason ? (
         <Alert variant="destructive">
@@ -481,9 +494,6 @@ export function JobDrawer(props: JobDrawerProps) {
   return <JobDrawerContent key={props.jobId} {...props} />
 }
 
-const jobIsLive = (job: JobRecord) =>
-  job.status === "running" || job.status === "queued"
-
 function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
   const { scope } = useProjectContext()
   const [activeTab, setActiveTab] = React.useState<"progress" | "log">(
@@ -497,7 +507,7 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
   )
   const job = useApiQuery(`job:${scope ? scopeKey(scope) : "none"}:${jobId}`, jobRequest, {
     pollMs: 2000,
-    pollWhile: jobIsLive,
+    pollWhile: executionIsLive,
     enabled: Boolean(scope),
   })
   const isObserved = job.data?.recordKind === "observed-execution"
