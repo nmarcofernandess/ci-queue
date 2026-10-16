@@ -59,6 +59,15 @@ recursivamente e ordem de arrays preservada. `finalizationDigest` usa a mesma
 serialização sobre o objeto completo `FinalizationSpec`, incluindo argv, prazo
 e digest do contrato. Valores não JSON, ciclos e números não finitos são inválidos.
 
+No claim de tickets v4, antes de lançar o teste, o worker grava no ticket
+`producerIdentity: WorkerIdentity` com hostname, PID, nascimento real e
+capabilities verificados do próprio claimant. A identidade permanece no terminal
+imutável e na recuperação. `workerPid` sozinho não prova ownership; um campo
+autodescrito pelo consumidor é substituído pela observação nativa no claim.
+Históricos v1–v4 sem esse campo continuam legíveis; a ausência não concede
+autoridade de cleanup ao consumidor. `supervisorIdentity` pertence à tentativa
+atual de finalização e pode mudar, sem substituir `producerIdentity`.
+
 O resultado do teste após postflight permanece imutável em `history/<id>.json`.
 O supervisor é o único writer de `state/finalization/<id>.json`: fase
 pending/running/passed/failed/interrupted, identidade temporal do grupo, tentativa,

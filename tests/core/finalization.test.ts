@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from "vitest"
 
 import type { FinalizationRecord, FinalizationSpec, QueueTicket, WorkerIdentity } from "../../src/contracts/schema.js"
 import { enqueueExplicitTicket } from "../../src/core/enqueue.js"
-import { cancelQueuedOrRunningTicket, closeRunningTicket } from "../../src/core/runner.js"
+import { cancelQueuedOrRunningTicket, claimQueuedTicket, closeRunningTicket, parseTicket } from "../../src/core/runner.js"
 import { reconcileFinalizations, runFinalization } from "../../src/core/finalization.js"
 import { observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "../../src/core/process.js"
 import { registerProjectRuntime } from "../../src/core/runtime.js"
@@ -149,14 +149,30 @@ describe("post-terminal finalization", () => {
 
   it("binds job and hook to the actual supervisor identity", async () => {
     const f = fixture()
-    const ticket = enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(f.events)},process.env.CI_QUEUE_WORKER_IDENTITY || 'missing')`, hook(`${readInput}; fs.writeFileSync(${JSON.stringify(f.hashes)},JSON.stringify(input.workerIdentity)); ${writeResult()}`))
+    const ticket = enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(f.events)},JSON.stringify({ advertised:JSON.parse(process.env.CI_QUEUE_WORKER_IDENTITY || 'null'), native:JSON.parse(require('node:fs').readFileSync(process.env.CI_QUEUE_STATE_DIR+'/running.json','utf8')).producerIdentity }))`, hook(`${readInput}; fs.writeFileSync(${JSON.stringify(f.hashes)},JSON.stringify(input.workerIdentity)); ${writeResult()}`))
     await runWorker(f.state)
-    const actual = readFileSync(f.events, "utf8")
-    expect(actual).not.toBe("missing")
-    expect(JSON.parse(actual)).toEqual(JSON.parse(readFileSync(f.hashes, "utf8")))
-    expect(record(f.state, ticket.id)?.supervisorIdentity).toEqual(JSON.parse(actual))
-    expect(JSON.parse(actual)).toMatchObject({ schemaVersion: 1, pid: process.pid, capabilities: expect.arrayContaining(["terminal-finalization-v1", "no-artifact-snapshots-v1"]) })
+    const observed = JSON.parse(readFileSync(f.events, "utf8"))
+    expect(observed.native).toEqual(observed.advertised)
+    expect(observed.native).toEqual(JSON.parse(readFileSync(f.hashes, "utf8")))
+    expect(readJsonFile<QueueTicket>(historyPath(f.state, ticket.id))?.producerIdentity).toEqual(observed.native)
+    expect(record(f.state, ticket.id)?.supervisorIdentity).toEqual(observed.native)
+    expect(observed.native).toMatchObject({ schemaVersion: 1, pid: process.pid, capabilities: expect.arrayContaining(["terminal-finalization-v1", "no-artifact-snapshots-v1"]) })
     expect(existsSync(join(f.state, "state", "worker.json"))).toBe(false)
+  })
+
+  it("refuses a non-native claimant before moving the queued ticket", async () => {
+    const f = fixture()
+    const ticket = enqueue(f, "process.exit(0)")
+    await expect(claimQueuedTicket(f.state, ticket.id, 2_147_483_647)).rejects.toThrow(/identidade|claim/)
+    expect(existsSync(jobPath(f.state, ticket.id))).toBe(true)
+    expect(readRunningJob(f.state)).toBeUndefined()
+  })
+
+  it("reads legacy tickets without producer identity but rejects malformed bindings", () => {
+    const f = fixture()
+    const ticket = enqueue(f, "process.exit(0)")
+    expect(parseTicket(ticket)).not.toHaveProperty("rejectReason")
+    expect(parseTicket({ ...ticket, producerIdentity: { schemaVersion: 1, hostname: "", pid: process.pid, startedAt: "", capabilities: [] } })).toHaveProperty("rejectReason")
   })
 
   it("refuses a hook that changes its sealed terminal source", async () => {
@@ -439,6 +455,7 @@ describe("finalization recovery and ownership", () => {
       const before = sha256(readFileSync(historyPath(f.state, ticket.id)))
       const owned = probeWorkerIdentity(worker.pid!)!
       expect(record(f.state, ticket.id)?.supervisorIdentity).toEqual(owned)
+      expect(readJsonFile<QueueTicket>(historyPath(f.state, ticket.id))?.producerIdentity).toEqual(owned)
       const closed = new Promise<void>(resolve => worker.once("close", () => resolve()))
       worker.kill("SIGKILL")
       await closed
@@ -450,6 +467,8 @@ describe("finalization recovery and ownership", () => {
       expect(readFileSync(published, "utf8")).toBe(before)
       expect(sha256(readFileSync(historyPath(f.state, ticket.id)))).toBe(before)
       expect(record(f.state, ticket.id)).toMatchObject({ phase: "passed", attempt: 2 })
+      expect(record(f.state, ticket.id)?.supervisorIdentity).toEqual(probeWorkerIdentity())
+      expect(readJsonFile<QueueTicket>(historyPath(f.state, ticket.id))?.producerIdentity).toEqual(owned)
     } finally {
       const identity = record(f.state, ticket.id)?.processGroupIdentity
       if (identity) await terminateVerifiedProcessGroup(identity)

@@ -351,6 +351,8 @@ export type QueueTicket = {
   durationMs?: number
   exitCode?: number | null
   workerPid?: number
+  /** Original native claimant, sealed before launch and retained across recovery. */
+  producerIdentity?: WorkerIdentity
   childPid?: number
   processGroupIdentity?: ProcessGroupIdentity
   executionDeadline?: ExecutionDeadline

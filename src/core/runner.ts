@@ -7,7 +7,7 @@ import { RUNTIME_CAPABILITY } from "../contracts/runtime.js"
 
 import { initialExecutionDeadline, captureExecutionDeadline, validateQueuedDeadline } from "./deadline.js"
 import { ProgressCollector, removeProgressSnapshot } from "./progress.js"
-import { observeTestProducer, probeProcessGroupIdentity, probeWorkerIdentity, readProcessObservation, terminateVerifiedProcessGroup } from "./process.js"
+import { observeTestProducer, observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, readProcessObservation, terminateVerifiedProcessGroup } from "./process.js"
 import { preparePendingFinalization, runFinalization } from "./finalization.js"
 import {
   decideSpendAbort,
@@ -41,7 +41,7 @@ import type {
   TerminalStatus,
   TicketFlags,
 } from "../contracts/schema.js"
-import { isTerminalStatus, TICKET_SCHEMA_VERSION, normalizeFinalization, finalizationDigest } from "../contracts/schema.js"
+import { isTerminalStatus, TICKET_SCHEMA_VERSION, normalizeFinalization, finalizationDigest, canonicalJson, TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY } from "../contracts/schema.js"
 
 export type ParsedTicket = { ticket: QueueTicket; argv: string[]; flags: TicketFlags }
 export type TicketRejection = { rejectReason: string }
@@ -137,6 +137,14 @@ export function parseTicket(raw: QueueTicket): ParsedTicket | TicketRejection {
     } catch (error) {
       return { rejectReason: error instanceof Error ? error.message : String(error) }
     }
+  }
+  if (raw.producerIdentity !== undefined) {
+    const owner = raw.producerIdentity
+    if (!owner || owner.schemaVersion !== 1 || typeof owner.hostname !== "string" || !owner.hostname
+      || !Number.isSafeInteger(owner.pid) || owner.pid <= 0 || typeof owner.startedAt !== "string" || !owner.startedAt
+      || !Array.isArray(owner.capabilities) || owner.capabilities.some(item => typeof item !== "string")
+      || ![TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY].every(item => owner.capabilities.includes(item))
+      || (raw.workerPid !== undefined && raw.workerPid !== owner.pid)) return { rejectReason: "producerIdentity inválida/divergente" }
   }
   const deadlineError = validateQueuedDeadline(raw)
   if (deadlineError) return { rejectReason: deadlineError }
@@ -380,9 +388,13 @@ export async function claimQueuedTicket(root: string, id: string, workerPid = pr
     const queuedPath = jobPath(root, id)
     const queued = readJsonFile<QueueTicket>(queuedPath)
     if (!queued || queued.status !== "queued") return undefined
+    const producerIdentity = queued.schemaVersion === 4 ? probeWorkerIdentity() : undefined
+    if (queued.schemaVersion === 4 && (workerPid !== process.pid || !producerIdentity)) {
+      throw new Error("claim exige identidade nativa verificável do próprio worker")
+    }
     const claim = claimPath(root, id)
     try { renameSync(queuedPath, claim) } catch { return undefined }
-    const running: QueueTicket = { ...queued, status: "running", startedAt: new Date().toISOString(), workerPid }
+    const running: QueueTicket = { ...queued, status: "running", startedAt: new Date().toISOString(), workerPid, ...(producerIdentity ? { producerIdentity } : {}) }
     try {
       atomicWriteJson(queuePaths(root).running, running)
       removeFile(claim)
@@ -500,7 +512,7 @@ export function buildJobEnv(root: string, ticket: QueueTicket): NodeJS.ProcessEn
     CI_QUEUE_STATE_DIR: root,
     CI_QUEUE_PRESET: ticket.preset,
     CI_QUEUE_RUN_VARIANT: ticket.runVariant ?? "",
-    CI_QUEUE_WORKER_IDENTITY: JSON.stringify(probeWorkerIdentity() ?? null),
+    CI_QUEUE_WORKER_IDENTITY: JSON.stringify(ticket.producerIdentity ?? probeWorkerIdentity() ?? null),
     CI_QUEUE_FINALIZATION_INPUT: "",
     // v1 compatibility aliases remain necessary while existing project
     // recipes/proofs migrate to the product-named environment.
@@ -645,6 +657,16 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   let preflight: GitInfo | undefined
   let runtime: RuntimeSession
   try {
+    if (ticket.schemaVersion === 4) {
+      const actual = probeWorkerIdentity()
+      const reserved = readRunningJob(root)
+      if (!actual || !ticket.producerIdentity || ticket.workerPid !== process.pid
+        || observeWorkerIdentity(ticket.producerIdentity).state !== "alive"
+        || canonicalJson(ticket.producerIdentity) !== canonicalJson(actual)
+        || reserved?.id !== ticket.id || canonicalJson(reserved.producerIdentity) !== canonicalJson(actual)) {
+        throw new Error("produtor v4 exige claim nativo persistido antes do lançamento")
+      }
+    }
     preflight = assertPreflight(ticket, parsed.flags)
     ticket = { ...ticket, preflight }
   } catch (error) {

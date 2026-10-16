@@ -156,7 +156,7 @@ export async function runFinalization(root: string, ticket: QueueTicket): Promis
     let childPid: number | undefined
     let identity: ProcessGroupIdentity | undefined
     try {
-      runtime = prepareJobRuntime(root, terminal, spec.argv, { ...buildJobEnv(root, terminal), CI_QUEUE_FINALIZATION_INPUT: inputPath })
+      runtime = prepareJobRuntime(root, terminal, spec.argv, { ...buildJobEnv(root, terminal), CI_QUEUE_FINALIZATION_INPUT: inputPath, CI_QUEUE_WORKER_IDENTITY: JSON.stringify(supervisor) })
       if (terminal.runtime && (runtime.receipt.registrySha256 !== terminal.runtime.registrySha256 || runtime.receipt.node?.sha256 !== terminal.runtime.node?.sha256)) throw new Error("runtime do job mudou antes da finalização")
       const child = spawn(runtime.argv[0], runtime.argv.slice(1), { cwd: terminal.cwd, env: runtime.env, detached: true, stdio: ["ignore", "pipe", "pipe"] })
       const redactor = new LogRedactor()
