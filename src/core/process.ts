@@ -47,10 +47,19 @@ export function observeWorkerIdentity(identity: WorkerIdentity | undefined): Pro
 export type ProcessGroupState = { state: "alive" | "dead" | "uncertain"; reason: string }
 
 /** Claims/preflight are not processes; a started test needs its whole group gone. */
-export function observeTestProducer(ticket: Pick<QueueTicket, "childPid" | "processGroupIdentity">): ProcessGroupState {
+export function observeTestProducer(ticket: QueueTicket): ProcessGroupState {
   if (ticket.childPid === undefined && !ticket.processGroupIdentity) return { state: "dead", reason: "processo de teste não iniciado" }
-  const group = observeProcessGroup(ticket.processGroupIdentity)
+  const version = ticket.schemaVersion === undefined ? 1 : ticket.schemaVersion
+  const legacy = (version === 1 || version === 2 || version === 3) && ticket.finalization === undefined && ticket.finalizationDigest === undefined
+  // Historical test recovery already accepts local birth/group proof without
+  // a hostname. This does not confer the same authority on new finalizations.
+  const identity = ticket.processGroupIdentity
+  const group = observeProcessGroup(legacy && identity ? localLegacyGroupIdentity(identity) : identity)
   return { ...group, reason: `produtor do teste: ${group.reason}` }
+}
+
+function localLegacyGroupIdentity(identity: ProcessGroupIdentity): ProcessGroupIdentity {
+  return identity.hostname === undefined ? { ...identity, hostname: hostname() } : identity
 }
 
 /** A missing leader alone cannot prove that its detached descendants exited. */
@@ -79,7 +88,7 @@ export async function terminateVerifiedProcessGroup(
   if (!identity) return { terminated: false, reason: "identidade do grupo ausente" }
   // Legacy test tickets had no hostname. They still require the original
   // local birth/group match; new finalization recovery is stricter at entry.
-  const localIdentity = identity.hostname ? identity : { ...identity, hostname: hostname() }
+  const localIdentity = localLegacyGroupIdentity(identity)
   const before = observeProcessGroup(localIdentity)
   if (before.state === "dead") return { terminated: true, reason: before.reason }
   if (before.state !== "alive") return { terminated: false, reason: before.reason }
