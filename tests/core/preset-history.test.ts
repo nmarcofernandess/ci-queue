@@ -33,6 +33,10 @@ function ticket(overrides: Partial<QueueTicket> = {}): QueueTicket {
 }
 
 describe("preset history", () => {
+  it("does not announce a green before required finalization", () => {
+    const hooked = ticket({ schemaVersion: 4, finalizationDigest: "a".repeat(64), finalization: { schemaVersion: 1, argv: ["hook"], timeoutMs: 100, contract: {}, contractDigest: "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a" } })
+    expect(buildPresetHistory([hooked], config).presets[0].lastGreenCanonical).toBeNull()
+  })
   it("selects only the newest canonical green for the declared recipe", () => {
     const report = buildPresetHistory([
       ticket(),

@@ -1,0 +1,508 @@
+[
+  {
+    "name": "confirmed",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "complete",
+      "eligible": true,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "not-required",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "not-required",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "complete",
+      "eligible": true,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "missing-record",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": null,
+    "expected": {
+      "state": "running",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "pending",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "pending",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "running",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "running",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "running",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "running",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "failed",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "failed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "failed",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "interrupted",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "interrupted",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "failed",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "uncertain",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "uncertain",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "failed",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "result-error",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": [],
+        "error": "private /Users/operator/token=secret"
+      }
+    },
+    "expected": {
+      "state": "failed",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "wrong-ticket",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "other",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "running",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "wrong-contract",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "running",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "wrong-source",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "running",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "missing-source",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": null,
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "running",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "missing-result",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0
+    },
+    "expected": {
+      "state": "failed",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "nonzero-hook",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 7,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "failed",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "failed-test",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"failed\",\n  \"exitCode\": 7,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "423777145cc1b7d9b26ee80ad0e4c4cddc021d85423869608dd6b0894ee045e3",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "423777145cc1b7d9b26ee80ad0e4c4cddc021d85423869608dd6b0894ee045e3",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "complete",
+      "eligible": false,
+      "testStatus": "failed"
+    }
+  },
+  {
+    "name": "running-test",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"running\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "5229f52962231d49daf6f9d53a2424049ebb0c40f2f1be012d124a14b3bf499b",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "5229f52962231d49daf6f9d53a2424049ebb0c40f2f1be012d124a14b3bf499b",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "running",
+      "eligible": false,
+      "testStatus": "running"
+    }
+  },
+  {
+    "name": "legacy-1",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 1,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": null,\n  \"finalizationDigest\": null\n}\n",
+    "terminalDigest": "df64136a5b97a55973c675f61c8e4ea6ae48ebf6a6484a4ad0195c1829049a5e",
+    "record": null,
+    "expected": {
+      "state": "legacy",
+      "eligible": true,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "legacy-2",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 2,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": null,\n  \"finalizationDigest\": null\n}\n",
+    "terminalDigest": "fd2c0358fd9cb61a285d58034fdd333207fd996c48e088e7d7a863773dbd3a9b",
+    "record": null,
+    "expected": {
+      "state": "legacy",
+      "eligible": true,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "legacy-3",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 3,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": null,\n  \"finalizationDigest\": null\n}\n",
+    "terminalDigest": "d819ea866d51787ae40ec11880d16d595489bfded16e7c4c95dc233cd06455a0",
+    "record": null,
+    "expected": {
+      "state": "legacy",
+      "eligible": true,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "no-hook",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": null,\n  \"finalizationDigest\": null\n}\n",
+    "terminalDigest": "6a961b2512dad8b8555d4c97556443587f96a14a70202e8fe6903b43c62d16c4",
+    "record": null,
+    "expected": {
+      "state": "complete",
+      "eligible": true,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "number-format",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {\n      \"one\": 1,\n      \"negativeZero\": 0,\n      \"tiny\": 1e-7,\n      \"boundary\": 0.000001,\n      \"large\": 1e+21,\n      \"integer\": 100000000000000000000\n    },\n    \"contractDigest\": \"d8065ac9e7b5fe4098c0fde2bca5f8f583fe71f0c89e680a1c4a3e6bfee75d4a\"\n  },\n  \"finalizationDigest\": \"7b0d3535deedd364ef9eab92010963fc20bccde4b27af914da7ff07865206923\"\n}\n",
+    "terminalDigest": "98b0cc69b30de38bdf8bd2377af6926e8fc5d80d321ca86b298ce3c8be254598",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "98b0cc69b30de38bdf8bd2377af6926e8fc5d80d321ca86b298ce3c8be254598",
+      "finalizationDigest": "7b0d3535deedd364ef9eab92010963fc20bccde4b27af914da7ff07865206923",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "complete",
+      "eligible": true,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "utf16-key-order",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {\n      \"\ue000\": 1,\n      \"\ud800\udc00\": 2,\n      \"a\u00e7\u00e3o\": \"\u00e1\",\n      \"lone\": \"\\ud800\"\n    },\n    \"contractDigest\": \"67d0ad92b457a29681fdf74c2a8fe88d25006a4dd454786cee23197e1fbb56f8\"\n  },\n  \"finalizationDigest\": \"1f725819ef2907a350e3ff4e65745b9f12e62c5d44c8eb2e3505531d9e0509ee\"\n}\n",
+    "terminalDigest": "a647f1ad4667d1b33486a506ac3bb406ff55a8022ffead08c5451054e9ae6fd6",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "a647f1ad4667d1b33486a506ac3bb406ff55a8022ffead08c5451054e9ae6fd6",
+      "finalizationDigest": "1f725819ef2907a350e3ff4e65745b9f12e62c5d44c8eb2e3505531d9e0509ee",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed",
+        "outputs": []
+      }
+    },
+    "expected": {
+      "state": "complete",
+      "eligible": true,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "invalid-result-outputs",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "confirmed"
+      }
+    },
+    "expected": {
+      "state": "failed",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  }
+]

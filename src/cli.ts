@@ -1,3 +1,4 @@
+import { executionCompletion, completionExitCode, listExecutionSources, readExecutionSource, projectExecution } from "./core/completion.js"
 import { readQueueConfig } from "./contracts/config.js"
 import { InitError, initProject } from "./ship/init.js"
 import { ShipError } from "./ship/ops.js"
@@ -119,7 +120,10 @@ async function waitForJob(root: string, id: string, timeoutMs: number): Promise<
   const start = Date.now()
   while (Date.now() - start <= timeoutMs) {
     const job = findJobById(root, id)?.ticket
-    if (job && ["passed", "failed", "cancelled", "interrupted"].includes(job.status)) return job
+    if (job && ["passed", "failed", "cancelled", "interrupted"].includes(job.status)) {
+      const source = readExecutionSource(root, id)
+      if (source && executionCompletion(source.ticket, source.record, source.terminalDigest).state !== "running") return projectExecution(source)
+    }
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   return undefined
@@ -317,7 +321,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         return success(await runWorker(root))
       case "status": {
         const running = readRunningJob(root)
-        return success({ running: running ? attachProgressToTicket(root, running) : null, queued: listQueuedJobs(root), latest: listHistoryJobs(root)[0] ?? null })
+        return success({ running: running ? { ...attachProgressToTicket(root, running), completion: executionCompletion(running) } : null, queued: listQueuedJobs(root).map(ticket => ({ ...ticket, completion: executionCompletion(ticket) })), latest: listExecutionSources(root).map(projectExecution)[0] ?? null })
       }
       case "history": {
         const projectId = optionValue(args.rest, "--project")
@@ -325,17 +329,24 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           if (args.rest.includes("--legacy")) {
             return failure("USAGE", "--legacy não pode ser combinado com --include-observed")
           }
-          return success({ executions: listExecutionHistory(root, projectId) })
+          return success({ executions: listExecutionHistory(root, projectId).map(record => {
+            if (record.recordKind !== "queue-ticket") return record
+            const source = readExecutionSource(root, record.id)
+            return { ...record, completion: source
+              ? executionCompletion(source.ticket, source.record, source.terminalDigest)
+              : { state: "running", eligible: false, testStatus: record.status, reason: "terminal-source-unreadable" } }
+          }) })
         }
         return success({
-          jobs: listHistoryJobs(root, projectId).filter(
+          jobs: listExecutionSources(root, projectId).map(projectExecution).filter(
             (ticket) => !args.rest.includes("--legacy") || !ticket.projectId,
           ),
         })
       }
       case "preset-history": {
         const loaded = readQueueConfig(args.cwd, args.configPath)
-        const report = buildPresetHistory(listHistoryJobs(root, loaded.config.project.id), loaded.config)
+        const sources = listExecutionSources(root, loaded.config.project.id)
+        const report = buildPresetHistory(sources.map(source => source.ticket), loaded.config, sources)
         const preset = optionValue(args.rest, "--preset")
         return success(preset ? { ...report, presets: report.presets.filter((item) => item.preset === preset) } : report)
       }
@@ -439,6 +450,10 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   const result = await runCli(argv)
   print(result, parsed.json)
   if (!result.ok) process.exitCode = result.error.code === "USAGE" ? 2 : 1
+  else if (parsed.command === "enqueue" && parsed.rest.includes("--wait")) {
+    const terminal = (result.result as { terminal?: QueueTicket & { completion: ReturnType<typeof executionCompletion> } }).terminal
+    if (terminal) process.exitCode = completionExitCode(terminal, terminal.completion)
+  }
 }
 
 const invoked = process.argv[1]?.endsWith("cli.js") || process.argv[1]?.endsWith("cli.ts")

@@ -112,7 +112,7 @@ def load_project_config(path):
             raise ConfigError("argv inválido para preset %s" % name)
         copied = {key: value for key, value in definition.items() if key in {
             "argv", "executionTimeoutMs", "requireCleanTree", "fetchBase",
-            "requireGitStability", "pinHeadSha",
+            "requireGitStability", "pinHeadSha", "finalization", "finalizationDigest",
         }}
         copied["argv"] = list(definition["argv"])
         normalized[name] = copied
