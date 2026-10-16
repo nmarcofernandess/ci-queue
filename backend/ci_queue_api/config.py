@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from .completion import validate_recipe_finalization
+
 
 PROJECT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 PRESET_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,63}\Z")
@@ -110,6 +112,10 @@ def load_project_config(path):
             raise ConfigError("nome de preset inválido")
         if not isinstance(definition, dict) or not _valid_argv(definition.get("argv")):
             raise ConfigError("argv inválido para preset %s" % name)
+        try:
+            validate_recipe_finalization(definition)
+        except (ValueError, TypeError, OverflowError, KeyError) as error:
+            raise ConfigError("finalization inválida para preset %s" % name) from error
         copied = {key: value for key, value in definition.items() if key in {
             "argv", "executionTimeoutMs", "requireCleanTree", "fetchBase",
             "requireGitStability", "pinHeadSha", "finalization", "finalizationDigest",

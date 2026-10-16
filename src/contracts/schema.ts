@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { isAbsolute, posix } from "node:path"
 import type { RuntimeReceipt } from "./runtime.js"
 
 /**
@@ -93,6 +94,30 @@ export function normalizeFinalization(value: unknown): FinalizationSpec | undefi
 /** Seals the complete finalization request, including argv and its independent deadline. */
 export function finalizationDigest(spec: FinalizationSpec): string {
   return sha256(canonicalJson(spec))
+}
+
+/** Validate protocol data only; publication IO and containment stay in the supervisor. */
+export function normalizeFinalizationResult(value: unknown): FinalizationResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("resultado da finalização inválido")
+  const raw = value as Record<string, unknown>
+  const bytes = JSON.stringify(value)
+  if (!bytes || Buffer.byteLength(bytes, "utf8") > FINALIZATION_JSON_MAX_BYTES) throw new Error("resultado excede 64 KiB")
+  if (Object.keys(raw).some(key => !["schemaVersion", "cleanup", "outputs", "error"].includes(key))
+    || raw.schemaVersion !== 1 || typeof raw.cleanup !== "string"
+    || !["confirmed", "not-required", "uncertain"].includes(raw.cleanup) || !Array.isArray(raw.outputs)
+    || (raw.error !== undefined && typeof raw.error !== "string")) throw new Error("resultado da finalização inválido")
+  const outputs = raw.outputs.map((output: unknown) => {
+    if (!output || typeof output !== "object" || Array.isArray(output)) throw new Error("resultado outputs inválido")
+    const item = output as Record<string, unknown>
+    if (Object.keys(item).some(key => !["path", "sha256", "role"].includes(key))
+      || typeof item.path !== "string" || !item.path || isAbsolute(item.path)
+      || /[\\\0\r\n]/.test(item.path) || item.path.split("/").includes("..") || posix.normalize(item.path).replace(/\/$/, "") === "."
+      || typeof item.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(item.sha256)
+      || typeof item.role !== "string" || !item.role.trim()) throw new Error("resultado outputs path/hash/role inválido")
+    return { path: item.path, sha256: item.sha256, role: item.role }
+  })
+  return { schemaVersion: 1, cleanup: raw.cleanup as FinalizationResult["cleanup"], outputs,
+    ...(raw.error !== undefined ? { error: raw.error as string } : {}) }
 }
 
 export function rejectArtifactSnapshots(value: unknown, owner = "artifacts"): void {

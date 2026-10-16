@@ -105,6 +105,7 @@ describe("post-terminal finalization", () => {
     { name: "non-string cleanup", code: `${readInput}; fs.writeFileSync(input.resultPath, JSON.stringify({schemaVersion:1,cleanup:['confirmed'],outputs:[]}))`, reason: "resultado" },
     { name: "oversized result", code: `${readInput}; fs.writeFileSync(input.resultPath, ' '.repeat(65537))`, reason: "64 KiB" },
     { name: "escaping output", code: `${readInput}; fs.writeFileSync(input.resultPath, JSON.stringify({schemaVersion:1,cleanup:'confirmed',outputs:[{path:'../foreign',sha256:'a'.repeat(64),role:'proof'}]}))`, reason: "path" },
+    { name: "symlink output", code: `${readInput}; fs.writeFileSync('../foreign','owned fixture'); fs.symlinkSync('../foreign','linked'); fs.writeFileSync(input.resultPath, JSON.stringify({schemaVersion:1,cleanup:'confirmed',outputs:[{path:'linked',sha256:'a'.repeat(64),role:'proof'}]}))`, reason: "symlink" },
     { name: "nonzero hook", code: `${readInput}; ${writeResult()}; process.exit(4)`, reason: "código 4" },
     { name: "reported publication failure", code: `${readInput}; fs.writeFileSync(input.resultPath, JSON.stringify({schemaVersion:1,cleanup:'confirmed',outputs:[],error:'publication failed'}))`, reason: "publication failed" },
     { name: "timeout", code: "setInterval(()=>{},1000)", reason: "prazo" },
@@ -116,6 +117,14 @@ describe("post-terminal finalization", () => {
     expect(record(f.state, ticket.id)).toMatchObject({ phase: "failed", failureReason: expect.stringContaining(reason) })
     expect(readJsonFile<QueueTicket>(historyPath(f.state, ticket.id))).toMatchObject({ status: "passed", exitCode: 0 })
     expect(report.processed).toEqual([ticket.id, next.id])
+  })
+
+  it("accepts a valid relative output result through the shared protocol parser", async () => {
+    const f = fixture()
+    const ticket = enqueue(f, "process.exit(0)", hook(`${readInput}; fs.writeFileSync('published','owned receipt'); fs.writeFileSync(input.resultPath,JSON.stringify({schemaVersion:1,cleanup:'confirmed',outputs:[{path:'published',sha256:require('node:crypto').createHash('sha256').update('owned receipt').digest('hex'),role:'receipt'}]}))`))
+    await runWorker(f.state)
+    expect(record(f.state, ticket.id)).toMatchObject({phase:"passed",result:{cleanup:"confirmed",outputs:[{path:"published",sha256:sha256("owned receipt"),role:"receipt"}]}})
+    expect(readJsonFile<QueueTicket>(historyPath(f.state,ticket.id))).toMatchObject({status:"passed",exitCode:0})
   })
 
   it("reports spawn failure without rewriting a failed test", async () => {

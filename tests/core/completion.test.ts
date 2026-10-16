@@ -15,6 +15,14 @@ afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: 
 describe("composed completion", () => {
   it.each(cases)("$name", (sample) => {
     expect(executionCompletion(JSON.parse(sample.terminalBytes), sample.record ?? undefined, sample.terminalDigest ?? undefined)).toMatchObject(sample.expected)
+    if (sample.terminalDigest === createHash("sha256").update(sample.terminalBytes).digest("hex")) {
+      const root = mkdtempSync(join(tmpdir(), "completion-contract-")); roots.push(root)
+      mkdirSync(join(root,"history")); mkdirSync(join(root,"state/finalization"),{recursive:true})
+      writeFileSync(join(root,"history/job-1.json"),sample.terminalBytes)
+      if (sample.record) writeFileSync(join(root,"state/finalization/job-1.json"),JSON.stringify(sample.record))
+      const source = readExecutionSource(root,"job-1")!
+      expect(executionCompletion(source.ticket,source.record,source.terminalDigest)).toMatchObject(sample.expected)
+    }
   })
   it("binds history and hook to the exact source bytes, including formatting", () => {
     const root = mkdtempSync(join(tmpdir(), "completion-")); roots.push(root)

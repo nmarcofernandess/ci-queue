@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { finalizationDigest, isTerminalStatus, normalizeFinalization, type FinalizationRecord, type JobStatus, type QueueTicket } from "../contracts/schema.js"
+import { finalizationDigest, isTerminalStatus, normalizeFinalization, normalizeFinalizationResult, type FinalizationRecord, type JobStatus, type QueueTicket } from "../contracts/schema.js"
 import { attributeLegacy, historyPath, listHistoryJobs, readBoundedFile, readFinalization } from "./state.js"
 
 export type ExecutionCompletion = {
@@ -25,16 +25,19 @@ export function executionCompletion(ticket: QueueTicket, record?: FinalizationRe
     if (ticket.schemaVersion !== 4 || !spec || finalizationDigest(spec) !== ticket.finalizationDigest) throw new Error()
   } catch { return { ...base, state: "failed", reason: "finalization-contract-invalid" } }
   if (!terminalDigest || !/^[a-f0-9]{64}$/.test(terminalDigest) || !record
-    || record.schemaVersion !== 1 || record.ticketId !== ticket.id
+    || record.schemaVersion !== 1 || !["pending", "running", "passed", "failed", "interrupted"].includes(record.phase)
+    || record.ticketId !== ticket.id
     || record.ticketDigest !== terminalDigest || record.finalizationDigest !== ticket.finalizationDigest
     || !Number.isSafeInteger(record.attempt) || record.attempt < 0) {
     return { ...base, state: "running", reason: "finalization-unverified" }
   }
   const bound = { ...base, finalization: record }
   if (record.phase === "pending" || record.phase === "running") return { ...bound, state: "running" }
+  let output
+  try { output = normalizeFinalizationResult(record.result) }
+  catch { return { ...bound, state: "failed", reason: "finalization-failed" } }
   if (record.phase !== "passed" || record.exitCode !== 0 || record.failureReason
-    || record.result?.schemaVersion !== 1 || !Array.isArray(record.result.outputs) || record.result.error
-    || !["confirmed", "not-required"].includes(record.result.cleanup)) {
+    || output.error || !["confirmed", "not-required"].includes(output.cleanup)) {
     return { ...bound, state: "failed", reason: record.result?.cleanup === "uncertain" ? "cleanup-uncertain" : "finalization-failed" }
   }
   return { ...bound, state: "complete", eligible: testPassed }

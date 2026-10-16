@@ -2,9 +2,9 @@ import { spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, unlinkSync } from "node:fs"
 import { hostname } from "node:os"
-import { dirname, isAbsolute, join, relative, resolve } from "node:path"
+import { dirname, join, relative, resolve } from "node:path"
 
-import { FINALIZATION_JSON_MAX_BYTES, finalizationDigest, isTerminalStatus, normalizeFinalization, type FinalizationRecord, type FinalizationResult, type ProcessGroupIdentity, type QueueTicket } from "../contracts/schema.js"
+import { FINALIZATION_JSON_MAX_BYTES, finalizationDigest, isTerminalStatus, normalizeFinalization, normalizeFinalizationResult, type FinalizationRecord, type FinalizationResult, type ProcessGroupIdentity, type QueueTicket } from "../contracts/schema.js"
 import { observeProcessGroup, observeTestProducer, observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "./process.js"
 import { buildJobEnv, LogRedactor, redactLogText } from "./runner.js"
 import { discardRuntimeDirectory, prepareJobRuntime, type RuntimeSession } from "./runtime.js"
@@ -61,13 +61,8 @@ function readResult(root: string, ticket: QueueTicket): FinalizationResult {
   } catch (error) { throw new Error(`resultado da finalização ausente/inválido: ${error instanceof RangeError ? "resultado excede 64 KiB" : smallError(error)}`) }
   let raw: unknown
   try { raw = JSON.parse(bytes.toString("utf8")) } catch { throw new Error("resultado da finalização não é JSON válido") }
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("resultado da finalização inválido")
-  const value = raw as Record<string, unknown>
-  if (Object.keys(value).some(key => !["schemaVersion", "cleanup", "outputs", "error"].includes(key)) || value.schemaVersion !== 1 || typeof value.cleanup !== "string" || !["confirmed", "not-required", "uncertain"].includes(value.cleanup) || !Array.isArray(value.outputs) || (value.error !== undefined && typeof value.error !== "string")) throw new Error("resultado da finalização inválido")
-  const outputs: FinalizationResult["outputs"] = value.outputs.map((output: unknown) => {
-    if (!output || typeof output !== "object" || Array.isArray(output)) throw new Error("resultado outputs inválido")
-    const item = output as Record<string, unknown>
-    if (Object.keys(item).some(key => !["path", "sha256", "role"].includes(key)) || typeof item.path !== "string" || !item.path || isAbsolute(item.path) || /[\\\0\r\n]/.test(item.path) || item.path.split("/").includes("..") || typeof item.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(item.sha256) || typeof item.role !== "string" || !item.role.trim()) throw new Error("resultado outputs path/hash/role inválido")
+  const value = normalizeFinalizationResult(raw)
+  for (const item of value.outputs) {
     const target = resolve(ticket.cwd, item.path)
     const localPath = relative(ticket.cwd, target)
     if (!localPath || localPath === ".." || localPath.startsWith("../")) throw new Error("resultado outputs path inválido")
@@ -75,9 +70,8 @@ function readResult(root: string, ticket: QueueTicket): FinalizationResult {
       try { if (lstatSync(part).isSymbolicLink()) throw new Error("resultado outputs path contém symlink") }
       catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error }
     }
-    return { path: item.path, sha256: item.sha256, role: item.role }
-  })
-  return { schemaVersion: 1, cleanup: value.cleanup as FinalizationResult["cleanup"], outputs, ...(value.error ? { error: smallError(value.error) } : {}) }
+  }
+  return { ...value, ...(value.error ? { error: smallError(value.error) } : {}) }
 }
 
 async function save(root: string, record: FinalizationRecord): Promise<FinalizationRecord> {

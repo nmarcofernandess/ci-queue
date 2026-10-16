@@ -118,3 +118,60 @@ class FinalizationTests(unittest.TestCase):
             history = build_preset_history(root,config)['presets'][0]
             self.assertEqual(history['lastGreenCanonical']['ticketId'],'job-1')
             self.assertEqual(history['durationReference']['sampleCount'],1)
+
+    def test_loader_cannot_disable_static_hook_with_invalid_explicit_digest(self):
+        from ci_queue_api.config import load_project_config, ConfigError
+        ticket = json.loads(CASES[0]['terminalBytes'])
+        for digest in (None, '', 'not-a-digest', '0' * 64):
+            with self.subTest(digest=digest), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'ci-queue.json'
+                recipe = {'argv':['check'],'finalization':ticket['finalization'],'finalizationDigest':digest}
+                path.write_text(json.dumps({'schemaVersion':1,'project':{'id':'fixture','name':'Fixture'},'presets':{'check':recipe}}))
+                self.assertFalse(canonical_green({'status':'passed','exitCode':0,'argv':['check']},recipe))
+                with self.assertRaises(ConfigError):
+                    load_project_config(path)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'ci-queue.json'
+            for recipe in ({'argv':['check'],'finalizationDigest':ticket['finalizationDigest']},
+                           {'argv':['check'],'finalization':ticket['finalization'],'finalizationDigest':ticket['finalizationDigest']}):
+                path.write_text(json.dumps({'schemaVersion':1,'project':{'id':'fixture','name':'Fixture'},'presets':{'check':recipe}}))
+                loaded = load_project_config(path).presets['check']
+                self.assertEqual(recipe_finalization_digest(loaded),ticket['finalizationDigest'])
+                self.assertFalse(canonical_green({'status':'passed','exitCode':0,'argv':['check']},loaded))
+                root = Path(directory)
+                (root / 'history').mkdir(exist_ok=True)
+                (root / 'state/finalization').mkdir(parents=True,exist_ok=True)
+                (root / 'history/job-1.json').write_text(CASES[0]['terminalBytes'])
+                (root / 'state/finalization/job-1.json').write_text(json.dumps(CASES[0]['record']))
+                self.assertTrue(canonical_green(read_history(root)[0],loaded))
+
+    def test_loader_rejects_invalid_static_finalization(self):
+        from ci_queue_api.config import load_project_config, ConfigError
+        for spec in (None, {}, {**json.loads(CASES[0]['terminalBytes'])['finalization'],'contractDigest':'0'*64}):
+            with self.subTest(spec=spec), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'ci-queue.json'
+                path.write_text(json.dumps({'schemaVersion':1,'project':{'id':'fixture','name':'Fixture'},
+                    'presets':{'check':{'argv':['check'],'finalization':spec}}}))
+                with self.assertRaises(ConfigError):
+                    load_project_config(path)
+
+    def test_invalid_phase_never_crashes_or_exposes_private_text(self):
+        for phase in (None, 'private /Users/operator token=secret', [], {'private':'secret'}):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'history').mkdir()
+                (root / 'state/finalization').mkdir(parents=True)
+                record = {**CASES[0]['record']}
+                if phase is None:
+                    record.pop('phase')
+                else:
+                    record['phase'] = phase
+                (root / 'history/job-1.json').write_text(CASES[0]['terminalBytes'])
+                (root / 'state/finalization/job-1.json').write_text(json.dumps(record))
+                for job in (read_history(root)[0],lookup_job(root,'job-1')):
+                    public = public_job(job)
+                    self.assertEqual(public['status'],'passed')
+                    self.assertFalse(public['completion']['eligible'])
+                    self.assertNotIn('finalization',public['completion'])
+                    self.assertNotIn('secret',json.dumps(public['completion']))
+                    self.assertNotIn('/Users',json.dumps(public['completion']))

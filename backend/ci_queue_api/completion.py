@@ -4,10 +4,13 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import posixpath
 import re
 from dataclasses import dataclass
 
 _SHA = re.compile(r"[a-f0-9]{64}\Z")
+_ECMA_WHITESPACE = "\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+PHASES = ("pending", "running", "passed", "failed", "interrupted")
 TERMINAL = {"passed", "failed", "cancelled", "interrupted"}
 
 
@@ -65,15 +68,52 @@ def finalization_digest(spec):
     return hashlib.sha256(canonical_json(normalized).encode('utf-8', errors='surrogatepass')).hexdigest()
 
 
-def recipe_finalization_digest(recipe):
+def validate_recipe_finalization(recipe):
+    """A malformed explicit requirement can never erase a static hook."""
+    expected = finalization_digest(recipe['finalization']) if 'finalization' in recipe else None
     if 'finalizationDigest' in recipe:
-        return recipe['finalizationDigest']
-    if recipe.get('finalization') is not None:
-        try:
-            return finalization_digest(recipe['finalization'])
-        except (ValueError, TypeError, OverflowError):
-            return 'invalid-finalization-contract'
-    return None
+        explicit = recipe['finalizationDigest']
+        if not isinstance(explicit, str) or not _SHA.fullmatch(explicit):
+            raise ValueError('invalid finalization digest')
+        if expected is not None and explicit != expected:
+            raise ValueError('finalization digest mismatch')
+        return explicit
+    return expected
+
+
+def recipe_finalization_digest(recipe):
+    try:
+        return validate_recipe_finalization(recipe)
+    except (ValueError, TypeError, OverflowError, KeyError):
+        return 'invalid-finalization-contract'
+
+
+def normalize_finalization_result(value):
+    """Validate protocol data without looking up any publication path."""
+    if not isinstance(value, dict):
+        raise ValueError('invalid finalization result')
+    if len(canonical_json(value).encode('utf-8')) > 65536:
+        raise ValueError('finalization result exceeds 64 KiB')
+    if (set(value) - {'schemaVersion', 'cleanup', 'outputs', 'error'}
+            or type(value.get('schemaVersion')) not in (int, float) or value['schemaVersion'] != 1
+            or value.get('cleanup') not in ('confirmed', 'not-required', 'uncertain')
+            or not isinstance(value.get('outputs'), list)
+            or ('error' in value and not isinstance(value['error'], str))):
+        raise ValueError('invalid finalization result')
+    outputs = []
+    for item in value['outputs']:
+        if not isinstance(item, dict) or set(item) != {'path', 'sha256', 'role'}:
+            raise ValueError('invalid output')
+        path, sha256, role = item['path'], item['sha256'], item['role']
+        if (not isinstance(path, str) or not path or posixpath.isabs(path)
+                or any(char in path for char in ('\\', '\0', '\r', '\n'))
+                or '..' in path.split('/') or posixpath.normpath(path) == '.'
+                or not isinstance(sha256, str) or not _SHA.fullmatch(sha256)
+                or not isinstance(role, str) or not role.strip(_ECMA_WHITESPACE)):
+            raise ValueError('invalid output path/hash/role')
+        outputs.append({'path': path, 'sha256': sha256, 'role': role})
+    return {'schemaVersion': 1, 'cleanup': value['cleanup'], 'outputs': outputs,
+            **({'error': value['error']} if 'error' in value else {})}
 
 
 def execution_completion(ticket, record=None, terminal_digest=None):
@@ -96,16 +136,18 @@ def execution_completion(ticket, record=None, terminal_digest=None):
             or not isinstance(record, dict) or type(record.get('schemaVersion')) is not int or record['schemaVersion'] != 1
             or record.get('ticketId') != ticket.get('id') or record.get('ticketDigest') != terminal_digest
             or record.get('finalizationDigest') != ticket.get('finalizationDigest')
-            or type(record.get('attempt')) is not int or record['attempt'] < 0):
+            or type(record.get('attempt')) is not int or record['attempt'] < 0
+            or record.get('phase') not in PHASES):
         return result('running', 'finalization-unverified')
     if record.get('phase') in ('pending', 'running'):
         return result('running', bound=True)
-    output = record.get('result')
-    cleanup = output.get('cleanup') if isinstance(output, dict) else None
+    try:
+        output = normalize_finalization_result(record.get('result'))
+    except (ValueError, TypeError, OverflowError, UnicodeError):
+        return result('failed', 'finalization-failed', bound=True)
+    cleanup = output['cleanup']
     if (record.get('phase') != 'passed' or type(record.get('exitCode')) is not int or record['exitCode'] != 0
-            or record.get('failureReason') or not isinstance(output, dict) or type(output.get('schemaVersion')) is not int or output['schemaVersion'] != 1
-            or not isinstance(output.get('outputs'), list)
-            or output.get('error') or cleanup not in ('confirmed', 'not-required')):
+            or record.get('failureReason') or output.get('error') or cleanup not in ('confirmed', 'not-required')):
         return result('failed', 'cleanup-uncertain' if cleanup == 'uncertain' else 'finalization-failed', bound=True)
     return result('complete', bound=True, eligible=test_passed)
 
@@ -127,7 +169,7 @@ def public_completion(job):
     completion = completion_for_job(job)
     projected = {key: completion[key] for key in ('state', 'eligible', 'testStatus', 'reason') if key in completion}
     record = completion.get('finalization')
-    if record:
+    if record and record.get('phase') in PHASES:
         projected['finalization'] = {'phase': record['phase']}
         output = record.get('result')
         if isinstance(output, dict) and output.get('cleanup') in ('confirmed', 'not-required', 'uncertain'):
