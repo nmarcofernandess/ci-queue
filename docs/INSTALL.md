@@ -61,6 +61,15 @@ node /bundle/scripts/install.mjs install \
 
 Antes de ativar/atualizar/remover: fila quieta, ownership conferido e nenhum executor concorrente. O instalador também verifica claims, reservas, identidade do worker e finalizações ligadas aos bytes terminais do histórico. Pending/running/interrupted, recovery pendente e cleanup uncertain bloqueiam a troca, mesmo sem running.json. Uma conclusão v2 exige recovery=none; conclusão legada válida continua legível sem conceder retry. Não apague locks ou registros para ultrapassar essa proteção.
 
+O executor antigo usava proper-lockfile com um alvo vazio em
+`locks/jobs/YYYYMMDD-HHMMSS-6hex.state` ou `validation-plan.state`. A reserva real
+ficava no diretório adicional `.state.lock`. O instalador reconhece somente
+esses alvos regulares, vazios, com um único link e pertencentes ao usuário atual.
+Eles permanecem intactos durante install/update/uninstall. Diretórios de lock,
+reservas `.lock`, nomes desconhecidos, conteúdo, symlinks e hardlinks continuam
+bloqueando a manutenção. Essa compatibilidade não dispensa conferir fila quieta
+e ausência de executores antigos; idade ou tamanho isolados não provam inatividade.
+
 Para uma finalização recuperável, use a instalação ainda vigente: `ci-queue finalize <id> --state <root> --json`. Confira o resultado e o cleanup antes de repetir a manutenção. Ownership incerto exige identificar e encerrar legitimamente o produtor próprio; o comando não autoriza matar outro owner nem refazer testes.
 
 ## macOS: ativação na sessão

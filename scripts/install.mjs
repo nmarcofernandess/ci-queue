@@ -125,9 +125,21 @@ function assertQuietState(stateRoot) {
       throw new Error(`estado da fila incerto: ${path} existe; aguarde o executor terminar ou recupere-o antes da manutenção`)
     }
   }
-  for (const directory of [join(root, "claims"), join(root, "locks", "jobs")]) {
-    if (existsSync(directory) && (lstatSync(directory).isSymbolicLink() || !lstatSync(directory).isDirectory() || readdirSync(directory).length)) {
+  const jobLocks = join(root, "locks", "jobs")
+  for (const directory of [join(root, "claims"), jobLocks]) {
+    if (!existsSync(directory)) continue
+    const stat = lstatSync(directory)
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
       throw new Error(`estado da fila incerto: ownership/recuperação pendente em ${directory}`)
+    }
+    for (const name of readdirSync(directory)) {
+      const entry = lstatSync(join(directory, name))
+      // Legacy proper-lockfile targets remain after release; reservations add .lock.
+      const legacyTarget = directory === jobLocks
+        && /^(?:[0-9]{8}-[0-9]{6}-[a-f0-9]{6}|validation-plan)\.state$/.test(name)
+        && entry.isFile() && entry.size === 0 && entry.nlink === 1
+        && typeof process.getuid === "function" && entry.uid === process.getuid()
+      if (!legacyTarget) throw new Error(`estado da fila incerto: ownership/recuperação pendente em ${directory}`)
     }
   }
   const directory = join(root, "state", "finalization")
