@@ -13,7 +13,7 @@ const productRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
 function sourceFixture() {
   const root = mkdtempSync(join(tmpdir(), "ci-queue-install-source-"))
-  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "ci-queue", version: "0.1.0" }))
+  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "ci-queue", version: "0.1.0", type: "module" }))
   writeFileSync(join(root, "package-lock.json"), "{}\n")
   writeFileSync(join(root, "LICENSE"), "MIT\n")
   writeFileSync(join(root, "README.md"), "# CI Queue\n")

@@ -10,7 +10,7 @@ import { buildRelease, verifyRelease } from '../../scripts/release.mjs'
 import { installRelease, uninstallRelease } from '../../scripts/install.mjs'
 
 const revision = 'a'.repeat(40)
-const protocol = { apiVersion: 1, ticketSchemaVersion: 4, capabilities: ['terminal-finalization-v1', 'no-artifact-snapshots-v1'] }
+const protocol = { apiVersion: 1, ticketSchemaVersion: 4, capabilities: ['terminal-finalization-v1', 'no-artifact-snapshots-v1', 'recoverable-finalization-v1'] }
 const components = { launcher: ['bin/ci-queue.mjs'], worker: ['dist/cli.js'], api: ['backend/ci_queue_api/__main__.py'], ui: ['ui/dist/index.html'] }
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 function fixture() {
@@ -94,5 +94,33 @@ test('an API from another checkout cannot advertise the installed bundle or serv
     assert.notEqual(child.status, 0)
     assert.match(child.stderr, /migração/)
     assert.doesNotMatch(child.stdout, /API em/)
+  } finally { rmSync(f.root, { recursive: true, force: true }) }
+})
+
+test('a distribution without recoverable-finalization cannot claim the current protocol', () => {
+  const f = fixture()
+  try {
+    f.stamp('worker', { protocol: { ...protocol, capabilities: protocol.capabilities.slice(0, 2) } })
+    assert.throws(f.build, /migração|protocolo/i)
+  } finally { rmSync(f.root, { recursive: true, force: true }) }
+})
+test('confirmed v2 finalization releases maintenance while retaining its record', () => {
+  const f = fixture()
+  try {
+    const bundle = f.build()
+    const record = { schemaVersion: 1, ticketId: 'v2', ticketDigest: 'd'.repeat(64), finalizationDigest: 'e'.repeat(64), attempt: 1,
+      phase: 'passed', finishedAt: '2026-10-19T00:00:00Z', recovery: 'none', result: { schemaVersion: 2, recovery: 'none', cleanup: 'confirmed', outputs: [] } }
+    f.put('state/state/finalization/v2.json', JSON.stringify(record))
+    assert.equal(installRelease({ ...f, bundle }).revision, revision)
+    assert.deepEqual(JSON.parse(readFileSync(join(f.stateRoot, 'state/finalization/v2.json'), 'utf8')), record)
+  } finally { rmSync(f.root, { recursive: true, force: true }) }
+})
+test('record recovery cannot be bypassed by a legacy confirmed result', () => {
+  const f = fixture()
+  try {
+    const bundle = f.build()
+    f.put('state/state/finalization/blocked.json', JSON.stringify({ schemaVersion: 1, ticketId: 'blocked', ticketDigest: 'd'.repeat(64), finalizationDigest: 'e'.repeat(64), attempt: 1,
+      phase: 'failed', finishedAt: '2026-10-19T00:00:00Z', recovery: 'blocked-ownership', result: { schemaVersion: 1, cleanup: 'confirmed', outputs: [] } }))
+    assert.throws(() => installRelease({ ...f, bundle }), /finaliza|incerto/i)
   } finally { rmSync(f.root, { recursive: true, force: true }) }
 })

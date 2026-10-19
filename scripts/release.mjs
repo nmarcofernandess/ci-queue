@@ -108,7 +108,7 @@ function sourcePackage(root) {
 }
 
 export const DISTRIBUTION_PROTOCOL = Object.freeze({ apiVersion: 1, ticketSchemaVersion: 4,
-  capabilities: ["terminal-finalization-v1", "no-artifact-snapshots-v1"] })
+  capabilities: ["terminal-finalization-v1", "no-artifact-snapshots-v1", "recoverable-finalization-v1"] })
 const componentRoots = { launcher: "bin", worker: "dist", api: "backend", ui: "ui/dist" }
 const protocolMatches = value => value?.apiVersion === 1 && value?.ticketSchemaVersion === 4
   && Array.isArray(value.capabilities) && DISTRIBUTION_PROTOCOL.capabilities.every(item => value.capabilities.includes(item))
@@ -192,7 +192,7 @@ export function verifyRelease(bundlePath) {
   if (manifest?.schemaVersion !== 1 || manifest?.product !== "ci-queue" || !Array.isArray(manifest.files)) {
     throw new Error("manifest inválido")
   }
-  if (!protocolMatches(manifest.protocol)) throw new Error("migração: distribuição sem protocolo terminal-finalization-v1/no-artifact-snapshots-v1")
+  if (!protocolMatches(manifest.protocol)) throw new Error("migração: distribuição sem protocolo terminal-finalization-v1/no-artifact-snapshots-v1/recoverable-finalization-v1")
   verifyBuildProvenance(root, manifest.revision)
   for (const entry of manifest.files) {
     if (!entry || typeof entry.path !== "string" || entry.path.startsWith("/") || entry.path.split("/").includes("..")) {

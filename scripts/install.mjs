@@ -141,8 +141,10 @@ function assertQuietState(stateRoot) {
       if (record?.schemaVersion !== 1 || record.ticketId !== name.slice(0, -5)
         || !/^[a-f0-9]{64}$/.test(record.ticketDigest ?? "") || !/^[a-f0-9]{64}$/.test(record.finalizationDigest ?? "")
         || !Number.isSafeInteger(record.attempt) || record.attempt < 1 || !["passed", "failed"].includes(record.phase)
-        || !Number.isFinite(Date.parse(record.finishedAt)) || record.result?.schemaVersion !== 1
-        || !["confirmed", "not-required"].includes(record.result?.cleanup) || !Array.isArray(record.result?.outputs)) uncertain()
+        || !Number.isFinite(Date.parse(record.finishedAt)) || ![1, 2].includes(record.result?.schemaVersion)
+        || !["confirmed", "not-required"].includes(record.result?.cleanup) || !Array.isArray(record.result?.outputs)
+        || record.recovery !== undefined && record.recovery !== "none"
+        || record.result.schemaVersion === 2 && record.result.recovery !== "none") uncertain()
       records.set(record.ticketId, record)
     }
   }
@@ -156,7 +158,8 @@ function assertQuietState(stateRoot) {
       try { ticket = JSON.parse(readFileSync(file, "utf8")) } catch { uncertain() }
       if (ticket.schemaVersion !== 4 || !ticket.finalization) continue
       const record = records.get(ticket.id)
-      if (!record || record.ticketDigest !== sha256(file) || record.finalizationDigest !== ticket.finalizationDigest) uncertain()
+      if (!record || record.ticketDigest !== sha256(file) || record.finalizationDigest !== ticket.finalizationDigest
+        || ticket.finalization.schemaVersion === 2 && record.result.schemaVersion !== 2) uncertain()
     }
   }
 

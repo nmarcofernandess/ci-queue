@@ -21,7 +21,7 @@ receita de outro consumidor.
 | Prova | Validar o critério de entrega do consumidor. | Use a receita de prova real indicada pelo consumidor e aceita pelo catálogo de ship. O método pode preparar outra sessão, executar mais trabalho e gerar evidência própria. |
 
 O mapa explica qual entrada existe e aponta para o procedimento do consumidor.
-O catálogo `ci-queue.json` define o argv, as flags, os artifacts e as receitas
+O catálogo `ci-queue.json` define o argv, as flags, a finalização e as receitas
 aceitas por ship. `progress` é observabilidade e não altera elegibilidade. Os
 detalhes de formato de ticket e de ship permanecem em
 [CONTRACTS](CONTRACTS.md).
@@ -35,7 +35,7 @@ o E2E nem a prova final do produto consumidor.
 Quando for retomar uma tentativa enfileirada, confira os valores que o mapa nomeia:
 
 - host e caminho absoluto do checkout;
-- revisão e manifest da CLI/worker instalados;
+- revisão, protocolo e manifest da distribuição instalada;
 - state root que CLI, worker e API compartilham;
 - sessão ativa e seu vínculo verificável com cwd, projeto, servidor e inputs
   frios do consumidor;
@@ -58,7 +58,7 @@ o produto consumidor documenta como preparar, validar e encerrar seus recursos.
 Um feedback verde continua sendo apenas o resultado daquela seleção, revisão,
 sessão e ambiente. Não o promova a Full, proof clínica, prova de release ou
 ship. Quando o critério de entrega exigir prova, use a receita de prova do
-consumidor e verifique seu ticket e artifacts. Uma observação no histórico é
+consumidor e verifique seu terminal, finalização/cleanup e os outputs no owner consumidor. Uma observação no histórico é
 metadado de execução, não ticket nem prova de ship.
 
 ## Adote os templates
@@ -72,7 +72,7 @@ o [fragmento de instrução](../templates/adoption/AGENTS.fragment.md) e a
    a skill editável do consumidor.
 2. Copie `ci.yaml` para o mapa indicado pelas instruções do consumidor. Preserve
    `feedback.available: false` até que exista uma receita real. Quando estiver
-   adotada, declare seu nome, perfil, sessão, artifacts e o caminho do owner
+   adotada, declare seu nome, perfil, sessão, plano de outputs/finalização e o caminho do owner
    documental do consumidor.
 3. Use `SKILL.md` como instrução curta; não duplique nele formatos de ticket,
    ship ou toda a rotina do procedimento.

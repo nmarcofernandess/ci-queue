@@ -58,7 +58,7 @@ def assert_installed_distribution(manifest_path, expected_digest, ui_root=None):
     root = path.parent
     statement = release_provenance(path, expected_digest)
     protocol = statement.get("protocol", {}) if statement else {}
-    required = {"terminal-finalization-v1", "no-artifact-snapshots-v1"}
+    required = {"terminal-finalization-v1", "no-artifact-snapshots-v1", "recoverable-finalization-v1"}
     if (statement.get("state") != "matched" or protocol.get("apiVersion") != 1
             or protocol.get("ticketSchemaVersion") != 4
             or not required.issubset(protocol.get("capabilities", []))

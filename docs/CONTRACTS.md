@@ -25,7 +25,7 @@ Fonte do formato: `src/contracts/schema.ts` e `config.ts`. Tickets v1/v2/v3/v4 c
 | `abortOnStaleBase` | Política de gasto do worker; true exige fetchBase. Base remota comprovadamente não ancestral pode encerrar com `stale-base`. Observação indisponível não prova stale. |
 | `progress` | Declaração da receita, persistida em `flags.progressEnabled`; nunca gate de ship. |
 | `artifacts` | Compatibilidade de adoção: somente ausência ou `[]`. Nova seleção global, por receita ou CLI é recusada com orientação de migração para `finalization`. Tickets antigos mantêm os campos históricos, mas o worker novo nunca copia arquivos. |
-| `finalization` | Hook obrigatório quando presente: `schemaVersion: 1`, `argv` não vazio, `timeoutMs` inteiro de 1 a 2.147.483.647, `contract` JSON finito até 64 KiB UTF-8 e `contractDigest` SHA-256 canônico. O enqueue congela o hook e seu `finalizationDigest` no ticket v4; o worker não relê o catálogo. |
+| `finalization` | Hook obrigatório quando presente: `schemaVersion: 2` para recuperação explícita; v1 legado continua legível, sem inferir retry. Exige `argv` não vazio, `timeoutMs` inteiro de 1 a 2.147.483.647, `contract` JSON finito até 64 KiB UTF-8 e `contractDigest` SHA-256 canônico. O enqueue congela o hook e seu `finalizationDigest` no ticket v4; o worker não relê o catálogo. |
 | `note` | Documentação, não política executável. |
 | `ship.acceptedPresets` | Lista não vazia/única de receitas existentes e ship-bound. É OR; sem prova reutilizável usa a primeira. |
 | `ship.attestationContext` | Contexto remoto da atestação do ship genérico. Não é nome de teste. |
@@ -44,7 +44,7 @@ Avançar a base remota não recusa automaticamente uma receita sem `fetchBase`; 
 ### Finalização terminal (`terminal-finalization-v1`)
 
 A CLI mantém API 1 e anuncia `terminal-finalization-v1`,
-`no-artifact-snapshots-v1` e `v4-ticket-read`; não anuncia `recipe-artifacts-v1`.
+`no-artifact-snapshots-v1`, `recoverable-finalization-v1` e `v4-ticket-read`; não anuncia `recipe-artifacts-v1`.
 Um worker antigo recusa tickets v4. O consumidor deve conferir as capacidades
 antes do enqueue e a identidade efetiva do worker antes de produzir outputs.
 
@@ -71,9 +71,11 @@ atual de finalização e pode mudar, sem substituir `producerIdentity`.
 O resultado do teste após postflight permanece imutável em `history/<id>.json`.
 O supervisor é o único writer de `state/finalization/<id>.json`: fase
 pending/running/passed/failed/interrupted, identidade temporal do grupo, tentativa,
-digests e resultado. O hook entrega `FinalizationResult` schema 1 com
-`cleanup` confirmed/not-required/uncertain e `outputs` como referências
-`{path, sha256, role}` relativas ao cwd do consumidor; não entrega mídia ao state.
+digests e resultado. Hooks v2 entregam `FinalizationResult` v2, com `recovery`
+none/retryable/blocked-ownership; confirmed/not-required exige recovery=none.
+O resultado v1 permanece legível para hooks legados, sem capacidade de retry.
+Ambos preservam `cleanup` confirmed/not-required/uncertain e `outputs` como referências
+`{path, sha256, role}` relativas ao cwd do consumidor; não entregam mídia ao state.
 A validação do resultado (até 64 KiB), supervisão e recuperação pertencem ao
 supervisor. A finalização não converte teste reprovado em aprovado.
 
@@ -96,9 +98,16 @@ herdadas não criam autoridade de execução.
 O runner permanece serializado durante o hook. Cancel nessa fase registra a
 solicitação e deixa publicação/cleanup encerrar sob o prazo independente. Grupo
 vivo ou ownership incerto preserva reserva e razão visível; PID reutilizado ou
-host divergente nunca autoriza sinalização. Depois de morte comprovada, cada
-acionamento pode reentrar uma vez no hook idempotente do consumidor, que decide
-sua transação/journal. Falha terminal sem produtor vivo/incerto libera a fila.
+host divergente nunca autoriza sinalização. Depois de morte comprovada, uma
+ativação elegível pode reentrar uma vez no
+hook v2 idempotente do consumidor, que decide sua transação/journal. Um resultado
+retryable permite recuperação; blocked-ownership exige primeiro resolver a
+incerteza de ownership. Nenhum caso repete o teste ou transforma falha definitiva
+em retry. A entrada pública é `ci-queue finalize <id> --state <root> --json`: usa
+o mesmo lock do worker, recupera somente a finalização identificada e não drena
+jobs novos. Uma entrada ociosa sem trabalho não cria loop de retry.
+Finalização ativa, recovery pendente ou cleanup incerto impedem manutenção da
+instalação; não apague registros/reservas para trocar a release. Veja [INSTALL](INSTALL.md).
 
 ## Método de teste adotado pelo consumidor
 
@@ -116,7 +125,7 @@ O state explícito/ambiente deve ser o mesmo da API/worker. Sem override, o cami
 
 `--wait` e seu timeout não cancelam o job. `cancel` é explícito e segue ownership do processo. Um worker por state. Worker on-demand ausente enquanto a fila está vazia pode ser saudável. Não apagar locks ou sinalizar PID sem identidade para forçar recuperação.
 
-CLI JSON usa `{apiVersion, ok, result}` ou `{apiVersion, ok:false, error}`. Comandos reais vivem em `src/cli.ts`: version, config, init, enqueue, worker, status, history, observe, preset-history, logs, cancel, runtime, advisory, guard e ship. `guard` é opcional e só impõe admissão quando o consumidor decide invocá-lo; não é requisito das receitas nem da adoção. Não inventar `ci-queue doctor` ou `logs --follow`; o wrapper DietFlow oferece seu próprio follow.
+CLI JSON usa `{apiVersion, ok, result}` ou `{apiVersion, ok:false, error}`. Comandos reais vivem em `src/cli.ts`: version, config, init, enqueue, worker, finalize, status, history, observe, preset-history, logs, cancel, runtime, advisory, guard e ship. `guard` é opcional e só impõe admissão quando o consumidor decide invocá-lo; não é requisito das receitas nem da adoção. Não inventar `ci-queue doctor` ou `logs --follow`; o wrapper DietFlow oferece seu próprio follow.
 
 ### Observações de execução directa (`execution-observe-v1`)
 
