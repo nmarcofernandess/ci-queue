@@ -57,6 +57,7 @@ export type JobCompletion = {
   finalization?: {
     phase: "pending" | "running" | "passed" | "failed" | "interrupted"
     cleanup?: "confirmed" | "not-required" | "uncertain"
+    recovery?: "none" | "retryable" | "blocked-ownership"
     error?: "finalization-failed"
   }
 }

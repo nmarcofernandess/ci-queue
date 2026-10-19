@@ -140,6 +140,7 @@ export function describeExecutionState(
       detail: detail(
         job.status === "passed" ? "Teste passou; entrega incompleta" : testResult,
         completionReason(completion.reason),
+        recoveryReason(finalization?.recovery),
         retry
       ),
     }
@@ -150,6 +151,12 @@ export function describeExecutionState(
       detail: detail(finalization && completion?.state === "complete" && "Finalização concluída", retry),
     } : {}),
   }
+}
+
+function recoveryReason(recovery: "none" | "retryable" | "blocked-ownership" | undefined) {
+  if (recovery === "retryable") return "Recuperação pendente"
+  if (recovery === "blocked-ownership") return "Propriedade dos processos não confirmada"
+  return undefined
 }
 
 function completionReason(reason: string | undefined) {
@@ -192,7 +199,7 @@ export function describeCompletionFacts(job: Pick<JobRecord, "status" | "complet
   const reason = completionReason(completion?.reason)
   return [
     { label: "Resultado do teste", value: describeTestResult(job) },
-    { label: "Finalização", value: [finalizationLabel, reason].filter(Boolean).join(" · ") },
+    { label: "Finalização", value: [finalizationLabel, reason, recoveryReason(finalization?.recovery)].filter(Boolean).join(" · ") },
     {
       label: "Limpeza",
       value: finalization?.cleanup === "confirmed" ? "Limpeza confirmada"

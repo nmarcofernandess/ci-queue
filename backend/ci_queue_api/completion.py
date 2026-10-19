@@ -53,7 +53,7 @@ def canonical_json(value):
 
 
 def finalization_digest(spec):
-    if not isinstance(spec, dict) or type(spec.get('schemaVersion')) is not int or spec['schemaVersion'] != 1:
+    if not isinstance(spec, dict) or type(spec.get('schemaVersion')) is not int or spec['schemaVersion'] not in (1, 2):
         raise ValueError('invalid finalization')
     argv = spec.get('argv')
     timeout = spec.get('timeoutMs')
@@ -88,14 +88,16 @@ def recipe_finalization_digest(recipe):
         return 'invalid-finalization-contract'
 
 
-def normalize_finalization_result(value):
+def normalize_finalization_result(value, required_version=None):
     """Validate protocol data without looking up any publication path."""
     if not isinstance(value, dict):
         raise ValueError('invalid finalization result')
     if len(canonical_json(value).encode('utf-8')) > 65536:
         raise ValueError('finalization result exceeds 64 KiB')
-    if (set(value) - {'schemaVersion', 'cleanup', 'outputs', 'error'}
-            or type(value.get('schemaVersion')) not in (int, float) or value['schemaVersion'] != 1
+    if (set(value) - ({'schemaVersion', 'cleanup', 'outputs', 'error'} | ({'recovery'} if value.get('schemaVersion') == 2 else set()))
+            or type(value.get('schemaVersion')) not in (int, float) or value['schemaVersion'] not in (1, 2)
+            or required_version == 2 and value['schemaVersion'] != 2
+            or value['schemaVersion'] == 2 and (value.get('recovery') not in ('none', 'retryable', 'blocked-ownership') or value.get('cleanup') != 'uncertain' and value.get('recovery') != 'none')
             or value.get('cleanup') not in ('confirmed', 'not-required', 'uncertain')
             or not isinstance(value.get('outputs'), list)
             or ('error' in value and not isinstance(value['error'], str))):
@@ -112,7 +114,8 @@ def normalize_finalization_result(value):
                 or not isinstance(role, str) or not role.strip(_ECMA_WHITESPACE)):
             raise ValueError('invalid output path/hash/role')
         outputs.append({'path': path, 'sha256': sha256, 'role': role})
-    return {'schemaVersion': 1, 'cleanup': value['cleanup'], 'outputs': outputs,
+    return {'schemaVersion': value['schemaVersion'], 'cleanup': value['cleanup'], 'outputs': outputs,
+            **({'recovery': value['recovery']} if value['schemaVersion'] == 2 else {}),
             **({'error': value['error']} if 'error' in value else {})}
 
 
@@ -137,17 +140,18 @@ def execution_completion(ticket, record=None, terminal_digest=None):
             or record.get('ticketId') != ticket.get('id') or record.get('ticketDigest') != terminal_digest
             or record.get('finalizationDigest') != ticket.get('finalizationDigest')
             or type(record.get('attempt')) is not int or record['attempt'] < 0
-            or record.get('phase') not in PHASES):
+            or record.get('phase') not in PHASES
+            or record.get('recovery', 'none') not in ('none', 'retryable', 'blocked-ownership')):
         return result('running', 'finalization-unverified')
     if record.get('phase') in ('pending', 'running'):
         return result('running', bound=True)
     try:
-        output = normalize_finalization_result(record.get('result'))
+        output = normalize_finalization_result(record.get('result'), ticket['finalization']['schemaVersion'])
     except (ValueError, TypeError, OverflowError, UnicodeError):
         return result('failed', 'finalization-failed', bound=True)
     cleanup = output['cleanup']
     if (record.get('phase') != 'passed' or type(record.get('exitCode')) is not int or record['exitCode'] != 0
-            or record.get('failureReason') or output.get('error') or cleanup not in ('confirmed', 'not-required')):
+            or record.get('recovery', 'none') != output.get('recovery', 'none') or record.get('failureReason') or output.get('error') or cleanup not in ('confirmed', 'not-required')):
         return result('failed', 'cleanup-uncertain' if cleanup == 'uncertain' else 'finalization-failed', bound=True)
     return result('complete', bound=True, eligible=test_passed)
 
@@ -170,7 +174,7 @@ def public_completion(job):
     projected = {key: completion[key] for key in ('state', 'eligible', 'testStatus', 'reason') if key in completion}
     record = completion.get('finalization')
     if record and record.get('phase') in PHASES:
-        projected['finalization'] = {'phase': record['phase']}
+        projected['finalization'] = {'phase': record['phase'], 'recovery': record.get('recovery', 'none')}
         output = record.get('result')
         if isinstance(output, dict) and output.get('cleanup') in ('confirmed', 'not-required', 'uncertain'):
             projected['finalization']['cleanup'] = output['cleanup']

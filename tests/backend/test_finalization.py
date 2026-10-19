@@ -23,6 +23,9 @@ class FinalizationTests(unittest.TestCase):
                     (root / 'state/finalization/job-1.json').write_text(json.dumps(case['record']))
                 public = public_job(read_history(root)[0])
                 self.assertEqual({key: public.get('completion', {}).get(key) for key in case['expected']}, case['expected'])
+                if case['name'] in ('v2-confirmed', 'v2-retryable', 'v2-blocked'):
+                    self.assertEqual(public['completion']['finalization']['recovery'], case['record']['recovery'])
+                    self.assertNotIn('lastQueuedRecoveryTicketId', public['completion']['finalization'])
 
     def test_required_hook_cannot_be_green_without_record(self):
         ticket = json.loads(CASES[0]['terminalBytes'])

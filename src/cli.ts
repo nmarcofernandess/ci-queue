@@ -318,9 +318,12 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         }
         return success({ ticket })
       }
-      case "finalize":
-        if (args.rest.length !== 1 || !/^[A-Za-z0-9._-]+$/.test(args.rest[0])) return failure("USAGE", "uso: ci-queue finalize <id>")
-        return success(await runWorker(root, { finalizeOnly: args.rest[0] }))
+      case "finalize": {
+        if (args.rest.length !== 1 || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(args.rest[0])) return failure("USAGE", "uso: ci-queue finalize <id>")
+        const report = await runWorker(root, { finalizeOnly: args.rest[0] })
+        return report.busy || report.reconciliation === "blocked" || report.recovery?.pending.length
+          ? failure("FINALIZATION_PENDING", "finalização permanece pendente", { report }) : success(report)
+      }
       case "worker":
         return success(await runWorker(root))
       case "status": {

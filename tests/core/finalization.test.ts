@@ -10,9 +10,11 @@ import type { FinalizationRecord, FinalizationSpec, QueueTicket, WorkerIdentity 
 import { enqueueExplicitTicket } from "../../src/core/enqueue.js"
 import { cancelQueuedOrRunningTicket, claimQueuedTicket, closeRunningTicket, parseTicket } from "../../src/core/runner.js"
 import { reconcileFinalizations, runFinalization } from "../../src/core/finalization.js"
-import { observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "../../src/core/process.js"
+import { observeProcessGroup, observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "../../src/core/process.js"
 import { registerProjectRuntime } from "../../src/core/runtime.js"
 import { atomicWriteJson, historyPath, jobPath, queuePaths, readJsonFile, readRunningJob } from "../../src/core/state.js"
+import { runCli } from "../../src/cli.js"
+import { executionCompletion } from "../../src/core/completion.js"
 import { runWorker } from "../../src/core/worker.js"
 
 const roots: string[] = []
@@ -383,7 +385,7 @@ describe("finalization recovery and ownership", () => {
 
     const recovery = await reconcileFinalizations(f.state)
 
-    expect(recovery).toEqual({ blocked: [], reconciled: [ticket.id] })
+    expect(recovery).toEqual({ blocked: [], pending: [], reconciled: [ticket.id] })
     expect(readFileSync(f.events, "utf8").trim().split("\n")).toHaveLength(1)
     expect(readFileSync(join(f.cwd, "published"), "utf8")).toBe(originalSourceDigest)
     expect(sha256(readFileSync(historyPath(f.state, ticket.id)))).toBe(before)
@@ -585,7 +587,7 @@ describe("Task2 fix round 1", () => {
       await closeRunningTicket(f.state, terminal)
       saveRecord(f, terminal, { phase: "passed", attempt: 1, finishedAt: new Date().toISOString(), result: { schemaVersion: 1, cleanup: "confirmed", outputs: [] } })
       const before = readFileSync(recordPath(f.state, terminal.id), "utf8")
-      expect(await reconcileFinalizations(f.state)).toEqual({ reconciled: [], blocked: [] })
+      expect(await reconcileFinalizations(f.state)).toEqual({ reconciled: [], blocked: [], pending: [] })
       expect(readFileSync(recordPath(f.state, terminal.id), "utf8")).toBe(before)
       expect(existsSync(f.events)).toBe(false)
       expect(foreign.child.signalCode).toBeNull()
@@ -750,8 +752,8 @@ describe("recovery-does-not-rerun-or-starve-next-job", () => {
   it("recovers on distinct work or explicit activation, preserving terminal and automatic cursor", async () => {
     const f = fixture()
     const fault = join(f.root, "io-fault")
-    writeFileSync(fault, "fault")
-    const recoveryHook = { ...hook(`${readInput};fs.appendFileSync(${JSON.stringify(f.hashes)},'attempt\\n');const failed=fs.existsSync(${JSON.stringify(fault)});fs.writeFileSync(input.resultPath,JSON.stringify({schemaVersion:2,cleanup:failed?'uncertain':'confirmed',recovery:failed?'retryable':'none',outputs:[]}))`), schemaVersion: 2 as const }
+    mkdirSync(fault); writeFileSync(join(fault, "owned-blocker"), "fault")
+    const recoveryHook = { ...hook(`${readInput};const record=JSON.parse(fs.readFileSync(input.resultPath.replace('.result.json','.json'),'utf8'));fs.appendFileSync(${JSON.stringify(f.hashes)},JSON.stringify({cursor:record.lastQueuedRecoveryTicketId??null})+'\\n');if(record.attempt===2){process.kill(input.workerIdentity.pid,'SIGKILL');process.exit(0)};let failed=false;try{fs.rmdirSync(${JSON.stringify(fault)})}catch(error){if(error.code!=='ENOTEMPTY'&&error.code!=='ENOENT')throw error;failed=error.code==='ENOTEMPTY'};fs.writeFileSync(input.resultPath,JSON.stringify({schemaVersion:2,cleanup:failed?'uncertain':'confirmed',recovery:failed?'retryable':'none',outputs:[]}))`), schemaVersion: 2 as const }
     const first = enqueue(f, `require('node:fs').appendFileSync(${JSON.stringify(f.events)},'test\\n')`, recoveryHook)
     const next = enqueue(f, `require('node:fs').appendFileSync(${JSON.stringify(f.events)},'next\\n')`, undefined, undefined, 1)
     expect((await runWorker(f.state)).processed).toEqual([first.id, next.id])
@@ -760,16 +762,41 @@ describe("recovery-does-not-rerun-or-starve-next-job", () => {
     await runWorker(f.state)
     expect(record(f.state, first.id)).toMatchObject({ phase: "failed", recovery: "retryable", attempt: 1 })
     const trigger = enqueue(f, "process.exit(0)", undefined, undefined, 2)
-    // The cursor is durable even if the same queued ticket activates another worker.
-    const activation = { trigger: { kind: "queued-work" as const, ticketId: trigger.id }, executionIds: [first.id], attempted: new Set<string>() }
-    await reconcileFinalizations(f.state, activation)
-    await reconcileFinalizations(f.state, { ...activation, attempted: new Set() })
-    expect(record(f.state, first.id)).toMatchObject({ attempt: 2, lastQueuedRecoveryTicketId: trigger.id })
-    rmSync(fault)
-    await runWorker(f.state, { finalizeOnly: first.id })
-    expect(record(f.state, first.id)).toMatchObject({ phase: "passed", recovery: "none", attempt: 3, lastQueuedRecoveryTicketId: trigger.id })
+    // Kill only this fixture's worker after the retry cursor is durably visible.
+    // The next real worker sees the SAME queued ticket, not a fresh activation ID.
+    const worker = spawnWorker(f)
+    await new Promise<void>(resolve => worker.once("close", () => resolve()))
+    await waitFor(() => {
+      const group = record(f.state, first.id)?.processGroupIdentity
+      return Boolean(group && observeProcessGroup(group).state === "dead")
+    })
     expect(existsSync(jobPath(f.state, trigger.id))).toBe(true)
+    expect((await runWorker(f.state)).processed).toEqual([trigger.id])
+    expect(record(f.state, first.id)).toMatchObject({ attempt: 2, lastQueuedRecoveryTicketId: trigger.id })
+    expect(JSON.parse(readFileSync(f.hashes, "utf8").trim().split("\n")[1]).cursor).toBe(trigger.id)
+    rmSync(join(fault, "owned-blocker"))
+    const waiting = enqueue(f, "process.exit(0)", undefined, undefined, 3)
+    expect(await runCli(["finalize", first.id, "--state", f.state, "--json"])).toMatchObject({ ok: true, result: { processed: [], recovery: { reconciled: [first.id] } } })
+    expect(record(f.state, first.id)).toMatchObject({ phase: "passed", recovery: "none", attempt: 3, lastQueuedRecoveryTicketId: trigger.id })
+    expect(existsSync(jobPath(f.state, waiting.id))).toBe(true)
     expect(readFileSync(historyPath(f.state, first.id))).toEqual(terminal)
     expect(readFileSync(f.events, "utf8").trim().split("\n")).toEqual(["test", "next"])
   })
+})
+
+
+it.each(['timeout', 'SIGKILL', 'malformed'] as const)('classifies v2 %s using the actual hook exit and preserves terminal on repair', async mode => {
+  const f = fixture(), marker = join(f.root, 'journal')
+  const code = `${readInput};if(!fs.existsSync(${JSON.stringify(marker)})){fs.writeFileSync(${JSON.stringify(marker)},fs.readFileSync(input.ticketPath));${mode === 'malformed' ? "fs.writeFileSync(input.resultPath,'{bad');process.exit(1)" : mode === 'SIGKILL' ? "process.kill(process.pid,'SIGKILL')" : "setInterval(()=>{},1000)"}}else{if(!fs.readFileSync(${JSON.stringify(marker)}).equals(fs.readFileSync(input.ticketPath)))throw Error('terminal changed');fs.writeFileSync(input.resultPath,JSON.stringify({schemaVersion:2,cleanup:'confirmed',recovery:'none',outputs:[]}))}`
+  const ticket = enqueue(f, `require('node:fs').appendFileSync(${JSON.stringify(f.events)},'test\\n');process.exit(7)`, { ...hook(code, 300), schemaVersion: 2 })
+  await runWorker(f.state)
+  const before = readFileSync(historyPath(f.state, ticket.id))
+  expect(record(f.state, ticket.id)).toMatchObject({ phase: 'failed', recovery: mode === 'malformed' ? 'none' : 'retryable', attempt: 1 })
+  await runWorker(f.state)
+  expect(record(f.state, ticket.id)?.attempt).toBe(1)
+  await runCli(['finalize', ticket.id, '--state', f.state, '--json'])
+  expect(record(f.state, ticket.id)).toMatchObject({ phase: mode === 'malformed' ? 'failed' : 'passed', attempt: mode === 'malformed' ? 1 : 2 })
+  expect(readFileSync(historyPath(f.state, ticket.id))).toEqual(before)
+  expect(readFileSync(f.events, 'utf8')).toBe('test\n')
+  expect(executionCompletion(JSON.parse(before.toString()), record(f.state, ticket.id), sha256(before)).eligible).toBe(false)
 })

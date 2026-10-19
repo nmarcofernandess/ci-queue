@@ -1,9 +1,10 @@
+import { randomUUID } from "node:crypto"
 import { readFileSync, readdirSync, renameSync, statSync } from "node:fs"
 import { join } from "node:path"
 
 import { parseTicket, claimQueuedTicket, reconcileInterruptedJob, reconcileTerminalClaims, rejectQueuedTicket, runJob } from "./runner.js"
 import { observeWorkerIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "./process.js"
-import { reconcileFinalizations } from "./finalization.js"
+import { reconcileFinalizations, finalizationExecutionIds, type RecoveryActivation, type RecoverySummary } from "./finalization.js"
 import {
   acquireRunnerLock,
   appendLog,
@@ -31,6 +32,7 @@ export type WorkerReport = {
   reconciliation: "none" | "active" | "reconciled" | "blocked"
   busy: boolean
   blockingReason?: string
+  recovery?: RecoverySummary
 }
 
 function fileAge(path: string): number | undefined {
@@ -89,7 +91,7 @@ export function recoverProgressTemporaries(root: string): string[] {
 }
 
 /** Drains one state root and exits. The installer may invoke it on demand. */
-export async function runWorker(root: string): Promise<WorkerReport> {
+export async function runWorker(root: string, options: { finalizeOnly?: string } = {}): Promise<WorkerReport> {
   ensureQueueDirs(root)
   const lock = acquireRunnerLock(root)
   if (!lock) return { processed: [], rejected: [], reconciliation: "active", busy: true }
@@ -126,13 +128,23 @@ export async function runWorker(root: string): Promise<WorkerReport> {
     atomicWriteJson(paths.workerPid, process.pid)
     publishedWorkerPid = true
     if (identity) atomicWriteJson(paths.workerIdentity, identity)
-    const reconciliation = await reconcileInterruptedJob(root)
+    const initialTicket = listQueuedJobs(root).find(ticket => !("rejectReason" in parseTicket(ticket)))
+    const activation: RecoveryActivation = { trigger: options.finalizeOnly ? { kind: "explicit", activationId: randomUUID() }
+      : initialTicket ? { kind: "queued-work", ticketId: initialTicket.id } : { kind: "initial-only" },
+      executionIds: options.finalizeOnly ? [options.finalizeOnly] : finalizationExecutionIds(root), attempted: new Set() }
+    if (options.finalizeOnly) {
+      const recovered = await reconcileFinalizations(root, activation)
+      report.recovery = recovered
+      report.reconciliation = recovered.blocked.length ? "blocked" : recovered.reconciled.length ? "reconciled" : "none"
+      return report
+    }
+    const reconciliation = await reconcileInterruptedJob(root, activation)
     report.reconciliation = reconciliation.state
     if (reconciliation.state === "active" || reconciliation.state === "blocked") {
       report.blockingReason = reconciliation.job?.cleanupBlockedReason
       return report
     }
-    if ((await reconcileTerminalClaims(root)).length) report.reconciliation = "reconciled"
+    if ((await reconcileTerminalClaims(root, activation)).length) report.reconciliation = "reconciled"
     recoverProgressTemporaries(root)
     recoverClaims(root)
     report.rejected.push(...await sweepInvalidTickets(root))
@@ -148,8 +160,8 @@ export async function runWorker(root: string): Promise<WorkerReport> {
       }
       // A queued cancellation can publish a terminal while the previous test
       // is active. Drain that work before another claim, including empty exit.
-      if ((await reconcileTerminalClaims(root)).length) report.reconciliation = "reconciled"
-      const finalizations = await reconcileFinalizations(root)
+      if ((await reconcileTerminalClaims(root, activation)).length) report.reconciliation = "reconciled"
+      const finalizations = await reconcileFinalizations(root, { ...activation, executionIds: [...new Set([...activation.executionIds, ...finalizationExecutionIds(root)])] })
       if (finalizations.blocked.length) { report.reconciliation = "blocked"; break }
       if (finalizations.reconciled.length) report.reconciliation = "reconciled"
       if (interrupted) break
@@ -173,6 +185,7 @@ export async function runWorker(root: string): Promise<WorkerReport> {
         continue
       }
       const terminal = await runJob(root, parsed, {
+        recoveryActivation: activation,
         onJob: (job) => { current = job },
         interruptedReason: () => interrupted ? "worker interrompido por sinal" : undefined,
       })

@@ -8,7 +8,7 @@ import { RUNTIME_CAPABILITY } from "../contracts/runtime.js"
 import { initialExecutionDeadline, captureExecutionDeadline, validateQueuedDeadline } from "./deadline.js"
 import { ProgressCollector, removeProgressSnapshot } from "./progress.js"
 import { observeTestProducer, observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, readProcessObservation, terminateVerifiedProcessGroup } from "./process.js"
-import { preparePendingFinalization, runFinalization } from "./finalization.js"
+import { preparePendingFinalization, runFinalization, type RecoveryActivation } from "./finalization.js"
 import {
   decideSpendAbort,
   observeRemoteBase,
@@ -53,6 +53,7 @@ export type CancelResult =
   | { kind: "running"; job: QueueTicket; signalled: boolean; reason: string }
 
 export type RunJobHooks = {
+  recoveryActivation?: RecoveryActivation
   onJob?: (job: QueueTicket | undefined) => void
   onChildPid?: (pid: number | undefined, identity?: ProcessGroupIdentity) => void
   interruptedReason?: () => string | undefined
@@ -354,14 +355,14 @@ export async function closeRunningTicket(root: string, candidate: QueueTicket): 
   return { ticket: terminal, authoritative: Boolean(persisted) }
 }
 
-async function closeAndMaybeDropSidecar(root: string, candidate: QueueTicket, runtimeDirectory?: string): Promise<QueueTicket> {
+async function closeAndMaybeDropSidecar(root: string, candidate: QueueTicket, runtimeDirectory?: string, activation?: RecoveryActivation): Promise<QueueTicket> {
   const { ticket, authoritative } = await closeRunningTicket(root, candidate)
   if (authoritative) {
     const producer = observeTestProducer(ticket)
     if (producer.state !== "dead") {
       atomicWriteJson(queuePaths(root).running, { ...ticket, cleanupBlockedReason: producer.reason })
       appendRedactedLog(ticket.logPath, `[finalization] ${producer.reason}; reserva preservada\n`)
-      if (ticket.finalization) await runFinalization(root, ticket)
+      if (ticket.finalization) await runFinalization(root, ticket, activation)
       return ticket
     }
     removeProgressSnapshot(root, ticket.id)
@@ -372,7 +373,7 @@ async function closeAndMaybeDropSidecar(root: string, candidate: QueueTicket, ru
       assertNoSymlinkPaths([root, join(root, "runtime"), directory])
       discardRuntimeDirectory(directory)
     }
-    if (ticket.finalization) await runFinalization(root, ticket)
+    if (ticket.finalization) await runFinalization(root, ticket, activation)
   }
   return ticket
 }
@@ -453,11 +454,11 @@ export async function cancelQueuedOrRunningTicket(root: string, id: string): Pro
   return result ?? { kind: "missing" }
 }
 
-export async function reconcileInterruptedJob(root: string): Promise<{ state: "none" | "active" | "reconciled" | "blocked"; job?: QueueTicket }> {
+export async function reconcileInterruptedJob(root: string, activation?: RecoveryActivation): Promise<{ state: "none" | "active" | "reconciled" | "blocked"; job?: QueueTicket }> {
   const running = readRunningJob(root)
   if (!running) return { state: "none" }
   if (isTerminalStatus(running.status)) {
-    const terminal = await closeAndMaybeDropSidecar(root, running)
+    const terminal = await closeAndMaybeDropSidecar(root, running, undefined, activation)
     const reserved = readRunningJob(root)
     return reserved?.id === terminal.id && reserved.cleanupBlockedReason
       ? { state: "blocked", job: reserved }
@@ -481,18 +482,18 @@ export async function reconcileInterruptedJob(root: string): Promise<{ state: "n
     exitCode: null,
     failureReason: "worker interrompido; processo filho encerrado durante a recuperação",
   }, collector, { publishSkippedArtifacts: true })
-  const terminal = await closeAndMaybeDropSidecar(root, withProgress)
+  const terminal = await closeAndMaybeDropSidecar(root, withProgress, undefined, activation)
   return { state: "reconciled", job: terminal }
 }
 
 /** Terminal cancellation claims are never restored as executable queue jobs. */
-export async function reconcileTerminalClaims(root: string): Promise<string[]> {
+export async function reconcileTerminalClaims(root: string, activation?: RecoveryActivation): Promise<string[]> {
   const reconciled: string[] = []
   for (const name of readdirSync(queuePaths(root).claims)) {
     if (!name.endsWith(".json")) continue
     const candidate = readJsonFile<QueueTicket>(join(queuePaths(root).claims, name))
     if (!candidate || `${candidate.id}.json` !== name || !isTerminalStatus(candidate.status)) continue
-    const terminal = await closeAndMaybeDropSidecar(root, candidate)
+    const terminal = await closeAndMaybeDropSidecar(root, candidate, undefined, activation)
     reconciled.push(terminal.id)
   }
   return reconciled
@@ -671,7 +672,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     ticket = { ...ticket, preflight }
   } catch (error) {
     const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: error instanceof Error ? error.message : String(error) }, collector)
-    return closeAndMaybeDropSidecar(root, failed)
+    return closeAndMaybeDropSidecar(root, failed, undefined, hooks.recoveryActivation)
   }
 
   try {
@@ -683,7 +684,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
       appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] ${error.message}\n`)
     }
     const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: error instanceof Error ? error.message : String(error) }, collector)
-    return closeAndMaybeDropSidecar(root, failed)
+    return closeAndMaybeDropSidecar(root, failed, undefined, hooks.recoveryActivation)
   }
 
   try {
@@ -701,7 +702,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   } catch (error) {
     ticket = { ...ticket, runtime: runtime.finish() }
     const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: `spawn falhou: ${error instanceof Error ? error.message : String(error)}` }, collector)
-    return closeAndMaybeDropSidecar(root, failed, runtime.directory)
+    return closeAndMaybeDropSidecar(root, failed, runtime.directory, hooks.recoveryActivation)
   }
 
   if (runtime.receipt.node) appendRedactedLog(ticket.logPath, `[runtime] ${runtime.receipt.node.executable} v${runtime.receipt.node.version}; coverage=${runtime.receipt.coverage}\n`)
@@ -837,5 +838,5 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   }, collector, { publishSkippedArtifacts: true })
   hooks.onChildPid?.(undefined)
   hooks.onJob?.(undefined)
-  return closeAndMaybeDropSidecar(root, candidate, runtime.directory)
+  return closeAndMaybeDropSidecar(root, candidate, runtime.directory, hooks.recoveryActivation)
 }

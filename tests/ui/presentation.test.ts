@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+// These tests exercise semantic descriptors, not SVG rendering.
+vi.mock('lucide-react', () => ({ CheckCircle2Icon: () => null, CircleDotIcon: () => null, LoaderCircleIcon: () => null, MinusCircleIcon: () => null, XCircleIcon: () => null }))
 import {
   describeJobState,
   describeExecutionState,
@@ -191,4 +193,12 @@ describe('independent completion facts and detail refresh', () => {
     expect(executionIsLive({ status: 'passed', completion: { state: 'failed', eligible: false, testStatus: 'passed' } })).toBe(false)
     expect(executionIsLive({ status: 'passed' })).toBe(false)
   })
+})
+
+it.each(['retryable', 'blocked-ownership'] as const)('shows %s recovery without changing the failed test into a pass', recovery => {
+  const job: JobRecord = { id: 'own-recovery', status: 'failed', completion: { state: 'failed', eligible: false, testStatus: 'failed', finalization: { phase: 'failed', cleanup: 'uncertain', recovery } } }
+  const message = recovery === 'retryable' ? 'Recuperação pendente' : 'Propriedade dos processos não confirmada'
+  expect(describeExecutionState(job).detail).toContain(message)
+  expect(describeCompletionFacts(job).find(fact => fact.label === 'Finalização')?.value).toContain(message)
+  expect(describeCompletionFacts(job)[0].value).toBe('Teste falhou')
 })

@@ -107,7 +107,7 @@ export function normalizeFinalizationResult(value: unknown, requiredVersion?: 1 
   if (!bytes || Buffer.byteLength(bytes, "utf8") > FINALIZATION_JSON_MAX_BYTES) throw new Error("resultado excede 64 KiB")
   if (Object.keys(raw).some(key => !["schemaVersion", "cleanup", "outputs", "error", ...(raw.schemaVersion === 2 ? ["recovery"] : [])].includes(key))
     || (raw.schemaVersion !== 1 && raw.schemaVersion !== 2) || requiredVersion === 2 && raw.schemaVersion !== 2
-    || raw.schemaVersion === 2 && (!["none", "retryable", "blocked-ownership"].includes(String(raw.recovery)) || raw.cleanup !== "uncertain" && raw.recovery !== "none") || typeof raw.cleanup !== "string"
+    || raw.schemaVersion === 2 && ((typeof raw.recovery !== "string" || !["none", "retryable", "blocked-ownership"].includes(raw.recovery)) || raw.cleanup !== "uncertain" && raw.recovery !== "none") || typeof raw.cleanup !== "string"
     || !["confirmed", "not-required", "uncertain"].includes(raw.cleanup) || !Array.isArray(raw.outputs)
     || (raw.error !== undefined && typeof raw.error !== "string")) throw new Error("resultado da finalização inválido")
   const outputs = raw.outputs.map((output: unknown) => {
