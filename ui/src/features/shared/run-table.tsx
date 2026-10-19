@@ -355,8 +355,8 @@ function EmptyTable({
       </TableHeader>
       <TableBody>
         <TableRow>
-          <TableCell colSpan={6} className="p-0">
-            <Empty className="sticky left-0 w-[calc(100vw-2rem)] border-0 py-8 sm:static sm:w-auto">
+          <TableCell colSpan={6}>
+            <Empty className="sticky left-0 w-[calc(100vw-2rem)] sm:static sm:w-auto">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
                   <InboxIcon />
@@ -410,8 +410,8 @@ export function RunTable({
     )
   }
   return (
-    <Card className="gap-0 pb-0" aria-label={title}>
-      <CardHeader className="gap-3 pb-4">
+    <Card aria-label={title}>
+      <CardHeader>
         {!toolbar ? (
           <CardTitle role="heading" aria-level={2}>
             {title}

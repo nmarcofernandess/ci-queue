@@ -122,3 +122,7 @@ Arquivo `remote-verdict.json` ao lado do catálogo: `wait|skipped`; ausente sign
 Garantia: **HEAD pinado, base observada**. Revalidação antes e inspeção depois não são lock atômico H+B. `MERGED_BASE_CHANGED` exige inspeção, não novo merge cego. Nenhum `--admin`, status manual ou ticket fabricado.
 
 **DietFlow não fez cutover.** Continua `npm run ship` em `scripts/ship/ship.ts`, com seu arquivo de política em `scripts/ship/remote-verdict.json`; leia a [entrada consumidora](https://github.com/dietflowoficial/Dietflow-app/blob/dev/docs/ci/CI-QUEUE-CONSUMIDOR.md).
+
+## Caso de consumidor: DietFlow e portabilidade
+
+O [mapa de portabilidade do DietFlow](https://github.com/dietflowoficial/Dietflow-app/blob/dev/docs/harness/MAPA-CLOUD-PORTABILIDADE.md) preserva resultados Mac/Cursor/Codex, limites de backend e hipóteses de retomada. O mapa aponta de volta a este quickstart. São evidências e contratos do consumidor; CI Queue não instala o backend, não concede capacidade Docker/rede, não exige uma conta GitHub nominal e não certifica o produto por executar seu comando. Contratos genéricos da fila permanecem nesta documentação.

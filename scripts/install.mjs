@@ -226,6 +226,9 @@ function writeCommandLauncher(path, nodePath, releasePath, stateRoot) {
   const shellQuote = (value) => `'${String(value).replaceAll("'", `'"'"'`)}'`
   const body = [
     "#!/bin/sh",
+    'if [ "$#" -eq 0 ] && [ "$(uname -s)" = "Darwin" ]; then',
+    '  exec open "http://127.0.0.1:8765/dashboard"',
+    "fi",
     `if [ -z "\${CI_QUEUE_STATE_DIR:-}" ]; then`,
     `  export CI_QUEUE_STATE_DIR=${shellQuote(resolve(stateRoot))}`,
     "fi",

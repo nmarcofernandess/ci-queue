@@ -156,3 +156,6 @@ playwright-report/
 __pycache__/
 **/__pycache__/
 *.py[cod]
+
+# macOS Finder metadata
+.DS_Store

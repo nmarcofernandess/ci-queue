@@ -61,7 +61,7 @@ export function DetailDrawerHeader({
   ...identity
 }: HeaderProps) {
   return (
-    <DrawerHeader className="shrink-0 gap-3 border-b text-left!">
+    <DrawerHeader className="shrink-0 border-b">
       <div className="flex min-w-0 items-start gap-3">
         <div className="min-w-0 flex-1">
           <EntityIdentity presentation="drawer" {...identity} />
@@ -121,7 +121,7 @@ export function DetailDrawerBody({
 
 export function DetailDrawerFooter({ children }: { children: ReactNode }) {
   return (
-    <DrawerFooter className="mt-0 shrink-0 flex-row flex-wrap items-center justify-end border-t">
+    <DrawerFooter className="shrink-0 border-t">
       {children}
     </DrawerFooter>
   )

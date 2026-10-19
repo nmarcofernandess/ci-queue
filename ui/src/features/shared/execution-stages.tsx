@@ -88,7 +88,7 @@ export function ExecutionStages({
               key={stage.id}
               data-stage-index={index}
               size="sm"
-              className="w-[12.5cqw] min-w-28 shrink-0 flex-col items-start gap-2 border-transparent px-0 py-0 pr-3"
+              className="w-[12.5cqw] min-w-28 shrink-0 flex-col items-start"
             >
               <div className="flex w-full items-center gap-2">
                 <StatusIndicator
@@ -101,7 +101,7 @@ export function ExecutionStages({
               </div>
               <ItemContent className="w-full min-w-0">
                 <ItemTitle
-                  className="max-w-full truncate text-sm leading-5 font-medium"
+                  className="max-w-full truncate"
                   title={stage.label}
                 >
                   {stage.label}

@@ -107,8 +107,8 @@ export function ElapsedItem({
       ? formatDuration(meanMs)
       : null
   return (
-    <Item variant="default" className="border-transparent px-0 py-0">
-      <ItemContent className="min-w-0 gap-0">
+    <Item variant="default">
+      <ItemContent className="min-w-0">
         <span className={elapsedPresentation[presentation]}>{elapsed}</span>
         <ItemDescription>
           {mean ? `decorrido · média ${mean}` : "decorrido"}

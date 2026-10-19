@@ -3,6 +3,7 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
+import nativeSpacing from './eslint-rules/native-spacing.js'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 const rawPrimitivePatterns = [{
@@ -28,6 +29,11 @@ const projectChipRules = [
   { selector: "JSXOpeningElement[name.name='ProjectChip'] > JSXAttribute[name.name='className']", message: 'ProjectChip é dono da apresentação; não passe className no consumidor.' },
 ]
 const uiPolicyBlocks = [
+  {
+    files: ['src/features/**/*.{ts,tsx}'],
+    plugins: { 'ui-composition': { rules: { 'native-spacing': nativeSpacing } } },
+    rules: { 'ui-composition/native-spacing': 'error' },
+  },
   {
     files: ['src/**/*.{ts,tsx}'], ignores: ['src/components/ui/**'],
     rules: {

@@ -49,15 +49,14 @@ function originLabel(origins: GreenCommitGroup["origins"]) {
 }
 
 function commitColumnClass(
-  id: "status" | "commit" | "time" | "count" | "origin" | "actions",
-  placement: "card" | "body"
+  id: "status" | "commit" | "time" | "count" | "origin" | "actions"
 ) {
   if (id === "status") return "w-16"
   if (id === "commit") return "w-24"
   if (id === "time") return "w-28"
   if (id === "count") return "w-24"
   if (id === "origin") return "w-28"
-  return placement === "card" ? "w-14 text-right" : "w-10 text-right"
+  return "w-14 text-right"
 }
 
 function commitRunColumnClass(
@@ -71,53 +70,48 @@ function commitRunColumnClass(
 }
 
 export function GreenCommitTable({
-  embedded = false,
   showProjectChip = false,
   groups,
   onOpen,
   emptyDescription,
 }: {
-  embedded?: boolean
   showProjectChip?: boolean
   groups: GreenCommitGroup[]
   onOpen: (group: GreenCommitGroup) => void
   emptyDescription: string
 }) {
-  const placement = embedded ? "card" : "body"
   if (!groups.length)
     return (
-      <div className={embedded ? undefined : "rounded-lg border"}>
-        <Empty className="border-0 py-8">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <GitCommitIcon />
-            </EmptyMedia>
-            <EmptyTitle>Nenhum commit encontrado</EmptyTitle>
-            <EmptyDescription>{emptyDescription}</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      </div>
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <GitCommitIcon />
+          </EmptyMedia>
+          <EmptyTitle>Nenhum commit encontrado</EmptyTitle>
+          <EmptyDescription>{emptyDescription}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
   return (
-    <DataTableFrame placement={placement} label="Commits verdes">
+    <DataTableFrame placement="card" label="Commits verdes">
       <TableHeader>
         <TableRow>
-          <TableHead className={commitColumnClass("status", placement)}>
+          <TableHead className={commitColumnClass("status")}>
             Estado
           </TableHead>
-          <TableHead className={commitColumnClass("commit", placement)}>
+          <TableHead className={commitColumnClass("commit")}>
             Commit
           </TableHead>
-          <TableHead className={commitColumnClass("time", placement)}>
+          <TableHead className={commitColumnClass("time")}>
             Último verde
           </TableHead>
-          <TableHead className={commitColumnClass("count", placement)}>
+          <TableHead className={commitColumnClass("count")}>
             Execuções
           </TableHead>
-          <TableHead className={commitColumnClass("origin", placement)}>
+          <TableHead className={commitColumnClass("origin")}>
             Origem
           </TableHead>
-          <TableHead className={commitColumnClass("actions", placement)}>
+          <TableHead className={commitColumnClass("actions")}>
             <span className="sr-only">Ações</span>
           </TableHead>
         </TableRow>
@@ -125,13 +119,13 @@ export function GreenCommitTable({
       <TableBody>
         {groups.map((group) => (
           <TableRow key={`${group.projectId ?? ""}:${group.sha}`}>
-            <TableCell className={commitColumnClass("status", placement)}>
+            <TableCell className={commitColumnClass("status")}>
               <StatusIndicator
                 descriptor={describeJobState("passed")}
                 presentation="table"
               />
             </TableCell>
-            <TableCell className={commitColumnClass("commit", placement)}>
+            <TableCell className={commitColumnClass("commit")}>
               <EntityIdentity
                 presentation="table"
                 title={shortSha(group.sha)}
@@ -144,7 +138,7 @@ export function GreenCommitTable({
                 onOpen={() => onOpen(group)}
               />
             </TableCell>
-            <TableCell className={commitColumnClass("time", placement)}>
+            <TableCell className={commitColumnClass("time")}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span
@@ -159,13 +153,13 @@ export function GreenCommitTable({
                 </TooltipContent>
               </Tooltip>
             </TableCell>
-            <TableCell className={commitColumnClass("count", placement)}>
+            <TableCell className={commitColumnClass("count")}>
               {group.rows.length}
             </TableCell>
-            <TableCell className={commitColumnClass("origin", placement)}>
+            <TableCell className={commitColumnClass("origin")}>
               {originLabel(group.origins)}
             </TableCell>
-            <TableCell className={commitColumnClass("actions", placement)}>
+            <TableCell className={commitColumnClass("actions")}>
               <InspectButton
                 presentation="table"
                 onClick={() => onOpen(group)}

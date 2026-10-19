@@ -551,7 +551,6 @@ function WorktreeDataTable({
           <TableRow>
             <TableCell
               colSpan={table.getAllLeafColumns().length}
-              className="p-0"
             >
               <Empty className="min-h-56 border-0">
                 <EmptyHeader>
