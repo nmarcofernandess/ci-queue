@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process"
 import { hostname } from "node:os"
 
-import { NO_ARTIFACT_SNAPSHOTS_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, type WorkerIdentity, type ProcessGroupIdentity, type ProcessObservation, type ProcessObservationItem, type QueueTicket } from "../contracts/schema.js"
+import { NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, type WorkerIdentity, type ProcessGroupIdentity, type ProcessObservation, type ProcessObservationItem, type QueueTicket } from "../contracts/schema.js"
 
 const C_ENV = { ...process.env, LC_ALL: "C", LANG: "C" }
 
@@ -28,7 +28,7 @@ export function probeWorkerIdentity(pid = process.pid): WorkerIdentity | undefin
   const result = spawnSync("ps", ["-o", "pid=,lstart=", "-p", String(pid)], { encoding: "utf8", timeout: 2_000, env: C_ENV })
   const match = result.status === 0 ? /^\s*(\d+)\s+(.+?)\s*$/.exec(String(result.stdout).trim()) : null
   return match && Number(match[1]) === pid
-    ? { schemaVersion: 1, hostname: hostname(), pid, startedAt: match[2], capabilities: [TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY] }
+    ? { schemaVersion: 1, hostname: hostname(), pid, startedAt: match[2], capabilities: [TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY] }
     : undefined
 }
 

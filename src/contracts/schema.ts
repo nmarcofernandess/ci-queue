@@ -11,19 +11,20 @@ export const API_VERSION = 1 as const
 export const TICKET_SCHEMA_VERSION = 4 as const
 export const TERMINAL_FINALIZATION_CAPABILITY = "terminal-finalization-v1" as const
 export const NO_ARTIFACT_SNAPSHOTS_CAPABILITY = "no-artifact-snapshots-v1" as const
+export const RECOVERABLE_FINALIZATION_CAPABILITY = "recoverable-finalization-v1" as const
 export const FINALIZATION_JSON_MAX_BYTES = 64 * 1024
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
 export type FinalizationSpec = {
-  schemaVersion: 1
+  schemaVersion: 1 | 2
   argv: string[]
   timeoutMs: number
   contract: JsonValue
   contractDigest: string
 }
 export type FinalizationPhase = "pending" | "running" | "passed" | "failed" | "interrupted"
-export type FinalizationResult = {
-  schemaVersion: 1
+export type RecoveryDisposition = "none" | "retryable" | "blocked-ownership"
+export type FinalizationResult = ({ schemaVersion: 1; recovery?: never } | { schemaVersion: 2; recovery: RecoveryDisposition }) & {
   cleanup: "confirmed" | "not-required" | "uncertain"
   outputs: { path: string; sha256: string; role: string }[]
   error?: string
@@ -43,6 +44,8 @@ export type FinalizationRecord = {
   exitCode?: number | null
   failureReason?: string
   result?: FinalizationResult
+  recovery?: RecoveryDisposition
+  lastQueuedRecoveryTicketId?: string
 }
 
 /** Canonical JSON shared by the producer, persisted-ticket reader and supervisor. */
@@ -74,7 +77,7 @@ export function normalizeFinalization(value: unknown): FinalizationSpec | undefi
   if (value === undefined) return undefined
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("finalization precisa ser objeto")
   const raw = value as Record<string, unknown>
-  if (raw.schemaVersion !== 1) throw new Error("finalization.schemaVersion precisa ser 1")
+  if (![1, 2].includes(Number(raw.schemaVersion)) || typeof raw.schemaVersion !== "number") throw new Error("finalization.schemaVersion precisa ser 1 ou 2")
   if (!isValidPresetArgv(raw.argv)) throw new Error("finalization.argv precisa ser não vazio e válido")
   if (typeof raw.timeoutMs !== "number" || !Number.isSafeInteger(raw.timeoutMs) || raw.timeoutMs < 1 || raw.timeoutMs > 2_147_483_647) {
     throw new Error("finalization.timeoutMs inválido")
@@ -83,7 +86,7 @@ export function normalizeFinalization(value: unknown): FinalizationSpec | undefi
   if (Buffer.byteLength(contractJson, "utf8") > FINALIZATION_JSON_MAX_BYTES) throw new Error("finalization.contract excede 64 KiB")
   if (raw.contractDigest !== sha256(contractJson)) throw new Error("finalization.contractDigest inválido")
   return {
-    schemaVersion: 1,
+    schemaVersion: raw.schemaVersion as 1 | 2,
     argv: [...raw.argv],
     timeoutMs: raw.timeoutMs,
     contract: JSON.parse(contractJson) as JsonValue,
@@ -97,13 +100,14 @@ export function finalizationDigest(spec: FinalizationSpec): string {
 }
 
 /** Validate protocol data only; publication IO and containment stay in the supervisor. */
-export function normalizeFinalizationResult(value: unknown): FinalizationResult {
+export function normalizeFinalizationResult(value: unknown, requiredVersion?: 1 | 2): FinalizationResult {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("resultado da finalização inválido")
   const raw = value as Record<string, unknown>
   const bytes = JSON.stringify(value)
   if (!bytes || Buffer.byteLength(bytes, "utf8") > FINALIZATION_JSON_MAX_BYTES) throw new Error("resultado excede 64 KiB")
-  if (Object.keys(raw).some(key => !["schemaVersion", "cleanup", "outputs", "error"].includes(key))
-    || raw.schemaVersion !== 1 || typeof raw.cleanup !== "string"
+  if (Object.keys(raw).some(key => !["schemaVersion", "cleanup", "outputs", "error", ...(raw.schemaVersion === 2 ? ["recovery"] : [])].includes(key))
+    || (raw.schemaVersion !== 1 && raw.schemaVersion !== 2) || requiredVersion === 2 && raw.schemaVersion !== 2
+    || raw.schemaVersion === 2 && (!["none", "retryable", "blocked-ownership"].includes(String(raw.recovery)) || raw.cleanup !== "uncertain" && raw.recovery !== "none") || typeof raw.cleanup !== "string"
     || !["confirmed", "not-required", "uncertain"].includes(raw.cleanup) || !Array.isArray(raw.outputs)
     || (raw.error !== undefined && typeof raw.error !== "string")) throw new Error("resultado da finalização inválido")
   const outputs = raw.outputs.map((output: unknown) => {
@@ -116,7 +120,7 @@ export function normalizeFinalizationResult(value: unknown): FinalizationResult 
       || typeof item.role !== "string" || !item.role.trim()) throw new Error("resultado outputs path/hash/role inválido")
     return { path: item.path, sha256: item.sha256, role: item.role }
   })
-  return { schemaVersion: 1, cleanup: raw.cleanup as FinalizationResult["cleanup"], outputs,
+  return { ...(raw.schemaVersion === 2 ? { schemaVersion: 2 as const, recovery: raw.recovery as RecoveryDisposition } : { schemaVersion: 1 as const }), cleanup: raw.cleanup as FinalizationResult["cleanup"], outputs,
     ...(raw.error !== undefined ? { error: raw.error as string } : {}) }
 }
 

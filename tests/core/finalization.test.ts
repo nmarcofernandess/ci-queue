@@ -744,3 +744,32 @@ function spawnWorker(f: ReturnType<typeof fixture>, reportPath?: string) {
   children.push(worker)
   return worker
 }
+
+
+describe("recovery-does-not-rerun-or-starve-next-job", () => {
+  it("recovers on distinct work or explicit activation, preserving terminal and automatic cursor", async () => {
+    const f = fixture()
+    const fault = join(f.root, "io-fault")
+    writeFileSync(fault, "fault")
+    const recoveryHook = { ...hook(`${readInput};fs.appendFileSync(${JSON.stringify(f.hashes)},'attempt\\n');const failed=fs.existsSync(${JSON.stringify(fault)});fs.writeFileSync(input.resultPath,JSON.stringify({schemaVersion:2,cleanup:failed?'uncertain':'confirmed',recovery:failed?'retryable':'none',outputs:[]}))`), schemaVersion: 2 as const }
+    const first = enqueue(f, `require('node:fs').appendFileSync(${JSON.stringify(f.events)},'test\\n')`, recoveryHook)
+    const next = enqueue(f, `require('node:fs').appendFileSync(${JSON.stringify(f.events)},'next\\n')`, undefined, undefined, 1)
+    expect((await runWorker(f.state)).processed).toEqual([first.id, next.id])
+    expect(readFileSync(f.hashes, "utf8").trim().split("\n")).toHaveLength(1)
+    const terminal = readFileSync(historyPath(f.state, first.id))
+    await runWorker(f.state)
+    expect(record(f.state, first.id)).toMatchObject({ phase: "failed", recovery: "retryable", attempt: 1 })
+    const trigger = enqueue(f, "process.exit(0)", undefined, undefined, 2)
+    // The cursor is durable even if the same queued ticket activates another worker.
+    const activation = { trigger: { kind: "queued-work" as const, ticketId: trigger.id }, executionIds: [first.id], attempted: new Set<string>() }
+    await reconcileFinalizations(f.state, activation)
+    await reconcileFinalizations(f.state, { ...activation, attempted: new Set() })
+    expect(record(f.state, first.id)).toMatchObject({ attempt: 2, lastQueuedRecoveryTicketId: trigger.id })
+    rmSync(fault)
+    await runWorker(f.state, { finalizeOnly: first.id })
+    expect(record(f.state, first.id)).toMatchObject({ phase: "passed", recovery: "none", attempt: 3, lastQueuedRecoveryTicketId: trigger.id })
+    expect(existsSync(jobPath(f.state, trigger.id))).toBe(true)
+    expect(readFileSync(historyPath(f.state, first.id))).toEqual(terminal)
+    expect(readFileSync(f.events, "utf8").trim().split("\n")).toEqual(["test", "next"])
+  })
+})

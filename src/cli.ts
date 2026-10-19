@@ -15,7 +15,7 @@ import {
   parseRequestContext,
   parseRunVariant,
   TERMINAL_FINALIZATION_CAPABILITY,
-  NO_ARTIFACT_SNAPSHOTS_CAPABILITY,
+  NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY,
   type CliFailure,
   type CliResult,
   type CliSuccess,
@@ -173,7 +173,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           ...(manifest ? { distribution: { revision: manifest.revision, protocol: manifest.protocol } } : {}),
           apiVersion: API_VERSION,
           ticketSchemaVersion: TICKET_SCHEMA_VERSION,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read", "v4-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read", "v4-ticket-read"],
         })
       }
       case "observe": {
@@ -318,6 +318,9 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         }
         return success({ ticket })
       }
+      case "finalize":
+        if (args.rest.length !== 1 || !/^[A-Za-z0-9._-]+$/.test(args.rest[0])) return failure("USAGE", "uso: ci-queue finalize <id>")
+        return success(await runWorker(root, { finalizeOnly: args.rest[0] }))
       case "worker":
         return success(await runWorker(root))
       case "status": {

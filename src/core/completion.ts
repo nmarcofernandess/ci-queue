@@ -31,13 +31,13 @@ export function executionCompletion(ticket: QueueTicket, record?: FinalizationRe
     || !Number.isSafeInteger(record.attempt) || record.attempt < 0) {
     return { ...base, state: "running", reason: "finalization-unverified" }
   }
-  const bound = { ...base, finalization: record }
+  const bound = { ...base, finalization: { ...record, recovery: record.recovery ?? "none" } }
   if (record.phase === "pending" || record.phase === "running") return { ...bound, state: "running" }
   let output
-  try { output = normalizeFinalizationResult(record.result) }
+  try { output = normalizeFinalizationResult(record.result, ticket.finalization?.schemaVersion) }
   catch { return { ...bound, state: "failed", reason: "finalization-failed" } }
   if (record.phase !== "passed" || record.exitCode !== 0 || record.failureReason
-    || output.error || !["confirmed", "not-required"].includes(output.cleanup)) {
+    || (record.recovery ?? "none") !== (output.recovery ?? "none") || output.error || !["confirmed", "not-required"].includes(output.cleanup)) {
     return { ...bound, state: "failed", reason: record.result?.cleanup === "uncertain" ? "cleanup-uncertain" : "finalization-failed" }
   }
   return { ...bound, state: "complete", eligible: testPassed }

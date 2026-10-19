@@ -186,7 +186,7 @@ export function readFinalization(root: string, id: string): FinalizationRecord |
   const path = finalizationPath(root, id)
   try {
     const record = JSON.parse(readBoundedFile(path, 2 * FINALIZATION_JSON_MAX_BYTES).toString("utf8")) as FinalizationRecord
-    return record?.schemaVersion === 1 && record.ticketId === id && /^[a-f0-9]{64}$/.test(record.ticketDigest) && /^[a-f0-9]{64}$/.test(record.finalizationDigest) && ["pending", "running", "passed", "failed", "interrupted"].includes(record.phase) && Number.isSafeInteger(record.attempt) && record.attempt >= 0 ? record : undefined
+    return record?.schemaVersion === 1 && record.ticketId === id && /^[a-f0-9]{64}$/.test(record.ticketDigest) && /^[a-f0-9]{64}$/.test(record.finalizationDigest) && ["pending", "running", "passed", "failed", "interrupted"].includes(record.phase) && (record.recovery === undefined || ["none", "retryable", "blocked-ownership"].includes(record.recovery)) && (record.lastQueuedRecoveryTicketId === undefined || typeof record.lastQueuedRecoveryTicketId === "string" && /^[A-Za-z0-9._-]+$/.test(record.lastQueuedRecoveryTicketId)) && Number.isSafeInteger(record.attempt) && record.attempt >= 0 ? record : undefined
   } catch { return undefined }
 }
 

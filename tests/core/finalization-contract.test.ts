@@ -90,3 +90,11 @@ describe("frozen terminal finalization contract", () => {
     expect(result).toMatchObject({ ok: true, result: { ticket: { schemaVersion: 4, finalization: spec() } } })
   })
 })
+
+
+describe("recoverable v2 protocol", () => {
+  it("freezes v2 without changing API or ticket version", async () => {
+    expect(enqueue({ ...spec(), schemaVersion: 2 })).toMatchObject({ schemaVersion: 4, finalization: { schemaVersion: 2 } })
+    expect(await runCli(["version", "--json"])).toMatchObject({ ok: true, result: { apiVersion: 1, capabilities: expect.arrayContaining(["recoverable-finalization-v1"]) } })
+  })
+})
