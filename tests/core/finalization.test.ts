@@ -800,3 +800,62 @@ it.each(['timeout', 'SIGKILL', 'malformed'] as const)('classifies v2 %s using th
   expect(readFileSync(f.events, 'utf8')).toBe('test\n')
   expect(executionCompletion(JSON.parse(before.toString()), record(f.state, ticket.id), sha256(before)).eligible).toBe(false)
 })
+
+describe("Task 13 review repairs", () => {
+  it.each([false, true])("reconciles a residual result after observed ownership blockage (current failure=%s)", async failed => {
+    const f = fixture()
+    registerProjectRuntime(f.state, { projectId: "fixture", node: process.execPath })
+    const ticket = await terminalFixture(f, { ...hook(`require('node:fs').writeFileSync(${JSON.stringify(f.events)},'rerun')`), schemaVersion: 2 })
+    const terminal = readFileSync(historyPath(f.state, ticket.id))
+    const owner = await ownProcess(f.cwd)
+    saveRecord(f, ticket, { phase: "running", attempt: 1, processGroupIdentity: owner.group, supervisorIdentity: owner.worker })
+    expect((await reconcileFinalizations(f.state)).blocked).toContain(ticket.id)
+    const staleReason = record(f.state, ticket.id)?.failureReason
+    expect(staleReason).toEqual(expect.any(String))
+    await owner.stop()
+    atomicWriteJson(join(dirname(recordPath(f.state, ticket.id)), `${ticket.id}.result.json`), {
+      schemaVersion: 2, cleanup: failed ? "uncertain" : "confirmed", recovery: "none", outputs: [], ...(failed ? { error: "current result failed" } : {}),
+    })
+    const report = await reconcileFinalizations(f.state)
+    const current = record(f.state, ticket.id)!
+    expect(current.phase).toBe(failed ? "failed" : "passed")
+    expect(current.failureReason).toBe(failed ? "current result failed" : undefined)
+    expect(executionCompletion(ticket, current, sha256(terminal))).toMatchObject({ state: failed ? "failed" : "complete", eligible: !failed })
+    expect(report).toEqual({ blocked: [], pending: failed ? [ticket.id] : [], reconciled: failed ? [] : [ticket.id] })
+    expect(current.attempt).toBe(1)
+    expect(readFileSync(historyPath(f.state, ticket.id))).toEqual(terminal)
+    expect(existsSync(f.events)).toBe(false)
+  })
+
+  it.each([
+    { source: "missing", owner: "hook" },
+    { source: "corrupt", owner: "supervisor" },
+    { source: "missing", owner: "unknown" },
+    { source: "missing", owner: "malformed record" },
+  ])("reserves an orphan record with $source terminal and $owner ownership until death is proven", async ({ source, owner }) => {
+    const f = fixture()
+    const ticket = await terminalFixture(f, { ...hook(`require('node:fs').writeFileSync(${JSON.stringify(f.events)},'hook')`), schemaVersion: 2 })
+    const live = await ownProcess(f.cwd), dead = await ownProcess(f.cwd)
+    await dead.stop()
+    saveRecord(f, ticket, { phase: "running", attempt: 1,
+      processGroupIdentity: owner === "unknown" ? undefined : owner === "hook" ? live.group : dead.group,
+      supervisorIdentity: owner === "unknown" ? undefined : owner === "supervisor" ? live.worker : dead.worker })
+    if (owner === "malformed record") atomicWriteJson(recordPath(f.state, ticket.id), { ...record(f.state, ticket.id), phase: "invalid" })
+    if (source === "missing") rmSync(historyPath(f.state, ticket.id))
+    else writeFileSync(historyPath(f.state, ticket.id), "{invalid terminal")
+    const next = enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(f.hashes)},'next')`, undefined, undefined, 1)
+    const blocked = await runWorker(f.state)
+    expect(blocked.reconciliation).toBe("blocked")
+    expect(existsSync(jobPath(f.state, next.id))).toBe(true)
+    expect(existsSync(f.hashes)).toBe(false)
+    await live.stop()
+    saveRecord(f, ticket, { ...record(f.state, ticket.id), phase: "running", attempt: 1, processGroupIdentity: live.group, supervisorIdentity: live.worker })
+    expect(await reconcileFinalizations(f.state)).toEqual({ blocked: [], pending: [ticket.id], reconciled: [] })
+    await runWorker(f.state)
+    expect(readFileSync(f.hashes, "utf8")).toBe("next")
+    expect(existsSync(f.events)).toBe(false)
+    expect(record(f.state, ticket.id)?.attempt).toBe(1)
+    if (source === "missing") expect(existsSync(historyPath(f.state, ticket.id))).toBe(false)
+    else expect(readFileSync(historyPath(f.state, ticket.id), "utf8")).toBe("{invalid terminal")
+  })
+})

@@ -95,7 +95,7 @@ async function complete(root: string, ticket: QueueTicket, record: FinalizationR
     try { removeTransient(root, ticket.id, kind) }
     catch (error) { failureReason ??= smallError(error) }
   }
-  const result = await save(root, { ...record, phase: failureReason ? "failed" : "passed", finishedAt: new Date().toISOString(), ...(failureReason ? { failureReason } : {}) })
+  const result = await save(root, { ...record, phase: failureReason ? "failed" : "passed", finishedAt: new Date().toISOString(), failureReason })
   log(ticket, `${result.phase}${result.failureReason ? `: ${result.failureReason}` : ""}`)
   return result
 }
@@ -266,6 +266,14 @@ export function finalizationExecutionIds(root: string): string[] {
   }
   return [...ids]
 }
+function finalizerOwnershipBlocked(record: FinalizationRecord | undefined, allowCurrentSupervisor = false): boolean {
+  if (!record || record.attempt === 0 || record.finishedAt) return false
+  const hook = observeProcessGroup(record.processGroupIdentity)
+  const owner = observeWorkerIdentity(record.supervisorIdentity)
+  return hook.state !== "dead" || owner.state === "uncertain"
+    || owner.state === "alive" && !(allowCurrentSupervisor && record.supervisorIdentity?.pid === process.pid)
+}
+
 export async function reconcileFinalizations(root: string, activation: RecoveryActivation = { trigger: { kind: "initial-only" }, executionIds: finalizationExecutionIds(root), attempted: new Set() }): Promise<RecoverySummary> {
   const report: RecoverySummary = { blocked: [], pending: [], reconciled: [] }
   const producer = blockingTestProducer(root)
@@ -275,18 +283,22 @@ export async function reconcileFinalizations(root: string, activation: RecoveryA
     const ticket = tickets.find(item => item.id === id)
     try {
       const before = readFinalization(root, id)
-      if (!ticket) { report.pending.push(id); continue }
+      if (!ticket) {
+        // Missing source forbids replay, but cannot release a still-owned hook.
+        const blocked = !before && existsSync(finalizationPath(root, id)) || finalizerOwnershipBlocked(before)
+        if (blocked) report.blocked.push(id)
+        else report.pending.push(id)
+        continue
+      }
       const result = await runFinalization(root, ticket, activation)
       if (result.phase === "passed") { if (before?.phase !== "passed") report.reconciled.push(id); continue }
       const test = blockingTestProducer(root, ticket)
-      const hook = result.attempt > 0 && !result.finishedAt ? observeProcessGroup(result.processGroupIdentity) : undefined
-      const owner = result.attempt > 0 && !result.finishedAt ? observeWorkerIdentity(result.supervisorIdentity) : undefined
-      if (test || hook && hook.state !== "dead" || owner && (owner.state === "uncertain" || owner.state === "alive" && result.supervisorIdentity?.pid !== process.pid)) report.blocked.push(id)
+      if (test || finalizerOwnershipBlocked(result, true)) report.blocked.push(id)
       else report.pending.push(id)
     } catch (error) {
       if (ticket) log(ticket, smallError(error))
       const record = readFinalization(root, id)
-      if (!record && existsSync(finalizationPath(root, id)) || ticket && blockingTestProducer(root, ticket) || record?.attempt && !record.finishedAt && observeProcessGroup(record.processGroupIdentity).state !== "dead") report.blocked.push(id)
+      if (!record && existsSync(finalizationPath(root, id)) || ticket && blockingTestProducer(root, ticket) || finalizerOwnershipBlocked(record)) report.blocked.push(id)
       else report.pending.push(id)
     }
   }
