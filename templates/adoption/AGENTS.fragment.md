@@ -5,3 +5,7 @@ Queue é uma opção de agendamento, supervisão, logs, histórico e cancelament
 Feedback é focal e não representa prova final. Ao retomar uma execução
 enfileirada, confira seu ticket antes de criar outro. Encerre os recursos próprios
 pelo comando documentado pelo projeto.
+
+Fechamento após tasks/reviews e retenção seguem o procedimento do consumidor e
+`docs/TESTING-METHOD.md#fechamento-depois-da-autoria` no CI Queue; resultados ficam
+no registro selecionado pelo projeto, sem plano concorrente.
