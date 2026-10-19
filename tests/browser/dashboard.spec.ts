@@ -853,7 +853,7 @@ from pathlib import Path
 sys.path.insert(0, 'backend')
 from ci_queue_api.records import read_history, public_job
 cases = json.loads(Path('tests/fixtures/finalization-completion.json').read_text())
-selected = {'confirmed', 'pending', 'running', 'failed', 'uncertain', 'failed-test', 'legacy-3', 'missing-record', 'wrong-ticket', 'invalid-result-outputs'}
+selected = {'confirmed', 'pending', 'running', 'failed', 'uncertain', 'failed-test', 'legacy-3', 'missing-record', 'wrong-ticket', 'invalid-result-outputs', 'v2-confirmed', 'v2-retryable', 'v2-blocked'}
 projected = {}
 for case in cases:
     if case['name'] not in selected:
@@ -916,6 +916,9 @@ for (const theme of ['light', 'dark'] as const) {
         'missing-record': 'Finalizando · Teste passou · Finalização não verificada',
         'wrong-ticket': 'Finalizando · Teste passou · Finalização não verificada',
         'invalid-result-outputs': 'Falha na finalização · Teste passou; entrega incompleta',
+        'v2-confirmed': 'Passou · Finalização concluída',
+        'v2-retryable': 'Limpeza não confirmada · Teste passou; entrega incompleta · O finalizador não confirmou a limpeza · Recuperação pendente',
+        'v2-blocked': 'Limpeza não confirmada · Teste passou; entrega incompleta · O finalizador não confirmou a limpeza · Propriedade dos processos não confirmada',
       }
       for (const job of jobs) {
         const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: job.preset, exact: true }) })
@@ -924,12 +927,15 @@ for (const theme of ['light', 'dark'] as const) {
         await row.getByRole('button', { name: job.preset, exact: true }).click()
         const drawer = page.getByRole('dialog')
         await expect(drawer.getByRole('img', { name: labels[job.id], exact: true }).first()).toBeVisible()
-        const facts = drawer.getByRole('list', { name: 'Resultado, finalização e limpeza' })
-        await expect(facts.locator('[data-slot=item]')).toHaveCount(3)
+        const facts = drawer.getByRole('table', { name: 'Resultado, finalização e limpeza' })
+        await expect(facts.getByRole('row')).toHaveCount(3)
+        await expect(facts.getByRole('rowheader')).toHaveText(['Resultado do teste', 'Finalização', 'Limpeza'])
         await expect(facts).toContainText(job.status === 'failed' ? 'Teste falhou' : 'Teste passou')
         if (job.id === 'legacy-3') await expect(facts).toContainText('Sem registro de finalização')
         if (job.id === 'uncertain') await expect(facts).toContainText('Finalizador encerrado; entrega incompleta')
         if (job.id === 'failed-test') await expect(drawer).toContainText('Original test assertion failed')
+        if (job.id === 'v2-retryable') await expect(facts).toContainText('Recuperação pendente')
+        if (job.id === 'v2-blocked') await expect(facts).toContainText('Propriedade dos processos não confirmada')
         const bounds = await drawer.boundingBox()
         expect(bounds!.width).toBeLessThanOrEqual(width)
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
