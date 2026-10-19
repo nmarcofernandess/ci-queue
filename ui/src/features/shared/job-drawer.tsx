@@ -557,7 +557,9 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
               {job.data.recordKind === "observed-execution" ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Badge variant="outline">Direta</Badge>
+                    <Badge variant="outline" tabIndex={0}>
+                      Direta
+                    </Badge>
                   </TooltipTrigger>
                   <TooltipContent>
                     Resultado declarado pelo receipt; não é comprovação canônica

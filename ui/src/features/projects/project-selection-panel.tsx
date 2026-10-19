@@ -59,6 +59,7 @@ export function ProjectSelectionPanel({
       <Button
         type="button"
         variant={target?.kind === "all" ? "secondary" : "ghost"}
+        aria-pressed={target?.kind === "all"}
         className="justify-start"
         onClick={() => onSelect({ kind: "all" })}
       >
@@ -77,6 +78,9 @@ export function ProjectSelectionPanel({
               target?.kind === "project" && target.projectId === project.id
                 ? "secondary"
                 : "ghost"
+            }
+            aria-pressed={
+              target?.kind === "project" && target.projectId === project.id
             }
             className="h-auto min-w-0 justify-start"
             onClick={() => onSelect({ kind: "project", projectId: project.id })}

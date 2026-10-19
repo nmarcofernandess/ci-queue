@@ -29,12 +29,12 @@ export function FactsTable({ caption, rows }: FactsTableProps) {
           <TableRow key={row.id}>
             <TableHead
               scope="row"
-              className="py-2 pl-0 align-top whitespace-normal text-muted-foreground"
+              className="py-2 align-top whitespace-normal text-muted-foreground"
             >
               {row.label}
             </TableHead>
             <TableCell
-              className={`pr-0 align-top [overflow-wrap:anywhere] whitespace-normal ${row.technical ? "font-mono" : ""}`}
+              className={`align-top [overflow-wrap:anywhere] whitespace-normal ${row.technical ? "font-mono" : ""}`}
             >
               {row.value}
             </TableCell>

@@ -1,6 +1,6 @@
 ---
 name: consumer-testing-method
-description: Choose feedback or proof using a consumer's CI method map.
+description: Choose feedback, closing diagnostics or proof using a consumer's CI method map.
 ---
 
 # Consumer testing method
@@ -18,4 +18,6 @@ Feedback is a focal iteration result; proof and ship eligibility come from the
 consumer's catalog and delivery contract. Do not invent commands or duplicate
 the queue's ticket and ship formats here.
 
-See the generic procedure in [TESTING-METHOD](../../docs/TESTING-METHOD.md).
+For the transition after planned tasks/reviews, closing diagnostics and record
+retention, follow the consumer-owned procedure and the boundary in
+[TESTING-METHOD](../../docs/TESTING-METHOD.md#fechamento-depois-da-autoria).

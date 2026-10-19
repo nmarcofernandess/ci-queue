@@ -30,6 +30,34 @@ A prova de adoção do bundle usa um consumidor Node/Git temporário e um servid
 HTTP fake em loopback. Ela verifica o caminho genérico de ticket e não substitui
 o E2E nem a prova final do produto consumidor.
 
+## Fechamento depois da autoria
+
+As instruções do projeto definem a passagem das tasks/reviews para o agente da
+integração. O procedimento consumidor deve separar essa fase da autoria e
+apontar ao mesmo registro de execução para causas, correções, tickets e
+resultados. CI Queue executa receitas e preserva fatos; não cria tasks de plano,
+não reinicia métodos de implementação e não autoriza integração ou deploy.
+
+Quando o diagnóstico inicial pedir execução completa, use o **Smoke completo
+do consumidor pela Queue**, com uma receita real declarada no catálogo. Smoke
+não significa Jest integral. O modo de coletar falhas de gates pertence ao
+agregador consumidor: executar os gates restantes, acumular resultados e devolver
+exit não zero se houver falha. Não invente uma flag universal do CI Queue nem
+deduza esse modo pelo nome da receita. Projeto sem esse caminho deve implementá-lo
+antes de anunciá-lo como disponível.
+
+Mantenha preflight, locks, compatibilidade do ambiente e a identidade da candidata
+exigidos pelo catálogo, incluindo HEAD/base, árvore e estabilidade. Coleta de
+falhas de gates não contorna recusas, cancelamento, pinning ou requisitos de
+prova. Leia o ticket terminal antes de repetir; corrija causas e verifique-as
+focalmente pelo procedimento consumidor. Com o saldo resolvido, o ship canônico
+usa parada no erro e sua elegibilidade normal. Um modo diagnóstico distinto não
+é automaticamente uma receita aceita por ship; progress e conjunto de tasks
+concluídas continuam sem conceder prova, merge ou deploy.
+
+Retenção do state/ticket e publicação de resumos estão em
+[CONTRACTS — Fila, registros e comando](CONTRACTS.md#fila-registros-e-comando).
+
 ## Retomar uma tentativa Queue existente
 
 Quando for retomar uma tentativa enfileirada, confira os valores que o mapa nomeia:

@@ -118,6 +118,10 @@ test("the release bundle serves a minimal Node Git consumer, not a product E2E, 
       "enfileirada, confira seu ticket antes de criar outro. Encerre os recursos próprios",
       "pelo comando documentado pelo projeto.",
       "",
+      "Fechamento após tasks/reviews e retenção seguem o procedimento do consumidor e",
+      "`docs/TESTING-METHOD.md#fechamento-depois-da-autoria` no CI Queue; resultados ficam",
+      "no registro selecionado pelo projeto, sem plano concorrente.",
+      "",
     ].join("\n"))
 
     const adoptionMap = readFileSync(join(bundle, "templates/adoption/ci.yaml"), "utf8")

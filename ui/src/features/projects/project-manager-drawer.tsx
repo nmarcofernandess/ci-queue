@@ -21,7 +21,14 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group"
-import { Item, ItemContent, ItemGroup, ItemTitle } from "@/components/ui/item"
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from "@/components/ui/item"
 import {
   DetailDrawer,
   DetailDrawerBody,
@@ -484,20 +491,23 @@ function ProjectRow({
   onEdit: () => void
 }) {
   return (
-    <button
-      type="button"
-      className="flex min-w-0 flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left"
-      onClick={onEdit}
-    >
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="truncate font-medium">{item.displayName || item.id}</span>
-        {item.repositoryAvailable ? null : (
-          <Badge variant="secondary">Pasta indisponível</Badge>
-        )}
-      </span>
-      <span className="truncate text-xs text-muted-foreground">
-        {item.resolvedRepositoryPath || item.repositoryPath || item.id} · {item.bindingState}
-      </span>
-    </button>
+    <Item variant="outline" size="sm">
+      <ItemContent>
+        <ItemTitle>
+          {item.displayName || item.id}
+          {item.repositoryAvailable ? null : (
+            <Badge variant="secondary">Pasta indisponível</Badge>
+          )}
+        </ItemTitle>
+        <ItemDescription>
+          {item.resolvedRepositoryPath || item.repositoryPath || item.id} · {item.bindingState}
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+          Editar
+        </Button>
+      </ItemActions>
+    </Item>
   )
 }

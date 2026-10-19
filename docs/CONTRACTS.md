@@ -121,6 +121,15 @@ OR.
 
 State: `jobs/`, `running.json`, `history/`, `logs/`, `artifacts/`, `progress/`, `observations/`. Registro terminal em history é autoritativo para tickets de fila. Sidecar progress é consolidado no ticket ao fim e removido. Logs usam o caminho do ticket. `artifacts/` conserva somente snapshots históricos: não há novas cópias nem limpeza automática desses dados. Ausência de log é indisponibilidade, não conteúdo vazio bem-sucedido.
 
+Logs brutos, stdout/stderr e artefatos temporários permanecem no state ou scratch
+ignorado, fora do Git. O consumidor versiona resumos duráveis e referências aos
+tickets no registro de execução existente. Antes de retirar material já rastreado,
+confira referências, consumers e o vínculo de publicação/retenção: proofs formais
+obedecem ao contrato do consumidor, inclusive evidências/digests exigidos, sem
+serem tratados como logs comuns. Recortes curados de ensino são documentos
+autoriais, não dumps completos nem prova viva. Esta regra de Git não autoriza
+apagar history/logs do state do operador ou de outro owner.
+
 O state explícito/ambiente deve ser o mesmo da API/worker. Sem override, o caminho compatível `~/.local/state/local-ci/queue`, se presente, é preservado; não criar outra fila ao copiar um comando de instalação nova. O launcher instalado exporta `CI_QUEUE_STATE_DIR` para o state registrado; CLI, worker e API leem o mesmo root.
 
 `--wait` e seu timeout não cancelam o job. `cancel` é explícito e segue ownership do processo. Um worker por state. Worker on-demand ausente enquanto a fila está vazia pode ser saudável. Não apagar locks ou sinalizar PID sem identidade para forçar recuperação.

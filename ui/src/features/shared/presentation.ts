@@ -22,16 +22,19 @@ export type StateDescriptor = {
 
 export const identityPresentation = {
   current: {
-    title: "text-base leading-5 font-medium",
+    buttonSize: "lg",
+    title: "text-base font-medium",
     description: "text-xs leading-4 text-muted-foreground",
     media: "size-10",
   },
   drawer: {
-    title: "text-base leading-5 font-medium",
-    description: "text-xs leading-4 text-muted-foreground",
+    buttonSize: "default",
+    title: "",
+    description: "",
     media: "size-9",
   },
   table: {
+    buttonSize: "sm",
     title: "text-sm leading-5 font-medium",
     description: "text-xs leading-4 text-muted-foreground",
     media: "size-4",
