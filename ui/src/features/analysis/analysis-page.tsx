@@ -347,7 +347,8 @@ function ResultsChart({
                       <Button
                         type="button"
                         variant="link"
-                        className="h-auto max-w-full min-w-0 justify-start p-0 text-left font-medium break-words whitespace-normal [overflow-wrap:anywhere]"
+                        size="sm"
+                        className="h-auto max-w-full min-w-0 justify-start text-left break-words whitespace-normal [overflow-wrap:anywhere]"
                       >
                         {label}
                       </Button>
@@ -475,7 +476,6 @@ function DurationChart({
               key={stat.title}
               variant="default"
               size="sm"
-              className="border-transparent px-0 py-0"
             >
               <ItemContent>
                 <ItemTitle>{stat.title}</ItemTitle>
@@ -518,22 +518,26 @@ function DurationChart({
               tickFormatter={(value) => formatDuration(Number(value))}
             />
             <ChartTooltip
-              content={
+              content={({ active, label, payload }) => (
                 <ChartTooltipContent
-                  labelFormatter={(_, payload) => {
-                    const point = payload?.[0]?.payload as
+                  active={active}
+                  label={label}
+                  nameKey="dataKey"
+                  payload={payload
+                    .filter((entry) => entry.dataKey === "durationMs")
+                    .map((entry) => ({
+                      ...entry,
+                      value: formatDuration(Number(entry.value)),
+                    }))}
+                  labelFormatter={(_, entries) => {
+                    const point = entries?.[0]?.payload as
                       { at?: string } | undefined
                     return point?.at
                       ? formatDateTime(point.at)
                       : "Horário indisponível"
                   }}
-                  formatter={(value) =>
-                    formatDuration(
-                      typeof value === "number" ? value : Number(value)
-                    )
-                  }
                 />
-              }
+              )}
             />
             <Scatter
               data={points}

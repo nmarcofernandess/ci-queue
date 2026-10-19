@@ -29,10 +29,10 @@ export function SelectionPanel({
         align={align}
         collisionPadding={16}
         aria-label={label}
-        className="w-[min(22rem,calc(100vw-2rem))] gap-2 p-2"
+        className="w-[min(22rem,calc(100vw-2rem))]"
       >
         {header}
-        <ScrollArea className="max-h-80">
+        <ScrollArea className="h-80">
           <div className="flex flex-col gap-1 pr-2">{children}</div>
         </ScrollArea>
         {footer}

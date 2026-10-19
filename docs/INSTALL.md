@@ -2,6 +2,36 @@
 
 Uma release é uma pasta autocontida com JavaScript compilado, backend Python de biblioteca padrão, UI estática e manifest. Não aponta para checkout de desenvolvimento, symlink de lane ou dependência file:. Binários Node/Python do host são fornecidos separadamente. Entrada de adoção: [CONSUMER-QUICKSTART](CONSUMER-QUICKSTART.md); roteiro ilustrado: [manual offline, capítulo 9](GUIA-INTEGRACAO-CI-QUEUE.html#instalacao).
 
+## Publicar dev e promover main neste repositório
+
+A publicação usa PR e `ci-queue ship`. O catálogo deste repositório possui
+`check` para a base dev e `check-main` para a base main. Ambos executam o mesmo
+check integral com árvore limpa, HEAD pinado e estabilidade Git. A prova de uma
+base não substitui a da outra.
+
+Na branch candidata publicada, abra a PR para dev e execute:
+
+```bash
+ci-queue ship --cwd "$PWD" --config "$PWD/ci-queue.json" --pr <PR-para-dev> --json
+```
+
+Depois do merge observado em dev, use o checkout limpo e atualizado de dev,
+abra a PR dev → main e produza a prova da promoção explicitamente:
+
+```bash
+ci-queue enqueue check-main --cwd "$PWD" --config "$PWD/ci-queue.json" --wait
+ci-queue ship --cwd "$PWD" --config "$PWD/ci-queue.json" --pr <PR-para-main> --json
+```
+
+O ship reutiliza somente a prova elegível do mesmo HEAD e da base da PR. Sem
+prova elegível, usa a primeira receita aceita, `check`, cuja base é dev. Por
+isso a promoção para main exige o enqueue explícito de `check-main`. Se HEAD
+ou main avançar, reconcilie a candidata e renove a prova exigida.
+
+Produza o bundle no main integrado, atualizado e limpo. A autorização de
+publicação, promoção e instalação vem do pedido do operador; uma prova verde
+não autoriza essas etapas por si só.
+
 ## Produzir e verificar
 
 No checkout autorizado para produzir a release:

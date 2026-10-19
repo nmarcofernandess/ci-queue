@@ -28,10 +28,19 @@
       "requireGitStability": false,
       "pinHeadSha": true,
       "abortOnStaleBase": false
+    },
+    "check-main": {
+      "progress": true,
+      "argv": ["npm", "run", "check"],
+      "requireCleanTree": true,
+      "fetchBase": "origin/main",
+      "requireGitStability": true,
+      "pinHeadSha": true,
+      "abortOnStaleBase": true
     }
   },
   "ship": {
-    "acceptedPresets": ["check"],
+    "acceptedPresets": ["check", "check-main"],
     "attestationContext": "local/check",
     "remoteVerdict": {
       "workflow": ".github/workflows/ci.yml",

@@ -44,7 +44,8 @@ function ProgressNodeRow({
     <Item
       data-slot="progress-row"
       data-node-id={node.id}
-      className="min-h-9 min-w-0 flex-nowrap gap-2 border-0 px-0 py-1"
+      size="xs"
+      className="min-w-0 flex-nowrap"
     >
       <ItemMedia data-slot="progress-indicator">
         <StatusIndicator
@@ -116,7 +117,7 @@ export function ProgressTree({ nodes, jobStatus }: ProgressTreeProps) {
       !nodes.some((candidate) => candidate.id === node.parentId)
   )
   return (
-    <ItemGroup className="gap-1">
+    <ItemGroup>
       {roots.map((node) => (
         <ProgressNodeRow
           key={node.id}
