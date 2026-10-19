@@ -6,13 +6,13 @@ import test from "node:test"
 import assert from "node:assert/strict"
 
 import { installRelease, uninstallRelease } from "../../scripts/install.mjs"
-import { buildRelease } from "../../scripts/release.mjs"
+import { buildRelease } from "../helpers/release-fixture.mjs"
 
 const productRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "ci-queue-login-envelope-"))
-  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "ci-queue", version: "0.1.0" }))
+  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "ci-queue", version: "0.1.0", type: "module" }))
   writeFileSync(join(root, "package-lock.json"), "{}\n")
   writeFileSync(join(root, "LICENSE"), "MIT\n")
   writeFileSync(join(root, "README.md"), "# CI Queue\n")

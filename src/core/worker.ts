@@ -1,11 +1,14 @@
-import { readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs"
+import { randomUUID } from "node:crypto"
+import { readFileSync, readdirSync, renameSync, statSync } from "node:fs"
 import { join } from "node:path"
 
-import { parseTicket, claimQueuedTicket, reconcileInterruptedJob, rejectQueuedTicket, runJob } from "./runner.js"
-import { terminateVerifiedProcessGroup } from "./process.js"
+import { parseTicket, claimQueuedTicket, reconcileInterruptedJob, reconcileTerminalClaims, rejectQueuedTicket, runJob } from "./runner.js"
+import { observeWorkerIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "./process.js"
+import { reconcileFinalizations, finalizationExecutionIds, type RecoveryActivation, type RecoverySummary } from "./finalization.js"
 import {
   acquireRunnerLock,
   appendLog,
+  assertWorkerStatePaths,
   atomicWriteJson,
   ensureQueueDirs,
   historyPath,
@@ -13,10 +16,13 @@ import {
   isPidAlive,
   queuePaths,
   readRunningJob,
+  readBoundedFile,
+  readFinalization,
+  readWorkerOwnership,
   recoverClaims,
   removeFile,
 } from "./state.js"
-import type { QueueTicket } from "../contracts/schema.js"
+import type { QueueTicket, WorkerIdentity } from "../contracts/schema.js"
 
 export const STALE_TMP_MAX_AGE_MS = 5 * 60_000
 
@@ -25,6 +31,8 @@ export type WorkerReport = {
   rejected: string[]
   reconciliation: "none" | "active" | "reconciled" | "blocked"
   busy: boolean
+  blockingReason?: string
+  recovery?: RecoverySummary
 }
 
 function fileAge(path: string): number | undefined {
@@ -83,13 +91,15 @@ export function recoverProgressTemporaries(root: string): string[] {
 }
 
 /** Drains one state root and exits. The installer may invoke it on demand. */
-export async function runWorker(root: string): Promise<WorkerReport> {
+export async function runWorker(root: string, options: { finalizeOnly?: string } = {}): Promise<WorkerReport> {
   ensureQueueDirs(root)
   const lock = acquireRunnerLock(root)
   if (!lock) return { processed: [], rejected: [], reconciliation: "active", busy: true }
   const paths = queuePaths(root)
   const report: WorkerReport = { processed: [], rejected: [], reconciliation: "none", busy: false }
   let current: QueueTicket | undefined
+  let identity: WorkerIdentity | undefined
+  let publishedWorkerPid = false
   let interrupted = false
   const handleSignal = () => {
     interrupted = true
@@ -100,14 +110,60 @@ export async function runWorker(root: string): Promise<WorkerReport> {
   try {
     // Keep the legacy decimal form while old consumers may still inspect the
     // shared lock during the one-time external cutover.
-    writeFileSync(paths.workerPid, `${process.pid}\n`, { encoding: "utf8", mode: 0o600 })
-    const reconciliation = await reconcileInterruptedJob(root)
+    const ownership = readWorkerOwnership(root)
+    if (ownership.state === "invalid") {
+      report.reconciliation = "blocked"; report.busy = true; report.blockingReason = ownership.reason
+      return report
+    }
+    const previousIdentity = ownership.state === "valid" ? ownership.identity : undefined
+    identity = probeWorkerIdentity()
+    if (previousIdentity && (!identity || previousIdentity.pid !== identity.pid || previousIdentity.startedAt !== identity.startedAt || previousIdentity.hostname !== identity.hostname)) {
+      const previous = observeWorkerIdentity(previousIdentity)
+      if (previous.state !== "dead") {
+        report.reconciliation = previous.state === "alive" ? "active" : "blocked"; report.busy = true; report.blockingReason = previous.reason
+        return report
+      }
+    }
+    assertWorkerStatePaths(root)
+    atomicWriteJson(paths.workerPid, process.pid)
+    publishedWorkerPid = true
+    if (identity) atomicWriteJson(paths.workerIdentity, identity)
+    const initialTicket = listQueuedJobs(root).find(ticket => !("rejectReason" in parseTicket(ticket)))
+    const activation: RecoveryActivation = { trigger: options.finalizeOnly ? { kind: "explicit", activationId: randomUUID() }
+      : initialTicket ? { kind: "queued-work", ticketId: initialTicket.id } : { kind: "initial-only" },
+      executionIds: options.finalizeOnly ? [options.finalizeOnly] : finalizationExecutionIds(root), attempted: new Set() }
+    if (options.finalizeOnly) {
+      const recovered = await reconcileFinalizations(root, activation)
+      report.recovery = recovered
+      report.reconciliation = recovered.blocked.length ? "blocked" : recovered.reconciled.length ? "reconciled" : "none"
+      return report
+    }
+    const reconciliation = await reconcileInterruptedJob(root, activation)
     report.reconciliation = reconciliation.state
-    if (reconciliation.state === "active" || reconciliation.state === "blocked") return report
+    if (reconciliation.state === "active" || reconciliation.state === "blocked") {
+      report.blockingReason = reconciliation.job?.cleanupBlockedReason
+      return report
+    }
+    if ((await reconcileTerminalClaims(root, activation)).length) report.reconciliation = "reconciled"
     recoverProgressTemporaries(root)
     recoverClaims(root)
     report.rejected.push(...await sweepInvalidTickets(root))
     for (;;) {
+      const currentOwnership = readWorkerOwnership(root)
+      if (currentOwnership.state === "invalid") {
+        report.reconciliation = "blocked"; report.blockingReason = currentOwnership.reason
+        break
+      }
+      if (currentOwnership.state === "valid" && (!identity || currentOwnership.identity.pid !== identity.pid || currentOwnership.identity.hostname !== identity.hostname || currentOwnership.identity.startedAt !== identity.startedAt)) {
+        report.reconciliation = "blocked"; report.blockingReason = "identidade do worker substituída durante a drenagem"
+        break
+      }
+      // A queued cancellation can publish a terminal while the previous test
+      // is active. Drain that work before another claim, including empty exit.
+      if ((await reconcileTerminalClaims(root, activation)).length) report.reconciliation = "reconciled"
+      const finalizations = await reconcileFinalizations(root, { ...activation, executionIds: [...new Set([...activation.executionIds, ...finalizationExecutionIds(root)])] })
+      if (finalizations.blocked.length) { report.reconciliation = "blocked"; break }
+      if (finalizations.reconciled.length) report.reconciliation = "reconciled"
       if (interrupted) break
       if (readRunningJob(root)) break
       const candidate = listQueuedJobs(root)[0]
@@ -129,16 +185,36 @@ export async function runWorker(root: string): Promise<WorkerReport> {
         continue
       }
       const terminal = await runJob(root, parsed, {
+        recoveryActivation: activation,
         onJob: (job) => { current = job },
         interruptedReason: () => interrupted ? "worker interrompido por sinal" : undefined,
       })
       report.processed.push(terminal.id)
+      const reserved = readRunningJob(root)
+      if (reserved?.cleanupBlockedReason) {
+        report.reconciliation = "blocked"; report.blockingReason = reserved.cleanupBlockedReason
+        break
+      }
+      const finalization = readFinalization(root, terminal.id)
+      if (finalization && !finalization.finishedAt) { report.reconciliation = "blocked"; break }
     }
     return report
   } finally {
     process.removeListener("SIGINT", handleSignal)
     process.removeListener("SIGTERM", handleSignal)
-    removeFile(paths.workerPid)
-    lock.release()
+    try {
+      const ownership = readWorkerOwnership(root)
+      if (ownership.state === "invalid") {
+        report.reconciliation = "blocked"; report.blockingReason = ownership.reason
+      } else {
+        const owner = ownership.state === "valid" ? ownership.identity : undefined
+        const ownsIdentity = identity && owner?.pid === identity.pid && owner.hostname === identity.hostname && owner.startedAt === identity.startedAt
+        let legacyPid: unknown
+        try { legacyPid = JSON.parse(readBoundedFile(paths.workerPid, 32).toString("utf8")) } catch { /* never remove an unreadable/replaced legacy owner */ }
+        assertWorkerStatePaths(root)
+        if (publishedWorkerPid && legacyPid === process.pid && (!owner || ownsIdentity)) removeFile(paths.workerPid)
+        if (ownsIdentity) removeFile(paths.workerIdentity)
+      }
+    } finally { lock.release() }
   }
 }

@@ -15,6 +15,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .completion import CompletionEvidence, public_completion
 from .config import PROJECT_ID
 from .record_store import SnapshotError, clear_stores, store_for
 from .execution_observations import (
@@ -171,6 +172,30 @@ def valid_history_identity(job):
     return True
 
 
+def join_completion(state_root, job, terminal_digest=None):
+    if (not isinstance(job, dict) or job.get("recordKind") == "observed-execution"
+            or not job.get("finalization") and not job.get("finalizationDigest")):
+        return job
+    record = None
+    try:
+        job_id = job.get("id")
+        if not isinstance(job_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", job_id):
+            raise ValueError()
+        root = Path(state_root)
+        components = [root, root / "state", root / "state/finalization", root / "state/finalization" / (job_id + ".json")]
+        if any(path.is_symlink() for path in components):
+            raise ValueError()
+        with components[-1].open("rb") as stream:
+            body = stream.read(131073)
+        if len(body) <= 131072:
+            value = json.loads(body)
+            if isinstance(value, dict):
+                record = value
+    except (OSError, ValueError, UnicodeError):
+        pass
+    return {**job, "_completionEvidence": CompletionEvidence(record, terminal_digest)}
+
+
 def read_history_with_coverage(state_root, strict=False):
     try:
         snapshot = store_for(Path(state_root) / "history").snapshot()
@@ -179,6 +204,7 @@ def read_history_with_coverage(state_root, strict=False):
     ledger = read_json(Path(state_root) / "state" / "legacy-projects.json")
     rows = []
     corrupt = len(snapshot.errors)
+    source_digests = dict(snapshot.digests)
     for row in snapshot.rows:
         if not valid_history_identity(row):
             corrupt += 1
@@ -187,7 +213,31 @@ def read_history_with_coverage(state_root, strict=False):
         if not valid_history_identity(job):
             corrupt += 1
             continue
-        rows.append(job)
+        # Snapshot digests belong to file names, not arbitrary JSON ids. Hook
+        # readers parse and hash one actual source, even if a row was renamed.
+        terminal_digest = source_digests.get(str(row.get("id")) + ".json")
+        if job.get("finalization") or job.get("finalizationDigest"):
+            terminal_digest = None
+            try:
+                job_id = job.get("id")
+                if not isinstance(job_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", job_id):
+                    raise ValueError()
+                root = Path(state_root)
+                source = root / "history" / (job_id + ".json")
+                if any(path.is_symlink() for path in (root, root / "history", source)):
+                    raise ValueError()
+                with source.open("rb") as stream:
+                    body = stream.read(16 * 1024 * 1024 + 1)
+                if len(body) > 16 * 1024 * 1024:
+                    raise ValueError()
+                parsed = json.loads(body)
+                if not isinstance(parsed, dict) or parsed.get("id") != job_id or not valid_history_identity(parsed):
+                    raise ValueError()
+                job = attribute_legacy(parsed, ledger)
+                terminal_digest = hashlib.sha256(body).hexdigest()
+            except (OSError, ValueError, UnicodeError):
+                pass
+        rows.append(join_completion(state_root, job, terminal_digest))
     if strict and corrupt:
         raise RecordError("histórico contém registro inválido")
     return rows, {"unattributedRecords": sum(row.get("projectId") is None for row in rows),
@@ -203,7 +253,7 @@ def read_queued(state_root, strict=False):
 
 
 def read_running(state_root, strict=False):
-    return read_json(Path(state_root) / "running.json", strict=strict)
+    return join_completion(state_root, read_json(Path(state_root) / "running.json", strict=strict))
 
 
 def read_progress(state_root, job_id):
@@ -319,6 +369,8 @@ def public_job(job):
     if not isinstance(job, dict):
         return job
     result = {key: job.get(key) for key in PUBLIC_JOB_FIELDS if key in job}
+    if job.get("recordKind") != "observed-execution":
+        result["completion"] = public_completion(job)
     if "recordKind" not in result and "id" in result:
         # Legacy tickets omit recordKind; do not invent observed identity.
         pass
@@ -398,6 +450,7 @@ def public_job_summary(job):
 def _history_revision(state_root):
     snapshot = store_for(Path(state_root) / "history").snapshot()
     observed = store_for(Path(state_root) / "observations").snapshot()
+    finalization = store_for(Path(state_root) / "state/finalization").snapshot()
     ledger = Path(state_root) / "state" / "legacy-projects.json"
     try:
         info = ledger.stat()
@@ -407,6 +460,7 @@ def _history_revision(state_root):
     raw = repr((
         snapshot.generation, snapshot.digests, snapshot.errors,
         observed.generation, observed.digests, observed.errors,
+        finalization.generation, finalization.digests, finalization.errors,
         ledger_version,
     )).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()[:24]
@@ -418,8 +472,9 @@ def lookup_job(state_root, job_id, project_id=None, unassigned=False):
         raise RecordError("projectId e context=unassigned são mutuamente exclusivos")
     job_id = validate_job_id(job_id)
     root = Path(state_root)
+    terminal = next((row for row in read_history(root) if row.get("id") == job_id), None)
     candidates = [
-        read_json(root / "history" / (job_id + ".json")),
+        terminal,
         read_json(root / "running.json"),
         read_json(root / "jobs" / (job_id + ".json")),
     ]

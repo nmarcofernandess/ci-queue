@@ -1,9 +1,15 @@
 import { randomBytes } from "node:crypto"
 import {
   existsSync,
+  closeSync,
+  constants,
+  fstatSync,
   mkdirSync,
+  lstatSync,
+  openSync,
   readFileSync,
   readdirSync,
+  readSync,
   renameSync,
   rmSync,
   statSync,
@@ -13,7 +19,7 @@ import {
 import { homedir } from "node:os"
 import { basename, join } from "node:path"
 
-import type { QueueTicket } from "../contracts/schema.js"
+import { FINALIZATION_JSON_MAX_BYTES, type FinalizationRecord, type QueueTicket, type WorkerIdentity } from "../contracts/schema.js"
 
 export type QueuePaths = ReturnType<typeof queuePaths>
 
@@ -58,6 +64,7 @@ export function queuePaths(root: string): {
   jobLocks: string
   running: string
   workerPid: string
+  workerIdentity: string
   runnerLock: string
 } {
   return {
@@ -74,6 +81,7 @@ export function queuePaths(root: string): {
     jobLocks: join(root, "locks", "jobs"),
     running: join(root, "running.json"),
     workerPid: join(root, "state", "worker.pid"),
+    workerIdentity: join(root, "state", "worker.json"),
     runnerLock: join(root, "locks", "runner.lock"),
   }
 }
@@ -97,8 +105,89 @@ export function readJsonFile<T>(path: string): T | undefined {
 /** Atomic publication prevents a worker from ever observing partial JSON. */
 export function atomicWriteJson(path: string, value: unknown): void {
   const temporary = `${path}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`
-  writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: 0o600 })
+  writeFileSync(temporary, serializedJson(value), { encoding: "utf8", mode: 0o600 })
   renameSync(temporary, path)
+}
+
+/** Both the pending digest and atomic publisher seal these exact bytes. */
+export function serializedJson(value: unknown): string {
+  return `${JSON.stringify(value, null, 2)}\n`
+}
+
+export function assertNoSymlinkPaths(paths: string[]): void {
+  for (const path of paths) {
+    try { if (lstatSync(path).isSymbolicLink()) throw new Error(`symlink recusado no state: ${path}`) }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error }
+  }
+}
+
+export type WorkerOwnership =
+  | { state: "absent" }
+  | { state: "valid"; identity: WorkerIdentity }
+  | { state: "invalid"; reason: string }
+
+/** Every component is checked before either legacy PID or identity is written. */
+export function assertWorkerStatePaths(root: string): void {
+  const paths = queuePaths(root)
+  assertNoSymlinkPaths([root, paths.state, paths.workerIdentity, paths.workerPid])
+  for (const path of [paths.workerIdentity, paths.workerPid]) {
+    try { if (!lstatSync(path).isFile()) throw new Error("ownership do worker não é arquivo regular") }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error }
+  }
+}
+
+/** Invalid/existing is distinct from absent and is never an execution authority. */
+export function readWorkerOwnership(root: string): WorkerOwnership {
+  try { assertWorkerStatePaths(root) }
+  catch (error) { return { state: "invalid", reason: (error as Error).message.slice(0, 512) } }
+  let bytes: Buffer
+  try { bytes = readBoundedFile(queuePaths(root).workerIdentity, FINALIZATION_JSON_MAX_BYTES) }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { state: "absent" }
+    return { state: "invalid", reason: error instanceof RangeError ? "ownership do worker excede limite de bytes" : "ownership do worker ilegível ou não regular" }
+  }
+  let identity: WorkerIdentity
+  try { identity = JSON.parse(bytes.toString("utf8")) as WorkerIdentity }
+  catch { return { state: "invalid", reason: "ownership do worker não é JSON válido" } }
+  return identity?.schemaVersion === 1 && typeof identity.hostname === "string" && Boolean(identity.hostname) && Number.isSafeInteger(identity.pid) && identity.pid > 0 && typeof identity.startedAt === "string" && Boolean(identity.startedAt) && Array.isArray(identity.capabilities) && identity.capabilities.every(item => typeof item === "string")
+    ? { state: "valid", identity }
+    : { state: "invalid", reason: "identidade persistida do worker inválida" }
+}
+
+/** Bounded, no-follow reads for the supervisor's small protocol files. */
+export function readBoundedFile(path: string, maxBytes: number): Buffer {
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
+  try {
+    const stat = fstatSync(fd)
+    if (!stat.isFile()) throw new Error("arquivo não é regular")
+    if (stat.size > maxBytes) throw new RangeError("arquivo excede limite de bytes")
+    const bytes = Buffer.alloc(maxBytes + 1)
+    let offset = 0
+    while (offset < bytes.length) {
+      const count = readSync(fd, bytes, offset, bytes.length - offset, null)
+      if (!count) break
+      offset += count
+    }
+    if (offset > maxBytes) throw new RangeError("arquivo excede limite de bytes")
+    return bytes.subarray(0, offset)
+  } finally { closeSync(fd) }
+}
+
+/** Reject a symlink at every Queue-owned component before reads or writes. */
+export function finalizationPath(root: string, id: string): string {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)) throw new Error("id de finalização inválido")
+  const directory = join(queuePaths(root).state, "finalization")
+  const file = join(directory, `${id}.json`)
+  assertNoSymlinkPaths([root, queuePaths(root).state, directory, file])
+  return file
+}
+
+export function readFinalization(root: string, id: string): FinalizationRecord | undefined {
+  const path = finalizationPath(root, id)
+  try {
+    const record = JSON.parse(readBoundedFile(path, 2 * FINALIZATION_JSON_MAX_BYTES).toString("utf8")) as FinalizationRecord
+    return record?.schemaVersion === 1 && record.ticketId === id && /^[a-f0-9]{64}$/.test(record.ticketDigest) && /^[a-f0-9]{64}$/.test(record.finalizationDigest) && ["pending", "running", "passed", "failed", "interrupted"].includes(record.phase) && (record.recovery === undefined || ["none", "retryable", "blocked-ownership"].includes(record.recovery)) && (record.lastQueuedRecoveryTicketId === undefined || typeof record.lastQueuedRecoveryTicketId === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(record.lastQueuedRecoveryTicketId)) && Number.isSafeInteger(record.attempt) && record.attempt >= 0 ? record : undefined
+  } catch { return undefined }
 }
 
 export function removeFile(path: string): void {
@@ -119,7 +208,9 @@ export function claimPath(root: string, id: string): string {
 }
 
 export function historyPath(root: string, id: string): string {
-  return join(queuePaths(root).history, `${id}.json`)
+  const path = join(queuePaths(root).history, `${id}.json`)
+  assertNoSymlinkPaths([root, queuePaths(root).history, path])
+  return path
 }
 
 export function progressPath(root: string, id: string): string {
@@ -169,6 +260,7 @@ export function attributeLegacy(root: string, ticket: QueueTicket, ledger = read
 }
 
 export function listHistoryJobs(root: string, projectId?: string): QueueTicket[] {
+  assertNoSymlinkPaths([root, queuePaths(root).history])
   const ledger = readJsonFile<LegacyLedger>(join(root, "state", "legacy-projects.json")) ?? { schemaVersion: 1, assignments: {} }
   return readTickets(queuePaths(root).history)
     .map((ticket) => attributeLegacy(root, ticket, ledger))

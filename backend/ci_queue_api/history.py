@@ -7,6 +7,7 @@ import statistics
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .completion import completion_for_job, public_completion, recipe_finalization_digest
 from .record_store import store_for
 from .records import history_key, read_history, read_history_with_coverage, read_json
 
@@ -27,6 +28,8 @@ def _run_ref(job):
         "branch": job.get("branch"),
         "custom": is_custom_run(job),
         "durationMs": job.get("durationMs"),
+        "completion": public_completion(job),
+        **({"finalizationDigest": job["finalizationDigest"]} if job.get("finalizationDigest") else {}),
     }
 
 
@@ -44,6 +47,8 @@ def canonical_green(job, recipe):
     """
     return (
         isinstance(recipe, dict)
+        and completion_for_job(job)["eligible"]
+        and job.get("finalizationDigest") == recipe_finalization_digest(recipe)
         and job.get("status") == "passed"
         and type(job.get("exitCode")) is int
         and job.get("exitCode") == 0
@@ -230,7 +235,8 @@ def read_remote_slots_all(state_root, projects):
                 raise ValueError("catálogo não vinculado: " + project.binding_state)
             ids = {job.get("id") for job in grouped.get(project.project_id, []) if isinstance(job.get("id"), str)}
             payload = read_remote_slots(project.config.remote_slots_path, project.config,
-                                        state_root, local_ticket_ids=ids)
+                                        state_root, local_ticket_ids=ids,
+                                        completed_jobs={job.get("id"): job for job in grouped.get(project.project_id, [])})
             rows.append({**identity, "source": payload["source"], "coverage": payload["coverage"]})
             greens.extend({**green, "projectName": project.display_name} for green in payload["greens"])
         except (OSError, ValueError) as error:
@@ -339,7 +345,7 @@ def _local_ticket_ids(state_root, project_id):
     }
 
 
-def _canonical_git_green(slot, config, local_ticket_ids):
+def _canonical_git_green(slot, config, local_ticket_ids, completed_jobs=None):
     """Return an API green only when the published tag proves every invariant.
 
     The slot writer already derives these fields from the canonical history
@@ -363,6 +369,13 @@ def _canonical_git_green(slot, config, local_ticket_ids):
         return None, "payload-project-mismatch"
     if payload.get("projectIdSource") not in ("ticket", "fallback"):
         return None, "payload-project-source-invalid"
+    required_digest = recipe_finalization_digest(config.presets[preset])
+    if required_digest is not None:
+        job = (completed_jobs or {}).get(payload.get("ticketId"))
+        if (payload.get("finalizationDigest") != required_digest or not job
+                or not canonical_green(job, config.presets[preset])
+                or job.get("headSha") != payload.get("headSha")):
+            return None, "execution-incomplete"
     head_sha = payload.get("headSha")
     if not _valid_sha(head_sha):
         return None, "payload-head-invalid"
@@ -408,7 +421,7 @@ def _canonical_git_green(slot, config, local_ticket_ids):
     }, None
 
 
-def read_remote_slots(path, config, state_root=None, *, local_ticket_ids=None):
+def read_remote_slots(path, config, state_root=None, *, local_ticket_ids=None, completed_jobs=None):
     """Read and normalize a local Git-slot mirror without fetching Git.
 
     The source format is the `SlotReadReport` emitted by the canonical
@@ -489,6 +502,10 @@ def read_remote_slots(path, config, state_root=None, *, local_ticket_ids=None):
 
     if local_ticket_ids is None:
         local_ticket_ids = _local_ticket_ids(state_root, config.project_id)
+    if completed_jobs is None:
+        needs_completion = any(recipe_finalization_digest(recipe) is not None for recipe in config.presets.values())
+        completed_jobs = ({job.get("id"): job for job in read_history(state_root)}
+                          if state_root is not None and needs_completion else {})
     greens = []
     without_tag = []
     for preset in sorted(declared):
@@ -503,7 +520,7 @@ def read_remote_slots(path, config, state_root=None, *, local_ticket_ids=None):
         if slot.get("state") == "sem slot":
             without_tag.append(preset)
             continue
-        green, problem = _canonical_git_green(slot, config, local_ticket_ids)
+        green, problem = _canonical_git_green(slot, config, local_ticket_ids, completed_jobs)
         if problem:
             invalid_payloads.append({"preset": preset, "reason": problem})
         else:

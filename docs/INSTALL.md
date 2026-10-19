@@ -41,7 +41,7 @@ npm run release:bundle
 node scripts/release.mjs verify --bundle releases/ci-queue-<versão>-<revisão>
 ```
 
-Use o bundle efetivamente produzido, não um nome inventado. Manifest registra versão, revisão Git e hashes. Build, cópia, ativação e prova instalada são etapas diferentes. Uma revisão documental não autoriza nenhuma delas.
+Use o bundle efetivamente produzido, não um nome inventado. Manifest registra versão, revisão Git, protocolo e hashes. Launcher, worker, API e UI possuem stamps em `build-provenance/`, com a revisão e o inventário exato de cada build. `npm run build` sela runtime/API e `npm --prefix ui run build` sela UI; `release:bundle` executa ambos. Empacotar exige os quatro stamps na mesma revisão e rejeita bytes antigos ou misturados, mesmo se o manifest anunciar a revisão nova. O protocolo instalado exige API1/ticket4 e as capabilities `terminal-finalization-v1`, `no-artifact-snapshots-v1` e `recoverable-finalization-v1`. Build, cópia, ativação e prova instalada são etapas diferentes. Uma revisão documental não autoriza nenhuma delas.
 
 ## State único e preparação
 
@@ -59,7 +59,18 @@ node /bundle/scripts/install.mjs install \
   --state /caminho/absoluto/do/state
 ```
 
-Antes de ativar/atualizar/remover: fila quieta, ownership conferido e nenhum executor concorrente. O instalador recusa running.json/locks ativos. Não apague locks para ultrapassar essa proteção.
+Antes de ativar/atualizar/remover: fila quieta, ownership conferido e nenhum executor concorrente. O instalador também verifica claims, reservas, identidade do worker e finalizações ligadas aos bytes terminais do histórico. Pending/running/interrupted, recovery pendente e cleanup uncertain bloqueiam a troca, mesmo sem running.json. Uma conclusão v2 exige recovery=none; conclusão legada válida continua legível sem conceder retry. Não apague locks ou registros para ultrapassar essa proteção.
+
+O executor antigo usava proper-lockfile com um alvo vazio em
+`locks/jobs/YYYYMMDD-HHMMSS-6hex.state` ou `validation-plan.state`. A reserva real
+ficava no diretório adicional `.state.lock`. O instalador reconhece somente
+esses alvos regulares, vazios, com um único link e pertencentes ao usuário atual.
+Eles permanecem intactos durante install/update/uninstall. Diretórios de lock,
+reservas `.lock`, nomes desconhecidos, conteúdo, symlinks e hardlinks continuam
+bloqueando a manutenção. Essa compatibilidade não dispensa conferir fila quieta
+e ausência de executores antigos; idade ou tamanho isolados não provam inatividade.
+
+Para uma finalização recuperável, use a instalação ainda vigente: `ci-queue finalize <id> --state <root> --json`. Confira o resultado e o cleanup antes de repetir a manutenção. Ownership incerto exige identificar e encerrar legitimamente o produtor próprio; o comando não autoriza matar outro owner nem refazer testes.
 
 ## macOS: ativação na sessão
 
@@ -76,7 +87,7 @@ node /bundle/scripts/install.mjs update \
 
 Use `install` na instalação inicial e `update` na atualização conforme o instalador da release. `--node` fixa o **worker**, não automaticamente os jobs. Registre os projectIds que precisam de pin usando `ci-queue runtime register`; [limites do runtime](RUNTIME-ISOLATION.md).
 
-Worker recebe state e executa tickets completos; dashboard recebe catálogo de bootstrap, UI, manifest e state. A interface instalada é estática servida pela API, não o Vite de desenvolvimento.
+Launcher e envelopes pinam `CI_QUEUE_MANIFEST_PATH` e seu SHA-256. A CLI verifica o bundle antes de carregar o worker; a API confere seus próprios bytes e a UI servida contra o mesmo inventário. `version --json` e `/build.json` expõem revisão/protocolo para conferir a distribuição efetiva. Worker recebe state e executa tickets completos; dashboard recebe catálogo de bootstrap, UI, manifest e state. A interface instalada é estática servida pela API, não o Vite de desenvolvimento.
 
 ## Ignição e login: o que o código garante e o que verificar
 

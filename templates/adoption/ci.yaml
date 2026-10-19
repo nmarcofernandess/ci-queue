@@ -6,5 +6,9 @@ feedback:
   reason: Defina uma receita real do consumidor antes de ativar este perfil.
 proof:
   authority: ship.acceptedPresets no catálogo
+outputs:
+  owner: contrato_do_consumidor
+  storage: consumidor_sem_copia_pela_Queue
+  completion: finalization_v2_cleanup_confirmado
 resume:
-  inspect: [host, cwd, installed_revision, state_root, session, ticket]
+  inspect: [host, cwd, installed_revision, installed_protocol, state_root, session, ticket, finalization]

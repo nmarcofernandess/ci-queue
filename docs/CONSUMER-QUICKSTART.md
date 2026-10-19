@@ -52,9 +52,22 @@ Use `templates/adoption/AGENTS.fragment.md` como ponteiro e adapte
 aponte `method` para o procedimento do consumidor e registre seus comandos e
 perfil. O mapa é navegação para humanos/agentes, não é lido pelo runtime. O
 catálogo `ci-queue.json` continua sendo a autoridade de receitas, flags e
-artefatos. A skill curta de adoção está em `templates/adoption/SKILL.md`.
+finalização. A skill curta de adoção está em `templates/adoption/SKILL.md`.
 
 ## 4. Enfileire no state correto
+
+Confira `ci-queue version --json`: API1/ticket4, revisão e protocolo de
+`distribution` devem corresponder ao manifest instalado e aos componentes
+launcher/worker/API/UI. Consumidores de outputs nativos exigem
+`terminal-finalization-v1`, `no-artifact-snapshots-v1` e
+`recoverable-finalization-v1`. Uma instalação antiga ou mista recebe erro de
+migração, sem fallback.
+
+Não declare diretórios em `artifacts`: a Queue não copia mídia. Se o consumidor
+precisar de arquivos, congele um hook `finalization` v2 com contrato próprio; o
+hook publica no repositório consumidor depois do postflight e retorna referências
+com hash e cleanup. Sem consumidor, não produza arquivos. Os formatos e a entrada
+`ci-queue finalize <id>` estão em [CONTRACTS](CONTRACTS.md#finalização-terminal-terminal-finalization-v1).
 
 ```bash
 PROJECT="$PWD"

@@ -63,11 +63,17 @@ O JSON autoritativo é `history/TICKET_ID.json` (`runtime`). A linha `[runtime]`
 no log mostra seleção e cobertura. O Dashboard não ganhou card dedicado;
 `passed` sozinho não prova pin.
 
-Sidecars em `<state-root>/runtime/job-*` são removidos depois que o history
-é autoritativo.
+O hook terminal recuperável usa o mesmo binding Node do projeto e valida o
+runtime da própria tentativa. Seu prazo é independente do teste; ele não cria
+sessão permanente nem supervisor adicional. Sidecars `runtime/job-*`, inclusive
+os usados pelo hook, são temporários do respectivo owner. O descarte exige
+confirmação de término do grupo. Ownership incerto preserva reserva e
+impede manutenção; siga [CONTRACTS](CONTRACTS.md) para reentrada pública.
 
 ## Instalação
 
-O `--node` do LaunchAgent fixa o worker, não os filhos. Depois de instalar a
+O `--node` do LaunchAgent fixa o runtime da distribuição instalada; o manifest
+confere launcher/worker/API/UI na mesma revisão e protocolo. Esse pin não fixa
+automaticamente os filhos. Depois de instalar a
 release, registre cada `projectId` que precisa do pin. Worker antigo ignora
 `runtimes.json`; não deixe duas versões no mesmo state root.

@@ -3,6 +3,8 @@ import { dirname, isAbsolute, join, resolve } from "node:path"
 
 import {
   isValidPresetArgv,
+  normalizeFinalization,
+  rejectArtifactSnapshots,
   isValidProjectId,
   type ProjectPreset,
   type QueueProjectConfig,
@@ -10,38 +12,6 @@ import {
 } from "./schema.js"
 
 export const CONFIG_FILENAME = "ci-queue.json"
-
-function isSafeRelativeArtifact(path: unknown): path is string {
-  return typeof path === "string" &&
-    Boolean(path.trim()) &&
-    !path.includes("\0") &&
-    !isAbsolute(path) &&
-    !/^[A-Za-z]:[\\/]/.test(path) &&
-    !path.startsWith("\\") &&
-    !path.split(/[\\/]/).includes("..")
-}
-
-function parseArtifactPaths(value: unknown, owner: string): string[] {
-  if (!Array.isArray(value)) throw new Error(`${owner} precisa ser um array de caminhos relativos`)
-  const paths: string[] = []
-  for (const path of value) {
-    if (!isSafeRelativeArtifact(path)) {
-      throw new Error(`${owner} contém caminho de artefato inválido`)
-    }
-    paths.push(path)
-  }
-  return paths
-}
-
-/** Resolve the one artifact list that will be frozen on a queued ticket. */
-export function resolveRecipeArtifacts(
-  globalPaths: readonly string[] | undefined,
-  recipePaths: readonly string[] | undefined,
-): string[] {
-  const global = globalPaths === undefined ? undefined : [...globalPaths]
-  const recipe = recipePaths === undefined ? undefined : parseArtifactPaths(recipePaths, "preset.artifacts")
-  return [...(recipe === undefined ? global ?? [] : recipe)]
-}
 
 export type ResolvedQueueConfig = {
   config: QueueProjectConfig
@@ -87,9 +57,8 @@ function readPresets(value: unknown): Record<string, ProjectPreset> {
     if (item.progress !== undefined && typeof item.progress !== "boolean") {
       throw new Error(`preset ${name} tem progress inválido`)
     }
-    const artifacts = item.artifacts === undefined
-      ? undefined
-      : parseArtifactPaths(item.artifacts, `preset ${name}.artifacts`)
+    rejectArtifactSnapshots(item.artifacts, `preset ${name}.artifacts`)
+    const finalization = normalizeFinalization(item.finalization)
     if (item.abortOnStaleBase !== undefined && typeof item.abortOnStaleBase !== "boolean") {
       throw new Error(`preset ${name} tem abortOnStaleBase inválido`)
     }
@@ -108,7 +77,8 @@ function readPresets(value: unknown): Record<string, ProjectPreset> {
       ...(typeof item.pinHeadSha === "boolean" ? { pinHeadSha: item.pinHeadSha } : {}),
       ...(abortOnStaleBase !== undefined ? { abortOnStaleBase } : {}),
       ...(typeof item.progress === "boolean" ? { progress: item.progress } : {}),
-      ...(artifacts !== undefined ? { artifacts } : {}),
+      ...(item.artifacts !== undefined ? { artifacts: [] } : {}),
+      ...(finalization ? { finalization } : {}),
     }
   }
   if (Object.keys(presets).length === 0) throw new Error('campo "presets" não pode estar vazio')
@@ -216,9 +186,8 @@ export function parseQueueConfig(raw: Record<string, unknown>, projectRoot: stri
   const projectName = projectRaw?.name ?? raw.projectName
   if (!isValidProjectId(projectId)) throw new Error("project.id deve ser um identificador estável")
   if (typeof projectName !== "string" || !projectName.trim()) throw new Error("project.name é obrigatório")
-  const artifacts = Array.isArray(raw.artifacts) && raw.artifacts.every((item) => typeof item === "string")
-    ? [...raw.artifacts] as string[]
-    : undefined
+  rejectArtifactSnapshots(raw.artifacts)
+  const artifacts = raw.artifacts === undefined ? undefined : []
   const nestedPresets = projectRaw?.presets
   const presets = readPresets(raw.presets ?? nestedPresets)
   const repositoryRaw = raw.repository && typeof raw.repository === "object" && !Array.isArray(raw.repository)

@@ -103,7 +103,7 @@ function progressHasFailure(node: ProgressNode): boolean {
 }
 
 export function describeExecutionState(
-  job: Pick<JobRecord, "status" | "hasRetries" | "progressSummary">
+  job: Pick<JobRecord, "status" | "hasRetries" | "progressSummary" | "completion">
 ): StateDescriptor {
   const base = describeJobState(job.status)
   const flaky = executionHasRetries(job)
@@ -121,7 +121,96 @@ export function describeExecutionState(
         .join(" · ") || undefined,
     }
   }
-  return flaky ? { ...base, detail: "Flaky detectado" } : base
+  const completion = job.completion
+  const finalization = completion?.finalization
+  const detail = (...facts: (string | undefined | false)[]) =>
+    facts.filter(Boolean).join(" · ") || undefined
+  const retry = flaky && "Flaky detectado"
+  const testResult = describeTestResult(job)
+  if (completion?.state === "running" && job.status !== "queued") {
+    return {
+      ...describeJobState("running"),
+      label: "Finalizando",
+      detail: detail(testResult, completionReason(completion.reason), retry),
+    }
+  }
+  if (completion?.state === "failed") {
+    return {
+      ...describeJobState("failed"),
+      label: completion.reason === "cleanup-uncertain"
+        ? "Limpeza não confirmada"
+        : "Falha na finalização",
+      detail: detail(
+        job.status === "passed" ? "Teste passou; entrega incompleta" : testResult,
+        completionReason(completion.reason),
+        recoveryReason(finalization?.recovery),
+        retry
+      ),
+    }
+  }
+  return {
+    ...base,
+    ...(finalization || retry ? {
+      detail: detail(finalization && completion?.state === "complete" && "Finalização concluída", retry),
+    } : {}),
+  }
+}
+
+function recoveryReason(recovery: "none" | "retryable" | "blocked-ownership" | undefined) {
+  if (recovery === "retryable") return "Recuperação pendente"
+  if (recovery === "blocked-ownership") return "Propriedade dos processos não confirmada"
+  return undefined
+}
+
+function completionReason(reason: string | undefined) {
+  switch (reason) {
+    case "finalization-contract-invalid": return "Contrato de finalização inválido"
+    case "finalization-unverified": return "Finalização não verificada"
+    case "cleanup-uncertain": return "O finalizador não confirmou a limpeza"
+    default: return undefined
+  }
+}
+
+export function describeTestResult(job: Pick<JobRecord, "status">): string {
+  switch (job.status) {
+    case "passed": return "Teste passou"
+    case "failed": return "Teste falhou"
+    case "cancelled": return "Teste cancelado"
+    case "interrupted": return "Teste interrompido"
+    case "running": return "Teste rodando"
+    case "queued": return "Teste aguardando"
+    default: return "Resultado não informado"
+  }
+}
+
+export function executionIsLive(job: Pick<JobRecord, "status" | "completion">): boolean {
+  return job.status === "running" || job.status === "queued" || job.completion?.state === "running"
+}
+
+export function describeCompletionFacts(job: Pick<JobRecord, "status" | "completion">) {
+  const completion = job.completion
+  const finalization = completion?.finalization
+  let finalizationLabel: string
+  if (!completion || completion.state === "legacy") finalizationLabel = "Sem registro de finalização"
+  else if (completion.state === "running") finalizationLabel = job.status === "running" || job.status === "queued"
+    ? "Aguardando resultado do teste"
+    : "Finalizando"
+  else if (completion.state === "failed") finalizationLabel = finalization?.phase === "passed"
+    ? "Finalizador encerrado; entrega incompleta"
+    : "Falha na finalização"
+  else finalizationLabel = finalization ? "Finalização concluída" : "Não requerida"
+  const reason = completionReason(completion?.reason)
+  return [
+    { label: "Resultado do teste", value: describeTestResult(job) },
+    { label: "Finalização", value: [finalizationLabel, reason, recoveryReason(finalization?.recovery)].filter(Boolean).join(" · ") },
+    {
+      label: "Limpeza",
+      value: finalization?.cleanup === "confirmed" ? "Limpeza confirmada"
+        : finalization?.cleanup === "not-required" ? "Não necessária"
+        : finalization?.cleanup === "uncertain" ? "Limpeza não confirmada · O finalizador não confirmou a limpeza"
+        : "Sem confirmação de limpeza",
+    },
+  ]
 }
 
 export function describeProgressState(

@@ -331,6 +331,14 @@ describe("runShip", () => {
     expectNoMutation(fake)
   })
 
+  it("does not attest or merge a passed test with unverified finalization", async () => {
+    const sample = JSON.parse(readFileSync(new URL("../fixtures/finalization-completion.json", import.meta.url), "utf8"))[0]
+    const hooked = { ...valid, schemaVersion: 4, finalization: JSON.parse(sample.terminalBytes).finalization, finalizationDigest: sample.record.finalizationDigest }
+    const fake = createFake({ history: [hooked] })
+    await expectShipError(() => runShip(fake, request({ dryRun: true })), "LOCAL_RED")
+    expectNoMutation(fake)
+  })
+
   it("dry-run uses findEligibleTicket so a later canonical red is not reused", async () => {
     expect(isShipEligibleTicket(valid, query)).toBe(true)
     const fake = createFake({ history: [valid, laterFailed] })

@@ -6,14 +6,14 @@ import { fileURLToPath } from "node:url"
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import { buildRelease } from "../../scripts/release.mjs"
+import { buildRelease } from "../helpers/release-fixture.mjs"
 import { installRelease, uninstallRelease } from "../../scripts/install.mjs"
 
 const productRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
 function sourceFixture() {
   const root = mkdtempSync(join(tmpdir(), "ci-queue-install-source-"))
-  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "ci-queue", version: "0.1.0" }))
+  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "ci-queue", version: "0.1.0", type: "module" }))
   writeFileSync(join(root, "package-lock.json"), "{}\n")
   writeFileSync(join(root, "LICENSE"), "MIT\n")
   writeFileSync(join(root, "README.md"), "# CI Queue\n")
@@ -162,6 +162,11 @@ test("installed CLI reports its own manifest independently of source and cwd", (
     assert.equal(result.ok, true)
     assert.equal(result.result.revision, "e".repeat(40))
     assert.equal(result.result.manifestSha256, installed.manifestSha256)
+    assert.equal(result.result.distribution.revision, installed.revision)
+    assert.equal(result.result.distribution.protocol.ticketSchemaVersion, 4)
+    writeFileSync(join(installed.releasePath, "dist", "cli.js"), "older worker")
+    assert.throws(() => execFileSync(process.execPath, [join(installed.releasePath, "bin", "ci-queue.mjs"), "version", "--json"], { cwd: tmpdir(), encoding: "utf8", stdio: "pipe" }), /integridade/)
+
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

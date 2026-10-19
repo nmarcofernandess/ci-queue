@@ -1,3 +1,5 @@
+import { executionCompletion, listExecutionSources, readExecutionSource } from "../core/completion.js"
+import { finalizationDigest } from "../contracts/schema.js"
 import { spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { existsSync, readFileSync, realpathSync } from "node:fs"
@@ -252,7 +254,7 @@ function acceptedRecipes(config: QueueProjectConfig): AcceptedRecipe[] {
   return ship.acceptedPresets.flatMap((name) => {
     const preset = config.presets[name]
     if (!preset) return []
-    return [{ name, argv: [...preset.argv], flags: recipeFlags(preset) }]
+    return [{ name, argv: [...preset.argv], flags: recipeFlags(preset), ...(preset.finalization ? { finalizationDigest: finalizationDigest(preset.finalization) } : {}) }]
   })
 }
 
@@ -267,7 +269,8 @@ function flagsMatch(ticket: QueueTicket, recipe: AcceptedRecipe): boolean {
 }
 
 function pendingMatch(ticket: QueueTicket, query: ShipProofQuery, recipe: AcceptedRecipe): boolean {
-  if (ticket.status !== "queued" && ticket.status !== "running") return false
+  if (ticket.finalizationDigest !== recipe.finalizationDigest) return false
+  if (ticket.status !== "queued" && ticket.status !== "running" && !ticket.finalization) return false
   if (ticket.projectId !== query.projectId) return false
   if (!sameCwd(ticket.cwd, query.executionCwd)) return false
   if (ticket.headSha !== query.headSha) return false
@@ -577,10 +580,13 @@ export function createSystemOps(input: SystemOpsInput): ShipOps {
       return (await readQueryFromTarget(target, signal ?? new AbortController().signal)).query
     },
     async readHistory(query: ShipProofQuery): Promise<unknown[]> {
-      return listHistoryJobs(input.stateRoot, query.projectId)
+      return listExecutionSources(input.stateRoot, query.projectId)
     },
     async findPending(query: ShipProofQuery): Promise<{ id: string } | undefined> {
-      const candidates = [...listQueuedJobs(input.stateRoot), ...[readRunningJob(input.stateRoot)].filter((item): item is QueueTicket => Boolean(item))]
+      const finalizing = listExecutionSources(input.stateRoot, query.projectId)
+        .filter(source => executionCompletion(source.ticket, source.record, source.terminalDigest).state === "running")
+        .map(source => source.ticket)
+      const candidates = [...finalizing, ...listQueuedJobs(input.stateRoot), ...[readRunningJob(input.stateRoot)].filter((item): item is QueueTicket => Boolean(item))]
       for (const recipe of query.acceptedRecipes) {
         const match = candidates.find((ticket) => pendingMatch(ticket, query, recipe))
         if (match) return { id: match.id }
@@ -601,7 +607,8 @@ export function createSystemOps(input: SystemOpsInput): ShipOps {
         if (signal.aborted) throw abortError()
         const found = findJobById(input.stateRoot, id)
         if (found && ["passed", "failed", "cancelled", "interrupted"].includes(found.ticket.status)) {
-          return found.ticket
+          const source = readExecutionSource(input.stateRoot, id)
+          if (source && executionCompletion(source.ticket, source.record, source.terminalDigest).state !== "running") return source.ticket
         }
         await abortableSleep(WAIT_POLL_MS, signal)
       }

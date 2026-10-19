@@ -1,13 +1,135 @@
+import { createHash } from "node:crypto"
+import { isAbsolute, posix } from "node:path"
 import type { RuntimeReceipt } from "./runtime.js"
 
 /**
- * Contratos persistidos do CI Queue. Os tickets v1, v2 e v3 continuam
+ * Contratos persistidos do CI Queue. Os tickets v1, v2, v3 e v4 continuam
  * legíveis porque o worker decide a forma executável no momento do claim.
  */
 
 export const API_VERSION = 1 as const
-export const TICKET_SCHEMA_VERSION = 3 as const
-export const RECIPE_ARTIFACTS_CAPABILITY = "recipe-artifacts-v1" as const
+export const TICKET_SCHEMA_VERSION = 4 as const
+export const TERMINAL_FINALIZATION_CAPABILITY = "terminal-finalization-v1" as const
+export const NO_ARTIFACT_SNAPSHOTS_CAPABILITY = "no-artifact-snapshots-v1" as const
+export const RECOVERABLE_FINALIZATION_CAPABILITY = "recoverable-finalization-v1" as const
+export const FINALIZATION_JSON_MAX_BYTES = 64 * 1024
+
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
+export type FinalizationSpec = {
+  schemaVersion: 1 | 2
+  argv: string[]
+  timeoutMs: number
+  contract: JsonValue
+  contractDigest: string
+}
+export type FinalizationPhase = "pending" | "running" | "passed" | "failed" | "interrupted"
+export type RecoveryDisposition = "none" | "retryable" | "blocked-ownership"
+export type FinalizationResult = ({ schemaVersion: 1; recovery?: never } | { schemaVersion: 2; recovery: RecoveryDisposition }) & {
+  cleanup: "confirmed" | "not-required" | "uncertain"
+  outputs: { path: string; sha256: string; role: string }[]
+  error?: string
+}
+export type FinalizationRecord = {
+  schemaVersion: 1
+  ticketId: string
+  ticketDigest: string
+  finalizationDigest: string
+  phase: FinalizationPhase
+  attempt: number
+  startedAt?: string
+  finishedAt?: string
+  processGroupIdentity?: ProcessGroupIdentity
+  supervisorIdentity?: WorkerIdentity
+  cancelRequestedAt?: string
+  exitCode?: number | null
+  failureReason?: string
+  result?: FinalizationResult
+  recovery?: RecoveryDisposition
+  lastQueuedRecoveryTicketId?: string
+}
+
+/** Canonical JSON shared by the producer, persisted-ticket reader and supervisor. */
+export function canonicalJson(value: unknown): string {
+  const ancestors = new Set<object>()
+  function serialize(item: unknown): string {
+    if (item === null || typeof item === "boolean" || typeof item === "string") return JSON.stringify(item)
+    if (typeof item === "number" && Number.isFinite(item)) return JSON.stringify(item)
+    if (!item || typeof item !== "object" || ancestors.has(item)) throw new Error("contract precisa ser JSON finito sem ciclos")
+    if (!Array.isArray(item) && Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null) {
+      throw new Error("contract precisa ser JSON simples")
+    }
+    ancestors.add(item)
+    try {
+      if (Array.isArray(item)) {
+        return `[${Array.from({ length: item.length }, (_, index) => serialize(item[index])).join(",")}]`
+      }
+      return `{${Object.keys(item).sort().map((key) => `${JSON.stringify(key)}:${serialize((item as Record<string, unknown>)[key])}`).join(",")}}`
+    } finally {
+      ancestors.delete(item)
+    }
+  }
+  return serialize(value)
+}
+
+function sha256(value: string): string { return createHash("sha256").update(value).digest("hex") }
+
+export function normalizeFinalization(value: unknown): FinalizationSpec | undefined {
+  if (value === undefined) return undefined
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("finalization precisa ser objeto")
+  const raw = value as Record<string, unknown>
+  if (![1, 2].includes(Number(raw.schemaVersion)) || typeof raw.schemaVersion !== "number") throw new Error("finalization.schemaVersion precisa ser 1 ou 2")
+  if (!isValidPresetArgv(raw.argv)) throw new Error("finalization.argv precisa ser não vazio e válido")
+  if (typeof raw.timeoutMs !== "number" || !Number.isSafeInteger(raw.timeoutMs) || raw.timeoutMs < 1 || raw.timeoutMs > 2_147_483_647) {
+    throw new Error("finalization.timeoutMs inválido")
+  }
+  const contractJson = canonicalJson(raw.contract)
+  if (Buffer.byteLength(contractJson, "utf8") > FINALIZATION_JSON_MAX_BYTES) throw new Error("finalization.contract excede 64 KiB")
+  if (raw.contractDigest !== sha256(contractJson)) throw new Error("finalization.contractDigest inválido")
+  return {
+    schemaVersion: raw.schemaVersion as 1 | 2,
+    argv: [...raw.argv],
+    timeoutMs: raw.timeoutMs,
+    contract: JSON.parse(contractJson) as JsonValue,
+    contractDigest: raw.contractDigest as string,
+  }
+}
+
+/** Seals the complete finalization request, including argv and its independent deadline. */
+export function finalizationDigest(spec: FinalizationSpec): string {
+  return sha256(canonicalJson(spec))
+}
+
+/** Validate protocol data only; publication IO and containment stay in the supervisor. */
+export function normalizeFinalizationResult(value: unknown, requiredVersion?: 1 | 2): FinalizationResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("resultado da finalização inválido")
+  const raw = value as Record<string, unknown>
+  const bytes = JSON.stringify(value)
+  if (!bytes || Buffer.byteLength(bytes, "utf8") > FINALIZATION_JSON_MAX_BYTES) throw new Error("resultado excede 64 KiB")
+  if (Object.keys(raw).some(key => !["schemaVersion", "cleanup", "outputs", "error", ...(raw.schemaVersion === 2 ? ["recovery"] : [])].includes(key))
+    || (raw.schemaVersion !== 1 && raw.schemaVersion !== 2) || requiredVersion === 2 && raw.schemaVersion !== 2
+    || raw.schemaVersion === 2 && ((typeof raw.recovery !== "string" || !["none", "retryable", "blocked-ownership"].includes(raw.recovery)) || raw.cleanup !== "uncertain" && raw.recovery !== "none") || typeof raw.cleanup !== "string"
+    || !["confirmed", "not-required", "uncertain"].includes(raw.cleanup) || !Array.isArray(raw.outputs)
+    || (raw.error !== undefined && typeof raw.error !== "string")) throw new Error("resultado da finalização inválido")
+  const outputs = raw.outputs.map((output: unknown) => {
+    if (!output || typeof output !== "object" || Array.isArray(output)) throw new Error("resultado outputs inválido")
+    const item = output as Record<string, unknown>
+    if (Object.keys(item).some(key => !["path", "sha256", "role"].includes(key))
+      || typeof item.path !== "string" || !item.path || isAbsolute(item.path)
+      || /[\\\0\r\n]/.test(item.path) || item.path.split("/").includes("..") || posix.normalize(item.path).replace(/\/$/, "") === "."
+      || typeof item.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(item.sha256)
+      || typeof item.role !== "string" || !item.role.trim()) throw new Error("resultado outputs path/hash/role inválido")
+    return { path: item.path, sha256: item.sha256, role: item.role }
+  })
+  return { ...(raw.schemaVersion === 2 ? { schemaVersion: 2 as const, recovery: raw.recovery as RecoveryDisposition } : { schemaVersion: 1 as const }), cleanup: raw.cleanup as FinalizationResult["cleanup"], outputs,
+    ...(raw.error !== undefined ? { error: raw.error as string } : {}) }
+}
+
+export function rejectArtifactSnapshots(value: unknown, owner = "artifacts"): void {
+  if (value === undefined) return
+  if (!Array.isArray(value) || value.length !== 0) {
+    throw new Error(`${owner}: artifacts não é mais suportado; migre a publicação para finalization e mantenha os outputs no consumidor`)
+  }
+}
 
 export const TERMINAL_STATUSES = ["passed", "failed", "cancelled", "interrupted"] as const
 export const JOB_STATUSES = ["queued", "running", ...TERMINAL_STATUSES] as const
@@ -100,10 +222,20 @@ export type ExecutionDeadline =
   | { state: "expired"; timeoutMs: number; armedAt: string; expiresAt: string; expiredAt: string }
 
 export type ProcessGroupIdentity = {
+  /** Present on new observations; a different host never owns this group. */
+  hostname?: string
   leaderPid: number
   pgid: number
   /** Saída de ps lstart em locale C; protege contra reutilização de PID. */
   startedAt: string
+}
+
+export type WorkerIdentity = {
+  schemaVersion: 1
+  hostname: string
+  pid: number
+  startedAt: string
+  capabilities: string[]
 }
 
 export type ProcessObservationItem = {
@@ -192,7 +324,7 @@ export type RequestContext = {
   sourceRevision?: string
 }
 
-/** Persisted ticket: fields added in v2/v3 remain optional for v1 readers. */
+/** Persisted ticket: fields added in v2–v4 remain optional for historical readers. */
 export type RunVariant = "custom" | "focal"
 
 export const RUN_VARIANTS = ["custom", "focal"] as const
@@ -223,6 +355,8 @@ export type QueueTicket = {
   durationMs?: number
   exitCode?: number | null
   workerPid?: number
+  /** Original native claimant, sealed before launch and retained across recovery. */
+  producerIdentity?: WorkerIdentity
   childPid?: number
   processGroupIdentity?: ProcessGroupIdentity
   executionDeadline?: ExecutionDeadline
@@ -237,6 +371,8 @@ export type QueueTicket = {
   flags?: TicketFlags
   baseRef?: string
   artifacts?: string[]
+  finalization?: FinalizationSpec
+  finalizationDigest?: string
   source?: TicketSource
   projectId?: string
   projectName?: string
@@ -253,6 +389,7 @@ export type QueueTicket = {
 export type ProjectPreset = TicketFlags & {
   argv: string[]
   artifacts?: string[]
+  finalization?: FinalizationSpec
   note?: string
   /** Project-local declaration; persisted as flags.progressEnabled on the ticket. */
   progress?: boolean

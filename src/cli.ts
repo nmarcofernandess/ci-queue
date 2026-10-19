@@ -1,3 +1,4 @@
+import { executionCompletion, completionExitCode, listExecutionSources, readExecutionSource, projectExecution } from "./core/completion.js"
 import { readQueueConfig } from "./contracts/config.js"
 import { InitError, initProject } from "./ship/init.js"
 import { ShipError } from "./ship/ops.js"
@@ -7,10 +8,14 @@ import { existsSync, readFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import {
   API_VERSION,
+  TICKET_SCHEMA_VERSION,
   normalizeTicketFlags,
+  normalizeFinalization,
+  rejectArtifactSnapshots,
   parseRequestContext,
   parseRunVariant,
-  RECIPE_ARTIFACTS_CAPABILITY,
+  TERMINAL_FINALIZATION_CAPABILITY,
+  NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY,
   type CliFailure,
   type CliResult,
   type CliSuccess,
@@ -82,7 +87,7 @@ function splitExtra(args: string[]): string[] {
 }
 
 function enqueuePreset(args: string[]): string | undefined {
-  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--flags-json", "--timeout-ms", "--request-context", "--run-variant"])
+  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--finalization-json", "--flags-json", "--timeout-ms", "--request-context", "--run-variant"])
   for (let index = 0; index < args.length; index += 1) {
     const value = args[index]
     if (value === "--") return undefined
@@ -115,7 +120,10 @@ async function waitForJob(root: string, id: string, timeoutMs: number): Promise<
   const start = Date.now()
   while (Date.now() - start <= timeoutMs) {
     const job = findJobById(root, id)?.ticket
-    if (job && ["passed", "failed", "cancelled", "interrupted"].includes(job.status)) return job
+    if (job && ["passed", "failed", "cancelled", "interrupted"].includes(job.status)) {
+      const source = readExecutionSource(root, id)
+      if (source && executionCompletion(source.ticket, source.record, source.terminalDigest).state !== "running") return projectExecution(source)
+    }
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   return undefined
@@ -162,9 +170,10 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           version: manifest?.version ?? "0.1.0",
           revision: manifest?.revision ?? null,
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
+          ...(manifest ? { distribution: { revision: manifest.revision, protocol: manifest.protocol } } : {}),
           apiVersion: API_VERSION,
-          ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, RECIPE_ARTIFACTS_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          ticketSchemaVersion: TICKET_SCHEMA_VERSION,
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read", "v4-ticket-read"],
         })
       }
       case "observe": {
@@ -276,6 +285,14 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         } else {
           runVariant = undefined
         }
+        const finalizationJson = optionValue(args.rest, "--finalization-json")
+        if (args.rest.includes("--finalization-json") && (!recipe || !finalizationJson)) {
+          return failure("USAGE", "--finalization-json requer --recipe e JSON válido")
+        }
+        const finalization = finalizationJson === undefined ? undefined : normalizeFinalization(JSON.parse(finalizationJson))
+        if (args.rest.includes("--artifacts-json")) {
+          rejectArtifactSnapshots(parseJsonArray(optionValue(args.rest, "--artifacts-json"), "--artifacts-json"), "--artifacts-json")
+        }
         const ticket = recipe
           ? enqueueExplicitTicket({
             recipe,
@@ -288,6 +305,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
             ...(optionValue(args.rest, "--artifacts-json") ? { artifacts: parseJsonArray(optionValue(args.rest, "--artifacts-json"), "--artifacts-json") } : {}),
             ...(optionValue(args.rest, "--flags-json") ? { flags: parseFlags(optionValue(args.rest, "--flags-json")) } : {}),
             requestContext,
+            ...(finalization ? { finalization } : {}),
             ...(runVariant ? { runVariant } : {}),
           })
           : enqueueTicket({ preset: preset!, stateRoot: root, cwd: args.cwd, configPath: args.configPath, extraArgs: splitExtra(args.rest), requestContext })
@@ -300,11 +318,17 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         }
         return success({ ticket })
       }
+      case "finalize": {
+        if (args.rest.length !== 1 || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(args.rest[0])) return failure("USAGE", "uso: ci-queue finalize <id>")
+        const report = await runWorker(root, { finalizeOnly: args.rest[0] })
+        return report.busy || report.reconciliation === "blocked" || report.recovery?.pending.length
+          ? failure("FINALIZATION_PENDING", "finalização permanece pendente", { report }) : success(report)
+      }
       case "worker":
         return success(await runWorker(root))
       case "status": {
         const running = readRunningJob(root)
-        return success({ running: running ? attachProgressToTicket(root, running) : null, queued: listQueuedJobs(root), latest: listHistoryJobs(root)[0] ?? null })
+        return success({ running: running ? { ...attachProgressToTicket(root, running), completion: executionCompletion(running) } : null, queued: listQueuedJobs(root).map(ticket => ({ ...ticket, completion: executionCompletion(ticket) })), latest: listExecutionSources(root).map(projectExecution)[0] ?? null })
       }
       case "history": {
         const projectId = optionValue(args.rest, "--project")
@@ -312,17 +336,24 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           if (args.rest.includes("--legacy")) {
             return failure("USAGE", "--legacy não pode ser combinado com --include-observed")
           }
-          return success({ executions: listExecutionHistory(root, projectId) })
+          return success({ executions: listExecutionHistory(root, projectId).map(record => {
+            if (record.recordKind !== "queue-ticket") return record
+            const source = readExecutionSource(root, record.id)
+            return { ...record, completion: source
+              ? executionCompletion(source.ticket, source.record, source.terminalDigest)
+              : { state: "running", eligible: false, testStatus: record.status, reason: "terminal-source-unreadable" } }
+          }) })
         }
         return success({
-          jobs: listHistoryJobs(root, projectId).filter(
+          jobs: listExecutionSources(root, projectId).map(projectExecution).filter(
             (ticket) => !args.rest.includes("--legacy") || !ticket.projectId,
           ),
         })
       }
       case "preset-history": {
         const loaded = readQueueConfig(args.cwd, args.configPath)
-        const report = buildPresetHistory(listHistoryJobs(root, loaded.config.project.id), loaded.config)
+        const sources = listExecutionSources(root, loaded.config.project.id)
+        const report = buildPresetHistory(sources.map(source => source.ticket), loaded.config, sources)
         const preset = optionValue(args.rest, "--preset")
         return success(preset ? { ...report, presets: report.presets.filter((item) => item.preset === preset) } : report)
       }
@@ -426,6 +457,10 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   const result = await runCli(argv)
   print(result, parsed.json)
   if (!result.ok) process.exitCode = result.error.code === "USAGE" ? 2 : 1
+  else if (parsed.command === "enqueue" && parsed.rest.includes("--wait")) {
+    const terminal = (result.result as { terminal?: QueueTicket & { completion: ReturnType<typeof executionCompletion> } }).terminal
+    if (terminal) process.exitCode = completionExitCode(terminal, terminal.completion)
+  }
 }
 
 const invoked = process.argv[1]?.endsWith("cli.js") || process.argv[1]?.endsWith("cli.ts")

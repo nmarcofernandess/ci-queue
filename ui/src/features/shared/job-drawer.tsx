@@ -31,6 +31,8 @@ import {
 import { FactsTable } from "./facts-table"
 import {
   describeExecutionState,
+  describeCompletionFacts,
+  executionIsLive,
   observedProgressCopy,
   progressSurface,
   unconfiguredProgressCopy,
@@ -184,6 +186,14 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
   const surface = progressSurface(job.data)
   return (
     <div className="flex flex-col gap-5">
+      <FactsTable
+        caption="Resultado, finalização e limpeza"
+        rows={describeCompletionFacts(job.data).map((fact) => ({
+          id: fact.label,
+          label: fact.label,
+          value: fact.value,
+        }))}
+      />
       <JobDetailsTable job={job.data} />
       {job.data.failureReason ? (
         <Alert variant="destructive">
@@ -481,9 +491,6 @@ export function JobDrawer(props: JobDrawerProps) {
   return <JobDrawerContent key={props.jobId} {...props} />
 }
 
-const jobIsLive = (job: JobRecord) =>
-  job.status === "running" || job.status === "queued"
-
 function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
   const { scope } = useProjectContext()
   const [activeTab, setActiveTab] = React.useState<"progress" | "log">(
@@ -497,7 +504,7 @@ function JobDrawerContent({ jobId, onClose }: JobDrawerProps) {
   )
   const job = useApiQuery(`job:${scope ? scopeKey(scope) : "none"}:${jobId}`, jobRequest, {
     pollMs: 2000,
-    pollWhile: jobIsLive,
+    pollWhile: executionIsLive,
     enabled: Boolean(scope),
   })
   const isObserved = job.data?.recordKind === "observed-execution"
