@@ -173,7 +173,8 @@ def valid_history_identity(job):
 
 
 def join_completion(state_root, job, terminal_digest=None):
-    if not isinstance(job, dict) or job.get("recordKind") == "observed-execution":
+    if (not isinstance(job, dict) or job.get("recordKind") == "observed-execution"
+            or not job.get("finalization") and not job.get("finalizationDigest")):
         return job
     record = None
     try:
