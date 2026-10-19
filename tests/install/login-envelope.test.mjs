@@ -6,7 +6,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 
 import { installRelease, uninstallRelease } from "../../scripts/install.mjs"
-import { buildRelease } from "../../scripts/release.mjs"
+import { buildRelease } from "../helpers/release-fixture.mjs"
 
 const productRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 

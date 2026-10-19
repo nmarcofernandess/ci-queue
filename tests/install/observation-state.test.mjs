@@ -16,7 +16,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 
-import { buildRelease } from "../../scripts/release.mjs"
+import { buildRelease } from "../helpers/release-fixture.mjs"
 import { installRelease } from "../../scripts/install.mjs"
 
 const productRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
@@ -63,6 +63,8 @@ test("launcher defaults CI_QUEUE_STATE_DIR; observe lands in custom state", () =
   const home = join(root, "home")
   const compatibility = join(home, ".local", "state", "local-ci", "queue")
   try {
+    cpSync(join(productRoot, "dist"), join(root, "dist"), { recursive: true })
+    cpSync(join(productRoot, "bin"), join(root, "bin"), { recursive: true })
     mkdirSync(compatibility, { recursive: true })
     writeFileSync(join(compatibility, "sentinel.json"), "{}\n")
     const { destination } = buildRelease({
@@ -89,24 +91,6 @@ test("launcher defaults CI_QUEUE_STATE_DIR; observe lands in custom state", () =
     assert.equal(
       installed.command.sha256,
       createHash("sha256").update(launcher).digest("hex"),
-    )
-
-    // Real CLI under the installed release path the launcher execs.
-    const liveDist = join(installed.releasePath, "dist")
-    rmSync(liveDist, { recursive: true, force: true })
-    cpSync(join(productRoot, "dist"), liveDist, { recursive: true })
-    writeFileSync(
-      join(installed.releasePath, "bin", "ci-queue.mjs"),
-      [
-        "#!/usr/bin/env node",
-        'import { pathToFileURL } from "node:url"',
-        'import { dirname, join } from "node:path"',
-        'import { fileURLToPath } from "node:url"',
-        "const here = dirname(fileURLToPath(import.meta.url))",
-        'const mod = await import(pathToFileURL(join(here, "..", "dist", "cli.js")).href)',
-        "await mod.main(process.argv.slice(2))",
-        "",
-      ].join("\n"),
     )
 
     const env = { ...process.env, HOME: home }

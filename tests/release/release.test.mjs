@@ -5,7 +5,7 @@ import { dirname, join } from "node:path"
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import { buildRelease, verifyRelease } from "../../scripts/release.mjs"
+import { buildRelease, verifyRelease } from "../helpers/release-fixture.mjs"
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "ci-queue-release-"))

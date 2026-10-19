@@ -48,7 +48,7 @@ from .projects import (
     mutate_registry,
     probe_project,
 )
-from .provenance import release_provenance
+from .provenance import release_provenance, assert_installed_distribution
 from .records import (
     RecordError,
     iso_now,
@@ -671,6 +671,10 @@ def main(argv=None):
         raise SystemExit("--state ou CI_QUEUE_STATE_DIR é obrigatório")
     state_root = Path(args.state).expanduser().resolve()
     ui_root = Path(args.ui).expanduser().resolve() if args.ui else None
+    try:
+        assert_installed_distribution(args.manifest, args.manifest_sha256, ui_root)
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
     config = None
     bootstrap_error = None
     if args.config:

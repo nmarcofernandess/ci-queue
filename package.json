@@ -8,7 +8,7 @@
     "ci-queue": "./bin/ci-queue.mjs"
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json",
+    "build": "tsc --project tsconfig.json && node scripts/release.mjs stamp --component runtime",
     "check": "bash scripts/ci/check-with-progress.sh",
     "ci-queue": "tsx src/cli.ts",
     "test:core": "vitest run tests/core --exclude 'tests/core/*.evidence.test.ts'",

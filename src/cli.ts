@@ -170,6 +170,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           version: manifest?.version ?? "0.1.0",
           revision: manifest?.revision ?? null,
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
+          ...(manifest ? { distribution: { revision: manifest.revision, protocol: manifest.protocol } } : {}),
           apiVersion: API_VERSION,
           ticketSchemaVersion: TICKET_SCHEMA_VERSION,
           capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read", "v4-ticket-read"],

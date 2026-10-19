@@ -7,7 +7,7 @@
  */
 import { createHash } from "node:crypto"
 import { execFileSync } from "node:child_process"
-import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { homedir } from "node:os"
 import { fileURLToPath } from "node:url"
@@ -115,11 +115,51 @@ function assertQuietState(stateRoot) {
     join(root, "runner.lock"),
     join(root, "locks", "runner.lock"),
     join(root, "state", "maintenance.lock"),
+    join(root, "state", "worker.json"),
+    join(root, "state", "worker.pid"),
   ]) {
     if (existsSync(path)) {
       throw new Error(`estado da fila incerto: ${path} existe; aguarde o executor terminar ou recupere-o antes da manutenção`)
     }
   }
+  for (const directory of [join(root, "claims"), join(root, "locks", "jobs")]) {
+    if (existsSync(directory) && (lstatSync(directory).isSymbolicLink() || !lstatSync(directory).isDirectory() || readdirSync(directory).length)) {
+      throw new Error(`estado da fila incerto: ownership/recuperação pendente em ${directory}`)
+    }
+  }
+  const directory = join(root, "state", "finalization")
+  const records = new Map()
+  const uncertain = () => { throw new Error("estado da fila incerto: finalização ativa ou recuperação/cleanup não confirmados") }
+  if (existsSync(directory)) {
+    if (!lstatSync(directory).isDirectory() || lstatSync(directory).isSymbolicLink()) uncertain()
+    for (const name of readdirSync(directory)) {
+      if (!name.endsWith(".json") || name.endsWith(".input.json") || name.endsWith(".result.json")) continue
+      const file = join(directory, name)
+      if (!lstatSync(file).isFile() || lstatSync(file).isSymbolicLink() || statSync(file).size > 64 * 1024) uncertain()
+      let record
+      try { record = JSON.parse(readFileSync(file, "utf8")) } catch { uncertain() }
+      if (record?.schemaVersion !== 1 || record.ticketId !== name.slice(0, -5)
+        || !/^[a-f0-9]{64}$/.test(record.ticketDigest ?? "") || !/^[a-f0-9]{64}$/.test(record.finalizationDigest ?? "")
+        || !Number.isSafeInteger(record.attempt) || record.attempt < 1 || !["passed", "failed"].includes(record.phase)
+        || !Number.isFinite(Date.parse(record.finishedAt)) || record.result?.schemaVersion !== 1
+        || !["confirmed", "not-required"].includes(record.result?.cleanup) || !Array.isArray(record.result?.outputs)) uncertain()
+      records.set(record.ticketId, record)
+    }
+  }
+  const history = join(root, "history")
+  if (existsSync(history)) {
+    if (!lstatSync(history).isDirectory() || lstatSync(history).isSymbolicLink()) uncertain()
+    for (const name of readdirSync(history).filter(name => name.endsWith(".json"))) {
+      const file = join(history, name)
+      if (!lstatSync(file).isFile() || lstatSync(file).isSymbolicLink()) uncertain()
+      let ticket
+      try { ticket = JSON.parse(readFileSync(file, "utf8")) } catch { uncertain() }
+      if (ticket.schemaVersion !== 4 || !ticket.finalization) continue
+      const record = records.get(ticket.id)
+      if (!record || record.ticketDigest !== sha256(file) || record.finalizationDigest !== ticket.finalizationDigest) uncertain()
+    }
+  }
+
 }
 
 function safeReleaseName(manifest) {
@@ -168,7 +208,7 @@ function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pytho
   if (!configPath) return []
   if (!nodePath || !pythonPath) throw new Error("--node e --python são obrigatórios ao gerar envelope de serviço")
   const launchRoot = join(releasePath, "launch-agents")
-  const environment = { PATH: servicePath(nodePath, commandPath) }
+  const environment = { PATH: servicePath(nodePath), CI_QUEUE_MANIFEST_PATH: join(releasePath, "manifest.json"), CI_QUEUE_MANIFEST_SHA256: manifestSha256 }
   return [
     {
       label: "com.nmarcofernandess.ci-queue.worker",
@@ -232,6 +272,8 @@ function writeCommandLauncher(path, nodePath, releasePath, stateRoot) {
     `if [ -z "\${CI_QUEUE_STATE_DIR:-}" ]; then`,
     `  export CI_QUEUE_STATE_DIR=${shellQuote(resolve(stateRoot))}`,
     "fi",
+    `export CI_QUEUE_MANIFEST_PATH=${shellQuote(join(releasePath, "manifest.json"))}`,
+    `export CI_QUEUE_MANIFEST_SHA256=${shellQuote(sha256(join(releasePath, "manifest.json")))}`,
     `exec ${shellQuote(nodePath)} ${shellQuote(join(releasePath, "bin", "ci-queue.mjs"))} "$@"`,
     "",
   ].join("\n")

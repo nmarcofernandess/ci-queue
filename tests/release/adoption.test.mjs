@@ -14,7 +14,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 
-import { buildRelease, verifyRelease } from "../../scripts/release.mjs"
+import { buildRelease, verifyRelease } from "../helpers/release-fixture.mjs"
 
 const productRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const releaseInputs = [

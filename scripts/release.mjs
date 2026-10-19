@@ -27,6 +27,7 @@ export const productRoot = resolve(here, "..")
 export const MANIFEST_FILENAME = "manifest.json"
 const releasePaths = [
   "bin",
+  "build-provenance",
   "dist",
   "backend",
   "ui/dist",
@@ -76,6 +77,7 @@ function assertRegularTree(root, path) {
 
 function collectFiles(root, current = root) {
   const output = []
+  if (!includeReleasePath(root, current)) return output
   const entry = lstatSync(current)
   if (entry.isSymbolicLink()) throw new Error(`bundle não aceita symlink: ${current}`)
   if (entry.isFile()) {
@@ -105,8 +107,43 @@ function sourcePackage(root) {
   return pkg
 }
 
+export const DISTRIBUTION_PROTOCOL = Object.freeze({ apiVersion: 1, ticketSchemaVersion: 4,
+  capabilities: ["terminal-finalization-v1", "no-artifact-snapshots-v1"] })
+const componentRoots = { launcher: "bin", worker: "dist", api: "backend", ui: "ui/dist" }
+const protocolMatches = value => value?.apiVersion === 1 && value?.ticketSchemaVersion === 4
+  && Array.isArray(value.capabilities) && DISTRIBUTION_PROTOCOL.capabilities.every(item => value.capabilities.includes(item))
+function componentFiles(root, component) {
+  return collectFiles(root, join(root, componentRoots[component]))
+}
+
+/** Each build records its own inputs; packaging cannot relabel an older build. */
+export function recordBuildProvenance({ root = productRoot, component, revision = gitRevision(root) }) {
+  if (!/^[a-f0-9]{40}$/.test(revision)) throw new Error("build exige revisão Git completa")
+  const names = component === "runtime" ? ["launcher", "worker", "api"] : [component]
+  for (const name of names) {
+    if (!Object.hasOwn(componentRoots, name)) throw new Error("componente de build inválido")
+    const files = componentFiles(root, name)
+    if (!files.length) throw new Error(`build vazio: ${name}`)
+    atomicJson(join(root, "build-provenance", `${name}.json`), { schemaVersion: 1, component: name,
+      revision, protocol: DISTRIBUTION_PROTOCOL, files })
+  }
+}
+
+function verifyBuildProvenance(root, revision) {
+  if (!/^[a-f0-9]{40}$/.test(revision ?? "")) throw new Error("migração: release exige revisão Git completa")
+  for (const component of Object.keys(componentRoots)) {
+    const file = join(root, "build-provenance", `${component}.json`)
+    if (!existsSync(file) || !lstatSync(file).isFile() || lstatSync(file).isSymbolicLink()) throw new Error(`migração: refaça o build de ${component}; proveniência ausente`)
+    const build = JSON.parse(readFileSync(file, "utf8"))
+    if (build?.schemaVersion !== 1 || build.component !== component || build.revision !== revision) throw new Error(`migração: revisão do build ${component} diverge da release`)
+    if (!protocolMatches(build.protocol)) throw new Error(`migração: protocolo de build incompatível em ${component}`)
+    if (JSON.stringify(build.files) !== JSON.stringify(componentFiles(root, component))) throw new Error(`integridade inválida no build: ${component}`)
+  }
+}
+
 export function buildRelease({ root = productRoot, outputDir, now = new Date(), revision = gitRevision(root) }) {
   const pkg = sourcePackage(root)
+  verifyBuildProvenance(root, revision)
   if (!outputDir) throw new Error("--output é obrigatório")
   const destination = resolve(outputDir, `ci-queue-${pkg.version}-${revision.slice(0, 12)}`)
   if (existsSync(destination)) throw new Error(`destino de release já existe: ${destination}`)
@@ -135,6 +172,7 @@ export function buildRelease({ root = productRoot, outputDir, now = new Date(), 
       product: "ci-queue",
       version: pkg.version,
       revision,
+      protocol: DISTRIBUTION_PROTOCOL,
       createdAt: now.toISOString(),
       files: collectFiles(destination),
     }
@@ -154,6 +192,8 @@ export function verifyRelease(bundlePath) {
   if (manifest?.schemaVersion !== 1 || manifest?.product !== "ci-queue" || !Array.isArray(manifest.files)) {
     throw new Error("manifest inválido")
   }
+  if (!protocolMatches(manifest.protocol)) throw new Error("migração: distribuição sem protocolo terminal-finalization-v1/no-artifact-snapshots-v1")
+  verifyBuildProvenance(root, manifest.revision)
   for (const entry of manifest.files) {
     if (!entry || typeof entry.path !== "string" || entry.path.startsWith("/") || entry.path.split("/").includes("..")) {
       throw new Error("manifest contém caminho inválido")
@@ -173,11 +213,14 @@ function parseArgs(argv) {
     const index = rest.indexOf(flag)
     return index === -1 ? undefined : rest[index + 1]
   }
-  return { command, output: value("--output"), bundle: value("--bundle") }
+  return { command, output: value("--output"), bundle: value("--bundle"), component: value("--component") }
 }
 
 function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv)
+  if (args.command === "stamp") {
+    recordBuildProvenance({ component: args.component }); return
+  }
   if (args.command === "build") {
     const result = buildRelease({ outputDir: args.output })
     process.stdout.write(`${JSON.stringify({ bundle: result.destination, manifest: result.manifest }, null, 2)}\n`)
