@@ -385,3 +385,130 @@ e passe esse arquivo ao `--project` do comando tsc registrado acima:
 
 O noEmit/strict e demais opções são herdados do owner. O scratch e os logs
 brutos não são fontes de produto e não foram incluídos no Git.
+
+## Fix round1/5 — I1 e I2, 19/10/2026
+
+Recebidos integralmente o brief task-11-fix-1 e o review11 publicado em
+D776cfaf26. FIX_BASE: D0a37e4cbc/Q3637156. O avanço D até776cfaf26 contém
+somente registro/review do controlador; nenhum código D foi alterado nesta
+rodada. A autoria abaixo se limita a Q scripts/install.mjs,
+backend/ci_queue_api/provenance.py e aos dois arquivos de teste indicados.
+Este mesmo report é preservado e copiado integralmente a Q. PLAN, progress,
+status, RETOMADA e review permanecem com o controlador.
+
+### I1 — limite do envelope de finalização
+
+Conferência do finding no código: contracts/schema.ts limita o resultado a
+64 KiB; core/state.ts serializa o registro formatado e seu readFinalization
+aceita até128 KiB. O instalador aplicava64 KiB ao registro completo, recusando
+estado já concluído que o reader canônico aceita. A causa foi confirmada pela
+fixture antes da implementação, sem inventar API ou método ausente.
+
+O reparo separa as constantes do resultado e do envelope: resultado serializado
+em UTF-8 continua limitado a64 KiB; arquivo do registro aceita até128 KiB.
+As guardas anteriores de fase terminal, timestamps, tentativas, digests,
+cleanup e recovery permanecem. Não há exclusão/edição de estado para liberar
+manutenção nem concessão de retry a resultado legado.
+
+Regressões em tests/install/finalization-protocol.test.mjs usam os contratos
+compilados já existentes, sem delta TS: normalizeFinalizationResult confirma o
+resultado permitido; serializedJson e readFinalization confirmam o envelope
+canônico acima de64 KiB e abaixo de128 KiB. Instalação e desinstalação no
+prefixo temporário devem aceitá-lo e conservar exatamente os bytes do registro.
+Os outros casos recusam resultado acima de64 KiB dentro de envelope permitido,
+e envelope acima de128 KiB com resultado pequeno.
+
+**RED:**
+
+```sh
+node --test --test-name-pattern='record limits:' tests/install/finalization-protocol.test.mjs
+```
+
+Output:3 testes,2 PASS/1 FAIL,106,747ms. O caso
+`maintenance accepts a canonical envelope above the result limit` falhou em
+scripts/install.mjs:138 com
+`estado da fila incerto: finalização ativa ou recuperação/cleanup não confirmados`.
+Os asserts anteriores já haviam confirmado que o normalizador e o reader
+canônicos aceitavam o mesmo resultado/registro.
+
+**GREEN e preservação das guardas:**
+
+```sh
+node --test --test-name-pattern='record limits:|finalization blocks update|completed records|confirmed v2 finalization|record recovery' tests/install/finalization-protocol.test.mjs
+```
+
+Output:11 testes,11 PASS/0 FAIL/0 skipped,309,133ms. Inclui as três fronteiras,
+pending/running/interrupted/malformed/cleanup-uncertain, conclusão legada/v2 e
+recovery bloqueada. Não foi repetida a família inteira de instalação/release.
+
+### I2 — stamps ancorados no manifest pinado
+
+Conferência do finding: o startup Python chama assert_installed_distribution
+diretamente, sem o launcher. O manifest tinha seu digest conferido, mas os
+inventários dos stamps de API/UI eram usados sem conferir os próprios stamps
+contra os hashes desse manifest. UI+stamp coerentes entre si podiam mudar sob
+a mesma revisão/protocolo e manter a aceitação da API.
+
+O reader privado agora entrega a projeção pública e o inventário interno a
+partir dos mesmos bytes lidos do manifest, evitando uma segunda leitura sem
+vínculo. O endpoint público continua recebendo somente a projeção limitada,
+sem inventário ou paths. Antes de interpretar cada stamp API/UI, o startup
+confere presença no manifest pinado, arquivo regular sem symlink, tamanho e
+SHA-256 dos bytes. Somente então usa o inventário do stamp para conferir os
+arquivos reais, conservando as guardas de revisão, protocolo, origem carregada
+e diretório de UI.
+
+O teste novo em tests/release/release.test.mjs copia o módulo Python real para
+um bundle de fixture e carrega a guarda a partir desse bundle. Primeiro prova
+a aceitação da distribuição original. Depois troca a UI e atualiza seu stamp,
+mantendo revisão/protocolo e os bytes originais do manifest/digest pinado.
+verifyRelease já recusa esse estado; a guarda Python também deve recusá-lo.
+Não inicia o servidor API nem um browser: a propriedade está no mesmo guard
+que o startup chama antes de criar o serviço.
+
+**RED:**
+
+```sh
+node --test --test-name-pattern='installed API guard' tests/release/release.test.mjs
+```
+
+Output:1 teste,0 PASS/1 FAIL,132,182ms, com
+`AssertionError: API accepted replacement bytes and their unpinned stamp`
+e status Python0 indevido. A distribuição original havia sido aceita e o
+verificador integral recusara a adulteração, isolando exatamente a guarda I2.
+
+**GREEN:** mesmo comando,1 PASS/0 FAIL/0 skipped,125,234ms. O erro esperado
+na substituição é `migração: build API/UI divergente da distribuição instalada`;
+o manifest original continua byte a byte intacto.
+
+O self-review acrescentou a recusa de stamp symlink/não regular antes da leitura,
+além do vínculo de bytes. Repetido somente esse caso após o ajuste:
+1 PASS/0 FAIL/0 skipped,120,275ms.
+
+Como a leitura privada foi compartilhada com a projeção pública existente,
+foi repetido somente seu caso correspondente, sem criar outra suíte:
+
+```sh
+PYTHONPATH=backend python3 -B -m unittest discover -s tests/backend -p test_api.py -k test_build_provenance_is_never_inferred_from_checkout
+```
+
+Output:`Ran 1 test in 1.534s`, `OK`. Esse caso usa HTTP de fixture em porta
+efêmera própria e confirma ausência explícita, projeção de manifest válido e
+recusa observável após alteração; não opera o dashboard instalado.
+
+### Self-review, limites e publicação da correção
+
+Self-review confrontou as duas cadeias completas: tamanho resultado→envelope→
+reader/manutenção e manifest pinado→bytes do stamp→inventário API/UI.
+As fixtures observam a propriedade por interfaces existentes, sem RED por
+import inexistente nem mocks do comportamento corrigido. A extração privada
+não expõe a lista de arquivos no endpoint; a validação do stamp ocorre antes
+de confiar em seus hashes internos. Resultados/cleanup/recovery continuam
+separados e não foi relaxada identidade ou guarda de processo.
+
+`git diff --check` passou. Nenhuma instalação/release do operador, integração,
+Smoke/Full, banco, stack ou browser de produto foi executado; todos os processos
+de teste próprios encerraram. O pacote é publicado por commits separados Q/D
+nas branches existentes, com o report idêntico. Esta correção endereça I1/I2,
+mas não reivindica aprovação do re-review ou cutover instalado. M1/pngjs continua
+registrado para final review/fechamento, fora desta rodada; não há GREEN global D.

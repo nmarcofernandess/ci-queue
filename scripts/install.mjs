@@ -34,6 +34,9 @@ export const DEFAULT_STATE = existsSync(COMPATIBILITY_STATE)
   : PRODUCT_STATE
 const INSTALLATION_FILENAME = "installation.json"
 const STAGED_INSTALLATION_FILENAME = "staged-installation.json"
+// Result: contracts/schema.ts; persisted envelope: core/state.ts readFinalization.
+const FINALIZATION_RESULT_MAX_BYTES = 64 * 1024
+const FINALIZATION_RECORD_MAX_BYTES = 2 * FINALIZATION_RESULT_MAX_BYTES
 const SERVICE_LABELS = new Set([
   "com.nmarcofernandess.ci-queue.worker",
   "com.nmarcofernandess.ci-queue.dashboard",
@@ -135,7 +138,7 @@ function assertQuietState(stateRoot) {
     for (const name of readdirSync(directory)) {
       if (!name.endsWith(".json") || name.endsWith(".input.json") || name.endsWith(".result.json")) continue
       const file = join(directory, name)
-      if (!lstatSync(file).isFile() || lstatSync(file).isSymbolicLink() || statSync(file).size > 64 * 1024) uncertain()
+      if (!lstatSync(file).isFile() || lstatSync(file).isSymbolicLink() || statSync(file).size > FINALIZATION_RECORD_MAX_BYTES) uncertain()
       let record
       try { record = JSON.parse(readFileSync(file, "utf8")) } catch { uncertain() }
       if (record?.schemaVersion !== 1 || record.ticketId !== name.slice(0, -5)
@@ -144,7 +147,8 @@ function assertQuietState(stateRoot) {
         || !Number.isFinite(Date.parse(record.finishedAt)) || ![1, 2].includes(record.result?.schemaVersion)
         || !["confirmed", "not-required"].includes(record.result?.cleanup) || !Array.isArray(record.result?.outputs)
         || record.recovery !== undefined && record.recovery !== "none"
-        || record.result.schemaVersion === 2 && record.result.recovery !== "none") uncertain()
+        || record.result.schemaVersion === 2 && record.result.recovery !== "none"
+        || Buffer.byteLength(JSON.stringify(record.result), "utf8") > FINALIZATION_RESULT_MAX_BYTES) uncertain()
       records.set(record.ticketId, record)
     }
   }

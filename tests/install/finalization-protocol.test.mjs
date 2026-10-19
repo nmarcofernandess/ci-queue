@@ -8,6 +8,8 @@ import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { buildRelease, verifyRelease } from '../../scripts/release.mjs'
 import { installRelease, uninstallRelease } from '../../scripts/install.mjs'
+import { normalizeFinalizationResult, FINALIZATION_JSON_MAX_BYTES } from '../../dist/contracts/schema.js'
+import { readFinalization, serializedJson } from '../../dist/core/state.js'
 
 const revision = 'a'.repeat(40)
 const protocol = { apiVersion: 1, ticketSchemaVersion: 4, capabilities: ['terminal-finalization-v1', 'no-artifact-snapshots-v1', 'recoverable-finalization-v1'] }
@@ -121,6 +123,54 @@ test('record recovery cannot be bypassed by a legacy confirmed result', () => {
     const bundle = f.build()
     f.put('state/state/finalization/blocked.json', JSON.stringify({ schemaVersion: 1, ticketId: 'blocked', ticketDigest: 'd'.repeat(64), finalizationDigest: 'e'.repeat(64), attempt: 1,
       phase: 'failed', finishedAt: '2026-10-19T00:00:00Z', recovery: 'blocked-ownership', result: { schemaVersion: 1, cleanup: 'confirmed', outputs: [] } }))
+    assert.throws(() => installRelease({ ...f, bundle }), /finaliza|incerto/i)
+  } finally { rmSync(f.root, { recursive: true, force: true }) }
+})
+
+function completedRecord(result) {
+  return { schemaVersion: 1, ticketId: 'boundary', ticketDigest: 'd'.repeat(64), finalizationDigest: 'e'.repeat(64), attempt: 1,
+    phase: 'passed', finishedAt: '2026-10-19T00:00:00Z', recovery: 'none', result }
+}
+const cleanResult = () => ({ schemaVersion: 2, recovery: 'none', cleanup: 'confirmed', outputs: [] })
+
+test('record limits: maintenance accepts a canonical envelope above the result limit', () => {
+  const f = fixture()
+  try {
+    const bundle = f.build(), result = cleanResult()
+    for (let id = 0; ; id++) {
+      result.outputs.push({ path: `docs/proof-candidates/fixture/${id}.json`, sha256: 'a'.repeat(64), role: 'proof-candidate' })
+      if (Buffer.byteLength(JSON.stringify(result)) > FINALIZATION_JSON_MAX_BYTES) { result.outputs.pop(); break }
+    }
+    assert.deepEqual(normalizeFinalizationResult(result, 2), result)
+    const record = completedRecord(result), raw = serializedJson(record)
+    assert.ok(Buffer.byteLength(raw) > FINALIZATION_JSON_MAX_BYTES)
+    assert.ok(Buffer.byteLength(raw) < 2 * FINALIZATION_JSON_MAX_BYTES)
+    f.put('state/state/finalization/boundary.json', raw)
+    assert.deepEqual(readFinalization(f.stateRoot, 'boundary'), record)
+    assert.equal(installRelease({ ...f, bundle }).revision, revision)
+    uninstallRelease({ prefix: f.prefix })
+    assert.equal(readFileSync(join(f.stateRoot, 'state/finalization/boundary.json'), 'utf8'), raw)
+  } finally { rmSync(f.root, { recursive: true, force: true }) }
+})
+test('record limits: a result above 64 KiB is refused even when its envelope fits', () => {
+  const f = fixture()
+  try {
+    const bundle = f.build(), result = cleanResult()
+    result.outputs.push({ path: 'proof/output.json', sha256: 'a'.repeat(64), role: 'x'.repeat(FINALIZATION_JSON_MAX_BYTES) })
+    const raw = serializedJson(completedRecord(result))
+    assert.ok(Buffer.byteLength(raw) < 2 * FINALIZATION_JSON_MAX_BYTES)
+    assert.throws(() => normalizeFinalizationResult(result, 2), /64 KiB/)
+    f.put('state/state/finalization/boundary.json', raw)
+    assert.throws(() => installRelease({ ...f, bundle }), /finaliza|incerto/i)
+  } finally { rmSync(f.root, { recursive: true, force: true }) }
+})
+test('record limits: an envelope above the canonical 128 KiB limit remains refused', () => {
+  const f = fixture()
+  try {
+    const bundle = f.build(), record = completedRecord(cleanResult())
+    const raw = serializedJson(record).padEnd(2 * FINALIZATION_JSON_MAX_BYTES + 1, ' ')
+    f.put('state/state/finalization/boundary.json', raw)
+    assert.equal(readFinalization(f.stateRoot, 'boundary'), undefined)
     assert.throws(() => installRelease({ ...f, bundle }), /finaliza|incerto/i)
   } finally { rmSync(f.root, { recursive: true, force: true }) }
 })
