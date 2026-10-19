@@ -344,3 +344,44 @@ conjunta e gates próprios somente depois da autoria/reviews. Ressalva técnica:
 declaração pngjs no diagnóstico focal, sem GREEN global D. Nenhum outro defeito
 conhecido ficou aberto neste recorte. Auth/Sistema/Pagamentos recebidos conservam
 seus próprios resultados e pendências, sem novo crédito por esta composição.
+
+### Recibo de publicação e reprodução do diagnóstico
+
+Commits de implementação publicados por push normal e conferidos por
+`git ls-remote origin refs/heads/<branch>` em19/10:
+
+- D `f8d87b0fd4ac5c0f0509cf5d3fa13af7228c724d`,
+  `feat(ci): adopt compatible terminal finalization lifecycle`;
+- Q `a54dbc5b02c66992810dbe2e45f974f8121219fa`, mesmo subject.
+
+As duas árvores estavam limpas e cada SHA local era igual ao SHA remoto.
+O acréscimo deste recibo é somente documental, sem nova execução ou crédito de
+teste. Não houve force-push, PR/merge de integração, instalação ou deploy.
+
+Para reproduzir o diagnóstico sem depender do scratch original, escreva o JSON
+abaixo em arquivo temporário, substituindo `<D>` pela raiz absoluta da lane D,
+e passe esse arquivo ao `--project` do comando tsc registrado acima:
+
+```json
+{
+  "extends": "<D>/tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "incremental": false,
+    "types": ["node", "jest"],
+    "typeRoots": ["<D>/node_modules/@types"]
+  },
+  "files": [
+    "<D>/scripts/proof/check-generated-proof-pack.ts",
+    "<D>/scripts/proof/indexed-flow-source.ts",
+    "<D>/scripts/proof/native-execution-receipt.ts",
+    "<D>/scripts/ci/__tests__/output-lifecycle-adoption.test.ts",
+    "<D>/node_modules/next/types/global.d.ts"
+  ],
+  "include": [],
+  "exclude": []
+}
+```
+
+O noEmit/strict e demais opções são herdados do owner. O scratch e os logs
+brutos não são fontes de produto e não foram incluídos no Git.
