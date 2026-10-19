@@ -48,7 +48,6 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState, ErrorState } from "@/features/shared/async-state"
@@ -187,16 +186,14 @@ function ProgressPanel({ job }: { job: ApiQuery<JobRecord> }) {
   const surface = progressSurface(job.data)
   return (
     <div className="flex flex-col gap-5">
-      <ItemGroup aria-label="Resultado, finalização e limpeza">
-        {describeCompletionFacts(job.data).map((fact) => (
-          <Item key={fact.label} size="sm">
-            <ItemContent>
-              <ItemTitle>{fact.label}</ItemTitle>
-              <ItemDescription>{fact.value}</ItemDescription>
-            </ItemContent>
-          </Item>
-        ))}
-      </ItemGroup>
+      <FactsTable
+        caption="Resultado, finalização e limpeza"
+        rows={describeCompletionFacts(job.data).map((fact) => ({
+          id: fact.label,
+          label: fact.label,
+          value: fact.value,
+        }))}
+      />
       <JobDetailsTable job={job.data} />
       {job.data.failureReason ? (
         <Alert variant="destructive">
