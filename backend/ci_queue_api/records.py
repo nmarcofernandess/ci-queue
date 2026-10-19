@@ -23,7 +23,7 @@ from .execution_observations import (
 )
 
 
-JOB_ID = re.compile(r"[A-Za-z0-9-]{1,128}\Z")
+JOB_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 TERMINAL = frozenset(("passed", "failed", "cancelled", "interrupted"))
 ALL_STATUSES = frozenset(("queued", "running", *TERMINAL))
 PAGE_SIZE = 50

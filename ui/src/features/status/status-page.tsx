@@ -106,7 +106,7 @@ function CurrentExecution({
     return (
       <Card size="sm">
         <CardContent>
-          <Item size="sm" className="px-0 py-0">
+          <Item size="xs">
             <ItemMedia>
               <CircleDotIcon className="size-4 text-muted-foreground" />
             </ItemMedia>
@@ -197,7 +197,7 @@ function MachineCard() {
         ) : null}
         {machine.data ? (
           machine.data.disk ? (
-            <Item variant="default" className="border-transparent px-0 py-0">
+            <Item variant="default">
               <ItemMedia variant="icon">
                 <HardDriveIcon />
               </ItemMedia>
@@ -976,8 +976,8 @@ function HistoryPanel({
           }
         />
       ) : filters.grouping === "commit" ? (
-        <Card className="gap-0 pb-0">
-          <CardHeader className="gap-3">
+        <Card>
+          <CardHeader>
             <CardDescription>{greenDescription}</CardDescription>
             {toolbar}
           </CardHeader>
@@ -988,7 +988,6 @@ function HistoryPanel({
               <ErrorState title="Últimos verdes indisponíveis" error={greenError} />
             ) : (
               <GreenCommitTable
-                embedded
                 groups={groupGreenCommits(selectedGreenRows)}
                 showProjectChip={scope.kind === "all"}
                 onOpen={setSelectedCommit}

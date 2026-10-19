@@ -61,7 +61,7 @@ export function EntityIdentity({
           )}
         </ItemMedia>
       ) : null}
-      <ItemContent className="min-w-0 gap-0">
+      <ItemContent className="min-w-0">
         <div
           className={cn(
             "flex min-w-0 items-center gap-x-2 gap-y-1",
@@ -73,12 +73,16 @@ export function EntityIdentity({
           ) : onOpen ? (
             <Button
               variant="link"
+              size={scale.buttonSize}
               onClick={onOpen}
               className={cn(
-                "h-auto max-w-full min-w-0 justify-start p-0 text-left",
+                "max-w-full min-w-0 justify-start text-left",
                 presentation === "table" &&
                   "min-w-0 flex-1 shrink overflow-hidden",
-                titleClass
+                presentation === "current" && cn("h-auto", scale.title),
+                monospaceTitle && "font-mono",
+                presentation !== "table" &&
+                  "[overflow-wrap:anywhere] break-words whitespace-normal"
               )}
               title={presentation === "table" ? title : undefined}
             >

@@ -11,7 +11,7 @@ function lint(snippet: string, filename = 'src/features/status/policy-case.tsx')
   expect(result.stdout, result.stderr).not.toBe('')
   const messages = JSON.parse(result.stdout)[0].messages as { ruleId: string | null; message: string; fatal?: boolean }[]
   expect(messages.filter(message => message.fatal), result.stdout).toEqual([])
-  return messages.filter(message => ['no-restricted-imports', 'no-restricted-syntax'].includes(message.ruleId ?? ''))
+  return messages.filter(message => ['no-restricted-imports', 'no-restricted-syntax', 'ui-composition/native-spacing'].includes(message.ruleId ?? ''))
 }
 describe('UI composition policy through installed ESLint parser', () => {
   // flake under parallel queue load: ESLint lint() >5s
@@ -60,5 +60,78 @@ describe('UI composition policy through installed ESLint parser', () => {
   }, 30_000)
   it.each(['inline', 'compact-context'])('allows explicit ProjectChip mode %s', mode => {
     expect(lint(`export function Case() { return <ProjectChip name="A" mode="${mode}" /> }`)).toEqual([])
+  }, 30_000)
+})
+
+
+describe('native primitive spacing', () => {
+  it.each([
+    ['item', 'Item', 'p-0'],
+    ['item', 'Item', 'sm:px-0!'],
+    ['table', 'TableCell', 'px-0'],
+    ['table', 'TableHead', 'first:pl-0'],
+    ['table', 'Table', '[&_td]:p-0'],
+    ['popover', 'PopoverContent', 'gap-2'],
+    ['card', 'CardHeader', 'px-4'],
+    ['drawer', 'DrawerHeader', 'pb-2'],
+    ['drawer', 'DrawerFooter', 'gap-1'],
+  ])('rejects native %s/%s spacing override %s through aliased binding', (family, component, classes) => {
+    const filename = family === 'drawer' ? 'src/features/shared/detail-drawer.tsx' : undefined
+    expect(lint(`import { ${component} as Native } from '@/components/ui/${family}'; export function Case() { return <Native className="${classes}" /> }`, filename)
+      .some(message => message.ruleId === 'ui-composition/native-spacing')).toBe(true)
+  }, 30_000)
+
+  it('rejects namespace imports and static conditional/template/cn class branches', () => {
+    for (const expression of ['{active ? "p-0" : "w-4"}', '{`w-4 ${active ? "px-0" : ""}`}', '{cn("w-4", { "p-0": active })}']) {
+      expect(lint(`import * as Native from '@/components/ui/item'; export function Case() { return <Native.Item className=${expression} /> }`)
+        .some(message => message.ruleId === 'ui-composition/native-spacing')).toBe(true)
+    }
+  }, 30_000)
+
+  it.each([
+    ['FactsTable', 'facts-table', 'p-0'],
+    ['DataTableFrame', 'data-table-frame', '[&_th]:px-0'],
+  ])('rejects erased padding through shared %s owner', (component, owner, classes) => {
+    expect(lint(`import { ${component} } from '@/features/shared/${owner}'; export function Case() { return <${component} className="${classes}" /> }`)
+      .some(message => message.ruleId === 'ui-composition/native-spacing')).toBe(true)
+  }, 30_000)
+
+  it.each(['max-h-60', 'md:max-h-[300px]', 'max-h-[calc(100vh-2rem)]'])('rejects fixed FilterSelect popup height %s', classes => {
+    expect(lint(`import { SelectContent } from '@/components/ui/select'; export function Case() { return <SelectContent className="${classes}" /> }`, 'src/features/shared/filter-select.tsx')
+      .some(message => message.ruleId === 'ui-composition/native-spacing')).toBe(true)
+  }, 30_000)
+
+  it('allows legitimate layout and approved adaptations', () => {
+    expect(lint(`
+      import { Item, ItemGroup } from '@/components/ui/item'
+      import { Table, TableCell, TableHead } from '@/components/ui/table'
+      import { CardHeader, CardContent, CardFooter } from '@/components/ui/card'
+      import { PopoverContent } from '@/components/ui/popover'
+      import { Empty } from '@/components/ui/empty'
+      import { Button } from '@/components/ui/button'
+      export function Case() { return <>
+        <Item size="xs" className="w-60 shrink-0" />
+        <ItemGroup className="flex-row gap-0 pb-3 has-data-[size=sm]:gap-0" />
+        <Table className="table-fixed [&_tr>:first-child]:pl-(--card-spacing)" />
+        <TableHead className="w-32 py-2 whitespace-normal" />
+        <TableCell className="sticky left-0 min-w-0 max-w-0 text-right" />
+        <CardHeader className="shrink-0 border-b" />
+        <CardContent className="px-0" />
+        <CardFooter className="border-0 bg-transparent" />
+        <PopoverContent className="w-64" />
+        <Empty className="p-0" />
+        <Button className="h-auto text-wrap" />
+      </> }
+    `)).toEqual([])
+  }, 30_000)
+
+  it('does not mistake unrelated or shadowed components for native imports', () => {
+    expect(lint(`import { Item } from 'other-package'; export function Case() { return <Item className="p-0" /> }`)).toEqual([])
+    expect(lint(`import { Item } from '@/components/ui/item'; export function Case({ Item }) { return <Item className="p-0" /> }`)).toEqual([])
+  }, 30_000)
+
+  it('leaves dynamic classes and native sources outside the static consumer check', () => {
+    expect(lint(`import { Item } from '@/components/ui/item'; export function Case() { return <Item className={classes} /> }`)).toEqual([])
+    expect(lint(`import { Item } from '@/components/ui/item'; export function Case() { return <Item className="p-0" /> }`, 'src/components/ui/example.tsx')).toEqual([])
   }, 30_000)
 })

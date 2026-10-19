@@ -28,6 +28,7 @@ from ci_queue_api.dashboard_state import (
 from ci_queue_api.diagnostics import MAX_EXPORT_BYTES, read_diagnostic, read_log_export, read_log_slice
 from ci_queue_api.history import build_preset_history, read_remote_slots
 from ci_queue_api.records import (
+    RecordError,
     invalidate_history_cache,
     lookup_job,
     read_executions,
@@ -137,6 +138,42 @@ class Fixture(unittest.TestCase):
         path = self.root / "remote-slots.json"
         path.write_text(json.dumps(value), encoding="utf-8")
         return path
+
+
+class TicketIdentityTests(Fixture):
+    def test_admitted_ids_resolve_ticket_logs_and_diagnostic(self):
+        for ident in ("A", "ticket.2026_retry-1", "Z" + "._-" * 42 + "9"):
+            with self.subTest(ident=ident):
+                job = self.job(ident)
+                content = "output for " + ident + "\n"
+                (self.state / "logs" / (ident + ".log")).write_text(content, encoding="utf-8")
+                for source in ("history", "jobs", "running"):
+                    with self.subTest(source=source):
+                        path = (self.state / "running.json" if source == "running" else
+                                self.state / source / (ident + ".json"))
+                        path.write_text(json.dumps(job), encoding="utf-8")
+                        self.assertEqual(lookup_job(self.state, ident)["id"], ident)
+                        self.assertEqual(read_log_slice(self.state, self.config, ident)["content"], content)
+                        self.assertEqual(read_log_export(self.state, self.config, ident)["content"], content)
+                        diagnostic = read_diagnostic(self.state, self.config, ident)
+                        self.assertTrue(diagnostic["available"])
+                        self.assertEqual(diagnostic["ticket"]["id"], ident)
+                        path.unlink()
+
+    def test_invalid_ids_are_rejected_by_ticket_log_and_diagnostic_readers(self):
+        readers = (
+            lambda ident: lookup_job(self.state, ident),
+            lambda ident: read_log_slice(self.state, self.config, ident),
+            lambda ident: read_log_export(self.state, self.config, ident),
+            lambda ident: read_diagnostic(self.state, self.config, ident),
+        )
+        for ident in (None, 42, "", ".hidden", "_hidden", "-hidden", "a" * 129,
+                      "../escape", "ticket/../escape", "/absolute", "..\\escape",
+                      "%2e%2e", "with space", "with\nnewline", "ação"):
+            for index, reader in enumerate(readers):
+                with self.subTest(ident=ident, reader=index):
+                    with self.assertRaisesRegex(RecordError, "jobId inválido"):
+                        reader(ident)
 
 
 class ConfigTests(Fixture):

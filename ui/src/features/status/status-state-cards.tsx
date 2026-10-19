@@ -89,7 +89,7 @@ export function StatusStateCards({
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {!readable ? (
-            <Empty className="border-0 p-0">
+            <Empty>
               <EmptyHeader>
                 <EmptyTitle>Selecione um projeto</EmptyTitle>
               </EmptyHeader>
@@ -123,7 +123,7 @@ export function StatusStateCards({
                       </span>
                     </p>
                   ) : null}
-                  <ItemGroup className="gap-0">
+                  <ItemGroup>
                     {meta.checks.map((check) => {
                       const Icon =
                         check.status === "passed"
@@ -133,8 +133,7 @@ export function StatusStateCards({
                         <Item
                           key={check.preset}
                           variant="default"
-                          size="sm"
-                          className="border-transparent px-0 py-1"
+                          size="xs"
                         >
                           <ItemMedia variant="icon">
                             <Icon />
@@ -145,7 +144,7 @@ export function StatusStateCards({
                                 <Button
                                   type="button"
                                   variant="link"
-                                  className="h-auto p-0"
+                                  size="sm"
                                   onClick={() => onOpenJob(check.ticketId!)}
                                 >
                                   {check.preset}
@@ -193,7 +192,7 @@ export function StatusStateCards({
         </CardHeader>
         <CardContent>
           {!readable ? (
-            <Empty className="border-0 p-0">
+            <Empty>
               <EmptyHeader>
                 <EmptyTitle>Selecione um projeto</EmptyTitle>
               </EmptyHeader>
@@ -208,8 +207,7 @@ export function StatusStateCards({
                 <Item
                   key={item.id}
                   variant="default"
-                  size="sm"
-                  className="border-transparent px-0 py-0"
+                  size="xs"
                 >
                   <ItemContent>
                     <ItemTitle>
@@ -217,7 +215,7 @@ export function StatusStateCards({
                         <Button
                           type="button"
                           variant="link"
-                          className="h-auto px-0 py-0"
+                          size="sm"
                           onClick={() => onOpenJob(item.latestTicketId!)}
                         >
                           {item.preset}
@@ -312,8 +310,8 @@ function AllMetaPreview({ state }: { state: DashboardAllState }) {
           {rows.map((project) => (
             <Item
               key={project.projectId}
-              size="sm"
-              className="min-w-0 border-transparent px-0 py-0"
+              size="xs"
+              className="min-w-0"
             >
               <ItemContent className="min-w-0">
                 <div className="min-w-0">
@@ -382,8 +380,8 @@ function AllPendingPreview({
           {rows.map(({ projectId, projectName, item }) => (
             <Item
               key={`${projectId}:${item.id}`}
-              size="sm"
-              className="min-w-0 border-transparent px-0 py-0"
+              size="xs"
+              className="min-w-0"
             >
               <ItemContent className="min-w-0">
                 <div className="min-w-0">
@@ -394,7 +392,7 @@ function AllPendingPreview({
                     <Button
                       type="button"
                       variant="link"
-                      className="h-auto p-0"
+                      size="sm"
                       onClick={() => onOpenJob(item.latestTicketId!)}
                     >
                       {item.preset}

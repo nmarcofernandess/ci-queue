@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { fixtureDashboard, installConsistencyFixtures } from './fixtures/ui-consistency'
+import { fixtureDashboard, fixtureJob, fixtureTerminals, installConsistencyFixtures } from './fixtures/ui-consistency'
 
 const captureFinal = process.env.CI_QUEUE_CAPTURE_FINAL === '1'
 test.use({ timezoneId: 'UTC' })
@@ -30,7 +30,7 @@ async function closeDrawer(page: Page) {
 }
 
 for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
-  test(`complete family ${width} ${theme}`, async({page,context})=>{
+  test(`complete family ${width} ${theme}`, async({page,context},testInfo)=>{
     // Full matrix (status→analysis) exceeds default 30s under load; failure looked like scatter count flake.
     test.setTimeout(120_000)
     await context.grantPermissions(['clipboard-read','clipboard-write'])
@@ -67,10 +67,12 @@ for(const width of [390,1440]) for(const theme of ['light','dark'] as const) {
     const leafTitleFont=await leaf.locator('[data-slot=progress-label] span').last().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))
     expect(expandedTitleFont).toBe(leafTitleFont)
     await shot(page,`${prefix}-execution-progress`)
+    await drawer.screenshot({path:testInfo.outputPath('native-progress-tree.png'),animations:'disabled'})
     const toggle=drawer.locator('[data-slot=progress-row][data-node-id=static] [data-slot=collapsible-trigger]')
     await expect(toggle).toHaveCount(1)
-    const rowHeight=await drawer.locator('[data-slot=progress-row][data-node-id=static]').evaluate(el=>el.getBoundingClientRect().height)
-    expect(rowHeight).toBeLessThanOrEqual(40)
+    const progressRow=drawer.locator('[data-slot=progress-row][data-node-id=static]')
+    await expect(progressRow).toHaveCSS('padding-left','10px')
+    await expect(progressRow).toHaveCSS('padding-top','8px')
     await expect(drawer.locator('[data-slot=collapsible-content]').first()).toHaveCSS('border-left-width','0px')
     await toggle.click()
     await expect(toggle).toHaveAttribute('data-state','closed')
@@ -445,5 +447,191 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(cards.getByText(/0 de .* requisitos atendidos/)).toHaveCount(0)
     await expect(cards.getByText('Nenhuma meta declarada.', { exact: true })).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  })
+}
+
+for (const width of [390, 820, 1440]) for (const theme of ['light', 'dark'] as const) {
+  test(`native component contracts ${width} ${theme}`, async ({ page }, testInfo) => {
+    test.setTimeout(45_000)
+    await page.setViewportSize({ width, height: 1000 })
+    await installConsistencyFixtures(page, { theme })
+    await page.goto('/#worktrees')
+    const table = page.getByRole('table', { name: 'Worktrees', exact: true })
+    const row = table.getByRole('row').filter({ has: page.getByRole('button', { name: 'example-clean', exact: true }) })
+    // Native Nova Table uses px-2/p-2 at the installed spacing scale.
+    await expect(table.locator('thead th').first()).toHaveCSS('padding-left', '8px')
+    await expect(row.getByRole('cell').first()).toHaveCSS('padding-left', '8px')
+    await expect(row.getByRole('cell').last()).toHaveCSS('padding-right', '8px')
+    const checkbox = row.getByRole('checkbox')
+    await checkbox.check()
+    await expect(row).toHaveAttribute('data-state', 'selected')
+    await page.screenshot({ path: testInfo.outputPath('worktrees.png'), animations: 'disabled' })
+    await row.getByRole('button', { name: 'example-clean', exact: true }).click()
+    const drawer = await inspectDrawer(page)
+    const facts = drawer.getByRole('table', { name: 'Detalhes da worktree', exact: true })
+    await expect(facts.getByRole('rowheader').first()).toHaveCSS('padding-left', '8px')
+    await expect(facts.getByRole('cell').first()).toHaveCSS('padding-right', '8px')
+    await drawer.screenshot({ path: testInfo.outputPath('worktree-details.png'), animations: 'disabled' })
+    await closeDrawer(page)
+    await page.getByRole('textbox').fill('not-in-fixture')
+    const emptyCell = table.getByRole('cell')
+    await expect(emptyCell).toContainText('Nenhuma worktree')
+    await expect(emptyCell).toHaveCSS('padding-top', '8px')
+    await expect(emptyCell).toHaveCSS('padding-left', '8px')
+
+    await page.goto('/#analysis')
+    await page.getByRole('radio', { name: 'Duração', exact: true }).click()
+    await page.getByRole('combobox', { name: 'Preset da duração' }).click()
+    await page.getByRole('option', { name: 'smoketest', exact: true }).click()
+    const statistic = page.locator('[data-slot=item]').filter({ has: page.getByText('Mediana', { exact: true }) })
+    await expect(statistic).toHaveCSS('padding-left', '12px')
+    await expect(statistic).toHaveCSS('padding-top', '10px')
+    await page.clock.runFor(2000)
+    const point = page.locator('.recharts-scatter-symbol').first()
+    await point.scrollIntoViewIfNeeded()
+    await point.hover()
+    const tooltip = page.locator('.recharts-tooltip-wrapper')
+    await expect(tooltip).toBeVisible()
+    await expect(tooltip).toContainText('Duração')
+    await expect(tooltip).toContainText('14/09/2026, 12:00')
+    await expect(tooltip).toContainText('1m 2s')
+    await expect(tooltip).not.toContainText(/\d+h /)
+    await page.screenshot({ path: testInfo.outputPath('duration-tooltip.png'), animations: 'disabled' })
+
+    await page.locator('header').getByRole('button', { name: 'Example', exact: true }).click()
+    await page.getByRole('button', { name: 'Gerenciar projetos', exact: true }).click()
+    const projects = page.getByRole('dialog')
+    const project = projects.locator('[data-slot=item]').filter({ has: page.getByText('/example · linked', { exact: true }) })
+    await expect(project).toHaveAttribute('data-variant', 'outline')
+    await project.getByText('/example · linked', { exact: true }).click()
+    await expect(projects.getByRole('textbox', { name: 'Nome no painel' })).toHaveCount(0)
+    await project.getByRole('button', { name: 'Editar', exact: true }).focus()
+    await page.keyboard.press('Enter')
+    await expect(projects.getByRole('textbox', { name: 'Nome no painel' })).toHaveValue('Example')
+    await projects.screenshot({ path: testInfo.outputPath('project-edit.png'), animations: 'disabled' })
+  })
+}
+
+for (const width of [390, 1440]) {
+  test(`native project selection remains scrollable ${width}`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 })
+    const extras = Array.from({ length: 40 }, (_, index) => ({
+      id: `project-${index}`,
+      displayName: `Projeto ${String(index).padStart(2, '0')} com nome longo para conferir a composição nativa`,
+    }))
+    const lastName = extras.at(-1)!.displayName
+    await installConsistencyFixtures(page, { extraProjects: extras })
+    await page.goto('/#worktrees')
+    await page.locator('header').getByRole('button', { name: 'Example', exact: true }).click()
+    const panel = page.getByRole('dialog', { name: 'Projetos', exact: true })
+    const viewport = panel.locator('[data-slot=scroll-area-viewport]')
+    const geometry = await viewport.evaluate(element => ({ client: element.clientHeight, scroll: element.scrollHeight }))
+    expect(geometry.client).toBeLessThanOrEqual(320)
+    expect(geometry.scroll).toBeGreaterThan(geometry.client)
+    await viewport.evaluate(element => { element.scrollTop = element.scrollHeight })
+    await panel.getByRole('button').filter({ has: page.getByText(lastName, { exact: true }) }).click()
+    await page.locator('header').getByRole('button', { name: lastName, exact: true }).click()
+    await page.getByRole('button', { name: 'Gerenciar projetos', exact: true }).click()
+    const projects = await inspectDrawer(page)
+    const project = projects.locator('[data-slot=item]').filter({ has: page.getByText(lastName, { exact: true }) })
+    await project.scrollIntoViewIfNeeded()
+    await project.getByText(lastName, { exact: true }).click()
+    await expect(projects.getByRole('textbox', { name: 'Nome no painel' })).toHaveCount(0)
+    await projects.screenshot({ path: testInfo.outputPath('project-list.png'), animations: 'disabled' })
+    // Vaul extends its native ::after outside side drawers; measure the actual content.
+    const contentGeometry = await projects.locator('[data-slot=detail-drawer-body]').evaluate(element => ({ scroll: element.scrollWidth, client: element.clientWidth }))
+    expect(contentGeometry.scroll).toBeLessThanOrEqual(contentGeometry.client + 1)
+    await project.getByRole('button', { name: 'Editar', exact: true }).click()
+    await expect(projects.getByRole('textbox', { name: 'Nome no painel' })).toHaveValue(lastName)
+  })
+}
+
+
+for (const width of [390, 820, 1440]) {
+  test(`native overlays and long action labels ${width}`, async ({ page }, testInfo) => {
+    test.setTimeout(45_000)
+    await page.setViewportSize({ width, height: 700 })
+    const longPreset = 'validacao-com-nome-longo-para-preservar-o-conteudo-do-consumidor-sem-sobrepor-a-branch-e-os-metadados-'.repeat(3)
+    const durationPresets = Array.from({ length: 60 }, (_, index) => ({
+      key: `example:recipe-${index}`, label: `Receita ${String(index).padStart(2, '0')}`,
+      projectId: 'example', preset: `recipe-${index}`,
+    }))
+    await installConsistencyFixtures(page, {
+      theme: width === 820 ? 'dark' : 'light',
+      living: { ...fixtureJob, preset: longPreset },
+      history: [{ ...fixtureTerminals[0], id: 'fixture-direct', preset: 'direct-run', recordKind: 'observed-execution' }],
+      durationPresets,
+      resultsPresets: [{ preset: longPreset, passed: 2, failed: 1, cancelled: 0, interrupted: 0, total: 3 }],
+    })
+    await page.goto('/#status')
+    const identity = page.locator('[data-slot=entity-identity][data-presentation=current]')
+    const title = identity.getByRole('button', { name: longPreset, exact: true })
+    await expect(title).toBeVisible()
+    const titleGeometry = await identity.evaluate(element => {
+      const title = element.querySelector('button')!
+      const text = title.querySelector('span')!.getBoundingClientRect()
+      const bounds = title.getBoundingClientRect()
+      const description = element.querySelector('[data-slot=item-content]')!.lastElementChild!.getBoundingClientRect()
+      return { textTop: text.top, textBottom: text.bottom, top: bounds.top, bottom: bounds.bottom, descriptionTop: description.top }
+    })
+    expect(titleGeometry.textTop).toBeGreaterThanOrEqual(titleGeometry.top - 1)
+    expect(titleGeometry.textBottom).toBeLessThanOrEqual(titleGeometry.bottom + 1)
+    expect(titleGeometry.descriptionTop).toBeGreaterThanOrEqual(titleGeometry.textBottom - 1)
+    await page.screenshot({ path: testInfo.outputPath('native-status.png'), animations: 'disabled' })
+
+    await page.getByRole('button', { name: 'direct-run', exact: true }).click()
+    const drawer = await inspectDrawer(page)
+    const direct = drawer.getByText('Direta', { exact: true })
+    await drawer.getByRole('button', { name: 'Fechar execução', exact: true }).focus()
+    for (let step = 0; step < 4 && !(await direct.evaluate(element => element === document.activeElement)); step++) {
+      await page.keyboard.press('Shift+Tab')
+    }
+    await expect(direct).toBeFocused()
+    await expect(page.getByRole('tooltip')).toContainText('Resultado declarado pelo receipt; não é comprovação canônica')
+    await drawer.screenshot({ path: testInfo.outputPath('native-direct-drawer.png'), animations: 'disabled' })
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('tooltip')).toHaveCount(0)
+    await expect(drawer).toBeVisible()
+    await closeDrawer(page)
+
+    const openProjects = () => page.locator('header').getByRole('button', { name: /Example|Todos os projetos/ }).click()
+    await openProjects()
+    let panel = page.getByRole('dialog', { name: 'Projetos', exact: true })
+    await expect(panel.getByRole('button', { name: /Example/ })).toHaveAttribute('aria-pressed', 'true')
+    await expect(panel.getByRole('button', { name: 'Todos os projetos', exact: true })).toHaveAttribute('aria-pressed', 'false')
+    await panel.getByRole('button', { name: 'Todos os projetos', exact: true }).click()
+    await openProjects()
+    panel = page.getByRole('dialog', { name: 'Projetos', exact: true })
+    await expect(panel.getByRole('button', { name: 'Todos os projetos', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(panel.getByRole('button', { name: /Example/ })).toHaveAttribute('aria-pressed', 'false')
+    await page.keyboard.press('Escape')
+    await page.goto(`/${new URL(page.url()).search}#analysis`)
+    const resultAction = page.getByRole('button', { name: longPreset, exact: true })
+    await expect(resultAction).toBeVisible()
+    const resultGeometry = await resultAction.evaluate(element => {
+      const range = document.createRange()
+      range.selectNodeContents(element)
+      const text = range.getBoundingClientRect(), button = element.getBoundingClientRect()
+      return { top: button.top, bottom: button.bottom, textTop: text.top, textBottom: text.bottom }
+    })
+    expect(resultGeometry.textTop).toBeGreaterThanOrEqual(resultGeometry.top - 1)
+    expect(resultGeometry.textBottom).toBeLessThanOrEqual(resultGeometry.bottom + 1)
+    await page.getByRole('radio', { name: 'Duração', exact: true }).click()
+    const recipes = page.getByRole('combobox', { name: 'Preset da duração' })
+    await recipes.click()
+    const list = page.getByRole('listbox')
+    await expect(list).toBeVisible()
+    const bounds = (await list.boundingBox())!
+    expect(bounds.y).toBeGreaterThanOrEqual(0)
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(701)
+    await page.keyboard.press('End')
+    await page.clock.runFor(50)
+    await expect(page.getByRole('option', { name: 'Receita 59', exact: true })).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(recipes).toContainText('Receita 59')
+    await expect(list).toHaveCount(0)
+    await page.clock.runFor(50)
+    await expect(recipes).toBeFocused()
+    await page.screenshot({ path: testInfo.outputPath('native-duration-selected.png'), animations: 'disabled' })
   })
 }

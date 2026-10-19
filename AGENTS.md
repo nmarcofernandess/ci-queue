@@ -110,6 +110,18 @@ CSS grid when an API name differs.
   official composition.
 - A title may open a job or worktree drawer; table rows and metadata are not
   whole-row buttons.
+- Preserve native anatomy, spacing and lifecycle. Tables use TableRow/TableCell;
+  do not render Cards/Items as rows. When spacing disappears, remove the reset
+  at its shared owner instead of adding compensating CSS or another wrapper.
+- Prefer native variants and sizes. Features supply semantic data/actions, not
+  arbitrary presentation overrides. Keep genuine product adaptations in their
+  existing owners and ledger; an existing class is not proof of its necessity.
+- Preserve native focus and controlled state. Do not remount a controlled Select
+  on value changes; let its popup use the available height. Informative tooltips
+  need keyboard access, and selected choices need an accessible state.
+- Follow the native-contract limits in DESIGN.md. The native-spacing lint rule
+  catches static spacing regressions in named components; it does not certify
+  upstream source integrity, calculated CSS, visual parity or human acceptance.
 - Filters remain above the controlled surface. Never nest Select inside a
   Popover/Calendar to represent a fixed period. Results presets use the shared
   searchable multi-select; Duration keeps a single declared recipe.
