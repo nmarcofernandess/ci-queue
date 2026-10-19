@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
@@ -174,3 +174,58 @@ test('record limits: an envelope above the canonical 128 KiB limit remains refus
     assert.throws(() => installRelease({ ...f, bundle }), /finaliza|incerto/i)
   } finally { rmSync(f.root, { recursive: true, force: true }) }
 })
+
+
+test('legacy lock targets permit quiet maintenance while preserving their bytes and inodes', () => {
+  const f = fixture()
+  try {
+    const bundle = f.build()
+    const names = ['20260910-164750-5246ef.state', 'validation-plan.state']
+    const anchors = names.map(name => join(f.stateRoot, 'locks/jobs', name))
+    for (const name of names) f.put(`state/locks/jobs/${name}`, '')
+    const before = anchors.map(file => ({ stat: lstatSync(file), bytes: readFileSync(file) }))
+    assert.equal(installRelease({ ...f, bundle }).revision, revision)
+    assert.equal(installRelease({ ...f, bundle }).revision, revision)
+    uninstallRelease({ prefix: f.prefix })
+    anchors.forEach((file, index) => {
+      const after = lstatSync(file)
+      assert.equal(after.dev, before[index].stat.dev)
+      assert.equal(after.ino, before[index].stat.ino)
+      assert.equal(after.nlink, 1)
+      assert.deepEqual(readFileSync(file), before[index].bytes)
+    })
+  } finally { rmSync(f.root, { recursive: true, force: true }) }
+})
+
+for (const kind of ['active legacy reservation', 'directory lock', 'unknown file', 'nonempty target', 'symlink target', 'hardlinked target']) {
+  test(`legacy lock compatibility still refuses ${kind}`, () => {
+    const f = fixture()
+    try {
+      const bundle = f.build()
+      installRelease({ ...f, bundle })
+      const target = join(f.stateRoot, 'locks/jobs/20260910-164750-5246ef.state')
+      mkdirSync(join(f.stateRoot, 'locks/jobs'), { recursive: true })
+      if (kind === 'active legacy reservation') {
+        writeFileSync(target, '')
+        mkdirSync(`${target}.lock`)
+      } else if (kind === 'directory lock') {
+        mkdirSync(target)
+        writeFileSync(join(target, 'owner.json'), JSON.stringify({ pid: process.pid }))
+      } else if (kind === 'unknown file') {
+        writeFileSync(join(f.stateRoot, 'locks/jobs/unknown.state'), '')
+      } else if (kind === 'nonempty target') {
+        writeFileSync(target, 'reserved')
+      } else {
+        const source = join(f.root, 'reserved-source')
+        writeFileSync(source, '')
+        if (kind === 'symlink target') symlinkSync(source, target)
+        else linkSync(source, target)
+      }
+      const entries = join(f.stateRoot, 'locks/jobs')
+      assert.throws(() => installRelease({ ...f, bundle }), /incerto|owner|recuper/i)
+      assert.throws(() => uninstallRelease({ prefix: f.prefix }), /incerto|owner|recuper/i)
+      assert.equal(existsSync(entries), true)
+      if (kind !== 'unknown file') assert.equal(lstatSync(target).isDirectory(), kind === 'directory lock')
+    } finally { rmSync(f.root, { recursive: true, force: true }) }
+  })
+}
