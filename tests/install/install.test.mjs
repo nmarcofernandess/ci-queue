@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url"
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import { buildRelease } from "../helpers/release-fixture.mjs"
+import { buildRelease, releaseEnvironment } from "../helpers/release-fixture.mjs"
 import { installRelease, uninstallRelease } from "../../scripts/install.mjs"
 
 const productRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
@@ -158,14 +158,16 @@ test("installed CLI reports its own manifest independently of source and cwd", (
     const installed = installRelease({ bundle: destination, prefix: join(root, "installed"), stateRoot: join(root, "state") })
     rmSync(join(root, "dist"), { recursive: true })
     rmSync(join(root, "bin"), { recursive: true })
-    const result = JSON.parse(execFileSync(process.execPath, [join(installed.releasePath, "bin", "ci-queue.mjs"), "version", "--json"], { cwd: tmpdir(), encoding: "utf8" }))
+    const env = releaseEnvironment(installed.releasePath, process.env)
+    const result = JSON.parse(execFileSync(process.execPath, [join(installed.releasePath, "bin", "ci-queue.mjs"), "version", "--json"], { cwd: tmpdir(), encoding: "utf8", env }))
     assert.equal(result.ok, true)
     assert.equal(result.result.revision, "e".repeat(40))
     assert.equal(result.result.manifestSha256, installed.manifestSha256)
     assert.equal(result.result.distribution.revision, installed.revision)
     assert.equal(result.result.distribution.protocol.ticketSchemaVersion, 4)
+    assert.throws(() => execFileSync(process.execPath, [join(installed.releasePath, "bin", "ci-queue.mjs"), "version", "--json"], { cwd: tmpdir(), encoding: "utf8", stdio: "pipe", env: { ...env, CI_QUEUE_MANIFEST_SHA256: "0".repeat(64) } }), /launcher e distribuição divergem/)
     writeFileSync(join(installed.releasePath, "dist", "cli.js"), "older worker")
-    assert.throws(() => execFileSync(process.execPath, [join(installed.releasePath, "bin", "ci-queue.mjs"), "version", "--json"], { cwd: tmpdir(), encoding: "utf8", stdio: "pipe" }), /integridade/)
+    assert.throws(() => execFileSync(process.execPath, [join(installed.releasePath, "bin", "ci-queue.mjs"), "version", "--json"], { cwd: tmpdir(), encoding: "utf8", stdio: "pipe", env }), /integridade/)
 
   } finally {
     rmSync(root, { recursive: true, force: true })
