@@ -16,7 +16,8 @@ const cli = join(repo, "dist/cli.js")
 const node = realpathSync(process.execPath)
 const workerCode = `
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import fs, { readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
 import { createServer } from 'node:net';
 import * as runtime from ${JSON.stringify(moduleUrl)};
@@ -64,6 +65,19 @@ const handleMessage=async (message,reply=send)=>{
   await new Promise(resolve=>setTimeout(resolve,180));result=probeProcessGroupIdentity(child.pid);
  }
  if(message.action==='stop-child') {const done=new Promise(resolve=>child.once('exit',resolve));process.kill(-child.pid,'SIGTERM');await done;result=true;}
+ if(message.action==='prepare-requirement-change') {
+  const file=join(cwd,'.nvmrc'),originalRead=fs.readFileSync,before=originalRead(file,'utf8');
+  let requirementReads=0,error;
+  fs.readFileSync=(path,...args)=>{
+   if(path===file && ++requirementReads===2) writeFileSync(file,before+'\\n');
+   return originalRead(path,...args);
+  };
+  syncBuiltinESMExports();
+  try {runtime.prepareSessionRuntime(root,{...prepareInput,sessionId:'requirement-race'});}
+  catch(failure) {error=failure.message;}
+  finally {fs.readFileSync=originalRead;syncBuiltinESMExports();writeFileSync(file,before);}
+  result={error,requirementReads};
+ }
  if(message.action==='prepare') result=cliCall('prepare-session',{...prepareInput,...message.input});
  if(message.action==='checkpoint') result=cliCall('checkpoint-session',handle);
  if(message.action==='release') result=cliCall('release-session',handle);
@@ -161,6 +175,24 @@ test("session-node-works-after-job-runtime-removal and session-runtime-appears-a
     assert.deepEqual(listSessionRuntimes(root),[]);assert.deepEqual(pythonStatus(root).sessionRuntimes,[])
     assert.deepEqual(must(await owner.call("release")),released)
   } finally { await stop(owner); rmSync(root,{recursive:true,force:true}) }
+})
+
+test("prepare refuses requirements changed between authorization and bundle build without publishing authority", async () => {
+  const root=fixture(),owner=worker(root,"owner")
+  try {
+    const {handle,jobDirectory}=await owner.ready
+    const before=readFileSync(privateRecord(root),"utf8")
+    // Keep a valid constraint while changing the bytes seen by the real builder.
+    const result=must(await owner.call("prepare-requirement-change"))
+    assert.equal(result.requirementReads,2)
+    assert.match(result.error??"",/RUNTIME_SESSION_REQUIREMENT/)
+    assert.equal(existsSync(join(root,"runtime-sessions/session-requirement-race.json")),false)
+    assert.equal(existsSync(join(root,"runtime/session-requirement-race")),false)
+    assert.equal(readFileSync(privateRecord(root),"utf8"),before)
+    assert.equal(existsSync(handle.directory),true)
+    assert.equal(existsSync(jobDirectory),true)
+    assert.equal(must(await owner.call("checkpoint")).requirementDigest,readRecord(root).requirementDigest)
+  } finally {await stop(owner);rmSync(root,{recursive:true,force:true})}
 })
 
 test("dead-owner-runtime-recovery-releases-original-bundle with concurrent CAS and durable replay", async () => {

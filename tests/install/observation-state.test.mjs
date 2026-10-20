@@ -158,6 +158,15 @@ test("installer-refuses-active-or-uncertain-session-runtime including broken rel
       writeFileSync(join(sessions,"session-fixture.json"),JSON.stringify(corrupted),{mode:0o600})
       assert.throws(()=>installRelease(input),/runtime.*sessão/)
     }
+    const recovery={operationId:"recovery-a",originalStateRevision:1,recoveryOwnerStamp:{pid:999999,pgid:999999,startedAt:"fixture"}}
+    writeFileSync(join(sessions,"session-fixture.json"),JSON.stringify({...released,recovery}),{mode:0o600})
+    assert.equal(installRelease(input).activationStatus,"staged")
+    for(const operationId of [["recovery-a"],123]) {
+      const bytes=JSON.stringify({...released,recovery:{...recovery,operationId}})
+      writeFileSync(join(sessions,"session-fixture.json"),bytes,{mode:0o600})
+      assert.throws(()=>installRelease(input),/runtime.*sessão/)
+      assert.equal(readFileSync(join(sessions,"session-fixture.json"),"utf8"),bytes)
+    }
     rmSync(sessions, { recursive: true })
     mkdirSync(join(state, "reserved-data"))
     writeFileSync(join(state, "reserved-data", "reservation.json"), "{}")

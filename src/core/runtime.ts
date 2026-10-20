@@ -513,6 +513,7 @@ export function prepareSessionRuntime(root: string, input: SessionRuntimePrepare
       directory: built.directory!, directoryIdentity: fileIdentity(built.directory!), catalogIdentity: fileIdentity(catalog(root)),
       groups: [owner], evidenceOffset: 0, state: "active", stateRevision: 1, env: built.env, receipt: built.receipt }
     try {
+      if (built.receipt.requirementDigest !== required) fail("RUNTIME_SESSION_REQUIREMENT", "requirements changed during prepare")
       revalidateOrigin()
       persistSession(root, r)
       return handleFor(root, r)

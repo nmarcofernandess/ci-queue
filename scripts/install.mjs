@@ -176,7 +176,7 @@ function assertQuietState(stateRoot) {
           || !/^[a-f0-9]{64}$/.test(selected.sha256)) uncertain()
         if (r.recovery !== undefined) {
           const recovery = r.recovery, stamp = recovery?.recoveryOwnerStamp
-          if (!recovery || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/.test(recovery.operationId)
+          if (!recovery || typeof recovery.operationId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/.test(recovery.operationId)
             || !Number.isSafeInteger(recovery.originalStateRevision) || recovery.originalStateRevision < 1 || recovery.originalStateRevision >= r.stateRevision
             || !stamp || !Number.isSafeInteger(stamp.pid) || stamp.pid < 1 || stamp.pgid !== stamp.pid || typeof stamp.startedAt !== "string" || !stamp.startedAt) uncertain()
         }
