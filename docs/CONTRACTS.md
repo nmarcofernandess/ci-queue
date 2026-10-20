@@ -105,7 +105,13 @@ retryable permite recuperação; blocked-ownership exige primeiro resolver a
 incerteza de ownership. Nenhum caso repete o teste ou transforma falha definitiva
 em retry. A entrada pública é `ci-queue finalize <id> --state <root> --json`: usa
 o mesmo lock do worker, recupera somente a finalização identificada e não drena
-jobs novos. Uma entrada ociosa sem trabalho não cria loop de retry.
+jobs novos. O resumo de reconciliação separa `failed: { id, error }[]` terminal,
+`pending` reparável e `blocked` por posse incerta. Falha com recovery none, mesmo
+com cleanup confirmado, conserva a causa e os outputs, não entra em pending e
+não impede trabalho novo por ser histórica. Finalize explícito retorna não zero
+com `FINALIZATION_FAILED` e a causa terminal, ou `FINALIZATION_PENDING` para
+reparo/posse bloqueada. ID inválido ou fonte ausente não produz sucesso vazio.
+Uma entrada ociosa sem trabalho não cria loop de retry.
 Finalização ativa, recovery pendente ou cleanup incerto impedem manutenção da
 instalação; não apague registros/reservas para trocar a release. Veja [INSTALL](INSTALL.md).
 
