@@ -157,7 +157,10 @@ Um ator corrente, executado por runtime estável que não será apagado, envia:
 A Queue lê seus próprios grupos; uma lista do caller não dá autorização. Sob o
 DirectoryLock existente do registro, revalida UID, catálogo, bundle, binding,
 revisão CAS e morte confirmada do produtor, owner e grupos originais. Persiste
-a operationId e o ator antes de remover o bundle. Operações concorrentes não
+a operationId e o ator antes de remover o bundle. Se o release normal já
+persistiu closing e removeu o bundle antes de o owner morrer, essa autoridade
+pode ser recebida pelo recovery sob o mesmo CAS e prova de grupos mortos;
+a ausência isolada do bundle não concede autorização. Operações concorrentes não
 selam dois resultados: outra operationId recebe BUSY/CAS. A mesma operação
 reentra após falha; um novo ator só assume a autoridade ainda closing quando
 a morte do ator anterior estiver confirmada. Uma operação já released devolve

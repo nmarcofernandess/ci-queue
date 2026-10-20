@@ -12,6 +12,7 @@ import {
   readdirSync,
   rmSync,
   writeFileSync,
+  symlinkSync,
 } from "node:fs"
 import { hostname, tmpdir } from "node:os"
 import { dirname, join } from "node:path"
@@ -122,7 +123,7 @@ test("launcher defaults CI_QUEUE_STATE_DIR; observe lands in custom state", () =
 })
 
 
-test("installer-refuses-active-or-uncertain-session-runtime", () => {
+test("installer-refuses-active-or-uncertain-session-runtime including broken released bundle symlink", () => {
   const root = sourceFixture()
   try {
     const { destination } = buildRelease({ root, outputDir: join(root, "bundles"), revision: "e".repeat(40) })
@@ -144,6 +145,14 @@ test("installer-refuses-active-or-uncertain-session-runtime", () => {
       evidenceOffset:0,state:"released",stateRevision:3,env:{},receipt:{capability:"node-runtime-guard-v1",coverage:"guarded-node-processes",state:"prepared",observations:[],
         evidencePath:join(directory,"processes.jsonl"),requirementDigest:"c".repeat(64),node:{executable:process.execPath,version:process.versions.node,sha256:"d".repeat(64)}}}
     writeFileSync(join(sessions,"session-fixture.json"),JSON.stringify(released),{mode:0o600})
+    assert.equal(installRelease(input).activationStatus,"staged")
+    symlinkSync(join(root,"missing-bundle-target"),directory)
+    try {
+      assert.equal(existsSync(directory),false)
+      assert.equal(lstatSync(directory).isSymbolicLink(),true)
+      assert.throws(()=>installRelease(input),/runtime.*sessão/)
+      assert.equal(lstatSync(directory).isSymbolicLink(),true)
+    } finally {rmSync(directory,{force:true})}
     assert.equal(installRelease(input).activationStatus,"staged")
     for(const corrupted of [{...released,recovery:{operationId:"incomplete"}},{...released,receipt:{...released.receipt,evidencePath:"/private/foreign"}}]) {
       writeFileSync(join(sessions,"session-fixture.json"),JSON.stringify(corrupted),{mode:0o600})

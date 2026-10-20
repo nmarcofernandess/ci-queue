@@ -355,6 +355,33 @@ type SessionRecord = {
 }
 const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/
 const HASH = /^[a-f0-9]{64}$/
+const privateText = (value: unknown): value is string => typeof value === "string" && value.length > 0 && !/[\0\r\n]/.test(value)
+const sessionIdValue = (value: unknown): value is string => typeof value === "string" && SESSION_ID.test(value)
+const hashValue = (value: unknown): value is string => typeof value === "string" && HASH.test(value)
+const positiveInteger = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) > 0
+function sessionStampValue(value: unknown): boolean {
+  return object(value) && positiveInteger(value.pid) && privateText(value.startedAt)
+}
+function assertPrepareInput(input: unknown): asserts input is SessionRuntimePrepare {
+  if (!object(input) || !isValidProjectId(input.projectId) || !privateText(input.ticketId)
+    || !sessionIdValue(input.sessionId) || !hashValue(input.requirementDigest) || !hashValue(input.launchBindingDigest)
+    || !sessionStampValue(input.producerStamp) || !sessionStampValue(input.sessionStamp)) fail("RUNTIME_SESSION_INVALID", "invalid private prepare input")
+}
+function assertHandleInput(input: unknown): asserts input is SessionRuntimeHandle {
+  if (!object(input) || "mode" in input || input.schemaVersion !== 1 || !privateText(input.root) || !isAbsolute(input.root)
+    || !privateText(input.runtimeId) || !input.runtimeId.startsWith("session-") || !sessionIdValue(input.runtimeId.slice(8))
+    || !isValidProjectId(input.projectId) || !sessionIdValue(input.sessionId) || !hashValue(input.token) || !hashValue(input.bindingDigest)
+    || !privateText(input.directory) || !isAbsolute(input.directory) || !object(input.env)) fail("RUNTIME_SESSION_INVALID", "invalid private handle input")
+}
+function assertReleaseInput(input: unknown): asserts input is SessionRuntimeHandle | SessionRuntimeRecovery {
+  if (!object(input) || !("mode" in input)) { assertHandleInput(input); return }
+  const original = input.original
+  const stamp = input.recoveryOwnerStamp
+  if (input.mode !== "recover" || !privateText(input.root) || !isAbsolute(input.root) || !sessionIdValue(input.operationId)
+    || !object(original) || !privateText(original.runtimeId) || !original.runtimeId.startsWith("session-") || !sessionIdValue(original.runtimeId.slice(8))
+    || !isValidProjectId(original.projectId) || !sessionIdValue(original.sessionId) || !hashValue(original.bindingDigest) || !positiveInteger(original.expectedStateRevision)
+    || !sessionStampValue(stamp) || !object(stamp) || stamp.pgid !== stamp.pid) fail("RUNTIME_SESSION_INVALID", "invalid private recovery input")
+}
 const catalog = (root: string): string => join(root, "runtime-sessions")
 const fileIdentity = (path: string): FileIdentity => { const { uid, ino, dev } = lstatSync(path); return { uid, ino, dev } }
 const sameIdentity = (a: FileIdentity, b: FileIdentity): boolean => a.uid === b.uid && a.ino === b.ino && a.dev === b.dev
@@ -441,6 +468,7 @@ function isDescendant(pid: number, ancestor: number, rows: ReturnType<typeof pro
   return false
 }
 export function prepareSessionRuntime(root: string, input: SessionRuntimePrepare): SessionRuntimeHandle {
+  assertPrepareInput(input)
   root = realpathSync(root)
   const candidate = readRunningJob(root)
   if (!candidate) return fail("RUNTIME_SESSION_ORIGIN", "native running ticket required")
@@ -448,7 +476,6 @@ export function prepareSessionRuntime(root: string, input: SessionRuntimePrepare
   if (process.env.CI_QUEUE_JOB_ENV_VERSION !== "1" || process.env.CI_QUEUE_JOB_ID !== input.ticketId || process.env.CI_QUEUE_PROJECT_ID !== input.projectId
     || !process.env.CI_QUEUE_STATE_DIR || realpathSync(process.env.CI_QUEUE_STATE_DIR) !== root
     || !ticket || ticket.id !== input.ticketId || ticket.status !== "running" || ticket.projectId !== input.projectId) fail("RUNTIME_SESSION_ORIGIN", "native running ticket required")
-  if (!SESSION_ID.test(input.sessionId) || !HASH.test(input.launchBindingDigest) || !HASH.test(input.requirementDigest)) fail("RUNTIME_SESSION_INVALID", "session binding invalid")
   const producer = ticket.processGroupIdentity
   const owner = probeProcessGroupIdentity(input.sessionStamp.pid)
   if (!producer || !owner) return fail("RUNTIME_SESSION_ORIGIN", "native group required")
@@ -530,6 +557,7 @@ function captureSessionEvidence(r: SessionRecord): void {
   r.receipt = { ...receipt, observations: receipt.observations.slice(-64) }
 }
 export function checkpointSessionRuntime(handle: SessionRuntimeHandle): RuntimeReceipt {
+  assertHandleInput(handle)
   return withSessionLock(handle.root, handle.runtimeId, () => {
     const r = readSession(handle.root, handle.runtimeId); assertHandle(handle, r)
     if (r.state !== "active" || r.recovery || observeProcessGroup(r.owner).state !== "alive" || !isDescendant(process.pid, r.owner.leaderPid, processRows())) fail("RUNTIME_SESSION_AUTHORITY", "session owner is not active")
@@ -540,13 +568,14 @@ export function checkpointSessionRuntime(handle: SessionRuntimeHandle): RuntimeR
   })
 }
 export function releaseSessionRuntime(input: SessionRuntimeHandle | SessionRuntimeRecovery): RuntimeReceipt {
+  assertReleaseInput(input)
   const recover = "mode" in input && input.mode === "recover"
   const id = recover ? input.original.runtimeId : (input as SessionRuntimeHandle).runtimeId
   return withSessionLock(input.root, id, () => {
     const r = readSession(input.root, id)
     if (recover) {
       const original = input.original
-      if (!SESSION_ID.test(input.operationId) || original.projectId !== r.projectId || original.sessionId !== r.sessionId || original.bindingDigest !== r.bindingDigest) fail("RUNTIME_SESSION_AUTHORITY", "original recovery binding mismatch")
+      if (original.projectId !== r.projectId || original.sessionId !== r.sessionId || original.bindingDigest !== r.bindingDigest) fail("RUNTIME_SESSION_AUTHORITY", "original recovery binding mismatch")
       const actor = probeProcessGroupIdentity(input.recoveryOwnerStamp.pid)
       if (!actor || !processRows().some(row => row.pid === actor.leaderPid && row.uid === process.getuid?.()) || actor.pgid !== input.recoveryOwnerStamp.pgid || actor.startedAt !== input.recoveryOwnerStamp.startedAt
         || !isDescendant(process.pid, actor.leaderPid, processRows())) fail("RUNTIME_SESSION_AUTHORITY", "recovery actor invalid")
@@ -560,7 +589,10 @@ export function releaseSessionRuntime(input: SessionRuntimeHandle | SessionRunti
       if (r.state !== "released" && existsSync(r.directory)) captureSessionEvidence(r)
       if ([r.owner, r.producer, ...r.groups].some(g => observeProcessGroup(g).state !== "dead")) fail("RUNTIME_SESSION_OCCUPIED", "original groups alive or uncertain")
       if (existsSync(r.directory)) assertBundle(r)
-      else if (r.state !== "closing" || !r.recovery) fail("RUNTIME_SESSION_UNCERTAIN", "original bundle missing before release authority")
+      // A normal release may have removed the bundle before its owner died.
+      // Its durable closing state is release authority too; the CAS and dead
+      // original groups above fence the transition to a recovery operation.
+      else if (r.state !== "closing") fail("RUNTIME_SESSION_UNCERTAIN", "original bundle missing before release authority")
       r.recovery = { operationId: input.operationId, originalStateRevision: original.expectedStateRevision, recoveryOwnerStamp: input.recoveryOwnerStamp }
     } else {
       assertHandle(input as SessionRuntimeHandle, r)

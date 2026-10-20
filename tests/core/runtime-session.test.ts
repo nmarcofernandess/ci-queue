@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, lstatSync, realpathSync } from "node:fs"
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, lstatSync, realpathSync, readdirSync } from "node:fs"
 import { hostname, tmpdir } from "node:os"
 import { join } from "node:path"
 import * as runtime from "../../src/core/runtime.js"
@@ -66,3 +66,28 @@ it.each(["recovery", "evidencePath", "token", "nodeVersion"])("keeps corrupted r
     expect(runtime.listSessionRuntimes(root)[0]?.state).toBe("unknown")
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
+
+it.each(["mode", "originalSession", "originalBinding", "revision", "actorPid", "handleToken", "prepareStamp"])(
+  "rejects malformed %s input before consulting or writing the session owner", (field) => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "queue-session-")))
+    try {
+      const stamp = { pid: process.pid, pgid: process.pid, startedAt: "fixture" }
+      const original = { runtimeId: "session-fixture", projectId: "example", sessionId: "fixture", bindingDigest: "b".repeat(64), expectedStateRevision: 1 }
+      const recovery = { mode: "recover", root, operationId: "fixture", original, recoveryOwnerStamp: stamp }
+      const malformed = field === "mode" ? { ...recovery, mode: ["recover"] }
+        : field === "originalSession" ? { ...recovery, original: { ...original, sessionId: ["fixture"] } }
+        : field === "originalBinding" ? { ...recovery, original: { ...original, bindingDigest: [original.bindingDigest] } }
+        : field === "revision" ? { ...recovery, original: { ...original, expectedStateRevision: [1] } }
+        : { ...recovery, recoveryOwnerStamp: { ...stamp, pid: [stamp.pid] } }
+      const action = field === "handleToken" ? () => runtime.checkpointSessionRuntime({
+        schemaVersion: 1, root, runtimeId: "session-fixture", projectId: "example", sessionId: "fixture", bindingDigest: original.bindingDigest,
+        token: ["a".repeat(64)], directory: join(root, "runtime", "session-fixture"), env: {},
+      } as never) : field === "prepareStamp" ? () => runtime.prepareSessionRuntime(root, {
+        projectId: "example", ticketId: "fixture", sessionId: "fixture", requirementDigest: "c".repeat(64), launchBindingDigest: original.bindingDigest,
+        producerStamp: { pid: [process.pid], startedAt: "fixture" }, sessionStamp: stamp,
+      } as never) : () => runtime.releaseSessionRuntime(malformed as never)
+      expect(action).toThrow(/RUNTIME_SESSION_INVALID/)
+      expect(readdirSync(root)).toEqual([])
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  },
+)

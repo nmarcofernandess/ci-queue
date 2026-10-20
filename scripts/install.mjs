@@ -140,6 +140,12 @@ function assertQuietState(stateRoot) {
       if (info.isSymbolicLink() || (directory ? !info.isDirectory() : !info.isFile()) || info.uid !== process.getuid?.() || (info.mode & 0o077)) uncertain()
       return info
     }
+    const entryExists = path => {
+      try { lstatSync(path); return true } catch (error) {
+        if (error?.code === "ENOENT") return false
+        uncertain()
+      }
+    }
     try {
       const owner = privateInfo(sessions, true)
       const same = identity => identity && identity.uid === owner.uid && identity.ino === owner.ino && identity.dev === owner.dev
@@ -158,7 +164,7 @@ function assertQuietState(stateRoot) {
           || !Number.isSafeInteger(r.evidenceOffset) || r.evidenceOffset < 0 || !r.directoryIdentity || r.directoryIdentity.uid !== owner.uid
           || ![r.directoryIdentity.uid, r.directoryIdentity.ino, r.directoryIdentity.dev].every(n => Number.isSafeInteger(n) && n >= 0)
           || lstatSync(join(root, "runtime")).isSymbolicLink()
-          || r.directory !== join(realpathSync(root), "runtime", r.runtimeId) || existsSync(r.directory)) uncertain()
+          || r.directory !== join(realpathSync(root), "runtime", r.runtimeId) || entryExists(r.directory)) uncertain()
         const receipt = r.receipt, selected = receipt?.node
         if (receipt?.capability !== "node-runtime-guard-v1" || receipt.coverage !== "guarded-node-processes"
           || !["prepared", "verified", "preflight-only"].includes(receipt.state)
