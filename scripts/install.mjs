@@ -9,7 +9,7 @@ import { createHash } from "node:crypto"
 import { execFileSync } from "node:child_process"
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
-import { homedir } from "node:os"
+import { hostname, homedir } from "node:os"
 import { fileURLToPath } from "node:url"
 
 import { verifyRelease } from "./release.mjs"
@@ -124,6 +124,64 @@ function assertQuietState(stateRoot) {
     if (existsSync(path)) {
       throw new Error(`estado da fila incerto: ${path} existe; aguarde o executor terminar ou recupere-o antes da manutenção`)
     }
+  }
+  // This is the private runtime owner, not a PID-only liveness shortcut.
+  // Any unfinished/uncertain session protects the installation, even after
+  // running.json is gone. Released records remain as durable recovery receipts.
+  const sessions = join(root, "runtime-sessions")
+  let hasSessions = false
+  try { lstatSync(sessions); hasSessions = true } catch (error) {
+    if (error?.code !== "ENOENT") throw new Error("runtime de sessão incerto; catálogo inacessível")
+  }
+  if (hasSessions) {
+    const uncertain = () => { throw new Error("runtime de sessão ativo ou incerto; confirme release antes da manutenção") }
+    const privateInfo = (path, directory = false) => {
+      const info = lstatSync(path)
+      if (info.isSymbolicLink() || (directory ? !info.isDirectory() : !info.isFile()) || info.uid !== process.getuid?.() || (info.mode & 0o077)) uncertain()
+      return info
+    }
+    const entryExists = path => {
+      try { lstatSync(path); return true } catch (error) {
+        if (error?.code === "ENOENT") return false
+        uncertain()
+      }
+    }
+    try {
+      const owner = privateInfo(sessions, true)
+      const same = identity => identity && identity.uid === owner.uid && identity.ino === owner.ino && identity.dev === owner.dev
+      const group = g => g && g.hostname === hostname() && Number.isSafeInteger(g.leaderPid) && g.leaderPid > 0 && g.pgid === g.leaderPid && typeof g.startedAt === "string" && g.startedAt
+      for (const name of readdirSync(sessions)) {
+        if (!/^session-[A-Za-z0-9][A-Za-z0-9_-]{0,95}\.json$/.test(name)) uncertain()
+        const path = join(sessions, name)
+        if (privateInfo(path).size > 256 * 1024) uncertain()
+        const r = JSON.parse(readFileSync(path, "utf8"))
+        if (r.schemaVersion !== 1 || r.runtimeId + ".json" !== name || r.runtimeId !== "session-" + r.sessionId
+          || typeof r.projectId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(r.projectId)
+          || ![r.token, r.bindingDigest, r.requirementDigest].every(value => typeof value === "string" && /^[a-f0-9]{64}$/.test(value))
+          || !r.env || typeof r.env !== "object" || Array.isArray(r.env)
+          || r.state !== "released" || !Number.isSafeInteger(r.stateRevision) || r.stateRevision < 1
+          || !same(r.catalogIdentity) || !group(r.owner) || !group(r.producer) || !Array.isArray(r.groups) || r.groups.length > 512 || !r.groups.every(group)
+          || !Number.isSafeInteger(r.evidenceOffset) || r.evidenceOffset < 0 || !r.directoryIdentity || r.directoryIdentity.uid !== owner.uid
+          || ![r.directoryIdentity.uid, r.directoryIdentity.ino, r.directoryIdentity.dev].every(n => Number.isSafeInteger(n) && n >= 0)
+          || lstatSync(join(root, "runtime")).isSymbolicLink()
+          || r.directory !== join(realpathSync(root), "runtime", r.runtimeId) || entryExists(r.directory)) uncertain()
+        const receipt = r.receipt, selected = receipt?.node
+        if (receipt?.capability !== "node-runtime-guard-v1" || receipt.coverage !== "guarded-node-processes"
+          || !["prepared", "verified", "preflight-only"].includes(receipt.state)
+          || receipt.evidencePath !== join(r.directory, "processes.jsonl") || receipt.requirementDigest !== r.requirementDigest
+          || !Array.isArray(receipt.observations) || receipt.observations.length > 64
+          || !selected || typeof selected.executable !== "string" || !selected.executable.startsWith("/")
+          || typeof selected.version !== "string" || typeof selected.sha256 !== "string"
+          || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(selected.version)
+          || !/^[a-f0-9]{64}$/.test(selected.sha256)) uncertain()
+        if (r.recovery !== undefined) {
+          const recovery = r.recovery, stamp = recovery?.recoveryOwnerStamp
+          if (!recovery || typeof recovery.operationId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/.test(recovery.operationId)
+            || !Number.isSafeInteger(recovery.originalStateRevision) || recovery.originalStateRevision < 1 || recovery.originalStateRevision >= r.stateRevision
+            || !stamp || !Number.isSafeInteger(stamp.pid) || stamp.pid < 1 || stamp.pgid !== stamp.pid || typeof stamp.startedAt !== "string" || !stamp.startedAt) uncertain()
+        }
+      }
+    } catch { uncertain() }
   }
   const jobLocks = join(root, "locks", "jobs")
   for (const directory of [join(root, "claims"), jobLocks]) {

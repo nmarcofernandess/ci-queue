@@ -218,3 +218,22 @@ class RecordStoreTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SessionRuntimeProjectionTests(unittest.TestCase):
+    def test_session_runtime_appears_after_job_terminal(self):
+        from ci_queue_api.records import status_snapshot_all
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sessions = root / "runtime-sessions"
+            sessions.mkdir(mode=0o700)
+            record = sessions / "session-fixture.json"
+            # A malformed private owner must remain visible and uncertain,
+            # including when job occupancy has become empty.
+            record.write_text(json.dumps({"token": "secret", "env": {"KEY": "private"}}))
+            record.chmod(0o600)
+            payload = status_snapshot_all(root)
+            self.assertFalse(payload["globalOccupancy"])
+            self.assertEqual(payload["sessionRuntimes"][0]["state"], "unknown")
+            self.assertNotIn("secret", json.dumps(payload["sessionRuntimes"]))
+            self.assertNotIn("private", json.dumps(payload["sessionRuntimes"]))

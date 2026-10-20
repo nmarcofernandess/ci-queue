@@ -12,7 +12,7 @@ import { normalizeFinalizationResult, FINALIZATION_JSON_MAX_BYTES } from '../../
 import { readFinalization, serializedJson } from '../../dist/core/state.js'
 
 const revision = 'a'.repeat(40)
-const protocol = { apiVersion: 1, ticketSchemaVersion: 4, capabilities: ['terminal-finalization-v1', 'no-artifact-snapshots-v1', 'recoverable-finalization-v1'] }
+const protocol = { apiVersion: 1, ticketSchemaVersion: 4, capabilities: ['terminal-finalization-v1', 'no-artifact-snapshots-v1', 'recoverable-finalization-v1', 'node-runtime-session-v1'] }
 const components = { launcher: ['bin/ci-queue.mjs'], worker: ['dist/cli.js'], api: ['backend/ci_queue_api/__main__.py'], ui: ['ui/dist/index.html'] }
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 function fixture() {

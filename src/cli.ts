@@ -23,8 +23,8 @@ import {
 } from "./contracts/schema.js"
 import { SPEND_ABORT_CAPABILITY } from "./core/spend-abort.js"
 import { JOB_ENV_CAPABILITY, cancelQueuedOrRunningTicket } from "./core/runner.js"
-import { RUNTIME_CAPABILITY } from "./contracts/runtime.js"
-import { registerProjectRuntime, readRuntimeRegistry, runtimeRegistryPath, RuntimeError } from "./core/runtime.js"
+import { SESSION_RUNTIME_CAPABILITY, RUNTIME_CAPABILITY } from "./contracts/runtime.js"
+import { prepareSessionRuntime, checkpointSessionRuntime, releaseSessionRuntime, listSessionRuntimes, registerProjectRuntime, readRuntimeRegistry, runtimeRegistryPath, RuntimeError } from "./core/runtime.js"
 import { enqueueExplicitTicket, enqueueTicket } from "./core/enqueue.js"
 import { runWorker } from "./core/worker.js"
 import { findJobById, listHistoryJobs, listQueuedJobs, readRunningJob, resolveStateRoot } from "./core/state.js"
@@ -147,6 +147,7 @@ function usage(): string {
     "  advisory upsert --preset NAME --head-sha SHA --reason TEXT [--pr N]",
     "  advisory list",
     "  runtime show",
+    "  runtime prepare-session|checkpoint-session|release-session --stdin --json (private)",
     "  runtime register --project ID --node PATH [--version x.y.z] [--npm-cli PATH] [--npx-cli PATH]",
     "  logs [latest|<ticketId>]",
     "  cancel <ticketId>",
@@ -173,7 +174,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           ...(manifest ? { distribution: { revision: manifest.revision, protocol: manifest.protocol } } : {}),
           apiVersion: API_VERSION,
           ticketSchemaVersion: TICKET_SCHEMA_VERSION,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read", "v4-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, SESSION_RUNTIME_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read", "v4-ticket-read"],
         })
       }
       case "observe": {
@@ -329,7 +330,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         return success(await runWorker(root))
       case "status": {
         const running = readRunningJob(root)
-        return success({ running: running ? { ...attachProgressToTicket(root, running), completion: executionCompletion(running) } : null, queued: listQueuedJobs(root).map(ticket => ({ ...ticket, completion: executionCompletion(ticket) })), latest: listExecutionSources(root).map(projectExecution)[0] ?? null })
+        return success({ sessionRuntimes: listSessionRuntimes(root), running: running ? { ...attachProgressToTicket(root, running), completion: executionCompletion(running) } : null, queued: listQueuedJobs(root).map(ticket => ({ ...ticket, completion: executionCompletion(ticket) })), latest: listExecutionSources(root).map(projectExecution)[0] ?? null })
       }
       case "history": {
         const projectId = optionValue(args.rest, "--project")
@@ -384,6 +385,18 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
       }
       case "runtime": {
         const action = args.rest.find((item) => !item.startsWith("--"))
+        if (["prepare-session", "checkpoint-session", "release-session"].includes(action ?? "")) {
+          if (!args.rest.includes("--stdin") || args.rest.some(item => item !== action && item !== "--stdin")) return failure("USAGE", "runtime session requires private --stdin only")
+          try {
+            const input = JSON.parse(await readStdinLimited(process.stdin, 64 * 1024))
+            if (!input || typeof input !== "object" || Array.isArray(input)) return failure("RUNTIME_SESSION_INVALID", "private JSON object required")
+            if (action !== "prepare-session" && input.root !== root) return failure("RUNTIME_SESSION_AUTHORITY", "state root mismatch")
+            return success(action === "prepare-session" ? prepareSessionRuntime(root, input)
+              : action === "checkpoint-session" ? checkpointSessionRuntime(input) : releaseSessionRuntime(input))
+          } catch (error) {
+            return failure(error instanceof RuntimeError ? error.code : "RUNTIME_SESSION_INVALID", error instanceof RuntimeError ? error.message : "invalid private session request")
+          }
+        }
         if (action === "show") {
           try {
             const registry = readRuntimeRegistry(root) ?? { schemaVersion: 1 as const, projects: {} }

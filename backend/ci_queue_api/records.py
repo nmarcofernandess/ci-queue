@@ -12,6 +12,9 @@ import json
 import os
 import re
 import threading
+import stat
+import socket
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -515,6 +518,116 @@ def _public_running(state_root, running):
     return payload
 
 
+def session_runtimes(state_root):
+    """Read the Queue runtime owner. Absence never proves stack/data freedom."""
+    root = Path(state_root).resolve()
+    catalog = root / "runtime-sessions"
+    unknown = {"projectId": "unknown", "sessionId": "unknown", "state": "unknown",
+               "pid": 0, "startedAt": "", "stateRevision": 0}
+
+    def private(path, directory=False):
+        info = path.lstat()
+        if (stat.S_ISLNK(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077
+                or not (stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode))):
+            raise ValueError("private owner invalid")
+        return info
+
+    def group(value):
+        return (isinstance(value, dict) and value.get("hostname") == socket.gethostname()
+                and type(value.get("leaderPid")) is int and value["leaderPid"] > 0
+                and value.get("pgid") == value["leaderPid"] and isinstance(value.get("startedAt"), str)
+                and bool(value["startedAt"]))
+
+    def alive(owner):
+        result = subprocess.run(["ps", "-axo", "pid=,pgid=,lstart="], capture_output=True,
+                                text=True, timeout=2, env={**os.environ, "LC_ALL": "C", "LANG": "C"})
+        if result.returncode != 0:
+            return False
+        for line in result.stdout.splitlines():
+            match = re.fullmatch(r"\s*(\d+)\s+(\d+)\s+(.+?)\s*", line)
+            if match and int(match[1]) == owner["leaderPid"]:
+                return int(match[2]) == owner["pgid"] and match[3] == owner["startedAt"]
+        return False
+
+    try:
+        if not catalog.exists() and not catalog.is_symlink():
+            return []
+        info = private(catalog, True)
+        result = []
+        for file in sorted(catalog.iterdir()):
+            if not file.name.endswith(".json"):
+                # A lock/partial publication without an owner remains uncertain.
+                result.append(dict(unknown))
+                continue
+            try:
+                if private(file).st_size > 256 * 1024:
+                    raise ValueError("record too large")
+                r = json.loads(file.read_text(encoding="utf-8"))
+                if not isinstance(r, dict) or (root / "runtime").is_symlink():
+                    raise ValueError("owner/root invalid")
+                identity = r.get("catalogIdentity", {})
+                directory = root / "runtime" / file.stem
+                if (r.get("schemaVersion") != 1 or r.get("runtimeId") != file.stem
+                        or not re.fullmatch(r"session-[A-Za-z0-9][A-Za-z0-9_-]{0,95}", file.stem)
+                        or file.stem != "session-" + r.get("sessionId", "")
+                        or not isinstance(r.get("projectId"), str) or not PROJECT_ID.fullmatch(r["projectId"])
+                        or not all(isinstance(r.get(k), str) and re.fullmatch(r"[a-f0-9]{64}", r[k]) for k in ("token", "bindingDigest", "requirementDigest"))
+                        or r.get("state") not in ("active", "closing", "released")
+                        or type(r.get("stateRevision")) is not int or r["stateRevision"] < 1
+                        or type(r.get("evidenceOffset")) is not int or r["evidenceOffset"] < 0
+                        or identity != {"uid": info.st_uid, "ino": info.st_ino, "dev": info.st_dev}
+                        or r.get("directory") != str(directory)
+                        or not isinstance(r.get("directoryIdentity"), dict)
+                        or r["directoryIdentity"].get("uid") != os.getuid()
+                        or not all(type(r["directoryIdentity"].get(k)) is int and r["directoryIdentity"][k] >= 0 for k in ("uid", "ino", "dev"))
+                        or not group(r.get("owner")) or not group(r.get("producer"))
+                        or not isinstance(r.get("groups"), list) or len(r["groups"]) > 512 or not all(group(g) for g in r["groups"])
+                        or not isinstance(r.get("env"), dict) or not isinstance(r.get("receipt"), dict)):
+                    raise ValueError("record invalid")
+                receipt = r["receipt"]
+                selected = receipt.get("node", {})
+                if (receipt.get("capability") != "node-runtime-guard-v1" or receipt.get("coverage") != "guarded-node-processes"
+                        or receipt.get("state") not in ("prepared", "verified", "preflight-only")
+                        or receipt.get("evidencePath") != str(directory / "processes.jsonl")
+                        or receipt.get("requirementDigest") != r["requirementDigest"]
+                        or not isinstance(receipt.get("observations"), list) or len(receipt["observations"]) > 64
+                        or not isinstance(selected, dict) or not isinstance(selected.get("executable"), str)
+                        or not Path(selected["executable"]).is_absolute()
+                        or not isinstance(selected.get("version"), str) or not re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", selected["version"])
+                        or not isinstance(selected.get("sha256"), str) or not re.fullmatch(r"[a-f0-9]{64}", selected["sha256"])):
+                    raise ValueError("runtime receipt invalid")
+                if "recovery" in r:
+                    recovery = r["recovery"]
+                    stamp = recovery.get("recoveryOwnerStamp", {}) if isinstance(recovery, dict) else {}
+                    if (not isinstance(recovery, dict) or not isinstance(recovery.get("operationId"), str)
+                            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,95}", recovery["operationId"])
+                            or type(recovery.get("originalStateRevision")) is not int
+                            or not 1 <= recovery["originalStateRevision"] < r["stateRevision"] or r["state"] == "active"
+                            or not isinstance(stamp, dict) or type(stamp.get("pid")) is not int or stamp["pid"] <= 0
+                            or stamp.get("pgid") != stamp["pid"] or not isinstance(stamp.get("startedAt"), str) or not stamp["startedAt"]):
+                        raise ValueError("recovery authority invalid")
+                if r["state"] == "released":
+                    if directory.exists() or directory.is_symlink():
+                        raise ValueError("released bundle reappeared")
+                    continue
+                bundle = private(directory, True)
+                if r.get("directoryIdentity") != {"uid": bundle.st_uid, "ino": bundle.st_ino, "dev": bundle.st_dev}:
+                    raise ValueError("bundle changed")
+                for name in ("guard.cjs", "processes.jsonl", "shell.cjs", "user.npmrc", "global.npmrc"):
+                    private(directory / name)
+                state = "closing" if r["state"] == "closing" else "active" if alive(r["owner"]) else "unknown"
+                row = {"projectId": r["projectId"], "sessionId": r["sessionId"], "state": state,
+                       "pid": r["owner"]["leaderPid"], "startedAt": r["owner"]["startedAt"], "stateRevision": r["stateRevision"]}
+                if isinstance(r.get("lastCheckpointAt"), str):
+                    row["lastCheckpointAt"] = r["lastCheckpointAt"]
+                result.append(row)
+            except (OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError):
+                result.append(dict(unknown))
+        return result
+    except (OSError, ValueError):
+        return [dict(unknown)]
+
+
 def _status_body(state_root, project, history_rows, running, queued, other_occupancy, view="default"):
     last_failed = next((row for row in history_rows if row.get("status") in {"failed", "interrupted"}), None)
     payload = {
@@ -526,6 +639,7 @@ def _status_body(state_root, project, history_rows, running, queued, other_occup
         "history": [public_job(row) for row in history_rows[:50]],
         "lastFailed": public_job(last_failed),
         "globalOccupancy": bool(running or queued),
+        "sessionRuntimes": session_runtimes(state_root),
         "otherProjectOccupancy": other_occupancy,
     }
     if view == "live":
