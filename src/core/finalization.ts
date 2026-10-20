@@ -121,7 +121,7 @@ export async function runFinalization(root: string, ticket: QueueTicket, activat
       const uncertain = !record.finishedAt && group?.state !== "dead"
       return await save(root, { ...record, phase: uncertain ? "interrupted" : "failed", ...(!uncertain ? { finishedAt: new Date().toISOString() } : {}), recovery: "none", failureReason: "ticket digest divergiu após início da finalização; execução recusada" })
     }
-    if (record.phase === "passed" || activation?.attempted.has(ticket.id)) return record
+    if (record.phase === "passed" || record.phase === "failed" && (record.recovery ?? "none") === "none" || activation?.attempted.has(ticket.id)) return record
     const producer = blockingTestProducer(root, terminal)
     if (producer) return await save(root, { ...record, phase: "interrupted", recovery: "blocked-ownership", finishedAt: undefined, failureReason: producer.reason })
     if (record.attempt > 0 && !record.finishedAt) {
@@ -252,7 +252,7 @@ export async function runFinalization(root: string, ticket: QueueTicket, activat
   }
 }
 
-export type RecoverySummary = { blocked: string[]; pending: string[]; reconciled: string[] }
+export type RecoverySummary = { blocked: string[]; pending: string[]; failed: { id: string; error: string }[]; reconciled: string[] }
 export type RecoveryActivation = {
   trigger: { kind: "queued-work"; ticketId: string } | { kind: "explicit"; activationId: string } | { kind: "initial-only" }
   executionIds: readonly string[]
@@ -275,7 +275,7 @@ function finalizerOwnershipBlocked(record: FinalizationRecord | undefined, allow
 }
 
 export async function reconcileFinalizations(root: string, activation: RecoveryActivation = { trigger: { kind: "initial-only" }, executionIds: finalizationExecutionIds(root), attempted: new Set() }): Promise<RecoverySummary> {
-  const report: RecoverySummary = { blocked: [], pending: [], reconciled: [] }
+  const report: RecoverySummary = { blocked: [], pending: [], failed: [], reconciled: [] }
   const producer = blockingTestProducer(root)
   if (producer) return { ...report, blocked: [producer.id] }
   const tickets = listHistoryJobs(root).filter(hasSupportedFinalization)
@@ -287,19 +287,22 @@ export async function reconcileFinalizations(root: string, activation: RecoveryA
         // Missing source forbids replay, but cannot release a still-owned hook.
         const blocked = !before && existsSync(finalizationPath(root, id)) || finalizerOwnershipBlocked(before)
         if (blocked) report.blocked.push(id)
-        else report.pending.push(id)
+        else report.failed.push({ id, error: "fonte terminal ausente/inválida ou contrato de finalização não suportado" })
         continue
       }
       const result = await runFinalization(root, ticket, activation)
       if (result.phase === "passed") { if (before?.phase !== "passed") report.reconciled.push(id); continue }
-      const test = blockingTestProducer(root, ticket)
-      if (test || finalizerOwnershipBlocked(result, true)) report.blocked.push(id)
+      const terminalFailure = result.phase === "failed" && (result.recovery ?? "none") === "none"
+      const test = terminalFailure ? undefined : blockingTestProducer(root, ticket)
+      if (test || finalizerOwnershipBlocked(result, true) || result.recovery === "blocked-ownership") report.blocked.push(id)
+      else if (terminalFailure) report.failed.push({ id, error: result.result?.error ?? result.failureReason ?? "finalização falhou" })
       else report.pending.push(id)
     } catch (error) {
       if (ticket) log(ticket, smallError(error))
       const record = readFinalization(root, id)
-      if (!record && existsSync(finalizationPath(root, id)) || ticket && blockingTestProducer(root, ticket) || finalizerOwnershipBlocked(record)) report.blocked.push(id)
-      else report.pending.push(id)
+      if (!record && existsSync(finalizationPath(root, id)) || ticket && blockingTestProducer(root, ticket) || finalizerOwnershipBlocked(record) || record?.recovery === "blocked-ownership") report.blocked.push(id)
+      else if (record?.recovery === "retryable") report.pending.push(id)
+      else report.failed.push({ id, error: smallError(error) })
     }
   }
   return report

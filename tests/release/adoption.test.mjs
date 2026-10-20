@@ -14,7 +14,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 
-import { buildRelease, verifyRelease } from "../helpers/release-fixture.mjs"
+import { buildRelease, verifyRelease, releaseEnvironment } from "../helpers/release-fixture.mjs"
 
 const productRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const releaseInputs = [
@@ -72,7 +72,7 @@ function invoke(cli, args, cwd) {
   const output = execFileSync(process.execPath, [cli, ...args, "--json"], {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, CI: "1" },
+    env: releaseEnvironment(dirname(dirname(cli)), { ...process.env, CI: "1" }),
   })
   return JSON.parse(output)
 }

@@ -83,3 +83,19 @@ describe("composed completion", () => {
     expect(status).toMatchObject({ok:true,result:{latest:{completion:{state:"complete"}}}})
   })
 })
+
+
+it("CLI finalize exits nonzero for error with confirmed cleanup and preserves the cause", async () => {
+  const root = mkdtempSync(join(tmpdir(), "completion-finalize-failed-")); roots.push(root)
+  mkdirSync(join(root, "history")); mkdirSync(join(root, "state/finalization"), { recursive: true })
+  const sample = cases[0]
+  writeFileSync(join(root, "history/job-1.json"), sample.terminalBytes)
+  writeFileSync(join(root, "state/finalization/job-1.json"), JSON.stringify({ ...sample.record, phase: "failed", exitCode: 1, recovery: "none", finishedAt: new Date().toISOString(), result: { ...sample.record.result, cleanup: "confirmed", error: "asset reprovado" } }))
+  const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true)
+  try {
+    await main(["finalize", "job-1", "--state", root, "--json"])
+    expect(process.exitCode).toBe(1)
+    expect(JSON.parse(String(stdout.mock.calls.at(-1)?.[0]))).toMatchObject({ ok: false, error: { code: "FINALIZATION_FAILED", message: expect.stringContaining("asset reprovado") } })
+    expect(readFileSync(join(root, "history/job-1.json"), "utf8")).toBe(sample.terminalBytes)
+  } finally { stdout.mockRestore() }
+})

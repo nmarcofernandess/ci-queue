@@ -385,7 +385,7 @@ describe("finalization recovery and ownership", () => {
 
     const recovery = await reconcileFinalizations(f.state)
 
-    expect(recovery).toEqual({ blocked: [], pending: [], reconciled: [ticket.id] })
+    expect(recovery).toEqual({ blocked: [], pending: [], failed: [], reconciled: [ticket.id] })
     expect(readFileSync(f.events, "utf8").trim().split("\n")).toHaveLength(1)
     expect(readFileSync(join(f.cwd, "published"), "utf8")).toBe(originalSourceDigest)
     expect(sha256(readFileSync(historyPath(f.state, ticket.id)))).toBe(before)
@@ -587,7 +587,7 @@ describe("Task2 fix round 1", () => {
       await closeRunningTicket(f.state, terminal)
       saveRecord(f, terminal, { phase: "passed", attempt: 1, finishedAt: new Date().toISOString(), result: { schemaVersion: 1, cleanup: "confirmed", outputs: [] } })
       const before = readFileSync(recordPath(f.state, terminal.id), "utf8")
-      expect(await reconcileFinalizations(f.state)).toEqual({ reconciled: [], blocked: [], pending: [] })
+      expect(await reconcileFinalizations(f.state)).toEqual({ reconciled: [], blocked: [], pending: [], failed: [] })
       expect(readFileSync(recordPath(f.state, terminal.id), "utf8")).toBe(before)
       expect(existsSync(f.events)).toBe(false)
       expect(foreign.child.signalCode).toBeNull()
@@ -821,7 +821,7 @@ describe("Task 13 review repairs", () => {
     expect(current.phase).toBe(failed ? "failed" : "passed")
     expect(current.failureReason).toBe(failed ? "current result failed" : undefined)
     expect(executionCompletion(ticket, current, sha256(terminal))).toMatchObject({ state: failed ? "failed" : "complete", eligible: !failed })
-    expect(report).toEqual({ blocked: [], pending: failed ? [ticket.id] : [], reconciled: failed ? [] : [ticket.id] })
+    expect(report).toEqual({ blocked: [], pending: [], failed: failed ? [{ id: ticket.id, error: "current result failed" }] : [], reconciled: failed ? [] : [ticket.id] })
     expect(current.attempt).toBe(1)
     expect(readFileSync(historyPath(f.state, ticket.id))).toEqual(terminal)
     expect(existsSync(f.events)).toBe(false)
@@ -850,7 +850,7 @@ describe("Task 13 review repairs", () => {
     expect(existsSync(f.hashes)).toBe(false)
     await live.stop()
     saveRecord(f, ticket, { ...record(f.state, ticket.id), phase: "running", attempt: 1, processGroupIdentity: live.group, supervisorIdentity: live.worker })
-    expect(await reconcileFinalizations(f.state)).toEqual({ blocked: [], pending: [ticket.id], reconciled: [] })
+    expect(await reconcileFinalizations(f.state)).toEqual({ blocked: [], pending: [], failed: [{ id: ticket.id, error: "fonte terminal ausente/inválida ou contrato de finalização não suportado" }], reconciled: [] })
     await runWorker(f.state)
     expect(readFileSync(f.hashes, "utf8")).toBe("next")
     expect(existsSync(f.events)).toBe(false)
@@ -858,4 +858,56 @@ describe("Task 13 review repairs", () => {
     if (source === "missing") expect(existsSync(historyPath(f.state, ticket.id))).toBe(false)
     else expect(readFileSync(historyPath(f.state, ticket.id), "utf8")).toBe("{invalid terminal")
   })
+})
+
+
+describe("Task 19 terminal failure classification", () => {
+  it("failed-history-does-not-starve-new-work preserves original cause, terminal and sealed outputs", async () => {
+    const f = fixture(), sealed = join(f.cwd, "sealed.json")
+    writeFileSync(sealed, "sealed output")
+    const ticket = enqueue(f, "process.exit(7)", { ...hook(`${readInput};fs.writeFileSync(input.resultPath,JSON.stringify({schemaVersion:2,cleanup:'confirmed',recovery:'none',error:'asset reprovado',outputs:[{path:'sealed.json',sha256:'${sha256("sealed output")}',role:'proof-candidate'}]}));process.exit(1)`), schemaVersion: 2 })
+    await runWorker(f.state)
+    const terminal = readFileSync(historyPath(f.state, ticket.id)), completion = readFileSync(recordPath(f.state, ticket.id))
+    expect(await reconcileFinalizations(f.state)).toEqual({ blocked: [], pending: [], failed: [{ id: ticket.id, error: "asset reprovado" }], reconciled: [] })
+    expect(await runCli(["finalize", ticket.id, "--state", f.state, "--json"])).toMatchObject({ ok: false, error: { code: "FINALIZATION_FAILED", message: expect.stringContaining("asset reprovado") } })
+    const next = enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(f.events)},'next')`, undefined, undefined, 1)
+    expect((await runWorker(f.state)).processed).toEqual([next.id])
+    expect(readFileSync(f.events, "utf8")).toBe("next")
+    expect(readFileSync(historyPath(f.state, ticket.id))).toEqual(terminal)
+    expect(JSON.parse(terminal.toString())).toMatchObject({status:"failed",exitCode:7})
+    expect(readFileSync(recordPath(f.state, ticket.id))).toEqual(completion)
+    expect(readFileSync(sealed, "utf8")).toBe("sealed output")
+  })
+
+  it.each(["retryable", "blocked-ownership"] as const)("explicit finalize reports %s as pending", async recovery => {
+    const f = fixture()
+    const ticket = enqueue(f, "process.exit(0)", { ...hook(`${readInput};fs.writeFileSync(input.resultPath,JSON.stringify({schemaVersion:2,cleanup:'uncertain',recovery:'${recovery}',error:'original ${recovery}',outputs:[]}));process.exit(1)`), schemaVersion: 2 })
+    await runWorker(f.state)
+    const result = await runCli(["finalize", ticket.id, "--state", f.state, "--json"])
+    expect(result).toMatchObject({ ok: false, error: { code: "FINALIZATION_PENDING" } })
+    expect(await reconcileFinalizations(f.state)).toMatchObject({ failed: [], ...(recovery === "retryable" ? { pending: [ticket.id], blocked: [] } : { pending: [], blocked: [ticket.id] }) })
+  })
+
+  it.each(["missing-id", "../invalid"])("explicit finalize refuses %s without empty success", async id => {
+    const f = fixture()
+    expect(await runCli(["finalize", id, "--state", f.state, "--json"])).toMatchObject({ ok: false, error: { code: id === "missing-id" ? "FINALIZATION_FAILED" : "USAGE" } })
+  })
+})
+
+
+it("failed history with an original PID reused does not reserve new work", async () => {
+  const f = fixture(), foreign = await ownProcess(f.cwd)
+  try {
+    const queued = enqueue(f, "process.exit(0)", { ...hook(`require('node:fs').writeFileSync(${JSON.stringify(f.events)},'rerun')`), schemaVersion: 2 })
+    rmSync(jobPath(f.state, queued.id))
+    const terminal: QueueTicket = { ...queued, status: "failed", exitCode: 7, finishedAt: new Date().toISOString(), childPid: foreign.child.pid, processGroupIdentity: { ...foreign.group, startedAt: "historical-birth" } }
+    await closeRunningTicket(f.state, terminal)
+    saveRecord(f, terminal, { phase: "failed", recovery: "none", attempt: 1, finishedAt: new Date().toISOString(), result: { schemaVersion: 2, recovery: "none", cleanup: "confirmed", error: "original failure", outputs: [] } })
+    const before = readFileSync(recordPath(f.state, terminal.id))
+    const next = enqueue(f, "process.exit(0)", undefined, undefined, 1)
+    expect((await runWorker(f.state)).processed).toEqual([next.id])
+    expect(readFileSync(recordPath(f.state, terminal.id))).toEqual(before)
+    expect(existsSync(f.events)).toBe(false)
+    expect(foreign.child.signalCode).toBeNull()
+  } finally { await foreign.stop() }
 })

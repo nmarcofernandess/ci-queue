@@ -321,8 +321,9 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
       case "finalize": {
         if (args.rest.length !== 1 || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(args.rest[0])) return failure("USAGE", "uso: ci-queue finalize <id>")
         const report = await runWorker(root, { finalizeOnly: args.rest[0] })
-        return report.busy || report.reconciliation === "blocked" || report.recovery?.pending.length
-          ? failure("FINALIZATION_PENDING", "finalização permanece pendente", { report }) : success(report)
+        if (report.busy || report.reconciliation === "blocked" || report.recovery?.pending.length) return failure("FINALIZATION_PENDING", "finalização permanece pendente", { report })
+        if (report.recovery?.failed.length) return failure("FINALIZATION_FAILED", report.recovery.failed.map(item => `${item.id}: ${item.error}`).join("; "), { report })
+        return success(report)
       }
       case "worker":
         return success(await runWorker(root))

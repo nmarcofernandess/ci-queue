@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url"
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import { buildRelease } from "../helpers/release-fixture.mjs"
+import { buildRelease, releaseEnvironment } from "../helpers/release-fixture.mjs"
 
 const productRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const ARGV = ["python", "-m", "pytest", "-q"]
@@ -110,7 +110,7 @@ test("bundled init --workflow writes verifier bytes without the producer checkou
     const state = join(staging, "state")
     const home = join(staging, "home")
     mkdirSync(home)
-    const env = { ...GIT_ENV, HOME: home }
+    const env = releaseEnvironment(isolated, { ...GIT_ENV, HOME: home })
     const output = execFileSync(
       process.execPath,
       [
