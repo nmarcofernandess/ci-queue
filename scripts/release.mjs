@@ -108,7 +108,7 @@ function sourcePackage(root) {
 }
 
 export const DISTRIBUTION_PROTOCOL = Object.freeze({ apiVersion: 1, ticketSchemaVersion: 4,
-  capabilities: ["terminal-finalization-v1", "no-artifact-snapshots-v1", "recoverable-finalization-v1"] })
+  capabilities: ["terminal-finalization-v1", "no-artifact-snapshots-v1", "recoverable-finalization-v1", "node-runtime-session-v1"] })
 const componentRoots = { launcher: "bin", worker: "dist", api: "backend", ui: "ui/dist" }
 const protocolMatches = value => value?.apiVersion === 1 && value?.ticketSchemaVersion === 4
   && Array.isArray(value.capabilities) && DISTRIBUTION_PROTOCOL.capabilities.every(item => value.capabilities.includes(item))

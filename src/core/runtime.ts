@@ -1,11 +1,13 @@
 import { spawnSync } from "node:child_process"
-import { createHash } from "node:crypto"
-import { accessSync, closeSync, constants, openSync, readSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { createHash, randomBytes } from "node:crypto"
+import { lstatSync, readdirSync, accessSync, closeSync, constants, openSync, readSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { basename, dirname, isAbsolute, join, resolve } from "node:path"
 
-import { RUNTIME_CAPABILITY, type RuntimeRequirement as Requirement, type RuntimeReceipt, type RuntimeObservation } from "../contracts/runtime.js"
+import { RUNTIME_CAPABILITY, type RuntimeRequirement as Requirement, type RuntimeReceipt, type RuntimeObservation, type SessionRuntimePrepare, type SessionRuntimeHandle, type SessionRuntimeRecovery, type SessionRuntimeStatus } from "../contracts/runtime.js"
 import { isValidProjectId, type QueueTicket } from "../contracts/schema.js"
-import { atomicWriteJson } from "./state.js"
+import { hostname } from "node:os"
+import { observeProcessGroup, probeProcessGroupIdentity } from "./process.js"
+import { acquireDirectoryLock, readRunningJob, readBoundedFile, assertNoSymlinkPaths, atomicWriteJson } from "./state.js"
 import { runtimeGuard, shellPolicyError, type GuardConfig } from "./runtime-guard.js"
 
 const SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
@@ -207,6 +209,10 @@ export function registerProjectRuntime(root: string, input: {
  * Binding is opt-in: without a project entry the job keeps the inherited environment.
  */
 export function prepareJobRuntime(root: string, ticket: QueueTicket, argv: string[], inherited: NodeJS.ProcessEnv): RuntimeSession {
+  return buildRuntime(root, ticket, argv, inherited)
+}
+
+function buildRuntime(root: string, ticket: QueueTicket, argv: string[], inherited: NodeJS.ProcessEnv, sessionId?: string): RuntimeSession {
   if (!argv.length || argv.some(arg => typeof arg !== "string" || /[\0\r\n]/.test(arg))) fail("RUNTIME_ARGV_INVALID", "invalid argv")
   const registryPath = runtimeRegistryPath(root)
   let binding: Record<string, unknown> | undefined
@@ -254,14 +260,15 @@ export function prepareJobRuntime(root: string, ticket: QueueTicket, argv: strin
   })
   const runtimeRoot = join(root, "runtime")
   mkdirSync(runtimeRoot, { recursive: true, mode: 0o700 })
-  const directory = mkdtempSync(join(runtimeRoot, "job-"))
+  const directory = sessionId ? join(runtimeRoot, sessionId) : mkdtempSync(join(runtimeRoot, "job-"))
+  if (sessionId) mkdirSync(directory, { mode: 0o700 })
   try {
     mkdirSync(join(directory, "bin"), { mode: 0o700 })
     const shimDir = realpathSync(join(directory, "bin"))
     const guardPath = join(directory, "guard.cjs")
     const evidencePath = join(directory, "processes.jsonl")
     writeFileSync(evidencePath, "", { mode: 0o600 })
-    const config: GuardConfig = { executable, version, npmCli, npxCli, shimDir, evidencePath, guardPath }
+    const config: GuardConfig = { executable, version, npmCli, npxCli, shimDir, evidencePath, guardPath, ...(sessionId ? { session: true } : {}) }
     writeFileSync(guardPath, `(${runtimeGuard.toString()})(${JSON.stringify(config)});\n`, { mode: 0o600 })
     writeShim(join(shimDir, "node"), executable, ["--require", guardPath])
     writeShim(join(shimDir, "npm"), executable, ["--require", guardPath, npmCli])
@@ -303,19 +310,9 @@ export function prepareJobRuntime(root: string, ticket: QueueTicket, argv: strin
     const receipt: RuntimeReceipt = {
       capability: RUNTIME_CAPABILITY, coverage: "guarded-node-processes", state: "prepared",
       node: { executable, version, sha256: digestFile(executable) },
-      npmCli, npxCli, bindingSource: "project-registry", environmentPolicy: "reconstructed", requirements: required, registrySha256, evidencePath, observations: [],
+      requirementDigest: digest(JSON.stringify(required)), npmCli, npxCli, bindingSource: "project-registry", environmentPolicy: "reconstructed", requirements: required, registrySha256, evidencePath, observations: [],
     }
-    const finish = (): RuntimeReceipt => {
-      try {
-        if (statSync(evidencePath).size > 16 * 1024 * 1024) throw new Error("evidence exceeds bound")
-        const observations: RuntimeObservation[] = readFileSync(evidencePath, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line))
-        if (!observations.every(item => Number.isSafeInteger(item.pid) && typeof item.execPath === "string" && typeof item.version === "string" && ["verified", "rejected"].includes(item.status))) throw new Error("malformed evidence")
-        const rejected = observations.find(item => item.status === "rejected" || item.execPath !== executable || item.version !== version)
-        const changed = digestFile(executable) !== receipt.node!.sha256
-        return { ...receipt, observations, state: rejected || changed ? "rejected" : observations.length ? "verified" : "preflight-only",
-          ...(rejected || changed ? { failureCode: rejected?.reason ?? "RUNTIME_BINARY_CHANGED" } : {}) }
-      } catch { return { ...receipt, state: "rejected", failureCode: "RUNTIME_EVIDENCE_INVALID" } }
-    }
+    const finish = (): RuntimeReceipt => checkpointReceipt(receipt)
     return { argv: command, env, receipt, directory, finish }
   } catch (error) {
     rmSync(directory, { recursive: true, force: true })
@@ -326,4 +323,228 @@ export function prepareJobRuntime(root: string, ticket: QueueTicket, argv: strin
 export function discardRuntimeDirectory(directory: string | undefined): void {
   if (!directory) return
   rmSync(directory, { recursive: true, force: true })
+}
+
+/** The job receipt exposes this digest before the launcher requests a session. */
+export function runtimeRequirementDigest(cwd: string): string { return digest(JSON.stringify(requirements(cwd))) }
+
+function checkpointReceipt(receipt: RuntimeReceipt): RuntimeReceipt {
+  try {
+    const evidencePath = receipt.evidencePath!
+    const info = lstatSync(evidencePath)
+    if (!info.isFile() || info.isSymbolicLink() || info.size > 16 * 1024 * 1024) throw new Error("invalid evidence")
+    const observations: RuntimeObservation[] = readFileSync(evidencePath, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line))
+    if (!observations.every(item => Number.isSafeInteger(item.pid) && typeof item.execPath === "string" && typeof item.version === "string" && ["verified", "rejected"].includes(item.status))) throw new Error("malformed evidence")
+    const rejected = observations.find(item => item.status === "rejected" || item.execPath !== receipt.node!.executable || item.version !== receipt.node!.version)
+    const changed = digestFile(receipt.node!.executable) !== receipt.node!.sha256
+    return { ...receipt, observations, state: rejected || changed ? "rejected" : observations.length ? "verified" : "preflight-only",
+      ...(rejected || changed ? { failureCode: rejected?.reason ?? "RUNTIME_BINARY_CHANGED" } : {}) }
+  } catch { return { ...receipt, observations: [], state: "rejected", failureCode: "RUNTIME_EVIDENCE_INVALID" } }
+}
+
+type Group = NonNullable<ReturnType<typeof probeProcessGroupIdentity>>
+type FileIdentity = { uid: number; ino: number; dev: number }
+type SessionRecord = {
+  schemaVersion: 1; runtimeId: string; projectId: string; sessionId: string; ticketId: string
+  token: string; bindingDigest: string; requirementDigest: string; producer: Group; owner: Group
+  directory: string; directoryIdentity: FileIdentity; catalogIdentity: FileIdentity
+  groups: Group[]
+  state: "active" | "closing" | "released"; stateRevision: number; lastCheckpointAt?: string
+  env: NodeJS.ProcessEnv; receipt: RuntimeReceipt
+  recovery?: { operationId: string; originalStateRevision: number; recoveryOwnerStamp: SessionRuntimeRecovery["recoveryOwnerStamp"] }
+}
+const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/
+const HASH = /^[a-f0-9]{64}$/
+const catalog = (root: string): string => join(root, "runtime-sessions")
+const fileIdentity = (path: string): FileIdentity => { const { uid, ino, dev } = lstatSync(path); return { uid, ino, dev } }
+const sameIdentity = (a: FileIdentity, b: FileIdentity): boolean => a.uid === b.uid && a.ino === b.ino && a.dev === b.dev
+function runtimeIdCheck(id: unknown): asserts id is string {
+  if (typeof id !== "string" || !id.startsWith("session-") || !SESSION_ID.test(id.slice(8))) fail("RUNTIME_SESSION_INVALID", "runtime identity")
+}
+function privatePath(path: string, directory = false): void {
+  const info = lstatSync(path)
+  if (info.isSymbolicLink() || (directory ? !info.isDirectory() : !info.isFile()) || info.uid !== process.getuid?.() || (info.mode & 0o077) !== 0) fail("RUNTIME_SESSION_UNCERTAIN", "private owner/path invalid")
+}
+function sessionPaths(root: string, id: string): { record: string; directory: string; lock: string } {
+  runtimeIdCheck(id)
+  root = realpathSync(root)
+  const directory = join(root, "runtime", id)
+  assertNoSymlinkPaths([root, join(root, "runtime"), catalog(root), directory])
+  return { record: join(catalog(root), id + ".json"), directory, lock: join(catalog(root), id + ".lock") }
+}
+function readSession(root: string, id: string): SessionRecord {
+  const paths = sessionPaths(root, id)
+  privatePath(catalog(root), true); privatePath(paths.record)
+  const r = JSON.parse(readBoundedFile(paths.record, 256 * 1024).toString("utf8")) as SessionRecord
+  if (r.schemaVersion !== 1 || r.runtimeId !== id || !SESSION_ID.test(r.sessionId) || id !== "session-" + r.sessionId
+    || !isValidProjectId(r.projectId) || !HASH.test(r.bindingDigest) || !HASH.test(r.requirementDigest) || !HASH.test(r.token)
+    || !["active", "closing", "released"].includes(r.state) || !Number.isSafeInteger(r.stateRevision) || r.stateRevision < 1
+    || r.directory !== paths.directory || !sameIdentity(r.catalogIdentity, fileIdentity(catalog(root)))
+    || !Array.isArray(r.groups) || r.groups.length > 512 || !r.groups.every(validGroup) || !validGroup(r.owner) || !validGroup(r.producer) || !object(r.env) || !object(r.receipt)) fail("RUNTIME_SESSION_UNCERTAIN", "private record invalid")
+  return r
+}
+function validGroup(g: Group): boolean {
+  return Boolean(g && g.hostname === hostname() && Number.isSafeInteger(g.leaderPid) && g.leaderPid > 0 && g.pgid === g.leaderPid && typeof g.startedAt === "string" && g.startedAt)
+}
+function assertBundle(r: SessionRecord): void {
+  privatePath(r.directory, true)
+  if (!sameIdentity(r.directoryIdentity, fileIdentity(r.directory))) fail("RUNTIME_SESSION_UNCERTAIN", "bundle identity changed")
+  for (const name of ["guard.cjs", "processes.jsonl", "shell.cjs", "user.npmrc", "global.npmrc"]) privatePath(join(r.directory, name))
+}
+function withSessionLock<T>(root: string, id: string, fn: () => T): T {
+  const paths = sessionPaths(root, id)
+  const lock = acquireDirectoryLock(paths.lock)
+  if (!lock) return fail("RUNTIME_SESSION_BUSY", "record locked")
+  try { return fn() } finally { lock.release() }
+}
+function handleFor(root: string, r: SessionRecord): SessionRuntimeHandle {
+  return { schemaVersion: 1, root, runtimeId: r.runtimeId, token: r.token, projectId: r.projectId, sessionId: r.sessionId,
+    bindingDigest: r.bindingDigest, directory: r.directory, env: r.env }
+}
+function assertHandle(h: SessionRuntimeHandle, r: SessionRecord): void {
+  if (h.schemaVersion !== 1 || h.token !== r.token || h.projectId !== r.projectId || h.sessionId !== r.sessionId
+    || h.bindingDigest !== r.bindingDigest || h.directory !== r.directory) fail("RUNTIME_SESSION_AUTHORITY", "private handle mismatch")
+}
+function persistSession(root: string, r: SessionRecord): void { atomicWriteJson(sessionPaths(root, r.runtimeId).record, r) }
+function sessionReceipt(r: SessionRecord): RuntimeReceipt {
+  return { ...r.receipt, observations: r.receipt.observations.slice(-64), session: { runtimeId: r.runtimeId, bindingDigest: r.bindingDigest,
+    stateRevision: r.stateRevision, ...(r.state === "released" ? { disposition: "released" as const } : {}), ...(r.recovery ? { recovery: r.recovery } : {}) } }
+}
+function processRows(): { pid: number; ppid: number; pgid: number; uid: number }[] {
+  const ps = spawnSync("ps", ["-axo", "pid=,ppid=,pgid=,uid="], { encoding: "utf8", timeout: 2000, env: { ...process.env, LC_ALL: "C" } })
+  if (ps.status !== 0) return fail("RUNTIME_SESSION_UNCERTAIN", "process observation unavailable")
+  return ps.stdout.split("\n").flatMap(line => { const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$/.exec(line); return m ? [{ pid: +m[1], ppid: +m[2], pgid: +m[3], uid: +m[4] }] : [] })
+}
+function isDescendant(pid: number, ancestor: number, rows: ReturnType<typeof processRows>): boolean {
+  const seen = new Set<number>()
+  while (pid > 0 && !seen.has(pid)) { if (pid === ancestor) return true; seen.add(pid); pid = rows.find(r => r.pid === pid)?.ppid ?? 0 }
+  return false
+}
+export function prepareSessionRuntime(root: string, input: SessionRuntimePrepare): SessionRuntimeHandle {
+  root = realpathSync(root)
+  const candidate = readRunningJob(root)
+  if (!candidate) return fail("RUNTIME_SESSION_ORIGIN", "native running ticket required")
+  const ticket = candidate
+  if (process.env.CI_QUEUE_JOB_ENV_VERSION !== "1" || process.env.CI_QUEUE_JOB_ID !== input.ticketId || process.env.CI_QUEUE_PROJECT_ID !== input.projectId
+    || !process.env.CI_QUEUE_STATE_DIR || realpathSync(process.env.CI_QUEUE_STATE_DIR) !== root
+    || !ticket || ticket.id !== input.ticketId || ticket.status !== "running" || ticket.projectId !== input.projectId) fail("RUNTIME_SESSION_ORIGIN", "native running ticket required")
+  if (!SESSION_ID.test(input.sessionId) || !HASH.test(input.launchBindingDigest) || !HASH.test(input.requirementDigest)) fail("RUNTIME_SESSION_INVALID", "session binding invalid")
+  const producer = ticket.processGroupIdentity
+  const owner = probeProcessGroupIdentity(input.sessionStamp.pid)
+  if (!producer || !owner) return fail("RUNTIME_SESSION_ORIGIN", "native group required")
+  if (!producer || producer.leaderPid !== input.producerStamp.pid || producer.startedAt !== input.producerStamp.startedAt
+    || observeProcessGroup(producer).state !== "alive" || !owner || owner.startedAt !== input.sessionStamp.startedAt
+    || !processRows().some(p => p.pid === owner.leaderPid && p.uid === process.getuid?.())
+    || !isDescendant(owner.leaderPid, producer.leaderPid, processRows())
+    || !isDescendant(process.pid, owner.leaderPid, processRows())) fail("RUNTIME_SESSION_ORIGIN", "producer/session stamps or lineage invalid")
+  const required = runtimeRequirementDigest(ticket.cwd)
+  if (required !== input.requirementDigest || ticket.runtime?.requirementDigest !== required) fail("RUNTIME_SESSION_REQUIREMENT", "native requirement digest differs")
+  mkdirSync(catalog(root), { recursive: true, mode: 0o700 }); privatePath(catalog(root), true)
+  const id = "session-" + input.sessionId
+  return withSessionLock(root, id, () => {
+    const paths = sessionPaths(root, id)
+    if (existsSync(paths.record)) {
+      const old = readSession(root, id)
+      if (old.state !== "active" || old.projectId !== input.projectId || old.ticketId !== input.ticketId || old.bindingDigest !== input.launchBindingDigest
+        || old.requirementDigest !== required || JSON.stringify(old.owner) !== JSON.stringify(owner) || JSON.stringify(old.producer) !== JSON.stringify(producer)) fail("RUNTIME_SESSION_CONFLICT", "session already bound")
+      assertBundle(old); return handleFor(root, old)
+    }
+    // Never copy a job sidecar: the same builder emits a self-contained session bundle.
+    const built = buildRuntime(root, ticket, ["node"], {}, id)
+    if (!built.directory || !built.receipt.node) fail("RUNTIME_SESSION_UNCONFIGURED", "registered Node runtime required")
+    const r: SessionRecord = { schemaVersion: 1, runtimeId: id, projectId: input.projectId, sessionId: input.sessionId, ticketId: input.ticketId,
+      token: randomBytes(32).toString("hex"), bindingDigest: input.launchBindingDigest, requirementDigest: required, producer, owner,
+      directory: built.directory!, directoryIdentity: fileIdentity(built.directory!), catalogIdentity: fileIdentity(catalog(root)),
+      groups: [owner], state: "active", stateRevision: 1, env: built.env, receipt: built.receipt }
+    persistSession(root, r)
+    return handleFor(root, r)
+  })
+}
+function captureSessionEvidence(r: SessionRecord): void {
+  const receipt = checkpointReceipt(r.receipt)
+  if (receipt.state === "rejected") fail(receipt.failureCode ?? "RUNTIME_SESSION_UNCERTAIN", "session checkpoint rejected")
+  for (const observation of receipt.observations) {
+    const group = observation.group
+    if (!group || !validGroup(group)) fail("RUNTIME_SESSION_UNCERTAIN", "session group evidence invalid")
+    if (!r.groups.some(g => g.pgid === group.pgid && g.startedAt === group.startedAt)) r.groups.push(group)
+  }
+  if (r.groups.length > 512) fail("RUNTIME_SESSION_UNCERTAIN", "session group evidence bound reached")
+  r.receipt = { ...receipt, observations: receipt.observations.slice(-64) }
+}
+export function checkpointSessionRuntime(handle: SessionRuntimeHandle): RuntimeReceipt {
+  return withSessionLock(handle.root, handle.runtimeId, () => {
+    const r = readSession(handle.root, handle.runtimeId); assertHandle(handle, r)
+    if (r.state !== "active" || r.recovery || observeProcessGroup(r.owner).state !== "alive") fail("RUNTIME_SESSION_AUTHORITY", "session owner is not active")
+    assertBundle(r)
+    captureSessionEvidence(r)
+    r.lastCheckpointAt = new Date().toISOString(); r.stateRevision++
+    persistSession(handle.root, r); return sessionReceipt(r)
+  })
+}
+export function releaseSessionRuntime(input: SessionRuntimeHandle | SessionRuntimeRecovery): RuntimeReceipt {
+  const recover = "mode" in input && input.mode === "recover"
+  const id = recover ? input.original.runtimeId : (input as SessionRuntimeHandle).runtimeId
+  return withSessionLock(input.root, id, () => {
+    const r = readSession(input.root, id)
+    if (recover) {
+      const original = input.original
+      if (!SESSION_ID.test(input.operationId) || original.projectId !== r.projectId || original.sessionId !== r.sessionId || original.bindingDigest !== r.bindingDigest) fail("RUNTIME_SESSION_AUTHORITY", "original recovery binding mismatch")
+      const actor = probeProcessGroupIdentity(input.recoveryOwnerStamp.pid)
+      if (!actor || actor.pgid !== input.recoveryOwnerStamp.pgid || actor.startedAt !== input.recoveryOwnerStamp.startedAt
+        || !isDescendant(process.pid, actor.leaderPid, processRows())) fail("RUNTIME_SESSION_AUTHORITY", "recovery actor invalid")
+      if (r.recovery) {
+        if (r.recovery.operationId !== input.operationId || r.recovery.originalStateRevision !== original.expectedStateRevision
+          || JSON.stringify(r.recovery.recoveryOwnerStamp) !== JSON.stringify(input.recoveryOwnerStamp)) fail("RUNTIME_SESSION_CAS", "another recovery owns the record")
+        if (r.state === "released") return sessionReceipt(r)
+      } else if (r.stateRevision !== original.expectedStateRevision || r.state === "released") fail("RUNTIME_SESSION_CAS", "state revision changed")
+      if (r.state !== "released" && existsSync(r.directory)) captureSessionEvidence(r)
+      if ([r.owner, r.producer, ...r.groups].some(g => observeProcessGroup(g).state !== "dead")) fail("RUNTIME_SESSION_OCCUPIED", "original groups alive or uncertain")
+      if (existsSync(r.directory)) assertBundle(r)
+      else if (r.state !== "closing" || !r.recovery) fail("RUNTIME_SESSION_UNCERTAIN", "original bundle missing before release authority")
+      if (!r.recovery) r.recovery = { operationId: input.operationId, originalStateRevision: original.expectedStateRevision, recoveryOwnerStamp: input.recoveryOwnerStamp }
+    } else {
+      assertHandle(input as SessionRuntimeHandle, r)
+      if (r.recovery) fail("RUNTIME_SESSION_AUTHORITY", "recovery owns the record")
+      if (r.state === "released") return sessionReceipt(r)
+      if (observeProcessGroup(r.owner).state !== "alive") fail("RUNTIME_SESSION_AUTHORITY", "owner not current; explicit recovery required")
+      // The owner and this control call may remain. Any other group member
+      // holds the bundle, including descendants whose leader has disappeared.
+      if (!existsSync(r.directory) && r.state === "closing") {
+        r.state = "released"; r.stateRevision++; persistSession(input.root, r); return sessionReceipt(r)
+      }
+      assertBundle(r); captureSessionEvidence(r)
+      if (r.groups.some(g => g.pgid !== r.owner.pgid && observeProcessGroup(g).state !== "dead")) fail("RUNTIME_SESSION_OCCUPIED", "registered session groups alive or uncertain")
+      const rows = processRows()
+      const callers = new Set<number>([r.owner.leaderPid])
+      let pid = process.pid
+      while (pid > 1 && !callers.has(pid)) { callers.add(pid); pid = rows.find(p => p.pid === pid)?.ppid ?? 0 }
+      if (rows.some(p => p.pgid === r.owner.pgid && !callers.has(p.pid))) fail("RUNTIME_SESSION_OCCUPIED", "session descendants still alive")
+      assertBundle(r)
+    }
+    r.state = "closing"; r.stateRevision++
+    // Durable authority precedes effects. Reentry uses the same original CAS.
+    persistSession(input.root, r)
+    if (existsSync(r.directory)) { captureSessionEvidence(r); rmSync(r.directory, { recursive: true }) }
+    r.state = "released"; r.stateRevision++; r.lastCheckpointAt = new Date().toISOString()
+    persistSession(input.root, r)
+    return sessionReceipt(r)
+  })
+}
+/** Absence means no registered Queue session, never availability of a stack. */
+export function listSessionRuntimes(root: string): SessionRuntimeStatus[] {
+  const directory = catalog(root)
+  if (!existsSync(directory)) return []
+  const unknown = (): SessionRuntimeStatus => ({ projectId: "unknown", sessionId: "unknown", state: "unknown", pid: 0, startedAt: "", stateRevision: 0 })
+  try {
+    privatePath(directory, true)
+    return readdirSync(directory).filter(name => name.endsWith(".json")).flatMap(name => {
+      try {
+        const r = readSession(root, name.slice(0, -5))
+        if (r.state === "released") return []
+        const state = r.state === "closing" ? "closing" : observeProcessGroup(r.owner).state === "alive" ? "active" : "unknown"
+        return [{ projectId: r.projectId, sessionId: r.sessionId, state, pid: r.owner.leaderPid, startedAt: r.owner.startedAt, stateRevision: r.stateRevision,
+          ...(r.lastCheckpointAt ? { lastCheckpointAt: r.lastCheckpointAt } : {}) } as SessionRuntimeStatus]
+      } catch { return [unknown()] }
+    })
+  } catch { return [unknown()] }
 }

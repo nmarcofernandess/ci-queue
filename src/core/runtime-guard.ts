@@ -4,6 +4,7 @@
  * This is a reproducibility guard for cooperating processes, NOT an OS sandbox.
  */
 export type GuardConfig = {
+  session?: boolean
   executable: string
   version: string
   npmCli: string
@@ -19,12 +20,25 @@ export function runtimeGuard(config: GuardConfig): void {
   const real = (value: string): string => fs.realpathSync(value)
   const record = (status: string, reason?: string): void => {
     try {
+      let group: { hostname: string; leaderPid: number; pgid: number; startedAt: string } | undefined
+      if (config.session) {
+        const { spawnSync } = require("node:child_process") as typeof import("node:child_process")
+        const env = { ...process.env, LC_ALL: "C", LANG: "C" }
+        const current = spawnSync("/bin/ps", ["-o", "pgid=", "-p", String(process.pid)], { env, encoding: "utf8", timeout: 2000 })
+        const pgid = Number(current.stdout?.trim())
+        if (current.status !== 0 || !Number.isSafeInteger(pgid) || pgid <= 0) throw new Error("group unavailable")
+        const leader = spawnSync("/bin/ps", ["-o", "pid=,pgid=,lstart=", "-p", String(pgid)], { env, encoding: "utf8", timeout: 2000 })
+        const stamp = /^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/.exec(leader.stdout?.trim() ?? "")
+        if (leader.status !== 0 || !stamp || +stamp[1] !== pgid || +stamp[2] !== pgid) throw new Error("group leader unavailable")
+        group = { hostname: require("node:os").hostname(), leaderPid: pgid, pgid, startedAt: stamp[3] }
+        if (fs.statSync(config.evidencePath).size > 16 * 1024 * 1024 - 4096) throw new Error("evidence bound reached")
+      }
       fs.appendFileSync(config.evidencePath, JSON.stringify({
         pid: process.pid, ppid: process.ppid, at: new Date().toISOString(),
         execPath: real(process.execPath), version: process.versions.node,
         // Never persist arguments, credentials or the inherited environment.
         entry: process.argv[1] ? path.basename(process.argv[1]) : "[eval]",
-        status, ...(reason ? { reason } : {}),
+        status, ...(group ? { group } : {}), ...(reason ? { reason } : {}),
       }) + "\n", { encoding: "utf8", mode: 0o600 })
     } catch {
       process.stderr.write("RUNTIME_EVIDENCE_UNWRITABLE\n")

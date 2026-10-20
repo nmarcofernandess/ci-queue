@@ -698,7 +698,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
 
   let child: ReturnType<typeof spawn>
   try {
-    child = spawn(runtime.argv[0], runtime.argv.slice(1), { cwd: ticket.cwd, env: runtime.env, detached: true, stdio: ["ignore", "pipe", "pipe"] })
+    child = spawn(runtime.argv[0], runtime.argv.slice(1), { cwd: ticket.cwd, env: { ...runtime.env, CI_QUEUE_RUNTIME_REQUIREMENT_DIGEST: runtime.receipt.requirementDigest ?? "" }, detached: true, stdio: ["ignore", "pipe", "pipe"] })
   } catch (error) {
     ticket = { ...ticket, runtime: runtime.finish() }
     const failed = finalProgress(root, { ...ticket, status: "failed", finishedAt: new Date().toISOString(), exitCode: 1, failureReason: `spawn falhou: ${error instanceof Error ? error.message : String(error)}` }, collector)
