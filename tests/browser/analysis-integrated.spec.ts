@@ -1,3 +1,4 @@
+import { sourceApiEnvironment } from "./fixtures/api-environment"
 import { expect, test } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
@@ -59,8 +60,7 @@ async function startCandidateApi() {
   }))
   writeJob(state, 'alpha-1', 'alpha', 'smoketest')
   writeJob(state, 'beta-1', 'beta', 'static')
-  const env = { ...process.env }
-  delete env.CI_QUEUE_STATE_DIR
+  const env = sourceApiEnvironment()
   const child: ChildProcess = spawn(
     'python3',
     ['-m', 'ci_queue_api.server', '--state', state, '--host', '127.0.0.1', '--port', String(PORT)],
