@@ -4,7 +4,7 @@ import { lstatSync, readdirSync, accessSync, closeSync, constants, openSync, rea
 import { basename, dirname, isAbsolute, join, resolve } from "node:path"
 
 import { RUNTIME_CAPABILITY, type RuntimeRequirement as Requirement, type RuntimeReceipt, type RuntimeObservation, type SessionRuntimePrepare, type SessionRuntimeHandle, type SessionRuntimeRecovery, type SessionRuntimeStatus } from "../contracts/runtime.js"
-import { isValidProjectId, type QueueTicket } from "../contracts/schema.js"
+import { canonicalJson, isValidProjectId, type QueueTicket } from "../contracts/schema.js"
 import { hostname } from "node:os"
 import { observeProcessGroup, probeProcessGroupIdentity } from "./process.js"
 import { acquireDirectoryLock, readRunningJob, readBoundedFile, assertNoSymlinkPaths, atomicWriteJson } from "./state.js"
@@ -310,7 +310,7 @@ function buildRuntime(root: string, ticket: QueueTicket, argv: string[], inherit
     const receipt: RuntimeReceipt = {
       capability: RUNTIME_CAPABILITY, coverage: "guarded-node-processes", state: "prepared",
       node: { executable, version, sha256: digestFile(executable) },
-      requirementDigest: digest(JSON.stringify(required)), npmCli, npxCli, bindingSource: "project-registry", environmentPolicy: "reconstructed", requirements: required, registrySha256, evidencePath, observations: [],
+      requirementDigest: digest(canonicalJson(required)), npmCli, npxCli, bindingSource: "project-registry", environmentPolicy: "reconstructed", requirements: required, registrySha256, evidencePath, observations: [],
     }
     const finish = (): RuntimeReceipt => checkpointReceipt(receipt)
     return { argv: command, env, receipt, directory, finish }
@@ -326,7 +326,7 @@ export function discardRuntimeDirectory(directory: string | undefined): void {
 }
 
 /** The job receipt exposes this digest before the launcher requests a session. */
-export function runtimeRequirementDigest(cwd: string): string { return digest(JSON.stringify(requirements(cwd))) }
+export function runtimeRequirementDigest(cwd: string): string { return digest(canonicalJson(requirements(cwd))) }
 
 function checkpointReceipt(receipt: RuntimeReceipt): RuntimeReceipt {
   try {
@@ -348,7 +348,7 @@ type SessionRecord = {
   schemaVersion: 1; runtimeId: string; projectId: string; sessionId: string; ticketId: string
   token: string; bindingDigest: string; requirementDigest: string; producer: Group; owner: Group
   directory: string; directoryIdentity: FileIdentity; catalogIdentity: FileIdentity
-  groups: Group[]
+  groups: Group[]; evidenceOffset: number
   state: "active" | "closing" | "released"; stateRevision: number; lastCheckpointAt?: string
   env: NodeJS.ProcessEnv; receipt: RuntimeReceipt
   recovery?: { operationId: string; originalStateRevision: number; recoveryOwnerStamp: SessionRuntimeRecovery["recoveryOwnerStamp"] }
@@ -376,12 +376,32 @@ function readSession(root: string, id: string): SessionRecord {
   const paths = sessionPaths(root, id)
   privatePath(catalog(root), true); privatePath(paths.record)
   const r = JSON.parse(readBoundedFile(paths.record, 256 * 1024).toString("utf8")) as SessionRecord
-  if (r.schemaVersion !== 1 || r.runtimeId !== id || !SESSION_ID.test(r.sessionId) || id !== "session-" + r.sessionId
-    || !isValidProjectId(r.projectId) || !HASH.test(r.bindingDigest) || !HASH.test(r.requirementDigest) || !HASH.test(r.token)
+  if (r.schemaVersion !== 1 || r.runtimeId !== id || typeof r.sessionId !== "string" || !SESSION_ID.test(r.sessionId) || id !== "session-" + r.sessionId
+    || !isValidProjectId(r.projectId) || ![r.bindingDigest, r.requirementDigest, r.token].every(value => typeof value === "string" && HASH.test(value))
     || !["active", "closing", "released"].includes(r.state) || !Number.isSafeInteger(r.stateRevision) || r.stateRevision < 1
-    || r.directory !== paths.directory || !sameIdentity(r.catalogIdentity, fileIdentity(catalog(root)))
+    || r.directory !== paths.directory || !validFileIdentity(r.directoryIdentity) || !validFileIdentity(r.catalogIdentity) || !sameIdentity(r.catalogIdentity, fileIdentity(catalog(root)))
+    || !Number.isSafeInteger(r.evidenceOffset) || r.evidenceOffset < 0
+    || !validReceipt(r) || (r.recovery !== undefined && !validRecovery(r))
     || !Array.isArray(r.groups) || r.groups.length > 512 || !r.groups.every(validGroup) || !validGroup(r.owner) || !validGroup(r.producer) || !object(r.env) || !object(r.receipt)) fail("RUNTIME_SESSION_UNCERTAIN", "private record invalid")
   return r
+}
+function validReceipt(r: SessionRecord): boolean {
+  const receipt = r.receipt
+  return Boolean(object(receipt) && receipt.capability === RUNTIME_CAPABILITY && receipt.coverage === "guarded-node-processes"
+    && ["prepared", "verified", "preflight-only"].includes(receipt.state)
+    && receipt.evidencePath === join(r.directory, "processes.jsonl") && receipt.requirementDigest === r.requirementDigest
+    && Array.isArray(receipt.observations) && receipt.observations.length <= 64 && object(receipt.node)
+    && typeof receipt.node.executable === "string" && isAbsolute(receipt.node.executable) && typeof receipt.node.version === "string" && EXACT_VERSION.test(receipt.node.version) && typeof receipt.node.sha256 === "string" && HASH.test(receipt.node.sha256))
+}
+function validRecovery(r: SessionRecord): boolean {
+  const recovery = r.recovery
+  const stamp = recovery?.recoveryOwnerStamp
+  return Boolean(recovery && typeof recovery.operationId === "string" && SESSION_ID.test(recovery.operationId) && Number.isSafeInteger(recovery.originalStateRevision)
+    && recovery.originalStateRevision >= 1 && recovery.originalStateRevision < r.stateRevision && r.state !== "active"
+    && stamp && Number.isSafeInteger(stamp.pid) && stamp.pid > 0 && stamp.pgid === stamp.pid && typeof stamp.startedAt === "string" && stamp.startedAt)
+}
+function validFileIdentity(value: FileIdentity): boolean {
+  return Boolean(value && [value.uid, value.ino, value.dev].every(n => Number.isSafeInteger(n) && n >= 0) && value.uid === process.getuid?.())
 }
 function validGroup(g: Group): boolean {
   return Boolean(g && g.hostname === hostname() && Number.isSafeInteger(g.leaderPid) && g.leaderPid > 0 && g.pgid === g.leaderPid && typeof g.startedAt === "string" && g.startedAt)
@@ -413,7 +433,7 @@ function sessionReceipt(r: SessionRecord): RuntimeReceipt {
 function processRows(): { pid: number; ppid: number; pgid: number; uid: number }[] {
   const ps = spawnSync("ps", ["-axo", "pid=,ppid=,pgid=,uid="], { encoding: "utf8", timeout: 2000, env: { ...process.env, LC_ALL: "C" } })
   if (ps.status !== 0) return fail("RUNTIME_SESSION_UNCERTAIN", "process observation unavailable")
-  return ps.stdout.split("\n").flatMap(line => { const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$/.exec(line); return m ? [{ pid: +m[1], ppid: +m[2], pgid: +m[3], uid: +m[4] }] : [] })
+  return ps.stdout.split("\n").flatMap(line => { const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$/.exec(line); return m ? [{ pid: +m[1], ppid: +m[2], pgid: +m[3], uid: +m[4] }] : [] }).filter(row => row.pid !== ps.pid)
 }
 function isDescendant(pid: number, ancestor: number, rows: ReturnType<typeof processRows>): boolean {
   const seen = new Set<number>()
@@ -432,16 +452,25 @@ export function prepareSessionRuntime(root: string, input: SessionRuntimePrepare
   const producer = ticket.processGroupIdentity
   const owner = probeProcessGroupIdentity(input.sessionStamp.pid)
   if (!producer || !owner) return fail("RUNTIME_SESSION_ORIGIN", "native group required")
+  const rows = processRows()
   if (!producer || producer.leaderPid !== input.producerStamp.pid || producer.startedAt !== input.producerStamp.startedAt
     || observeProcessGroup(producer).state !== "alive" || !owner || owner.startedAt !== input.sessionStamp.startedAt
-    || !processRows().some(p => p.pid === owner.leaderPid && p.uid === process.getuid?.())
-    || !isDescendant(owner.leaderPid, producer.leaderPid, processRows())
-    || !isDescendant(process.pid, owner.leaderPid, processRows())) fail("RUNTIME_SESSION_ORIGIN", "producer/session stamps or lineage invalid")
+    || !rows.some(p => p.pid === owner.leaderPid && p.uid === process.getuid?.())
+    || !rows.some(p => p.pid === producer.leaderPid && p.uid === process.getuid?.())
+    || !isDescendant(owner.leaderPid, producer.leaderPid, rows)
+    || !isDescendant(process.pid, owner.leaderPid, rows)) fail("RUNTIME_SESSION_ORIGIN", "producer/session stamps or lineage invalid")
   const required = runtimeRequirementDigest(ticket.cwd)
   if (required !== input.requirementDigest || ticket.runtime?.requirementDigest !== required) fail("RUNTIME_SESSION_REQUIREMENT", "native requirement digest differs")
   mkdirSync(catalog(root), { recursive: true, mode: 0o700 }); privatePath(catalog(root), true)
   const id = "session-" + input.sessionId
+  const revalidateOrigin = (): void => {
+    const current = readRunningJob(root)
+    if (current?.id !== input.ticketId || current.status !== "running" || current.projectId !== input.projectId
+      || current.runtime?.requirementDigest !== required || canonicalJson(current.processGroupIdentity) !== canonicalJson(producer)
+      || observeProcessGroup(producer).state !== "alive" || observeProcessGroup(owner).state !== "alive") fail("RUNTIME_SESSION_ORIGIN", "native origin changed during prepare")
+  }
   return withSessionLock(root, id, () => {
+    revalidateOrigin()
     const paths = sessionPaths(root, id)
     if (existsSync(paths.record)) {
       const old = readSession(root, id)
@@ -455,17 +484,46 @@ export function prepareSessionRuntime(root: string, input: SessionRuntimePrepare
     const r: SessionRecord = { schemaVersion: 1, runtimeId: id, projectId: input.projectId, sessionId: input.sessionId, ticketId: input.ticketId,
       token: randomBytes(32).toString("hex"), bindingDigest: input.launchBindingDigest, requirementDigest: required, producer, owner,
       directory: built.directory!, directoryIdentity: fileIdentity(built.directory!), catalogIdentity: fileIdentity(catalog(root)),
-      groups: [owner], state: "active", stateRevision: 1, env: built.env, receipt: built.receipt }
-    persistSession(root, r)
-    return handleFor(root, r)
+      groups: [owner], evidenceOffset: 0, state: "active", stateRevision: 1, env: built.env, receipt: built.receipt }
+    try {
+      revalidateOrigin()
+      persistSession(root, r)
+      return handleFor(root, r)
+    } catch (error) {
+      // This bundle has not been exposed and cannot have authorized children.
+      discardRuntimeDirectory(built.directory)
+      throw error
+    }
   })
 }
 function captureSessionEvidence(r: SessionRecord): void {
-  const receipt = checkpointReceipt(r.receipt)
-  if (receipt.state === "rejected") fail(receipt.failureCode ?? "RUNTIME_SESSION_UNCERTAIN", "session checkpoint rejected")
-  for (const observation of receipt.observations) {
-    const group = observation.group
-    if (!group || !validGroup(group)) fail("RUNTIME_SESSION_UNCERTAIN", "session group evidence invalid")
+  // Consume each append once. Persist only a bounded tail and unique groups;
+  // checkpoint/release never copies the full lifetime history into the owner.
+  const info = lstatSync(r.receipt.evidencePath!)
+  if (!info.isFile() || info.isSymbolicLink() || info.size < r.evidenceOffset || info.size > 16 * 1024 * 1024) fail("RUNTIME_SESSION_UNCERTAIN", "evidence extent invalid")
+  const fd = openSync(r.receipt.evidencePath!, "r")
+  const bytes = Buffer.alloc(info.size - r.evidenceOffset)
+  try {
+    let read = 0
+    while (read < bytes.length) {
+      const count = readSync(fd, bytes, read, bytes.length - read, r.evidenceOffset + read)
+      if (!count) fail("RUNTIME_SESSION_UNCERTAIN", "evidence changed during checkpoint")
+      read += count
+    }
+  } finally { closeSync(fd) }
+  let appended: RuntimeObservation[]
+  try {
+    if (bytes.length && bytes[bytes.length - 1] !== 10) throw new Error("partial evidence")
+    appended = bytes.toString("utf8").split("\n").filter(Boolean).map(line => JSON.parse(line))
+    if (!appended.every(item => Number.isSafeInteger(item.pid) && typeof item.execPath === "string" && typeof item.version === "string" && ["verified", "rejected"].includes(item.status))) throw new Error("invalid observation")
+  } catch { return fail("RUNTIME_SESSION_UNCERTAIN", "session evidence invalid") }
+  const rejected = appended.find(item => item.status === "rejected" || item.execPath !== r.receipt.node?.executable || item.version !== r.receipt.node?.version)
+  if (rejected || !r.receipt.node || digestFile(r.receipt.node.executable) !== r.receipt.node.sha256) fail("RUNTIME_SESSION_UNCERTAIN", "session runtime rejected or changed")
+  const receipt = { ...r.receipt, observations: [...r.receipt.observations, ...appended].slice(-64), state: appended.length || r.receipt.state === "verified" ? "verified" as const : "preflight-only" as const }
+  r.evidenceOffset = info.size
+  for (const observation of appended) {
+    const group = observation.group ?? fail("RUNTIME_SESSION_UNCERTAIN", "session group evidence missing")
+    if (!validGroup(group)) fail("RUNTIME_SESSION_UNCERTAIN", "session group evidence invalid")
     if (!r.groups.some(g => g.pgid === group.pgid && g.startedAt === group.startedAt)) r.groups.push(group)
   }
   if (r.groups.length > 512) fail("RUNTIME_SESSION_UNCERTAIN", "session group evidence bound reached")
@@ -474,7 +532,7 @@ function captureSessionEvidence(r: SessionRecord): void {
 export function checkpointSessionRuntime(handle: SessionRuntimeHandle): RuntimeReceipt {
   return withSessionLock(handle.root, handle.runtimeId, () => {
     const r = readSession(handle.root, handle.runtimeId); assertHandle(handle, r)
-    if (r.state !== "active" || r.recovery || observeProcessGroup(r.owner).state !== "alive") fail("RUNTIME_SESSION_AUTHORITY", "session owner is not active")
+    if (r.state !== "active" || r.recovery || observeProcessGroup(r.owner).state !== "alive" || !isDescendant(process.pid, r.owner.leaderPid, processRows())) fail("RUNTIME_SESSION_AUTHORITY", "session owner is not active")
     assertBundle(r)
     captureSessionEvidence(r)
     r.lastCheckpointAt = new Date().toISOString(); r.stateRevision++
@@ -490,41 +548,47 @@ export function releaseSessionRuntime(input: SessionRuntimeHandle | SessionRunti
       const original = input.original
       if (!SESSION_ID.test(input.operationId) || original.projectId !== r.projectId || original.sessionId !== r.sessionId || original.bindingDigest !== r.bindingDigest) fail("RUNTIME_SESSION_AUTHORITY", "original recovery binding mismatch")
       const actor = probeProcessGroupIdentity(input.recoveryOwnerStamp.pid)
-      if (!actor || actor.pgid !== input.recoveryOwnerStamp.pgid || actor.startedAt !== input.recoveryOwnerStamp.startedAt
+      if (!actor || !processRows().some(row => row.pid === actor.leaderPid && row.uid === process.getuid?.()) || actor.pgid !== input.recoveryOwnerStamp.pgid || actor.startedAt !== input.recoveryOwnerStamp.startedAt
         || !isDescendant(process.pid, actor.leaderPid, processRows())) fail("RUNTIME_SESSION_AUTHORITY", "recovery actor invalid")
       if (r.recovery) {
-        if (r.recovery.operationId !== input.operationId || r.recovery.originalStateRevision !== original.expectedStateRevision
-          || JSON.stringify(r.recovery.recoveryOwnerStamp) !== JSON.stringify(input.recoveryOwnerStamp)) fail("RUNTIME_SESSION_CAS", "another recovery owns the record")
-        if (r.state === "released") return sessionReceipt(r)
+        if (r.recovery.operationId !== input.operationId || r.recovery.originalStateRevision !== original.expectedStateRevision) fail("RUNTIME_SESSION_CAS", "another recovery owns the record")
+        if (r.state === "released") { if (existsSync(r.directory)) fail("RUNTIME_SESSION_UNCERTAIN", "released bundle reappeared"); return sessionReceipt(r) }
+        const previous = r.recovery.recoveryOwnerStamp
+        if (canonicalJson(previous) !== canonicalJson(input.recoveryOwnerStamp)
+          && observeProcessGroup({ hostname: hostname(), leaderPid: previous.pid, pgid: previous.pgid, startedAt: previous.startedAt }).state !== "dead") fail("RUNTIME_SESSION_CAS", "previous recovery actor alive or uncertain")
       } else if (r.stateRevision !== original.expectedStateRevision || r.state === "released") fail("RUNTIME_SESSION_CAS", "state revision changed")
       if (r.state !== "released" && existsSync(r.directory)) captureSessionEvidence(r)
       if ([r.owner, r.producer, ...r.groups].some(g => observeProcessGroup(g).state !== "dead")) fail("RUNTIME_SESSION_OCCUPIED", "original groups alive or uncertain")
       if (existsSync(r.directory)) assertBundle(r)
       else if (r.state !== "closing" || !r.recovery) fail("RUNTIME_SESSION_UNCERTAIN", "original bundle missing before release authority")
-      if (!r.recovery) r.recovery = { operationId: input.operationId, originalStateRevision: original.expectedStateRevision, recoveryOwnerStamp: input.recoveryOwnerStamp }
+      r.recovery = { operationId: input.operationId, originalStateRevision: original.expectedStateRevision, recoveryOwnerStamp: input.recoveryOwnerStamp }
     } else {
       assertHandle(input as SessionRuntimeHandle, r)
       if (r.recovery) fail("RUNTIME_SESSION_AUTHORITY", "recovery owns the record")
-      if (r.state === "released") return sessionReceipt(r)
-      if (observeProcessGroup(r.owner).state !== "alive") fail("RUNTIME_SESSION_AUTHORITY", "owner not current; explicit recovery required")
+      if (r.state === "released") { if (existsSync(r.directory)) fail("RUNTIME_SESSION_UNCERTAIN", "released bundle reappeared"); return sessionReceipt(r) }
+      if (observeProcessGroup(r.owner).state !== "alive" || !isDescendant(process.pid, r.owner.leaderPid, processRows())) fail("RUNTIME_SESSION_AUTHORITY", "owner not current; explicit recovery required")
       // The owner and this control call may remain. Any other group member
       // holds the bundle, including descendants whose leader has disappeared.
-      if (!existsSync(r.directory) && r.state === "closing") {
-        r.state = "released"; r.stateRevision++; persistSession(input.root, r); return sessionReceipt(r)
-      }
-      assertBundle(r); captureSessionEvidence(r)
+      if (existsSync(r.directory)) { assertBundle(r); captureSessionEvidence(r) }
+      else if (r.state !== "closing") fail("RUNTIME_SESSION_UNCERTAIN", "bundle missing before release authority")
       if (r.groups.some(g => g.pgid !== r.owner.pgid && observeProcessGroup(g).state !== "dead")) fail("RUNTIME_SESSION_OCCUPIED", "registered session groups alive or uncertain")
       const rows = processRows()
       const callers = new Set<number>([r.owner.leaderPid])
       let pid = process.pid
       while (pid > 1 && !callers.has(pid)) { callers.add(pid); pid = rows.find(p => p.pid === pid)?.ppid ?? 0 }
       if (rows.some(p => p.pgid === r.owner.pgid && !callers.has(p.pid))) fail("RUNTIME_SESSION_OCCUPIED", "session descendants still alive")
-      assertBundle(r)
+      if (existsSync(r.directory)) assertBundle(r)
     }
     r.state = "closing"; r.stateRevision++
     // Durable authority precedes effects. Reentry uses the same original CAS.
     persistSession(input.root, r)
-    if (existsSync(r.directory)) { captureSessionEvidence(r); rmSync(r.directory, { recursive: true }) }
+    if (existsSync(r.directory)) {
+      // Re-observe after acquiring release authority, before the destructive effect.
+      captureSessionEvidence(r)
+      if (r.groups.some(g => (!recover && g.pgid === r.owner.pgid) ? false : observeProcessGroup(g).state !== "dead")) fail("RUNTIME_SESSION_OCCUPIED", "session groups changed during release")
+      persistSession(input.root, r)
+      rmSync(r.directory, { recursive: true })
+    }
     r.state = "released"; r.stateRevision++; r.lastCheckpointAt = new Date().toISOString()
     persistSession(input.root, r)
     return sessionReceipt(r)
@@ -533,14 +597,16 @@ export function releaseSessionRuntime(input: SessionRuntimeHandle | SessionRunti
 /** Absence means no registered Queue session, never availability of a stack. */
 export function listSessionRuntimes(root: string): SessionRuntimeStatus[] {
   const directory = catalog(root)
-  if (!existsSync(directory)) return []
+  if (!existsSync(directory)) { try { lstatSync(directory) } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return [] } }
   const unknown = (): SessionRuntimeStatus => ({ projectId: "unknown", sessionId: "unknown", state: "unknown", pid: 0, startedAt: "", stateRevision: 0 })
   try {
     privatePath(directory, true)
-    return readdirSync(directory).filter(name => name.endsWith(".json")).flatMap(name => {
+    return readdirSync(directory).flatMap(name => {
+      if (!name.endsWith(".json")) return [unknown()]
       try {
         const r = readSession(root, name.slice(0, -5))
-        if (r.state === "released") return []
+        if (r.state === "released") { if (existsSync(r.directory)) throw new Error("released bundle exists"); return [] }
+        assertBundle(r)
         const state = r.state === "closing" ? "closing" : observeProcessGroup(r.owner).state === "alive" ? "active" : "unknown"
         return [{ projectId: r.projectId, sessionId: r.sessionId, state, pid: r.owner.leaderPid, startedAt: r.owner.startedAt, stateRevision: r.stateRevision,
           ...(r.lastCheckpointAt ? { lastCheckpointAt: r.lastCheckpointAt } : {}) } as SessionRuntimeStatus]

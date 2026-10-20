@@ -6,17 +6,19 @@ import {
   existsSync,
   mkdtempSync,
   mkdirSync,
+  lstatSync,
+  realpathSync,
   readFileSync,
   readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs"
-import { tmpdir } from "node:os"
+import { hostname, tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 
-import { buildRelease } from "../helpers/release-fixture.mjs"
+import { buildRelease, releaseEnvironment } from "../helpers/release-fixture.mjs"
 import { installRelease } from "../../scripts/install.mjs"
 
 const productRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
@@ -93,7 +95,7 @@ test("launcher defaults CI_QUEUE_STATE_DIR; observe lands in custom state", () =
       createHash("sha256").update(launcher).digest("hex"),
     )
 
-    const env = { ...process.env, HOME: home }
+    const env = releaseEnvironment(destination, { ...process.env, HOME: home })
     delete env.CI_QUEUE_STATE_DIR
     const observed = spawnSync(command, ["observe", "--stdin", "--json"], {
       env,
@@ -117,4 +119,39 @@ test("launcher defaults CI_QUEUE_STATE_DIR; observe lands in custom state", () =
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+
+test("installer-refuses-active-or-uncertain-session-runtime", () => {
+  const root = sourceFixture()
+  try {
+    const { destination } = buildRelease({ root, outputDir: join(root, "bundles"), revision: "e".repeat(40) })
+    const state = join(root, "state")
+    const sessions = join(state, "runtime-sessions")
+    mkdirSync(sessions, { recursive: true, mode: 0o700 })
+    const input = { bundle: destination, stateRoot: state, prefix: join(root, "prefix"), nodePath: process.execPath, pythonPath: "/usr/bin/python3" }
+    for (const record of [{ state: "active" }, { state: "closing" }, { state: "released" }, { token: "private" }]) {
+      writeFileSync(join(sessions, "session-fixture.json"), JSON.stringify(record), { mode: 0o600 })
+      assert.throws(() => installRelease(input), /runtime.*sessão|sessão.*runtime/)
+    }
+    const {uid,ino,dev}=lstatSync(sessions)
+    mkdirSync(join(state,"runtime"),{mode:0o700})
+    const directory=join(realpathSync(state),"runtime","session-fixture")
+    const group={hostname:hostname(),leaderPid:999999,pgid:999999,startedAt:"fixture"}
+    const released={schemaVersion:1,runtimeId:"session-fixture",sessionId:"fixture",projectId:"example",ticketId:"fixture",
+      token:"a".repeat(64),bindingDigest:"b".repeat(64),requirementDigest:"c".repeat(64),
+      directory,directoryIdentity:{uid,ino:1,dev},catalogIdentity:{uid,ino,dev},owner:group,producer:group,groups:[group],
+      evidenceOffset:0,state:"released",stateRevision:3,env:{},receipt:{capability:"node-runtime-guard-v1",coverage:"guarded-node-processes",state:"prepared",observations:[],
+        evidencePath:join(directory,"processes.jsonl"),requirementDigest:"c".repeat(64),node:{executable:process.execPath,version:process.versions.node,sha256:"d".repeat(64)}}}
+    writeFileSync(join(sessions,"session-fixture.json"),JSON.stringify(released),{mode:0o600})
+    assert.equal(installRelease(input).activationStatus,"staged")
+    for(const corrupted of [{...released,recovery:{operationId:"incomplete"}},{...released,receipt:{...released.receipt,evidencePath:"/private/foreign"}}]) {
+      writeFileSync(join(sessions,"session-fixture.json"),JSON.stringify(corrupted),{mode:0o600})
+      assert.throws(()=>installRelease(input),/runtime.*sessão/)
+    }
+    rmSync(sessions, { recursive: true })
+    mkdirSync(join(state, "reserved-data"))
+    writeFileSync(join(state, "reserved-data", "reservation.json"), "{}")
+    assert.equal(installRelease(input).activationStatus, "staged")
+  } finally { rmSync(root, { recursive: true, force: true }) }
 })

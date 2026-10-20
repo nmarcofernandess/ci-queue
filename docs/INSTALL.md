@@ -41,7 +41,7 @@ npm run release:bundle
 node scripts/release.mjs verify --bundle releases/ci-queue-<versão>-<revisão>
 ```
 
-Use o bundle efetivamente produzido, não um nome inventado. Manifest registra versão, revisão Git, protocolo e hashes. Launcher, worker, API e UI possuem stamps em `build-provenance/`, com a revisão e o inventário exato de cada build. `npm run build` sela runtime/API e `npm --prefix ui run build` sela UI; `release:bundle` executa ambos. Empacotar exige os quatro stamps na mesma revisão e rejeita bytes antigos ou misturados, mesmo se o manifest anunciar a revisão nova. O protocolo instalado exige API1/ticket4 e as capabilities `terminal-finalization-v1`, `no-artifact-snapshots-v1` e `recoverable-finalization-v1`. Build, cópia, ativação e prova instalada são etapas diferentes. Uma revisão documental não autoriza nenhuma delas.
+Use o bundle efetivamente produzido, não um nome inventado. Manifest registra versão, revisão Git, protocolo e hashes. Launcher, worker, API e UI possuem stamps em `build-provenance/`, com a revisão e o inventário exato de cada build. `npm run build` sela runtime/API e `npm --prefix ui run build` sela UI; `release:bundle` executa ambos. Empacotar exige os quatro stamps na mesma revisão e rejeita bytes antigos ou misturados, mesmo se o manifest anunciar a revisão nova. O protocolo instalado exige API1/ticket4 e as capabilities `terminal-finalization-v1`, `no-artifact-snapshots-v1`, `recoverable-finalization-v1` e `node-runtime-session-v1`. Build, cópia, ativação e prova instalada são etapas diferentes. Uma revisão documental não autoriza nenhuma delas.
 
 ## State único e preparação
 
@@ -133,3 +133,21 @@ Primeiro inspecionar sem `--apply`. Aplicação é mutação explícita, com fil
 ## Testes isolados não provam a instalação
 
 `tests/examples/init-ship.test.mjs` usa Git/HOME/state temporários e GitHub simulado. Browser tests usam API fixture. Nunca escrevem na fila do operador. Um teste do produto no checkout, um ticket real instalado e uma verificação de novo login são evidências diferentes. Não rodar suites longas somente por alteração destas docs.
+
+
+### Sessões que sobrevivem ao job
+
+Fila sem running/queued não basta para manutenção. O instalador lê também o
+owner privado em `runtime-sessions/`: sessões active/closing e registros ou
+locks incertos recusam install/update/uninstall, mesmo com o job já terminal.
+Não apague o owner/bundle por idade ou por ausência de um PID. Confirme o release
+pelo controle privado do launcher ou pelo recovery com binding, CAS e grupos
+validados, usando runtime corrente. O receipt released fica durável para
+reentrada; somente seu bundle é removido.
+
+`ci-queue status --state STATE --json` e a API mostram `sessionRuntimes` sem
+segredos. `globalOccupancy` conserva o significado de jobs; uma projeção vazia
+não prova portas livres nem ausência de sessões direct. Dados apenas reservados
+não bloqueiam instalação. O [contrato de runtime](RUNTIME-ISOLATION.md#observação-e-manutenção)
+define identidade, limites e recuperação. Capability no código ou bundle staged
+não prova instalação/ativação dessa revisão, nem habilita o consumidor por si.

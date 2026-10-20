@@ -1,4 +1,4 @@
-# Runtime por job: pin opt-in
+# Runtime por job e sessão: pin opt-in
 
 Estado: **camada 1 — hardening de espaço de usuário, não isolamento de SO**.
 `verified` significa que os processos observados concordaram com o Node registrado.
@@ -77,3 +77,115 @@ confere launcher/worker/API/UI na mesma revisão e protocolo. Esse pin não fixa
 automaticamente os filhos. Depois de instalar a
 release, registre cada `projectId` que precisa do pin. Worker antigo ignora
 `runtimes.json`; não deixe duas versões no mesmo state root.
+
+
+## Sessão independente do job
+
+A capability aditiva `node-runtime-session-v1` permite a um launcher nativo
+manter um bundle próprio em `<state>/runtime/session-<sessionId>`. O builder é
+o mesmo do job: Node registrado, verificação dos requisitos, shims, PATH
+reconstruído e preload permanecem ativos. Não copia `runtime/job-*` e não
+conserva referências a ele. A sessão pode iniciar filhos depois que o job
+terminar e seu bundle temporário for removido. O consumidor continua dono do
+lifecycle da stack; a Queue não conhece seu banco, portas ou política de dados.
+Execução direct permanece no runtime estável do consumidor e não depende dessa
+capability. Origem Queue inválida nunca autoriza reinterpretar a execução como direct.
+
+O `RuntimeReceipt.requirementDigest` e a variável nativa
+`CI_QUEUE_RUNTIME_REQUIREMENT_DIGEST` expõem o SHA-256 do JSON canônico dos
+`RuntimeRequirement[]` resolvidos pelo builder, na sua ordem de leitura. Esse
+digest é distinto de fingerprints de dados ou do ambiente do consumidor.
+O consumidor recebe o valor, sem importar o código da Queue nem repetir seu
+algoritmo. Prepare relê os requisitos reais e compara o receipt do ticket;
+a string recebida não concede autoridade.
+
+### Controle privado
+
+Os três comandos recebem somente JSON por stdin. O launcher deve manter stdin
+e stdout em pipes privados e não registrar o retorno de prepare, que contém
+handle, token, env e diretório. Nenhum token entra em argv ou status:
+
+```text
+ci-queue runtime prepare-session --stdin --state STATE --json
+ci-queue runtime checkpoint-session --stdin --state STATE --json
+ci-queue runtime release-session --stdin --state STATE --json
+```
+
+Prepare recebe `projectId`, `ticketId`, `sessionId`, `producerStamp` e
+`sessionStamp` (`pid`, `startedAt`), `requirementDigest` e
+`launchBindingDigest`. Exige o contexto `job-env-v1`, ticket running persistido,
+projeto correspondente, produtor/grupo vivo e launcher do mesmo UID na linhagem
+do produtor; a chamada precisa estar na linhagem do launcher. O stamp usa o
+nascimento observado por `ps`, não o horário escolhido pelo caller. Um sessionId
+aceita letras, números, `_` e `-`, até 96 caracteres. O mesmo binding e os mesmos
+stamps retornam o mesmo handle; divergência recusa sem substituir o bundle.
+
+Checkpoint e release normais recebem o handle retornado. O produtor antigo
+não precisa continuar vivo depois do prepare; o owner da sessão precisa estar
+vivo, com stamp válido, e a chamada deve pertencer à sua linhagem. Checkpoint
+consome somente os novos appends da evidência do guard; o registro conserva no
+máximo 64 observações e 512 grupos únicos. O arquivo append-only é limitado a 16 MiB.
+Use checkpoint nas fronteiras de claim/release, não como polling de observação.
+
+O release valida os grupos registrados pelo guard e a ausência de filhos da
+sessão, permitindo somente o owner e a cadeia da chamada de controle. Persiste
+`closing` antes do efeito, remove apenas o bundle com UID/inode/device
+confirmados e só então sela `released`. Reentrada normal devolve o mesmo receipt.
+Grupos vivos, descendentes sem líder verificável, PID reutilizado, evidência
+inválida ou bundle substituído impedem o ACK e preservam a manutenção bloqueada.
+
+### Recuperação explícita
+
+Um ator corrente, executado por runtime estável que não será apagado, envia:
+
+```json
+{
+  "mode": "recover",
+  "root": "/absolute/state",
+  "operationId": "recovery-operation",
+  "original": {
+    "runtimeId": "session-example",
+    "projectId": "example",
+    "sessionId": "example",
+    "bindingDigest": "<sha256 do binding original>",
+    "expectedStateRevision": 1
+  },
+  "recoveryOwnerStamp": { "pid": 123, "pgid": 123, "startedAt": "<stamp observado>" }
+}
+```
+
+A Queue lê seus próprios grupos; uma lista do caller não dá autorização. Sob o
+DirectoryLock existente do registro, revalida UID, catálogo, bundle, binding,
+revisão CAS e morte confirmada do produtor, owner e grupos originais. Persiste
+a operationId e o ator antes de remover o bundle. Operações concorrentes não
+selam dois resultados: outra operationId recebe BUSY/CAS. A mesma operação
+reentra após falha; um novo ator só assume a autoridade ainda closing quando
+a morte do ator anterior estiver confirmada. Uma operação já released devolve
+o receipt durável sem repetir efeitos nem mudar a autoridade terminal.
+
+`RuntimeReceipt.session` liga runtimeId e bindingDigest originais à revisão do
+resultado, `disposition: released` e, em recovery, operationId, revisão original
+e stamp do ator que concluiu. O consumidor valida essa ligação antes de compor
+seu ACK; processos parados sem release confirmado da Queue continuam blocked.
+O owner durável é `<state>/runtime-sessions/session-<id>.json`; não é necessário
+que o bundle removido ou o produtor antigo executem outro comando.
+
+### Observação e manutenção
+
+CLI `status` e todas as views de `/api/status` acrescentam `sessionRuntimes`:
+`projectId`, `sessionId`, `state` (`active`, `closing`, `unknown`), `pid`,
+`startedAt`, `stateRevision` e `lastCheckpointAt` quando disponível. TS e Python
+leem o mesmo owner privado; não projetam tokens, env, handle ou caminhos privados.
+Registro ilegível, publicação incompleta ou owner morto/incerto permanece
+`unknown`; um release confirmado desaparece da projeção. `globalOccupancy`
+continua descrevendo apenas jobs, sem incorporar sessões.
+
+Instalação, atualização e uninstall recusam sessões não liberadas, registros
+incertos e locks de publicação. O estado released só é aceito com o owner
+privado íntegro e bundle ausente. Uma reserva de dados sem processo não é uma
+sessão Queue e não bloqueia instalação. Inversamente, ausência de sessionRuntimes
+não prova porta livre, ausência de sessão direct ou descarte de dados.
+
+O guard continua sendo cooperação em espaço de usuário. Grupos Node observados
+não representam cobertura completa de SO; os escapes descritos acima permanecem
+fora da cobertura, inclusive para uma sessão.

@@ -214,3 +214,24 @@ Histórico, Worktrees, Análise, Meta, Pendências e Últimos verdes aceitam pro
 ## Runtime Node
 
 `node-runtime-guard-v1` é opt-in por projectId. Sem binding: unconfigured, ambiente legado. `runtime show` lê; `runtime register` escreve registry local. Node do worker não fixa todos os filhos. Requisitos versionados e detalhes do PATH/shims/preload/receipt e escape env-i estão em [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md). Verified cobre processos observados, não sandbox.
+
+
+### Runtime de sessão
+
+`node-runtime-session-v1` é aditiva a `node-runtime-guard-v1`. O owner privado
+`runtime-sessions/session-<id>.json` conserva binding, origem, UID/inode/device,
+stamps/grupos, revisão CAS e resultado de release/recovery. O bundle
+`runtime/session-<id>` tem lifetime independente de `runtime/job-*`.
+`runtime prepare-session`, `checkpoint-session` e `release-session` usam JSON
+privado por stdin; somente prepare retorna handle. Checkpoint/release normais
+requerem esse handle e owner corrente; recovery usa o input discriminado
+`mode: recover`, binding/revisão originais e ator corrente sob lock do registro.
+O receipt liga original→operação→resultado e só declara released depois do
+cleanup confirmado. Outra operação ou identidade incerta recusa.
+
+`status` e `/api/status` acrescentam `sessionRuntimes` sem alterar o significado
+de `globalOccupancy`. A projeção pública contém somente projeto/sessionId,
+estado active/closing/unknown, pid/startedAt, revisão e último checkpoint.
+Ausência não comprova liberdade de stack ou dados. Manutenção recusa qualquer
+sessão não liberada ou owner incerto. Shapes, digest do requisito, limites,
+reentrada e operação estão no [owner de runtime](RUNTIME-ISOLATION.md#sessão-independente-do-job).
