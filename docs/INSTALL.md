@@ -28,9 +28,35 @@ prova elegível, usa a primeira receita aceita, `check`, cuja base é dev. Por
 isso a promoção para main exige o enqueue explícito de `check-main`. Se HEAD
 ou main avançar, reconcilie a candidata e renove a prova exigida.
 
-Produza o bundle no main integrado, atualizado e limpo. A autorização de
-publicação, promoção e instalação vem do pedido do operador; uma prova verde
-não autoriza essas etapas por si só.
+Produza o bundle na base integrada autorizada, atualizada e limpa: dev para
+atualização de desenvolvimento; main somente quando a promoção estiver
+autorizada. A autorização de publicação, promoção e instalação vem do pedido
+do operador; uma prova verde não autoriza essas etapas por si só.
+
+## Bootstrap excepcional de um corretivo da própria Queue
+
+O caminho normal permanece ship → bundle da base integrada → update. Se a
+instalação antiga bloquear o check/ship pelo gate histórico retirado, use esta
+exceção somente no fechamento autorizado, depois da autoria e dos reviews:
+
+1. Mantenha a candidata limpa, commitada e publicada, com HEAD/base registrados.
+2. Execute `npm run check` integral diretamente nessa candidata e receba PASS.
+   Esse resultado aprova a ativação provisória; não substitui o ticket do ship.
+3. Produza e verifique o bundle oficial da mesma revisão. Use o instalador
+   corrigido contido nele para ativá-lo provisoriamente no mesmo prefixo/state.
+   Preserve o bundle anterior, ownership e sessões vivas. Confira o catálogo
+   efetivamente usado pelo serviço e forneça seu caminho absoluto por `--config`,
+   junto com Node, Python e comando; `--activate` não recupera o catálogo sozinho.
+4. Confira a revisão instalada e execute o ship canônico, produzindo seu ticket
+   real elegível. Depois do merge observado, produza e ative o bundle do dev
+   integrado e confira novamente a revisão efetiva.
+
+Release e installer aceitam uma revisão candidata íntegra sem gate por branch.
+A candidata provisória não está integrada por isso. Não use attestation isolada,
+edição de history/locks, troca de state ou outro worker para fechar o círculo.
+Se a base avançar, reconcilie e renove a elegibilidade exigida. Rollback usa o
+instalador oficial compatível e o bundle preservado; não suponha que o instalador
+antigo aceite o mesmo resíduo. A rota não autoriza promoção main/PROD.
 
 ## Produzir e verificar
 
@@ -59,7 +85,7 @@ node /bundle/scripts/install.mjs install \
   --state /caminho/absoluto/do/state
 ```
 
-Antes de ativar/atualizar/remover: fila quieta, ownership conferido e nenhum executor concorrente. O instalador também verifica claims, reservas, identidade do worker e finalizações ligadas aos bytes terminais do histórico. Pending/running/interrupted, recovery pendente e cleanup uncertain bloqueiam a troca, mesmo sem running.json. Uma conclusão v2 exige recovery=none; conclusão legada válida continua legível sem conceder retry. Não apague locks ou registros para ultrapassar essa proteção.
+Antes de ativar/atualizar/remover: nenhum executor concorrente. O instalador verifica running, runner lock, claims, reservas e identidade do worker, além das sessões privadas descritas abaixo. Esses owners correntes protegem a manutenção. Finalização histórica pending/running/interrupted, recovery blocked, cleanup uncertain ou fonte ausente/inválida não comprovam execução corrente e não bloqueiam a atualização por si. O instalador preserva esses arquivos sem percorrer suas fontes; não certifica a publicação nem concede replay ou remoção daquele ID. Os guards de fonte, digest, geração e writer continuam nas operações do ticket. Não apague locks ou registros para ultrapassar a proteção dos owners correntes.
 
 O executor antigo usava proper-lockfile com um alvo vazio em
 `locks/jobs/YYYYMMDD-HHMMSS-6hex.state` ou `validation-plan.state`. A reserva real
@@ -70,7 +96,7 @@ reservas `.lock`, nomes desconhecidos, conteúdo, symlinks e hardlinks continuam
 bloqueando a manutenção. Essa compatibilidade não dispensa conferir fila quieta
 e ausência de executores antigos; idade ou tamanho isolados não provam inatividade.
 
-Para uma finalização recuperável, use a instalação ainda vigente: `ci-queue finalize <id> --state <root> --json`. Confira o resultado e o cleanup antes de repetir a manutenção. Ownership incerto exige identificar e encerrar legitimamente o produtor próprio; o comando não autoriza matar outro owner nem refazer testes.
+Para uma finalização recuperável, use `ci-queue finalize <id> --state <root> --json`. O comando pode recusar o replay daquele ID por fonte ou ownership incerto, conservando diagnóstico e resíduo; isso não impede os próximos jobs nem exige cirurgia manual para instalar uma atualização. A tentativa corrente mantém claim/runner lock até seu término delimitado. O comando não autoriza matar outro owner, refazer testes ou editar o terminal histórico.
 
 ## macOS: ativação na sessão
 

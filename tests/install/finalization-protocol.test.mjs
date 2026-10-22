@@ -58,16 +58,34 @@ test('verification rejects a component substitution even when the outer file man
     assert.throws(() => verifyRelease(bundle), /integridade|build|protocolo/i)
   } finally { rmSync(f.root, { recursive: true, force: true }) }
 })
-for (const phase of ['pending', 'running', 'interrupted', 'malformed', 'cleanup-uncertain']) test(`${phase} finalization blocks update and uninstall without touching its state`, () => {
+for (const phase of ['pending', 'running', 'interrupted', 'malformed', 'cleanup-uncertain']) test(`${phase} historical finalization permits maintenance without touching its state`, () => {
   const f = fixture()
   try {
     const bundle = f.build(); installRelease({ ...f, bundle })
     const path = `state/state/finalization/job.json`
     const value = phase === 'malformed' ? '{' : JSON.stringify({ schemaVersion: 1, ticketId: 'job', ticketDigest: 'd'.repeat(64), finalizationDigest: 'e'.repeat(64), attempt: 1, phase: phase === 'cleanup-uncertain' ? 'failed' : phase, ...(phase === 'cleanup-uncertain' ? { finishedAt: '2026-10-17T00:00:00Z', result: { schemaVersion: 1, cleanup: 'uncertain', outputs: [] } } : {}) })
     f.put(path, value)
-    assert.throws(() => installRelease({ ...f, bundle }), /finaliza|incerto/i)
-    assert.throws(() => uninstallRelease({ prefix: f.prefix }), /finaliza|incerto/i)
+    assert.equal(installRelease({ ...f, bundle }).revision, revision)
+    uninstallRelease({ prefix: f.prefix })
     assert.equal(readFileSync(join(f.root, path), 'utf8'), value)
+  } finally { rmSync(f.root, { recursive: true, force: true }) }
+})
+test('terminal-cleanup-warning-allows-update without discarding terminal or residual files', () => {
+  const f = fixture()
+  try {
+    const bundle = f.build(); installRelease({ ...f, bundle })
+    const terminal = JSON.stringify({ schemaVersion: 4, id: 'job', status: 'passed', exitCode: 0,
+      finalization: { schemaVersion: 2 }, finalizationDigest: 'e'.repeat(64) })
+    const record = JSON.stringify({ schemaVersion: 1, ticketId: 'job', ticketDigest: hash(terminal), finalizationDigest: 'e'.repeat(64),
+      attempt: 1, phase: 'failed', finishedAt: '2026-10-17T00:00:00Z', recovery: 'blocked-ownership',
+      result: { schemaVersion: 2, recovery: 'blocked-ownership', cleanup: 'uncertain', outputs: [] } })
+    f.put('state/history/job.json', terminal)
+    f.put('state/state/finalization/job.json', record)
+    f.put('state/state/finalization/job.result.json', 'residual output')
+    assert.equal(installRelease({ ...f, bundle }).revision, revision)
+    for (const [path, bytes] of [['history/job.json', terminal], ['state/finalization/job.json', record], ['state/finalization/job.result.json', 'residual output']]) {
+      assert.equal(readFileSync(join(f.stateRoot, path), 'utf8'), bytes)
+    }
   } finally { rmSync(f.root, { recursive: true, force: true }) }
 })
 test('completed records and legacy history do not block a quiet fixture install', () => {
@@ -80,10 +98,30 @@ test('completed records and legacy history do not block a quiet fixture install'
     assert.equal(existsSync(join(f.stateRoot, 'state/finalization/old.json')), true)
   } finally { rmSync(f.root, { recursive: true, force: true }) }
 })
-for (const owner of ['state/worker.json', 'state/worker.pid', 'locks/jobs/job.finalization/owner.json', 'claims/job.json']) test(`unreconciled ownership ${owner} prevents fixture cutover`, () => {
+for (const owner of ['running.json', 'runner.lock', 'locks/runner.lock', 'state/worker.json', 'state/worker.pid', 'locks/jobs/job.finalization/owner.json', 'claims/job.json']) test(`unreconciled ownership ${owner} prevents fixture cutover`, () => {
   const f = fixture()
   try { const bundle = f.build(); f.put(`state/${owner}`, '{}'); assert.throws(() => installRelease({ ...f, bundle }), /incerto|owner|recuper/i) }
   finally { rmSync(f.root, { recursive: true, force: true }) }
+})
+
+for (const kind of ['missing source', 'invalid source', 'symlinked source']) test(`historical ${kind} permits maintenance without replay or traversal`, () => {
+  const f = fixture()
+  try {
+    const bundle = f.build(); installRelease({ ...f, bundle })
+    f.put('state/state/finalization/orphan.json', '{invalid record')
+    const foreign = join(f.root, 'foreign-source')
+    writeFileSync(foreign, 'preserve foreign bytes')
+    if (kind === 'invalid source') f.put('state/history/orphan.json', '{invalid terminal')
+    if (kind === 'symlinked source') {
+      mkdirSync(join(f.stateRoot, 'history'), { recursive: true })
+      symlinkSync(foreign, join(f.stateRoot, 'history/orphan.json'))
+    }
+    assert.equal(installRelease({ ...f, bundle }).revision, revision)
+    assert.equal(readFileSync(join(f.stateRoot, 'state/finalization/orphan.json'), 'utf8'), '{invalid record')
+    if (kind === 'invalid source') assert.equal(readFileSync(join(f.stateRoot, 'history/orphan.json'), 'utf8'), '{invalid terminal')
+    if (kind === 'symlinked source') assert.equal(lstatSync(join(f.stateRoot, 'history/orphan.json')).isSymbolicLink(), true)
+    assert.equal(readFileSync(foreign, 'utf8'), 'preserve foreign bytes')
+  } finally { rmSync(f.root, { recursive: true, force: true }) }
 })
 
 test('an API from another checkout cannot advertise the installed bundle or serve its UI', () => {
@@ -117,13 +155,15 @@ test('confirmed v2 finalization releases maintenance while retaining its record'
     assert.deepEqual(JSON.parse(readFileSync(join(f.stateRoot, 'state/finalization/v2.json'), 'utf8')), record)
   } finally { rmSync(f.root, { recursive: true, force: true }) }
 })
-test('record recovery cannot be bypassed by a legacy confirmed result', () => {
+test('historical blocked recovery does not reserve maintenance', () => {
   const f = fixture()
   try {
     const bundle = f.build()
     f.put('state/state/finalization/blocked.json', JSON.stringify({ schemaVersion: 1, ticketId: 'blocked', ticketDigest: 'd'.repeat(64), finalizationDigest: 'e'.repeat(64), attempt: 1,
       phase: 'failed', finishedAt: '2026-10-19T00:00:00Z', recovery: 'blocked-ownership', result: { schemaVersion: 1, cleanup: 'confirmed', outputs: [] } }))
-    assert.throws(() => installRelease({ ...f, bundle }), /finaliza|incerto/i)
+    const before = readFileSync(join(f.stateRoot, 'state/finalization/blocked.json'))
+    assert.equal(installRelease({ ...f, bundle }).revision, revision)
+    assert.deepEqual(readFileSync(join(f.stateRoot, 'state/finalization/blocked.json')), before)
   } finally { rmSync(f.root, { recursive: true, force: true }) }
 })
 
@@ -152,7 +192,7 @@ test('record limits: maintenance accepts a canonical envelope above the result l
     assert.equal(readFileSync(join(f.stateRoot, 'state/finalization/boundary.json'), 'utf8'), raw)
   } finally { rmSync(f.root, { recursive: true, force: true }) }
 })
-test('record limits: a result above 64 KiB is refused even when its envelope fits', () => {
+test('record limits: oversized result is refused by its parser and preserved during maintenance', () => {
   const f = fixture()
   try {
     const bundle = f.build(), result = cleanResult()
@@ -161,17 +201,19 @@ test('record limits: a result above 64 KiB is refused even when its envelope fit
     assert.ok(Buffer.byteLength(raw) < 2 * FINALIZATION_JSON_MAX_BYTES)
     assert.throws(() => normalizeFinalizationResult(result, 2), /64 KiB/)
     f.put('state/state/finalization/boundary.json', raw)
-    assert.throws(() => installRelease({ ...f, bundle }), /finaliza|incerto/i)
+    assert.equal(installRelease({ ...f, bundle }).revision, revision)
+    assert.equal(readFileSync(join(f.stateRoot, 'state/finalization/boundary.json'), 'utf8'), raw)
   } finally { rmSync(f.root, { recursive: true, force: true }) }
 })
-test('record limits: an envelope above the canonical 128 KiB limit remains refused', () => {
+test('record limits: oversized envelope is refused by its reader and preserved during maintenance', () => {
   const f = fixture()
   try {
     const bundle = f.build(), record = completedRecord(cleanResult())
     const raw = serializedJson(record).padEnd(2 * FINALIZATION_JSON_MAX_BYTES + 1, ' ')
     f.put('state/state/finalization/boundary.json', raw)
     assert.equal(readFinalization(f.stateRoot, 'boundary'), undefined)
-    assert.throws(() => installRelease({ ...f, bundle }), /finaliza|incerto/i)
+    assert.equal(installRelease({ ...f, bundle }).revision, revision)
+    assert.equal(readFileSync(join(f.stateRoot, 'state/finalization/boundary.json'), 'utf8'), raw)
   } finally { rmSync(f.root, { recursive: true, force: true }) }
 })
 

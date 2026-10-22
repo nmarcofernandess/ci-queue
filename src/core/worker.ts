@@ -17,7 +17,6 @@ import {
   queuePaths,
   readRunningJob,
   readBoundedFile,
-  readFinalization,
   readWorkerOwnership,
   recoverClaims,
   removeFile,
@@ -162,7 +161,7 @@ export async function runWorker(root: string, options: { finalizeOnly?: string }
       // is active. Drain that work before another claim, including empty exit.
       if ((await reconcileTerminalClaims(root, activation)).length) report.reconciliation = "reconciled"
       const finalizations = await reconcileFinalizations(root, { ...activation, executionIds: [...new Set([...activation.executionIds, ...finalizationExecutionIds(root)])] })
-      if (finalizations.blocked.length) { report.reconciliation = "blocked"; break }
+      report.recovery = finalizations
       if (finalizations.reconciled.length) report.reconciliation = "reconciled"
       if (interrupted) break
       if (readRunningJob(root)) break
@@ -190,13 +189,6 @@ export async function runWorker(root: string, options: { finalizeOnly?: string }
         interruptedReason: () => interrupted ? "worker interrompido por sinal" : undefined,
       })
       report.processed.push(terminal.id)
-      const reserved = readRunningJob(root)
-      if (reserved?.cleanupBlockedReason) {
-        report.reconciliation = "blocked"; report.blockingReason = reserved.cleanupBlockedReason
-        break
-      }
-      const finalization = readFinalization(root, terminal.id)
-      if (finalization && !finalization.finishedAt) { report.reconciliation = "blocked"; break }
     }
     return report
   } finally {
