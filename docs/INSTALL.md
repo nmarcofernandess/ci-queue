@@ -69,6 +69,11 @@ node scripts/release.mjs verify --bundle releases/ci-queue-<versão>-<revisão>
 
 Use o bundle efetivamente produzido, não um nome inventado. Manifest registra versão, revisão Git, protocolo e hashes. Launcher, worker, API e UI possuem stamps em `build-provenance/`, com a revisão e o inventário exato de cada build. `npm run build` sela runtime/API e `npm --prefix ui run build` sela UI; `release:bundle` executa ambos. Empacotar exige os quatro stamps na mesma revisão e rejeita bytes antigos ou misturados, mesmo se o manifest anunciar a revisão nova. O protocolo instalado exige API1/ticket4 e as capabilities `terminal-finalization-v1`, `no-artifact-snapshots-v1`, `recoverable-finalization-v1` e `node-runtime-session-v1`. Build, cópia, ativação e prova instalada são etapas diferentes. Uma revisão documental não autoriza nenhuma delas.
 
+Adoção standalone, escolha do executor e configuração do consumidor seguem
+[TESTING-METHOD](TESTING-METHOD.md); Node do worker e binding opt-in dos jobs são
+contratos distintos em [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md). Instalar a Queue
+não carrega os arquivos de ambiente do app nem transfere caches para o state.
+
 ## State único e preparação
 
 Prefixo usual: `~/.local/share/ci-queue`. State novo usual: `~/.local/state/ci-queue`; instalação existente pode usar `~/.local/state/local-ci/queue`. Leia `installation.json` e mantenha o state real da máquina, CLI, worker e API. Não criar outra fila por copiar o exemplo.

@@ -1,11 +1,15 @@
 ## Testes e CI
-Leia `.context/patterns/ci.yaml` para saber quais receitas o projeto escolheu
-expor ao CI Queue. Os comandos do projeto permanecem executáveis diretamente;
-Queue é uma opção de agendamento, supervisão, logs, histórico e cancelamento.
-Feedback é focal e não representa prova final. Ao retomar uma execução
-enfileirada, confira seu ticket antes de criar outro. Encerre os recursos próprios
-pelo comando documentado pelo projeto.
+Leia o [mapa do consumidor](.context/patterns/ci.yaml), resolvido desde a raiz do
+repositório, e o owner declarado em `method` (default
+`docs/ci/TESTING-METHOD.md`). Adapte esse ponteiro ao procedimento existente;
+README, mapa e skill operacional devem apontar ao mesmo owner editável.
 
-Fechamento após tasks/reviews e retenção seguem o procedimento do consumidor e
-`docs/TESTING-METHOD.md#fechamento-depois-da-autoria` no CI Queue; resultados ficam
-no registro selecionado pelo projeto, sem plano concorrente.
+Os comandos do projeto permanecem executáveis diretamente. O consumidor escolhe
+Queue para agendamento, serialização, logs, histórico e cancelamento quando útil
+ou exigido pelo recurso. Feedback só existe com receita real declarada; não
+representa prova final. Ao retomar uma execução enfileirada, confira seu ticket
+antes de criar outro. Encerre somente os recursos próprios pelo comando do projeto.
+
+Fechamento após tasks/reviews e retenção seguem esse owner consumidor; resultados
+ficam no registro escolhido pelo projeto, sem plano concorrente. Referência genérica:
+[método CI Queue](https://github.com/nmarcofernandess/ci-queue/blob/main/docs/TESTING-METHOD.md).
