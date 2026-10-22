@@ -10,6 +10,22 @@ from ci_queue_api.history import build_preset_history, _canonical_git_green
 CASES = json.loads((Path(__file__).parents[1] / 'fixtures/finalization-completion.json').read_text())
 
 class FinalizationTests(unittest.TestCase):
+    def test_valid_publication_with_uncertain_cleanup_is_canonical_green(self):
+        case = next(case for case in CASES if case['name'] == 'passed-valid-publication-cleanup-uncertain')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'history').mkdir()
+            (root / 'state/finalization').mkdir(parents=True)
+            (root / 'history/job-1.json').write_text(case['terminalBytes'])
+            (root / 'state/finalization/job-1.json').write_text(json.dumps(case['record']))
+            job = read_history(root)[0]
+            self.assertTrue(canonical_green(job, {'argv': ['check'], 'finalization': job['finalization']}))
+            completion = public_job(job)['completion']
+            self.assertEqual(completion['state'], 'complete')
+            self.assertTrue(completion['eligible'])
+            self.assertEqual(completion['testStatus'], 'passed')
+            self.assertEqual(completion['finalization'], {'phase': 'passed', 'cleanup': 'uncertain', 'recovery': 'none'})
+
     def test_shared_cases_through_real_history(self):
         for case in CASES:
             if case['terminalDigest'] != __import__('hashlib').sha256(case['terminalBytes'].encode()).hexdigest():

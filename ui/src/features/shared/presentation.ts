@@ -151,7 +151,11 @@ export function describeExecutionState(
   return {
     ...base,
     ...(finalization || retry ? {
-      detail: detail(finalization && completion?.state === "complete" && "Finalização concluída", retry),
+      detail: detail(
+        finalization && completion?.state === "complete" && "Finalização concluída",
+        finalization?.cleanup === "uncertain" && "Limpeza não confirmada · O finalizador não confirmou a limpeza",
+        retry
+      ),
     } : {}),
   }
 }

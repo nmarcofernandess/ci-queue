@@ -24,6 +24,14 @@ describe("composed completion", () => {
       expect(executionCompletion(source.ticket,source.record,source.terminalDigest)).toMatchObject(sample.expected)
     }
   })
+  it("returns exit 0 for a valid publication with uncertain cleanup", () => {
+    const sample = cases.find((sample: { name: string }) => sample.name === "passed-valid-publication-cleanup-uncertain")
+    const ticket = JSON.parse(sample.terminalBytes)
+    const completion = executionCompletion(ticket, sample.record, sample.terminalDigest)
+    expect(completion).toMatchObject({ state: "complete", eligible: true, testStatus: "passed" })
+    expect(completion.finalization?.result?.cleanup).toBe("uncertain")
+    expect(completionExitCode(ticket, completion)).toBe(0)
+  })
   it("binds history and hook to the exact source bytes, including formatting", () => {
     const root = mkdtempSync(join(tmpdir(), "completion-")); roots.push(root)
     mkdirSync(join(root,"history")); mkdirSync(join(root,"state/finalization"), {recursive:true})

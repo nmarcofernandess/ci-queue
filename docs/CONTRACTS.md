@@ -79,6 +79,18 @@ Ambos preservam `cleanup` confirmed/not-required/uncertain e `outputs` como refe
 A validação do resultado (até 64 KiB), supervisão e recuperação pertencem ao
 supervisor. A finalização não converte teste reprovado em aprovado.
 
+Publicação válida e cleanup são fatos separados. Fonte e contrato correspondentes,
+resultado normalizado, outputs válidos, fase passed, exitCode=0, recovery=none e
+ausência de error/failureReason concluem a finalização mesmo com cleanup=uncertain.
+O teste passed/exitCode=0 continua elegível e o CLI retorna zero; o descriptor
+preserva o aviso “Limpeza não confirmada · O finalizador não confirmou a limpeza”.
+O supervisor não fabrica error, failureReason ou saída não zero somente por esse
+aviso. Fonte/digest/contrato inválido, outputs inválidos, error, saída não zero,
+recovery retryable/blocked-ownership e fases failed/interrupted continuam sem
+elegibilidade. Fase failed histórica não é reinterpretada como publicação válida;
+teste failed/cancelled/interrupted conserva seu resultado, mesmo com finalização
+concluída.
+
 Antes de publicar history, o runner preserva sua candidata terminal em running
 (ou no claim de cancelamento queued) e cria pending. O `ticketDigest` sela os
 bytes reais de `history/<id>.json`; a recuperação nunca reescreve esse terminal
@@ -112,8 +124,11 @@ não impede trabalho novo por ser histórica. Finalize explícito retorna não z
 com `FINALIZATION_FAILED` e a causa terminal, ou `FINALIZATION_PENDING` para
 reparo/posse bloqueada. ID inválido ou fonte ausente não produz sucesso vazio.
 Uma entrada ociosa sem trabalho não cria loop de retry.
-Finalização ativa, recovery pendente ou cleanup incerto impedem manutenção da
-instalação; não apague registros/reservas para trocar a release. Veja [INSTALL](INSTALL.md).
+Somente execução ativa do teste ou da tentativa atual de finalização reserva o
+executor e impede manutenção da instalação. Recovery pendente, resíduos e cleanup
+incerto históricos conservam seu diagnóstico sem bloquear trabalho novo ou exigir
+faxina global; os guards da fonte e do writer continuam valendo para o próprio ID.
+Não apague registros/reservas para trocar a release. Veja [INSTALL](INSTALL.md).
 
 ## Método de teste adotado pelo consumidor
 

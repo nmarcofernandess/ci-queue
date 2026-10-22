@@ -145,6 +145,18 @@ describe('public terminal completion presentation', () => {
     expect(describeExecutionState(job({ state: 'failed', eligible: false, testStatus: 'passed', reason: 'cleanup-uncertain', finalization: { phase: 'passed', cleanup: 'uncertain' } })))
       .toMatchObject({ label: 'Limpeza não confirmada', detail: 'Teste passou; entrega incompleta · O finalizador não confirmou a limpeza', colorClass: 'text-destructive' })
   })
+  it('keeps a valid publication passed and exposes uncertain cleanup as a warning', () => {
+    const published = job({ state: 'complete', eligible: true, testStatus: 'passed', finalization: { phase: 'passed', cleanup: 'uncertain', recovery: 'none' } })
+    expect(describeExecutionState(published)).toMatchObject({
+      ...describeJobState('passed'),
+      detail: 'Finalização concluída · Limpeza não confirmada · O finalizador não confirmou a limpeza',
+    })
+    expect(describeCompletionFacts(published)).toEqual([
+      { label: 'Resultado do teste', value: 'Teste passou' },
+      { label: 'Finalização', value: 'Finalização concluída' },
+      { label: 'Limpeza', value: 'Limpeza não confirmada · O finalizador não confirmou a limpeza' },
+    ])
+  })
   for (const status of ['passed', 'failed', 'cancelled', 'interrupted'] as const) {
     it(`preserves ${status} after confirmed cleanup and successful finalization`, () => {
       const state = describeExecutionState(job({ state: 'complete', eligible: status === 'passed', testStatus: status, finalization: { phase: 'passed', cleanup: 'confirmed' } }, status))

@@ -101,7 +101,6 @@ describe("post-terminal finalization", () => {
   })
 
   it.each([
-    { name: "cleanup uncertain", code: `${readInput}; ${writeResult("uncertain")}`, reason: "cleanup" },
     { name: "missing result", code: "process.exit(0)", reason: "resultado" },
     { name: "invalid result", code: `${readInput}; fs.writeFileSync(input.resultPath, '{')`, reason: "resultado" },
     { name: "non-string cleanup", code: `${readInput}; fs.writeFileSync(input.resultPath, JSON.stringify({schemaVersion:1,cleanup:['confirmed'],outputs:[]}))`, reason: "resultado" },
@@ -127,6 +126,19 @@ describe("post-terminal finalization", () => {
     await runWorker(f.state)
     expect(record(f.state, ticket.id)).toMatchObject({phase:"passed",result:{cleanup:"confirmed",outputs:[{path:"published",sha256:sha256("owned receipt"),role:"receipt"}]}})
     expect(readJsonFile<QueueTicket>(historyPath(f.state,ticket.id))).toMatchObject({status:"passed",exitCode:0})
+  })
+
+  it.each([1, 2] as const)("keeps a v%s valid publication passed with uncertain cleanup", async schemaVersion => {
+    const f = fixture()
+    const ticket = enqueue(f, "process.exit(0)", { ...hook(`${readInput};fs.writeFileSync('published','owned receipt');fs.writeFileSync(input.resultPath,JSON.stringify({schemaVersion:${schemaVersion},cleanup:'uncertain',${schemaVersion === 2 ? "recovery:'none'," : ""}outputs:[{path:'published',sha256:'${sha256("owned receipt")}',role:'receipt'}]}))`), schemaVersion })
+    const next = enqueue(f, "process.exit(0)", undefined, undefined, 1)
+    expect((await runWorker(f.state)).processed).toEqual([ticket.id, next.id])
+    const current = record(f.state, ticket.id)!
+    expect(current).toMatchObject({ phase: "passed", exitCode: 0, recovery: "none", result: { cleanup: "uncertain", outputs: [{ path: "published", sha256: sha256("owned receipt"), role: "receipt" }] } })
+    expect(current.failureReason).toBeUndefined()
+    expect(current.result?.error).toBeUndefined()
+    const terminalBytes = readFileSync(historyPath(f.state, ticket.id))
+    expect(executionCompletion(JSON.parse(terminalBytes.toString()), current, sha256(terminalBytes))).toMatchObject({ state: "complete", eligible: true, testStatus: "passed" })
   })
 
   it("reports spawn failure without rewriting a failed test", async () => {
@@ -850,7 +862,11 @@ it.each(['timeout', 'SIGKILL', 'malformed'] as const)('classifies v2 %s using th
 })
 
 describe("Task 13 review repairs", () => {
-  it.each([false, true])("reconciles a residual result after observed ownership blockage (current failure=%s)", async failed => {
+  it.each([
+    { failed: false, cleanup: "confirmed" },
+    { failed: false, cleanup: "uncertain" },
+    { failed: true, cleanup: "uncertain" },
+  ])("reconciles a residual result after observed ownership blockage (current failure=$failed, cleanup=$cleanup)", async ({ failed, cleanup }) => {
     const f = fixture()
     registerProjectRuntime(f.state, { projectId: "fixture", node: process.execPath })
     const ticket = await terminalFixture(f, { ...hook(`require('node:fs').writeFileSync(${JSON.stringify(f.events)},'rerun')`), schemaVersion: 2 })
@@ -862,12 +878,13 @@ describe("Task 13 review repairs", () => {
     expect(staleReason).toEqual(expect.any(String))
     await owner.stop()
     atomicWriteJson(join(dirname(recordPath(f.state, ticket.id)), `${ticket.id}.result.json`), {
-      schemaVersion: 2, cleanup: failed ? "uncertain" : "confirmed", recovery: "none", outputs: [], ...(failed ? { error: "current result failed" } : {}),
+      schemaVersion: 2, cleanup, recovery: "none", outputs: [], ...(failed ? { error: "current result failed" } : {}),
     })
     const report = await reconcileFinalizations(f.state)
     const current = record(f.state, ticket.id)!
     expect(current.phase).toBe(failed ? "failed" : "passed")
     expect(current.failureReason).toBe(failed ? "current result failed" : undefined)
+    expect(current.exitCode).toBe(failed ? 1 : 0)
     expect(executionCompletion(ticket, current, sha256(terminal))).toMatchObject({ state: failed ? "failed" : "complete", eligible: !failed })
     expect(report).toEqual({ blocked: [], pending: [], failed: failed ? [{ id: ticket.id, error: "current result failed" }] : [], reconciled: failed ? [] : [ticket.id] })
     expect(current.attempt).toBe(1)
