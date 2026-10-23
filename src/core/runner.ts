@@ -360,8 +360,7 @@ async function closeAndMaybeDropSidecar(root: string, candidate: QueueTicket, ru
   if (authoritative) {
     const producer = observeTestProducer(ticket)
     if (producer.state !== "dead") {
-      atomicWriteJson(queuePaths(root).running, { ...ticket, cleanupBlockedReason: producer.reason })
-      appendRedactedLog(ticket.logPath, `[finalization] ${producer.reason}; reserva preservada\n`)
+      appendRedactedLog(ticket.logPath, `[finalization] ${producer.reason}; resíduo preservado\n`)
       if (ticket.finalization) await runFinalization(root, ticket, activation)
       return ticket
     }
@@ -459,28 +458,22 @@ export async function reconcileInterruptedJob(root: string, activation?: Recover
   if (!running) return { state: "none" }
   if (isTerminalStatus(running.status)) {
     const terminal = await closeAndMaybeDropSidecar(root, running, undefined, activation)
-    const reserved = readRunningJob(root)
-    return reserved?.id === terminal.id && reserved.cleanupBlockedReason
-      ? { state: "blocked", job: reserved }
-      : { state: "reconciled", job: terminal }
+    return { state: "reconciled", job: terminal }
   }
   if (running.workerPid && running.workerPid !== process.pid) {
     try { process.kill(running.workerPid, 0); return { state: "active", job: running } } catch { /* dead owner */ }
   }
   const termination = await terminateVerifiedProcessGroup(running.processGroupIdentity)
-  if (!termination.terminated) {
-    const blocked = { ...running, cleanupBlockedReason: `recuperação interrompida: ${termination.reason}` }
-    atomicWriteJson(queuePaths(root).running, blocked)
-    appendRedactedLog(blocked.logPath, `[${new Date().toISOString()}] ${blocked.cleanupBlockedReason}\n`)
-    return { state: "blocked", job: blocked }
-  }
+  const cleanupBlockedReason = termination.terminated ? undefined : `recuperação interrompida: ${termination.reason}`
+  if (cleanupBlockedReason) appendRedactedLog(running.logPath, `[${new Date().toISOString()}] ${cleanupBlockedReason}; resíduo preservado\n`)
   const collector = new ProgressCollector(root, running.id)
   const withProgress = withFinalProgress(root, {
     ...running,
     status: "interrupted",
     finishedAt: new Date().toISOString(),
     exitCode: null,
-    failureReason: "worker interrompido; processo filho encerrado durante a recuperação",
+    failureReason: termination.terminated ? "worker interrompido; processo filho encerrado durante a recuperação" : "worker interrompido; encerramento do processo filho não confirmado",
+    ...(cleanupBlockedReason ? { cleanupBlockedReason } : {}),
   }, collector, { publishSkippedArtifacts: true })
   const terminal = await closeAndMaybeDropSidecar(root, withProgress, undefined, activation)
   return { state: "reconciled", job: terminal }

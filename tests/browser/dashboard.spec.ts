@@ -911,7 +911,7 @@ for (const theme of ['light', 'dark'] as const) {
       const labels: Record<string, string> = {
         confirmed: 'Passou · Finalização concluída', pending: 'Finalizando · Teste passou', running: 'Finalizando · Teste passou',
         failed: 'Falha na finalização · Teste passou; entrega incompleta',
-        uncertain: 'Limpeza não confirmada · Teste passou; entrega incompleta · O finalizador não confirmou a limpeza',
+        uncertain: 'Passou · Finalização concluída · Limpeza não confirmada · O finalizador não confirmou a limpeza',
         'failed-test': 'Falhou · Finalização concluída', 'legacy-3': 'Passou',
         'missing-record': 'Finalizando · Teste passou · Finalização não verificada',
         'wrong-ticket': 'Finalizando · Teste passou · Finalização não verificada',
@@ -932,7 +932,11 @@ for (const theme of ['light', 'dark'] as const) {
         await expect(facts.getByRole('rowheader')).toHaveText(['Resultado do teste', 'Finalização', 'Limpeza'])
         await expect(facts).toContainText(job.status === 'failed' ? 'Teste falhou' : 'Teste passou')
         if (job.id === 'legacy-3') await expect(facts).toContainText('Sem registro de finalização')
-        if (job.id === 'uncertain') await expect(facts).toContainText('Finalizador encerrado; entrega incompleta')
+        if (job.id === 'uncertain') await expect(facts.getByRole('cell')).toHaveText([
+          'Teste passou',
+          'Finalização concluída',
+          'Limpeza não confirmada · O finalizador não confirmou a limpeza',
+        ])
         if (job.id === 'failed-test') await expect(drawer).toContainText('Original test assertion failed')
         if (job.id === 'v2-retryable') await expect(facts).toContainText('Recuperação pendente')
         if (job.id === 'v2-blocked') await expect(facts).toContainText('Propriedade dos processos não confirmada')

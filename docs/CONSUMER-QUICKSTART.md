@@ -14,6 +14,7 @@ O projeto precisa do comando de teste verdadeiro e das dependências que ele usa
 
 ## 2. Mantenha o comando independente; aponte a Queue se desejado
 
+O consumidor escolhe execução direta ou Queue; Jest puro não exige fila.
 O catálogo aponta para comandos que já funcionam no projeto; CI Queue os executa com supervisão, fila e registros. Rodar o comando diretamente continua válido e não cria ticket nem prova reutilizável pelo ship genérico. Para exigir duas verificações, faça um agregador que execute ambas e preserve falhas. `acceptedPresets: ["lint","test"]` significa **OR**, não AND.
 
 Mantenha o teste como uma única receita. Um teste avulso pode continuar mesmo que a base avance; não configure `fetchBase` ou `abortOnStaleBase` só para transformá-lo em prova. Se o repositório possui um ship próprio, esse processo pode aplicar flags estritas no enqueue da mesma receita, validar o ticket e revalidar HEAD/base antes do merge. O ship genérico atual lê as flags do catálogo e exige que as receitas aceitas já sejam ship-bound. O consumidor decide se um teste isolado é cancelável. O CI Queue executa as flags recebidas; não deduz intenção de ship pelo nome da receita ou pelo diff.
@@ -40,7 +41,9 @@ ci-queue init --cwd "$PWD" --name "Meu projeto" --base-ref origin/dev \
   --argv-json '["npm","run","check"]' --json
 ```
 
-`init` não inicializa Git, não instala dependências, não inventa testes e não cadastra o projeto no dashboard. Pode declarar progress, mas não instrumenta o script. Preserve `project.id`. O catálogo precisa estar commitado em H antes do ship.
+`init` não inicializa Git, não instala dependências, não inventa testes e não cadastra o projeto no dashboard. Pode declarar progress, mas não instrumenta o script. Preserve `project.id`. `init` pode inferir `scripts.check` inequívoco; não é preciso desativar essa
+inferência válida. Adoção standalone não exige flags ship-bound; elas governam
+as receitas aceitas pelo ship. O catálogo precisa estar commitado em H antes do ship.
 
 ## 3. Atualize as instruções do consumidor
 
@@ -50,7 +53,8 @@ Use `templates/adoption/AGENTS.fragment.md` como ponteiro e adapte
 `templates/adoption/ci.yaml` para `.context/patterns/ci.yaml`. Mantenha
 `feedback.available: false` até existir uma receita real no catálogo; então
 aponte `method` para o procedimento do consumidor e registre seus comandos e
-perfil. O mapa é navegação para humanos/agentes, não é lido pelo runtime. O
+perfil. Resolva mapa e `method` desde a raiz do consumidor: default
+`docs/ci/TESTING-METHOD.md`, customizável para seu owner existente. O mapa é navegação para humanos/agentes, não é lido pelo runtime. O
 catálogo `ci-queue.json` continua sendo a autoridade de receitas, flags e
 finalização. A skill curta de adoção está em `templates/adoption/SKILL.md`.
 
@@ -66,7 +70,10 @@ migração, sem fallback.
 Não declare diretórios em `artifacts`: a Queue não copia mídia. Se o consumidor
 precisar de arquivos, congele um hook `finalization` v2 com contrato próprio; o
 hook publica no repositório consumidor depois do postflight e retorna referências
-com hash e cleanup. Sem consumidor, não produza arquivos. Os formatos e a entrada
+com hash e diagnóstico de cleanup. Hook é opcional salvo contrato de outputs
+declarado. Publicação válida pode concluir com aviso cleanup uncertain; erros,
+outputs inválidos e recovery pendente continuam recusados. Resíduo histórico não
+bloqueia drain/install. Sem consumidor, não produza arquivos. Os formatos e a entrada
 `ci-queue finalize <id>` estão em [CONTRACTS](CONTRACTS.md#finalização-terminal-terminal-finalization-v1).
 
 ```bash
@@ -93,7 +100,10 @@ ci-queue guard --cwd "$PROJECT" --config "$PROJECT/ci-queue.json" --state "$STAT
 
 O comando `guard` valida a associação com um ticket em execução e pode retornar `QUEUE_REQUIRED` fora desse contexto. Não enfileira automaticamente. O worker injeta `CI_QUEUE_JOB_ID` / aliases. Scripts que não adotam essa política não precisam chamar o guard.
 
-No Project Manager, confira e registre pasta/catálogo para inventário e histórico filtrado. Running e fila permanecem globais. Binding Node em `runtimes.json` é separado do cadastro; ver [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md).
+No Project Manager, confira e registre pasta/catálogo para inventário e histórico filtrado. Running e fila permanecem globais. Binding Node em `runtimes.json` é opt-in e separado do cadastro e do Node do
+worker. A receita deve carregar a configuração do próprio checkout no executor
+efetivo; o ambiente do caller não basta. Loader/framework, outputs e cache:
+[RUNTIME-ISOLATION](RUNTIME-ISOLATION.md#configuração-do-consumidor-no-executor).
 
 ### 4.2 Observação terminal opcional (sem enfileirar)
 

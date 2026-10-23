@@ -151,7 +151,8 @@ def execution_completion(ticket, record=None, terminal_digest=None):
         return result('failed', 'finalization-failed', bound=True)
     cleanup = output['cleanup']
     if (record.get('phase') != 'passed' or type(record.get('exitCode')) is not int or record['exitCode'] != 0
-            or record.get('recovery', 'none') != output.get('recovery', 'none') or record.get('failureReason') or output.get('error') or cleanup not in ('confirmed', 'not-required')):
+            or record.get('recovery', 'none') != 'none' or record.get('recovery', 'none') != output.get('recovery', 'none')
+            or record.get('failureReason') or output.get('error')):
         return result('failed', 'cleanup-uncertain' if cleanup == 'uncertain' else 'finalization-failed', bound=True)
     return result('complete', bound=True, eligible=test_passed)
 

@@ -1,3 +1,4 @@
+# Todos os paths deste mapa são relativos à raiz do consumidor.
 schema: ci-method-v1
 runtime_contract: ci-queue.json
 method: docs/ci/TESTING-METHOD.md
@@ -5,10 +6,15 @@ feedback:
   available: false
   reason: Defina uma receita real do consumidor antes de ativar este perfil.
 proof:
-  authority: ship.acceptedPresets no catálogo
+  authority: contrato_do_consumidor__ship.acceptedPresets_se_ship_adotado
 outputs:
   owner: contrato_do_consumidor
   storage: consumidor_sem_copia_pela_Queue
-  completion: finalization_v2_cleanup_confirmado
+  completion: terminal_do_comando__publicacao_e_cleanup_separados
+  finalization: opcional_salvo_contrato_de_outputs_declarado
+runtime:
+  configuration: loader_do_consumidor_no_executor_efetivo
+  node_binding: opt_in_por_projectId
+  cache: lifecycle_do_consumidor__preservar_cache_util
 resume:
   inspect: [host, cwd, installed_revision, installed_protocol, state_root, session, ticket, finalization]

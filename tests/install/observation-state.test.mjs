@@ -58,6 +58,18 @@ function sourceFixture() {
   return root
 }
 
+function releasedRuntime(state, sessions) {
+  const {uid,ino,dev}=lstatSync(sessions)
+  mkdirSync(join(state,"runtime"),{mode:0o700})
+  const directory=join(realpathSync(state),"runtime","session-fixture")
+  const group={hostname:hostname(),leaderPid:999999,pgid:999999,startedAt:"fixture"}
+  return {schemaVersion:1,runtimeId:"session-fixture",sessionId:"fixture",projectId:"example",ticketId:"fixture",
+    token:"a".repeat(64),bindingDigest:"b".repeat(64),requirementDigest:"c".repeat(64),
+    directory,directoryIdentity:{uid,ino:1,dev},catalogIdentity:{uid,ino,dev},owner:group,producer:group,groups:[group],
+    evidenceOffset:0,state:"released",stateRevision:3,env:{},receipt:{capability:"node-runtime-guard-v1",coverage:"guarded-node-processes",state:"prepared",observations:[],
+    evidencePath:join(directory,"processes.jsonl"),requirementDigest:"c".repeat(64),node:{executable:process.execPath,version:process.versions.node,sha256:"d".repeat(64)}}}
+}
+
 test("launcher defaults CI_QUEUE_STATE_DIR; observe lands in custom state", () => {
   const root = sourceFixture()
   const prefix = join(root, "prefix with space")
@@ -135,15 +147,8 @@ test("installer-refuses-active-or-uncertain-session-runtime including broken rel
       writeFileSync(join(sessions, "session-fixture.json"), JSON.stringify(record), { mode: 0o600 })
       assert.throws(() => installRelease(input), /runtime.*sessão|sessão.*runtime/)
     }
-    const {uid,ino,dev}=lstatSync(sessions)
-    mkdirSync(join(state,"runtime"),{mode:0o700})
-    const directory=join(realpathSync(state),"runtime","session-fixture")
-    const group={hostname:hostname(),leaderPid:999999,pgid:999999,startedAt:"fixture"}
-    const released={schemaVersion:1,runtimeId:"session-fixture",sessionId:"fixture",projectId:"example",ticketId:"fixture",
-      token:"a".repeat(64),bindingDigest:"b".repeat(64),requirementDigest:"c".repeat(64),
-      directory,directoryIdentity:{uid,ino:1,dev},catalogIdentity:{uid,ino,dev},owner:group,producer:group,groups:[group],
-      evidenceOffset:0,state:"released",stateRevision:3,env:{},receipt:{capability:"node-runtime-guard-v1",coverage:"guarded-node-processes",state:"prepared",observations:[],
-        evidencePath:join(directory,"processes.jsonl"),requirementDigest:"c".repeat(64),node:{executable:process.execPath,version:process.versions.node,sha256:"d".repeat(64)}}}
+    const released = releasedRuntime(state, sessions)
+    const directory = released.directory
     writeFileSync(join(sessions,"session-fixture.json"),JSON.stringify(released),{mode:0o600})
     assert.equal(installRelease(input).activationStatus,"staged")
     symlinkSync(join(root,"missing-bundle-target"),directory)
@@ -171,5 +176,55 @@ test("installer-refuses-active-or-uncertain-session-runtime including broken rel
     mkdirSync(join(state, "reserved-data"))
     writeFileSync(join(state, "reserved-data", "reservation.json"), "{}")
     assert.equal(installRelease(input).activationStatus, "staged")
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+test("released receipt with historical catalog identity permits stage and update without changing bytes", () => {
+  const root = sourceFixture()
+  try {
+    const state = join(root, "state")
+    const sessions = join(state, "runtime-sessions")
+    mkdirSync(sessions, { recursive: true, mode: 0o700 })
+    const released = releasedRuntime(state, sessions)
+    const current = released.catalogIdentity
+    released.catalogIdentity = { uid: current.uid + 1, ino: current.ino + 1, dev: current.dev + 1 }
+    const receiptPath = join(sessions, "session-fixture.json")
+    const bytes = JSON.stringify(released) + "\n"
+    writeFileSync(receiptPath, bytes, { mode: 0o600 })
+    const options = { stateRoot: state, prefix: join(root, "prefix"), nodePath: process.execPath, pythonPath: "/usr/bin/python3" }
+    for (const revision of ["a".repeat(40), "b".repeat(40)]) {
+      const { destination } = buildRelease({ root, outputDir: join(root, "bundles"), revision })
+      const installed = installRelease({ ...options, bundle: destination })
+      assert.equal(installed.revision, revision)
+      assert.equal(installed.activationStatus, "staged")
+      assert.equal(readFileSync(receiptPath, "utf8"), bytes)
+    }
+    const { destination } = buildRelease({ root, outputDir: join(root, "bundles"), revision: "c".repeat(40) })
+    const input = { ...options, bundle: destination }
+    for (const currentState of ["active", "closing"]) {
+      const currentBytes = JSON.stringify({ ...released, state: currentState })
+      writeFileSync(receiptPath, currentBytes)
+      assert.throws(() => installRelease(input), /runtime.*sessão/)
+      assert.equal(readFileSync(receiptPath, "utf8"), currentBytes)
+    }
+    writeFileSync(receiptPath, bytes)
+    for (const kind of ["bundle", "broken symlink", "claim", "lock"]) {
+      const path = kind === "claim" ? join(state, "claims", "fixture.json")
+        : kind === "lock" ? join(state, "locks", "runner.lock") : released.directory
+      if (kind === "bundle") mkdirSync(path)
+      else if (kind === "broken symlink") symlinkSync(join(root, "missing-target"), path)
+      else { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, "reserved") }
+      assert.throws(() => installRelease(input), /runtime.*sessão|incerto/)
+      assert.equal(readFileSync(receiptPath, "utf8"), bytes)
+      assert.equal(lstatSync(path).isSymbolicLink(), kind === "broken symlink")
+      if (kind === "claim" || kind === "lock") assert.equal(readFileSync(path, "utf8"), "reserved")
+      rmSync(path, { recursive: kind === "bundle" })
+    }
+    for (const catalogIdentity of [null, { ...current, ino: -1 }, { ...current, dev: "old" }]) {
+      const invalid = JSON.stringify({ ...released, catalogIdentity })
+      writeFileSync(receiptPath, invalid)
+      assert.throws(() => installRelease(input), /runtime.*sessão/)
+      assert.equal(readFileSync(receiptPath, "utf8"), invalid)
+    }
   } finally { rmSync(root, { recursive: true, force: true }) }
 })

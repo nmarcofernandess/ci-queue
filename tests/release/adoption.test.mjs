@@ -81,6 +81,54 @@ function git(cwd, ...args) {
   return execFileSync("git", args, { cwd, encoding: "utf8", stdio: "pipe" }).trim()
 }
 
+test("adoption templates resolve from consumer root", () => {
+  const temporaryRoot = mkdtempSync(join(tmpdir(), "ci-queue-adoption-paths-"))
+  const consumer = join(temporaryRoot, "unrelated", "nested", "consumer")
+  try {
+    const copies = [
+      ["AGENTS.fragment.md", "AGENTS.md"],
+      ["SKILL.md", ".agents/skills/testing/SKILL.md"],
+      ["ci.yaml", ".context/patterns/ci.yaml"],
+    ]
+    for (const [source, destination] of copies) {
+      mkdirSync(dirname(join(consumer, destination)), { recursive: true })
+      cpSync(join(productRoot, "templates/adoption", source), join(consumer, destination))
+    }
+    // Default procedure and an existing owner chosen by a consumer.
+    for (const owner of ["docs/ci/TESTING-METHOD.md", "docs/ci/FEEDBACK-LOOP.md"]) {
+      mkdirSync(dirname(join(consumer, owner)), { recursive: true })
+      writeFileSync(join(consumer, owner), "# Consumer procedure\n")
+    }
+    const mapPath = join(consumer, ".context/patterns/ci.yaml")
+    const originalMap = readFileSync(mapPath, "utf8")
+    for (const owner of ["docs/ci/TESTING-METHOD.md", "docs/ci/FEEDBACK-LOOP.md"]) {
+      const configuredMap = owner.endsWith("FEEDBACK-LOOP.md")
+        ? originalMap.replace(/^method:.*$/m, `method: ${owner}`)
+        : originalMap
+      writeFileSync(mapPath, configuredMap)
+      for (const file of ["AGENTS.md", ".agents/skills/testing/SKILL.md"]) {
+        const source = readFileSync(join(consumer, file), "utf8")
+        const links = [...source.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)]
+        const resolvedMaps = []
+        for (const [, target] of links) {
+          if (/^https?:/.test(target)) continue
+          const destination = join(consumer, target.split("#")[0])
+          assert.equal(existsSync(destination), true, `${file}: missing consumer-root target ${target}`)
+          if (target.endsWith(".yaml")) resolvedMaps.push(destination)
+        }
+        assert.deepEqual(resolvedMaps, [mapPath], `${file}: resolve the consumer method map`)
+        const procedure = readFileSync(resolvedMaps[0], "utf8").match(/^method: (.+)$/m)?.[1]
+        assert.equal(readFileSync(join(consumer, procedure), "utf8"), "# Consumer procedure\n")
+      }
+      const declaredOwner = configuredMap.match(/^method: (.+)$/m)?.[1]
+      assert.equal(declaredOwner, owner)
+      assert.equal(existsSync(join(consumer, declaredOwner)), true, `missing declared owner ${declaredOwner}`)
+    }
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true })
+  }
+})
+
 test("the release bundle serves a minimal Node Git consumer, not a product E2E, without its source fixture", () => {
   const temporaryRoot = mkdtempSync(join(tmpdir(), "ci-queue-adoption-"))
   const sourceRoot = releaseSourceFixture(join(temporaryRoot, "source-checkout"))
@@ -108,27 +156,11 @@ test("the release bundle serves a minimal Node Git consumer, not a product E2E, 
       assert.equal(existsSync(join(bundle, path)), true, `release bundle must contain ${path}`)
     }
 
-    const fragment = readFileSync(join(bundle, "templates/adoption/AGENTS.fragment.md"), "utf8")
-    assert.equal(fragment, [
-      "## Testes e CI",
-      "Leia `.context/patterns/ci.yaml` para saber quais receitas o projeto escolheu",
-      "expor ao CI Queue. Os comandos do projeto permanecem executáveis diretamente;",
-      "Queue é uma opção de agendamento, supervisão, logs, histórico e cancelamento.",
-      "Feedback é focal e não representa prova final. Ao retomar uma execução",
-      "enfileirada, confira seu ticket antes de criar outro. Encerre os recursos próprios",
-      "pelo comando documentado pelo projeto.",
-      "",
-      "Fechamento após tasks/reviews e retenção seguem o procedimento do consumidor e",
-      "`docs/TESTING-METHOD.md#fechamento-depois-da-autoria` no CI Queue; resultados ficam",
-      "no registro selecionado pelo projeto, sem plano concorrente.",
-      "",
-    ].join("\n"))
-
     const adoptionMap = readFileSync(join(bundle, "templates/adoption/ci.yaml"), "utf8")
     assert.match(adoptionMap, /^schema: ci-method-v1$/m)
     assert.match(adoptionMap, /^runtime_contract: ci-queue\.json$/m)
     assert.match(adoptionMap, /^  available: false$/m)
-    assert.match(adoptionMap, /^  authority: ship\.acceptedPresets no catálogo$/m)
+    assert.match(adoptionMap, /^  authority: contrato_do_consumidor__ship\.acceptedPresets_se_ship_adotado$/m)
     assert.doesNotMatch(adoptionMap, /^\s*(command|argv|run):/m)
 
     const method = readFileSync(join(bundle, "docs/TESTING-METHOD.md"), "utf8")

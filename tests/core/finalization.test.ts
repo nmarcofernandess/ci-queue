@@ -101,7 +101,6 @@ describe("post-terminal finalization", () => {
   })
 
   it.each([
-    { name: "cleanup uncertain", code: `${readInput}; ${writeResult("uncertain")}`, reason: "cleanup" },
     { name: "missing result", code: "process.exit(0)", reason: "resultado" },
     { name: "invalid result", code: `${readInput}; fs.writeFileSync(input.resultPath, '{')`, reason: "resultado" },
     { name: "non-string cleanup", code: `${readInput}; fs.writeFileSync(input.resultPath, JSON.stringify({schemaVersion:1,cleanup:['confirmed'],outputs:[]}))`, reason: "resultado" },
@@ -127,6 +126,19 @@ describe("post-terminal finalization", () => {
     await runWorker(f.state)
     expect(record(f.state, ticket.id)).toMatchObject({phase:"passed",result:{cleanup:"confirmed",outputs:[{path:"published",sha256:sha256("owned receipt"),role:"receipt"}]}})
     expect(readJsonFile<QueueTicket>(historyPath(f.state,ticket.id))).toMatchObject({status:"passed",exitCode:0})
+  })
+
+  it.each([1, 2] as const)("keeps a v%s valid publication passed with uncertain cleanup", async schemaVersion => {
+    const f = fixture()
+    const ticket = enqueue(f, "process.exit(0)", { ...hook(`${readInput};fs.writeFileSync('published','owned receipt');fs.writeFileSync(input.resultPath,JSON.stringify({schemaVersion:${schemaVersion},cleanup:'uncertain',${schemaVersion === 2 ? "recovery:'none'," : ""}outputs:[{path:'published',sha256:'${sha256("owned receipt")}',role:'receipt'}]}))`), schemaVersion })
+    const next = enqueue(f, "process.exit(0)", undefined, undefined, 1)
+    expect((await runWorker(f.state)).processed).toEqual([ticket.id, next.id])
+    const current = record(f.state, ticket.id)!
+    expect(current).toMatchObject({ phase: "passed", exitCode: 0, recovery: "none", result: { cleanup: "uncertain", outputs: [{ path: "published", sha256: sha256("owned receipt"), role: "receipt" }] } })
+    expect(current.failureReason).toBeUndefined()
+    expect(current.result?.error).toBeUndefined()
+    const terminalBytes = readFileSync(historyPath(f.state, ticket.id))
+    expect(executionCompletion(JSON.parse(terminalBytes.toString()), current, sha256(terminalBytes))).toMatchObject({ state: "complete", eligible: true, testStatus: "passed" })
   })
 
   it("reports spawn failure without rewriting a failed test", async () => {
@@ -312,6 +324,49 @@ function saveRecord(f: ReturnType<typeof fixture>, ticket: QueueTicket, value: P
   atomicWriteJson(path, { schemaVersion: 1, ticketId: ticket.id, ticketDigest: existsSync(historyPath(f.state, ticket.id)) ? sha256(readFileSync(historyPath(f.state, ticket.id))) : "0".repeat(64), finalizationDigest: ticket.finalizationDigest, phase: "pending", attempt: 0, ...value })
 }
 
+describe("terminal cleanup continuity", () => {
+  it("terminal-residue-does-not-starve-next-job", async () => {
+    const f = fixture()
+    const first = await terminalFixture(f, hook(`${readInput}; fs.writeFileSync(${JSON.stringify(f.events)},'unsafe replay'); ${writeResult()}`))
+    saveRecord(f, first, { phase: "interrupted", attempt: 1, recovery: "blocked-ownership" })
+    const originalTerminalBytes = readFileSync(historyPath(f.state, first.id))
+    const originalRecordBytes = readFileSync(recordPath(f.state, first.id))
+    const second = enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(f.hashes)},'next')`, undefined, undefined, 1)
+
+    await runWorker(f.state)
+
+    expect(readJsonFile<QueueTicket>(historyPath(f.state, second.id))?.status).toBe("passed")
+    expect(readRunningJob(f.state)).toBeUndefined()
+    expect(readFileSync(historyPath(f.state, first.id))).toEqual(originalTerminalBytes)
+    expect(readFileSync(f.hashes, "utf8")).toBe("next")
+    expect(existsSync(f.events)).toBe(false)
+    expect(record(f.state, first.id)).toMatchObject({ phase: "interrupted", recovery: "blocked-ownership", attempt: 1 })
+    expect((await reconcileFinalizations(f.state)).blocked).toContain(first.id)
+    expect(JSON.parse(originalRecordBytes.toString()).ticketDigest).toBe(record(f.state, first.id)?.ticketDigest)
+  })
+
+  it("terminal-descendant-does-not-recreate-running", async () => {
+    const f = fixture()
+    const queued = enqueue(f, "process.exit(0)", hook(`${readInput}; fs.writeFileSync(${JSON.stringify(f.events)},'unsafe replay'); ${writeResult()}`))
+    rmSync(jobPath(f.state, queued.id))
+    const first: QueueTicket = { ...queued, status: "passed", exitCode: 0, finishedAt: new Date().toISOString(),
+      processGroupIdentity: { schemaVersion: 1, hostname: "other-host.invalid", leaderPid: 999_999, pgid: 999_999, startedAt: "uncertain birth" } }
+    await closeRunningTicket(f.state, first)
+    atomicWriteJson(queuePaths(f.state).running, first)
+    const originalTerminalBytes = readFileSync(historyPath(f.state, first.id))
+    const second = enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(f.hashes)},'next')`, undefined, undefined, 1)
+
+    await runWorker(f.state)
+
+    expect(readRunningJob(f.state)).toBeUndefined()
+    expect(readJsonFile<QueueTicket>(historyPath(f.state, second.id))?.status).toBe("passed")
+    expect(readFileSync(historyPath(f.state, first.id))).toEqual(originalTerminalBytes)
+    expect(record(f.state, first.id)).toMatchObject({ phase: "interrupted", recovery: "blocked-ownership", attempt: 0 })
+    expect(existsSync(f.events)).toBe(false)
+    expect(readFileSync(f.hashes, "utf8")).toBe("next")
+  })
+})
+
 describe("finalization recovery and ownership", () => {
   it.each([{ phase: "unrecognized" }, { attempt: "not-a-number" }])("blocks a malformed persisted record %j without invoking its hook", async invalid => {
     const f = fixture()
@@ -392,7 +447,7 @@ describe("finalization recovery and ownership", () => {
     expect(record(f.state, ticket.id)).toMatchObject({ phase: "passed", attempt: 2 })
   })
 
-  it.each(["alive", "PID reused", "foreign host", "missing identity"])("preserves reservation and never signals an %s process", async kind => {
+  it.each(["alive", "PID reused", "foreign host", "missing identity"])("preserves local replay reservation without starving jobs or signalling an %s process", async kind => {
     const f = fixture()
     const foreignSentinel = join(f.cwd, "foreign")
     writeFileSync(foreignSentinel, "preserve")
@@ -410,9 +465,10 @@ describe("finalization recovery and ownership", () => {
       expect(record(f.state, ticket.id)?.failureReason).toEqual(expect.any(String))
       if (kind !== "alive") expect((await terminateVerifiedProcessGroup(identity)).terminated).toBe(false)
       const report = await runWorker(f.state)
-      expect(report.reconciliation).toBe("blocked")
-      expect(existsSync(jobPath(f.state, next.id))).toBe(true)
-      expect(existsSync(f.hashes)).toBe(false)
+      expect(report.processed).toEqual([next.id])
+      expect(report.recovery?.blocked).toContain(ticket.id)
+      expect(readRunningJob(f.state)).toBeUndefined()
+      expect(readFileSync(f.hashes, "utf8")).toBe("claimed")
       expect(readFileSync(foreignSentinel, "utf8")).toBe("preserve")
       expect(foreign.child.signalCode).toBeNull()
     } finally { await foreign.stop() }
@@ -594,7 +650,7 @@ describe("Task2 fix round 1", () => {
     } finally { await foreign.stop() }
   })
 
-  it("preserves original producer reservation and runtime while a descendant outlives its test leader", async () => {
+  it("preserves original producer runtime and local replay guard while a descendant outlives its test leader", async () => {
     const f = fixture()
     const ownerPath = join(f.root, "descendant-owner.json")
     const nextMarker = join(f.root, "next-job")
@@ -608,7 +664,6 @@ describe("Task2 fix round 1", () => {
     ].join(";")
     registerProjectRuntime(f.state, { projectId: "fixture", node: process.execPath })
     const ticket = enqueue(f, `require('node:fs').appendFileSync(${JSON.stringify(f.events)},'test\\n');const child=require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(descendant)}],{stdio:'ignore'});child.unref();setTimeout(()=>process.exit(0),150)`, hook(`${readInput};fs.writeFileSync(${JSON.stringify(f.hashes)},'hook');${writeResult()}`))
-    const cancelled = enqueue(f, "process.exit(9)", hook(`${readInput};fs.writeFileSync(${JSON.stringify(cancelledMarker)},'cleanup');${writeResult("not-required")}`), undefined, 1)
     const next = enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(nextMarker)},'next')`, undefined, undefined, 2)
     const worker = runWorker(f.state)
     let identity: WorkerIdentity | undefined
@@ -619,18 +674,20 @@ describe("Task2 fix round 1", () => {
       const report = await worker
       const before = sha256(readFileSync(historyPath(f.state, ticket.id)))
       const terminal = readJsonFile<QueueTicket>(historyPath(f.state, ticket.id))!
-      expect(report).toMatchObject({ reconciliation: "blocked" })
-      expect(readRunningJob(f.state)).toMatchObject({ id: ticket.id, cleanupBlockedReason: expect.any(String) })
+      expect(report.processed).toEqual([ticket.id, next.id])
+      expect(report.recovery?.blocked).toContain(ticket.id)
+      expect(readRunningJob(f.state)).toBeUndefined()
       expect(record(f.state, ticket.id)).toMatchObject({ phase: "interrupted", attempt: 0, failureReason: expect.stringContaining("produtor do teste") })
       expect(existsSync(terminal.runtime!.evidencePath!)).toBe(true)
       expect(existsSync(f.hashes)).toBe(false)
-      expect(existsSync(nextMarker)).toBe(false)
-      expect(existsSync(jobPath(f.state, next.id))).toBe(true)
+      expect(readFileSync(nextMarker, "utf8")).toBe("next")
+      expect(existsSync(jobPath(f.state, next.id))).toBe(false)
+      const cancelled = enqueue(f, "process.exit(9)", hook(`${readInput};fs.writeFileSync(${JSON.stringify(cancelledMarker)},'cleanup');${writeResult("not-required")}`), undefined, 3)
       await cancelQueuedOrRunningTicket(f.state, cancelled.id)
       await runFinalization(f.state, readJsonFile<QueueTicket>(historyPath(f.state, cancelled.id))!)
-      expect(existsSync(cancelledMarker)).toBe(false)
+      expect(readFileSync(cancelledMarker, "utf8")).toBe("cleanup")
       expect((await reconcileFinalizations(f.state)).blocked).toContain(ticket.id)
-      expect(await runWorker(f.state)).toMatchObject({ reconciliation: "blocked" })
+      expect(await runWorker(f.state)).toMatchObject({ processed: [] })
       expect(existsSync(f.hashes)).toBe(false)
       await stopFixtureDescendant(identity)
       await runWorker(f.state)
@@ -640,7 +697,8 @@ describe("Task2 fix round 1", () => {
       expect(readFileSync(cancelledMarker, "utf8")).toBe("cleanup")
       expect(readFileSync(f.events, "utf8").trim().split("\n")).toEqual(["test"])
       expect(sha256(readFileSync(historyPath(f.state, ticket.id)))).toBe(before)
-      expect(existsSync(terminal.runtime!.evidencePath!)).toBe(false)
+      // The original runtime residue was preserved while ownership was uncertain.
+      expect(existsSync(terminal.runtime!.evidencePath!)).toBe(true)
     } finally {
       identity ??= readJsonFile<WorkerIdentity>(ownerPath)
       if (identity) await stopFixtureDescendant(identity)
@@ -683,7 +741,7 @@ describe("Task2 fix round 2", () => {
     expect(existsSync(f.events)).toBe(false)
   })
 
-  it.each(["foreign host", "missing identity"])("keeps a legacy %s producer blocked instead of inferring local authority", async kind => {
+  it.each(["foreign host", "missing identity"])("closes a legacy %s producer with uncertain cleanup without inferring signal authority", async kind => {
     const f = fixture()
     const owner = await ownProcess(f.cwd)
     await owner.stop()
@@ -692,11 +750,11 @@ describe("Task2 fix round 2", () => {
     atomicWriteJson(queuePaths(f.state).running, { ...queued, schemaVersion: 3, status: "running", workerPid: owner.worker.pid, childPid: owner.child.pid, processGroupIdentity: kind === "missing identity" ? undefined : { ...owner.group, hostname: "other-host.invalid" } })
     const next = enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(f.events)},'next')`, undefined, undefined, 1)
 
-    expect(await runWorker(f.state)).toMatchObject({ reconciliation: "blocked", processed: [] })
-    expect(readRunningJob(f.state)).toMatchObject({ id: queued.id, status: "running", cleanupBlockedReason: expect.any(String) })
-    expect(existsSync(historyPath(f.state, queued.id))).toBe(false)
-    expect(existsSync(jobPath(f.state, next.id))).toBe(true)
-    expect(existsSync(f.events)).toBe(false)
+    expect(await runWorker(f.state)).toMatchObject({ reconciliation: "reconciled", processed: [next.id] })
+    expect(readRunningJob(f.state)).toBeUndefined()
+    expect(readJsonFile<QueueTicket>(historyPath(f.state, queued.id))).toMatchObject({ status: "interrupted", cleanupBlockedReason: expect.any(String), exitCode: null })
+    expect(existsSync(jobPath(f.state, next.id))).toBe(false)
+    expect(readFileSync(f.events, "utf8")).toBe("next")
   })
 
   it.each(["test producer", "previous hook"])("keeps a new finalization blocked when its %s has no hostname", async phase => {
@@ -714,11 +772,13 @@ describe("Task2 fix round 2", () => {
       const before = sha256(readFileSync(historyPath(f.state, terminal.id)))
       const next = enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(f.hashes)},'next')`, undefined, undefined, 1)
 
-      expect(await runWorker(f.state)).toMatchObject({ reconciliation: "blocked", processed: [] })
+      const report = await runWorker(f.state)
+      expect(report.processed).toEqual([next.id])
+      expect(report.recovery?.blocked).toContain(terminal.id)
       expect(record(f.state, terminal.id)?.failureReason).toContain("host/identidade")
-      expect(existsSync(jobPath(f.state, next.id))).toBe(true)
+      expect(existsSync(jobPath(f.state, next.id))).toBe(false)
       expect(existsSync(f.events)).toBe(false)
-      expect(existsSync(f.hashes)).toBe(false)
+      expect(readFileSync(f.hashes, "utf8")).toBe("next")
       expect(producer.child.signalCode).toBeNull()
       expect(observeWorkerIdentity(producer.worker).state).toBe("alive")
       expect(sha256(readFileSync(historyPath(f.state, terminal.id)))).toBe(before)
@@ -802,7 +862,11 @@ it.each(['timeout', 'SIGKILL', 'malformed'] as const)('classifies v2 %s using th
 })
 
 describe("Task 13 review repairs", () => {
-  it.each([false, true])("reconciles a residual result after observed ownership blockage (current failure=%s)", async failed => {
+  it.each([
+    { failed: false, cleanup: "confirmed" },
+    { failed: false, cleanup: "uncertain" },
+    { failed: true, cleanup: "uncertain" },
+  ])("reconciles a residual result after observed ownership blockage (current failure=$failed, cleanup=$cleanup)", async ({ failed, cleanup }) => {
     const f = fixture()
     registerProjectRuntime(f.state, { projectId: "fixture", node: process.execPath })
     const ticket = await terminalFixture(f, { ...hook(`require('node:fs').writeFileSync(${JSON.stringify(f.events)},'rerun')`), schemaVersion: 2 })
@@ -814,12 +878,13 @@ describe("Task 13 review repairs", () => {
     expect(staleReason).toEqual(expect.any(String))
     await owner.stop()
     atomicWriteJson(join(dirname(recordPath(f.state, ticket.id)), `${ticket.id}.result.json`), {
-      schemaVersion: 2, cleanup: failed ? "uncertain" : "confirmed", recovery: "none", outputs: [], ...(failed ? { error: "current result failed" } : {}),
+      schemaVersion: 2, cleanup, recovery: "none", outputs: [], ...(failed ? { error: "current result failed" } : {}),
     })
     const report = await reconcileFinalizations(f.state)
     const current = record(f.state, ticket.id)!
     expect(current.phase).toBe(failed ? "failed" : "passed")
     expect(current.failureReason).toBe(failed ? "current result failed" : undefined)
+    expect(current.exitCode).toBe(failed ? 1 : 0)
     expect(executionCompletion(ticket, current, sha256(terminal))).toMatchObject({ state: failed ? "failed" : "complete", eligible: !failed })
     expect(report).toEqual({ blocked: [], pending: [], failed: failed ? [{ id: ticket.id, error: "current result failed" }] : [], reconciled: failed ? [] : [ticket.id] })
     expect(current.attempt).toBe(1)
@@ -832,7 +897,7 @@ describe("Task 13 review repairs", () => {
     { source: "corrupt", owner: "supervisor" },
     { source: "missing", owner: "unknown" },
     { source: "missing", owner: "malformed record" },
-  ])("reserves an orphan record with $source terminal and $owner ownership until death is proven", async ({ source, owner }) => {
+  ])("refuses orphan replay with $source terminal and $owner ownership while draining unrelated work", async ({ source, owner }) => {
     const f = fixture()
     const ticket = await terminalFixture(f, { ...hook(`require('node:fs').writeFileSync(${JSON.stringify(f.events)},'hook')`), schemaVersion: 2 })
     const live = await ownProcess(f.cwd), dead = await ownProcess(f.cwd)
@@ -845,9 +910,11 @@ describe("Task 13 review repairs", () => {
     else writeFileSync(historyPath(f.state, ticket.id), "{invalid terminal")
     const next = enqueue(f, `require('node:fs').writeFileSync(${JSON.stringify(f.hashes)},'next')`, undefined, undefined, 1)
     const blocked = await runWorker(f.state)
-    expect(blocked.reconciliation).toBe("blocked")
-    expect(existsSync(jobPath(f.state, next.id))).toBe(true)
-    expect(existsSync(f.hashes)).toBe(false)
+    expect(blocked.processed).toEqual([next.id])
+    expect(blocked.recovery?.blocked).toContain(ticket.id)
+    expect(readRunningJob(f.state)).toBeUndefined()
+    expect(existsSync(jobPath(f.state, next.id))).toBe(false)
+    expect(readFileSync(f.hashes, "utf8")).toBe("next")
     await live.stop()
     saveRecord(f, ticket, { ...record(f.state, ticket.id), phase: "running", attempt: 1, processGroupIdentity: live.group, supervisorIdentity: live.worker })
     expect(await reconcileFinalizations(f.state)).toEqual({ blocked: [], pending: [], failed: [{ id: ticket.id, error: "fonte terminal ausente/inválida ou contrato de finalização não suportado" }], reconciled: [] })

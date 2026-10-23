@@ -173,8 +173,8 @@
       }
     },
     "expected": {
-      "state": "failed",
-      "eligible": false,
+      "state": "complete",
+      "eligible": true,
       "testStatus": "passed"
     }
   },
@@ -1070,6 +1070,127 @@
         "outputs": []
       },
       "recovery": "none"
+    },
+    "expected": {
+      "state": "failed",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "passed-valid-publication-cleanup-uncertain",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 2,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"f419f26d958f16a84a1dd460bf71469e13ed1d97051c735a5fe84e61712b8f65\"\n}\n",
+    "terminalDigest": "bc11180d5efe02878aa038f6e480e29ce13e958d9c9a4b9012e27f187d6ceb7a",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "bc11180d5efe02878aa038f6e480e29ce13e958d9c9a4b9012e27f187d6ceb7a",
+      "finalizationDigest": "f419f26d958f16a84a1dd460bf71469e13ed1d97051c735a5fe84e61712b8f65",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 2,
+        "cleanup": "uncertain",
+        "outputs": [
+          {
+            "path": "published/receipt.json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "role": "receipt"
+          }
+        ],
+        "recovery": "none"
+      },
+      "recovery": "none"
+    },
+    "expected": {
+      "state": "complete",
+      "eligible": true,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "historical-failed-cleanup-uncertain",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 1,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3\"\n}\n",
+    "terminalDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "ac27722f951da0446b44007e13563e21fa065498c02917b6064c66986e2fac08",
+      "finalizationDigest": "34e1c051ec1ebf57d85695f7ec0c9099e2ea1c8fcc6fbb41627c25960b90b2b3",
+      "phase": "failed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 1,
+        "cleanup": "uncertain",
+        "outputs": []
+      },
+      "failureReason": "cleanup da finalização incerto"
+    },
+    "expected": {
+      "state": "failed",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "passed-phase-with-retryable-recovery",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 2,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"f419f26d958f16a84a1dd460bf71469e13ed1d97051c735a5fe84e61712b8f65\"\n}\n",
+    "terminalDigest": "bc11180d5efe02878aa038f6e480e29ce13e958d9c9a4b9012e27f187d6ceb7a",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "bc11180d5efe02878aa038f6e480e29ce13e958d9c9a4b9012e27f187d6ceb7a",
+      "finalizationDigest": "f419f26d958f16a84a1dd460bf71469e13ed1d97051c735a5fe84e61712b8f65",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 2,
+        "cleanup": "uncertain",
+        "outputs": [
+          {
+            "path": "published/receipt.json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "role": "receipt"
+          }
+        ],
+        "recovery": "retryable"
+      },
+      "recovery": "retryable"
+    },
+    "expected": {
+      "state": "failed",
+      "eligible": false,
+      "testStatus": "passed"
+    }
+  },
+  {
+    "name": "passed-phase-with-blocked-ownership-recovery",
+    "terminalBytes": "{\n  \"id\": \"job-1\",\n  \"schemaVersion\": 4,\n  \"status\": \"passed\",\n  \"exitCode\": 0,\n  \"createdAt\": \"2026-01-01\",\n  \"preset\": \"check\",\n  \"cwd\": \"/private/project\",\n  \"branch\": \"feature\",\n  \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"requestedBy\": \"fixture\",\n  \"command\": \"check\",\n  \"logPath\": \"/private/log\",\n  \"argv\": [\n    \"check\"\n  ],\n  \"finalization\": {\n    \"schemaVersion\": 2,\n    \"argv\": [\n      \"hook\"\n    ],\n    \"timeoutMs\": 100,\n    \"contract\": {},\n    \"contractDigest\": \"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"\n  },\n  \"finalizationDigest\": \"f419f26d958f16a84a1dd460bf71469e13ed1d97051c735a5fe84e61712b8f65\"\n}\n",
+    "terminalDigest": "bc11180d5efe02878aa038f6e480e29ce13e958d9c9a4b9012e27f187d6ceb7a",
+    "record": {
+      "schemaVersion": 1,
+      "ticketId": "job-1",
+      "ticketDigest": "bc11180d5efe02878aa038f6e480e29ce13e958d9c9a4b9012e27f187d6ceb7a",
+      "finalizationDigest": "f419f26d958f16a84a1dd460bf71469e13ed1d97051c735a5fe84e61712b8f65",
+      "phase": "passed",
+      "attempt": 1,
+      "exitCode": 0,
+      "result": {
+        "schemaVersion": 2,
+        "cleanup": "uncertain",
+        "outputs": [
+          {
+            "path": "published/receipt.json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "role": "receipt"
+          }
+        ],
+        "recovery": "blocked-ownership"
+      },
+      "recovery": "blocked-ownership"
     },
     "expected": {
       "state": "failed",

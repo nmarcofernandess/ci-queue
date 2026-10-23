@@ -37,7 +37,7 @@ export function executionCompletion(ticket: QueueTicket, record?: FinalizationRe
   try { output = normalizeFinalizationResult(record.result, ticket.finalization?.schemaVersion) }
   catch { return { ...bound, state: "failed", reason: "finalization-failed" } }
   if (record.phase !== "passed" || record.exitCode !== 0 || record.failureReason
-    || (record.recovery ?? "none") !== (output.recovery ?? "none") || output.error || !["confirmed", "not-required"].includes(output.cleanup)) {
+    || (record.recovery ?? "none") !== "none" || (record.recovery ?? "none") !== (output.recovery ?? "none") || output.error) {
     return { ...bound, state: "failed", reason: record.result?.cleanup === "uncertain" ? "cleanup-uncertain" : "finalization-failed" }
   }
   return { ...bound, state: "complete", eligible: testPassed }

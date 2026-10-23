@@ -17,8 +17,8 @@ receita de outro consumidor.
 
 | Entrada | Quando usar | O que significa |
 |---|---|---|
-| Feedback | Iterar sobre uma seleção curta enquanto o consumidor declara um ambiente reutilizável e compatível. | Uma tentativa enfileirada e focal. O resultado ajuda a corrigir a mudança; não prova o escopo final nem autoriza ship. |
-| Prova | Validar o critério de entrega do consumidor. | Use a receita de prova real indicada pelo consumidor e aceita pelo catálogo de ship. O método pode preparar outra sessão, executar mais trabalho e gerar evidência própria. |
+| Feedback | Iterar sobre uma seleção curta enquanto o consumidor declara um ambiente reutilizável e compatível. | Uma execução focal direta ou enfileirada. O resultado ajuda a corrigir a mudança; não prova o escopo final nem autoriza ship. |
+| Prova | Validar o critério de entrega do consumidor. | Use a receita de prova real indicada pelo consumidor; quando houver ship, siga seu catálogo de aceites. O método pode preparar outra sessão, executar mais trabalho e gerar evidência própria. |
 
 O mapa explica qual entrada existe e aponta para o procedimento do consumidor.
 O catálogo `ci-queue.json` define o argv, as flags, a finalização e as receitas
@@ -86,7 +86,10 @@ o produto consumidor documenta como preparar, validar e encerrar seus recursos.
 Um feedback verde continua sendo apenas o resultado daquela seleção, revisão,
 sessão e ambiente. Não o promova a Full, proof clínica, prova de release ou
 ship. Quando o critério de entrega exigir prova, use a receita de prova do
-consumidor e verifique seu terminal, finalização/cleanup e os outputs no owner consumidor. Uma observação no histórico é
+consumidor e verifique o terminal e, quando declarados, a publicação e os outputs
+no owner consumidor. Cleanup é um fato separado: publicação válida pode concluir
+com aviso de limpeza incerta. Error, outputs inválidos, recovery pendente ou fase
+failed/interrupted não ganham aprovação por esse aviso. Uma observação no histórico é
 metadado de execução, não ticket nem prova de ship.
 
 ## Adote os templates
@@ -102,9 +105,38 @@ o [fragmento de instrução](../templates/adoption/AGENTS.fragment.md) e a
    `feedback.available: false` até que exista uma receita real. Quando estiver
    adotada, declare seu nome, perfil, sessão, plano de outputs/finalização e o caminho do owner
    documental do consumidor.
-3. Use `SKILL.md` como instrução curta; não duplique nele formatos de ticket,
+3. Resolva os paths de mapa e `method` **desde a raiz do consumidor**, nunca
+   relativamente à pasta onde a skill foi copiada. O default do owner é
+   `docs/ci/TESTING-METHOD.md`; substitua `method` pelo owner já existente, como
+   `docs/ci/FEEDBACK-LOOP.md` no DietFlow. A referência genérica permanece
+   [neste repositório](https://github.com/nmarcofernandess/ci-queue/blob/main/docs/TESTING-METHOD.md).
+4. Use `SKILL.md` como instrução curta; não duplique nele formatos de ticket,
    ship ou toda a rotina do procedimento.
 
 Mantenha um único owner editável de procedimento no consumidor. README, AGENTS,
 mapa, skill e runbooks vizinhos apontam para ele. O bundle genérico sempre deixa
 feedback desativado até o consumidor declarar e implementar sua receita.
+
+## Mesmo comando, executor escolhido
+
+O consumidor escolhe execução direta ou Queue. Jest puro barato normalmente roda
+direto; recursos compartilhados podem pedir serialização. Não transforme a
+existência de um preset em obrigação universal ou preparação de stack. Adoção
+standalone não exige ship-bound; as flags de prova pertencem às receitas aceitas
+pelo ship, quando esse controller for adotado. `init` conserva sua inferência de
+`scripts.check` inequívoco; argv explícito atende os demais casos.
+
+O Node do worker lança a distribuição. Binding Node dos jobs é opt-in por
+`projectId`, separado do cadastro e da configuração do app. O ambiente do caller
+não é automaticamente o ambiente do worker: a receita carrega os arquivos do
+seu checkout no executor efetivo. Escolha o loader compatível com o framework e
+versão instalados; detalhes e fontes em [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md#configuração-do-consumidor-no-executor).
+
+Outputs necessários têm owner e plano explícitos; hook terminal é opcional salvo
+contrato declarado. Sem outputs, não crie mídia ou diretório de evidência. Cache
+útil de dev/build segue o lifecycle do consumidor, não o de um output temporário.
+Término do comando e da tentativa atual de finalização libera o executor. Resíduo,
+cleanup incerto ou fonte histórica inválida limitam o próprio ID e não exigem
+provar um computador limpo antes do próximo comando ou da atualização. Owners
+correntes e locks reais conservam sua proteção; não remova registros para forçar
+passagem. [CONTRACTS](CONTRACTS.md) governa publicação, replay e manutenção.

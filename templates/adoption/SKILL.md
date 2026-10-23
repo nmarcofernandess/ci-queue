@@ -1,23 +1,33 @@
 ---
 name: consumer-testing-method
-description: Choose feedback, closing diagnostics or proof using a consumer's CI method map.
+description: Choose focal feedback, closing diagnostics or proof using the consumer's CI method map.
 ---
 
 # Consumer testing method
 
-Read the consumer's README and AGENTS first, then follow the map path they name.
-Consumer commands work independently; use CI Queue when its catalog declares a
-real recipe for the task. Feedback is focal. Use the consumer's declared proof
-process for delivery decisions.
+Read the consumer's README and AGENTS, then open its
+[method map](.context/patterns/ci.yaml). Resolve this path and the map's `method`
+from the **consumer repository root**, regardless of where this skill is copied.
+The default owner is `docs/ci/TESTING-METHOD.md`; change `method` to the existing
+consumer procedure when adopting (for example `docs/ci/FEEDBACK-LOOP.md`).
 
-When resuming a queued job, verify host, cwd, installed revision/protocol, state
-root, session, ticket and finalization. The queue never copies media; required
-outputs belong to the consumer and its terminal hook. Use the public recovery
-entry from CONTRACTS without deleting reservations or rerunning the test. Follow the consumer-owned method for its environment and cleanup.
-Feedback is a focal iteration result; proof and ship eligibility come from the
-consumer's catalog and delivery contract. Do not invent commands or duplicate
-the queue's ticket and ship formats here.
+Consumer commands remain executable directly. Choose Queue for scheduling,
+serialization and records when useful or required by a declared resource
+contract. Use feedback only after the map declares a real implemented recipe;
+otherwise it stays unavailable. Feedback does not grant proof or ship eligibility.
 
-For the transition after planned tasks/reviews, closing diagnostics and record
-retention, follow the consumer-owned procedure and the boundary in
-[TESTING-METHOD](../../docs/TESTING-METHOD.md#fechamento-depois-da-autoria).
+For Queue, inspect the installed revision, state, cwd and existing ticket before
+retrying. Worker Node and caller environment are separate; the consumer loads
+its own configuration in the actual executor. Job Node binding is opt-in. Use
+framework/version-compatible native loaders; do not copy another project's env.
+
+The consumer owns outputs, useful caches and resource lifecycle. Once the command
+and any current finalization attempt end, queue work is released; historical
+uncertain cleanup is diagnostic and does not demand
+a globally clean computer. A finalization hook is optional unless the declared
+output contract requires it. Recover publication for that same ID through the
+public entry without rerunning tests or deleting reservations.
+
+Follow the map's consumer-owned procedure for the transition after planned
+tasks/reviews, closing diagnostics and record retention. Generic reference:
+[CI Queue testing method](https://github.com/nmarcofernandess/ci-queue/blob/main/docs/TESTING-METHOD.md).

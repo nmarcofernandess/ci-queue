@@ -8,7 +8,7 @@ import { FINALIZATION_JSON_MAX_BYTES, finalizationDigest, isTerminalStatus, norm
 import { observeProcessGroup, observeTestProducer, observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "./process.js"
 import { buildJobEnv, LogRedactor, redactLogText } from "./runner.js"
 import { discardRuntimeDirectory, prepareJobRuntime, type RuntimeSession } from "./runtime.js"
-import { acquireDirectoryLock, appendLog, atomicWriteJson, finalizationPath, historyPath, listHistoryJobs, queuePaths, readBoundedFile, readFinalization, readRunningJob, serializedJson, withTicketLock } from "./state.js"
+import { acquireDirectoryLock, appendLog, atomicWriteJson, finalizationPath, historyPath, listHistoryJobs, queuePaths, readBoundedFile, readFinalization, serializedJson, withTicketLock } from "./state.js"
 
 const digest = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex")
 const smallError = (error: unknown) => redactLogText(error instanceof Error ? error.message : String(error)).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "").slice(0, 2_048)
@@ -21,14 +21,9 @@ function hasSupportedFinalization(ticket: QueueTicket): boolean {
   } catch { return false }
 }
 
-function blockingTestProducer(root: string, terminal?: QueueTicket): { id: string; reason: string } | undefined {
-  const running = readRunningJob(root)
-  const candidates = terminal ? [terminal, ...(running && running.id !== terminal.id ? [running] : [])] : running ? [running] : []
-  for (const ticket of candidates) {
-    const producer = observeTestProducer(ticket)
-    if (producer.state !== "dead") return { id: ticket.id, reason: `${producer.reason} (${ticket.id})` }
-  }
-  return undefined
+function blockingTestProducer(ticket: QueueTicket): { id: string; reason: string } | undefined {
+  const producer = observeTestProducer(ticket)
+  return producer.state !== "dead" ? { id: ticket.id, reason: `${producer.reason} (${ticket.id})` } : undefined
 }
 
 function transientPath(root: string, id: string, kind: "input" | "result"): string {
@@ -122,7 +117,7 @@ export async function runFinalization(root: string, ticket: QueueTicket, activat
       return await save(root, { ...record, phase: uncertain ? "interrupted" : "failed", ...(!uncertain ? { finishedAt: new Date().toISOString() } : {}), recovery: "none", failureReason: "ticket digest divergiu após início da finalização; execução recusada" })
     }
     if (record.phase === "passed" || record.phase === "failed" && (record.recovery ?? "none") === "none" || activation?.attempted.has(ticket.id)) return record
-    const producer = blockingTestProducer(root, terminal)
+    const producer = blockingTestProducer(terminal)
     if (producer) return await save(root, { ...record, phase: "interrupted", recovery: "blocked-ownership", finishedAt: undefined, failureReason: producer.reason })
     if (record.attempt > 0 && !record.finishedAt) {
       const owner = observeWorkerIdentity(record.supervisorIdentity)
@@ -148,11 +143,11 @@ export async function runFinalization(root: string, ticket: QueueTicket, activat
           if (existsSync(transientPath(root, ticket.id, "result"))) {
             result = readResult(root, terminal)
             recovery = result.recovery ?? "none"
-            if (result.error || result.cleanup === "uncertain") failureReason = result.error ?? "cleanup incerto"
+            if (result.error || recovery !== "none") failureReason = result.error ?? "cleanup da finalização requer recuperação"
           } else { recovery = "retryable"; failureReason = "finalizador interrompido sem resultado; grupo encerrado" }
         } catch (error) { failureReason = smallError(error) }
         finally { discardRuntimeDirectory(runtime?.directory); runtime = undefined }
-        record = await complete(root, terminal, { ...record, recovery, ...(result ? { result, exitCode: result.error || result.cleanup === "uncertain" ? 1 : 0 } : {}) }, failureReason)
+        record = await complete(root, terminal, { ...record, recovery, ...(result ? { result, exitCode: result.error || recovery !== "none" ? 1 : 0 } : {}) }, failureReason)
         if (record.phase === "passed") return record
       }
     }
@@ -228,7 +223,7 @@ export async function runFinalization(root: string, ticket: QueueTicket, activat
       let result: FinalizationResult | undefined
       try {
         result = readResult(root, terminal)
-        if (result.error || result.cleanup === "uncertain") failureReason ??= result.error ?? "cleanup da finalização incerto"
+        if (result.error || (result.recovery ?? "none") !== "none") failureReason ??= result.error ?? "cleanup da finalização requer recuperação"
       } catch (error) { failureReason ??= smallError(error) }
       const missingInterruptedResult = !existsSync(transientPath(root, ticket.id, "result")) && (timedOut || signal !== null)
       const recovery = spec.schemaVersion === 2 && validSource && validRuntime
@@ -276,15 +271,13 @@ function finalizerOwnershipBlocked(record: FinalizationRecord | undefined, allow
 
 export async function reconcileFinalizations(root: string, activation: RecoveryActivation = { trigger: { kind: "initial-only" }, executionIds: finalizationExecutionIds(root), attempted: new Set() }): Promise<RecoverySummary> {
   const report: RecoverySummary = { blocked: [], pending: [], failed: [], reconciled: [] }
-  const producer = blockingTestProducer(root)
-  if (producer) return { ...report, blocked: [producer.id] }
   const tickets = listHistoryJobs(root).filter(hasSupportedFinalization)
   for (const id of activation.executionIds) {
     const ticket = tickets.find(item => item.id === id)
     try {
       const before = readFinalization(root, id)
       if (!ticket) {
-        // Missing source forbids replay, but cannot release a still-owned hook.
+        // Missing source forbids replay of this ID; it does not reserve the runner.
         const blocked = !before && existsSync(finalizationPath(root, id)) || finalizerOwnershipBlocked(before)
         if (blocked) report.blocked.push(id)
         else report.failed.push({ id, error: "fonte terminal ausente/inválida ou contrato de finalização não suportado" })
@@ -293,14 +286,14 @@ export async function reconcileFinalizations(root: string, activation: RecoveryA
       const result = await runFinalization(root, ticket, activation)
       if (result.phase === "passed") { if (before?.phase !== "passed") report.reconciled.push(id); continue }
       const terminalFailure = result.phase === "failed" && (result.recovery ?? "none") === "none"
-      const test = terminalFailure ? undefined : blockingTestProducer(root, ticket)
+      const test = terminalFailure ? undefined : blockingTestProducer(ticket)
       if (test || finalizerOwnershipBlocked(result, true) || result.recovery === "blocked-ownership") report.blocked.push(id)
       else if (terminalFailure) report.failed.push({ id, error: result.result?.error ?? result.failureReason ?? "finalização falhou" })
       else report.pending.push(id)
     } catch (error) {
       if (ticket) log(ticket, smallError(error))
       const record = readFinalization(root, id)
-      if (!record && existsSync(finalizationPath(root, id)) || ticket && blockingTestProducer(root, ticket) || finalizerOwnershipBlocked(record) || record?.recovery === "blocked-ownership") report.blocked.push(id)
+      if (!record && existsSync(finalizationPath(root, id)) || ticket && blockingTestProducer(ticket) || finalizerOwnershipBlocked(record) || record?.recovery === "blocked-ownership") report.blocked.push(id)
       else if (record?.recovery === "retryable") report.pending.push(id)
       else report.failed.push({ id, error: smallError(error) })
     }

@@ -31,6 +31,10 @@ Fonte do formato: `src/contracts/schema.ts` e `config.ts`. Tickets v1/v2/v3/v4 c
 | `ship.attestationContext` | Contexto remoto da atestação do ship genérico. Não é nome de teste. |
 | `ship.remoteVerdict` | Workflow/job esperados quando policy=wait. Não configura teste clínico nem classificador por diff. |
 
+`ship` é opcional no catálogo standalone. Adoção e execução avulsa não exigem
+flags ship-bound; `init` pode produzir uma configuração já preparada para ship
+sem tornar essa política universal.
+
 Uma receita aceita por ship precisa de `requireCleanTree=true`, `requireGitStability=true`, `pinHeadSha=true` e `fetchBase` não vazio. Para exigir A **e** B, criar agregador no consumidor e aceitar esse agregador. Não ensinar `[lint,test]` como AND. CI Queue não exige que receitas importem helpers, consultem tickets ou publiquem observações para concluir com sucesso.
 
 Avançar a base remota não recusa automaticamente uma receita sem `fetchBase`; o consumidor escolhe sua política de cancelamento. Ship é uma decisão separada e fica fora da fila que ele supervisiona: o controller genérico lê as flags ship-bound do catálogo; um ship próprio pode enfileirar a mesma receita, validar o ticket e revalidar HEAD/base. Não cadastre o próprio controller como job na fila que ele aguarda. A interface não participa da elegibilidade. Se o consumidor exige interrupção durante a prova quando a base avança, precisa enviar `abortOnStaleBase` e conferir `spend-abort-v1` na instalação; preflight/postflight e revalidação de ship continuam necessários.
@@ -79,6 +83,18 @@ Ambos preservam `cleanup` confirmed/not-required/uncertain e `outputs` como refe
 A validação do resultado (até 64 KiB), supervisão e recuperação pertencem ao
 supervisor. A finalização não converte teste reprovado em aprovado.
 
+Publicação válida e cleanup são fatos separados. Fonte e contrato correspondentes,
+resultado normalizado, outputs válidos, fase passed, exitCode=0, recovery=none e
+ausência de error/failureReason concluem a finalização mesmo com cleanup=uncertain.
+O teste passed/exitCode=0 continua elegível e o CLI retorna zero; o descriptor
+preserva o aviso “Limpeza não confirmada · O finalizador não confirmou a limpeza”.
+O supervisor não fabrica error, failureReason ou saída não zero somente por esse
+aviso. Fonte/digest/contrato inválido, outputs inválidos, error, saída não zero,
+recovery retryable/blocked-ownership e fases failed/interrupted continuam sem
+elegibilidade. Fase failed histórica não é reinterpretada como publicação válida;
+teste failed/cancelled/interrupted conserva seu resultado, mesmo com finalização
+concluída.
+
 Antes de publicar history, o runner preserva sua candidata terminal em running
 (ou no claim de cancelamento queued) e cria pending. O `ticketDigest` sela os
 bytes reais de `history/<id>.json`; a recuperação nunca reescreve esse terminal
@@ -112,8 +128,11 @@ não impede trabalho novo por ser histórica. Finalize explícito retorna não z
 com `FINALIZATION_FAILED` e a causa terminal, ou `FINALIZATION_PENDING` para
 reparo/posse bloqueada. ID inválido ou fonte ausente não produz sucesso vazio.
 Uma entrada ociosa sem trabalho não cria loop de retry.
-Finalização ativa, recovery pendente ou cleanup incerto impedem manutenção da
-instalação; não apague registros/reservas para trocar a release. Veja [INSTALL](INSTALL.md).
+Somente execução ativa do teste ou da tentativa atual de finalização reserva o
+executor e impede manutenção da instalação. Recovery pendente, resíduos e cleanup
+incerto históricos conservam seu diagnóstico sem bloquear trabalho novo ou exigir
+faxina global; os guards da fonte e do writer continuam valendo para o próprio ID.
+Não apague registros/reservas para trocar a release. Veja [INSTALL](INSTALL.md).
 
 ## Método de teste adotado pelo consumidor
 
@@ -122,8 +141,10 @@ O método de feedback/prova e seus templates de adoção estão em
 `ci-queue.json` continua sendo a autoridade executável de receitas, flags e
 finalização. `feedback.available: false` significa que não existe receita de
 feedback adotada. Feedback não é prova final nem entra em ship por progresso;
-`ship.acceptedPresets` continua definindo as receitas aceitas, com semântica
-OR.
+quando ship for adotado, `ship.acceptedPresets` define as receitas aceitas,
+com semântica OR. Paths do mapa e seu `method` resolvem desde a raiz do consumidor;
+default `docs/ci/TESTING-METHOD.md`, ajustável ao owner existente. Templates e
+manual apontam ao mesmo procedimento, sem copiar internals do consumidor.
 
 State: `jobs/`, `running.json`, `history/`, `logs/`, `artifacts/`, `progress/`, `observations/`. Registro terminal em history é autoritativo para tickets de fila. Sidecar progress é consolidado no ticket ao fim e removido. Logs usam o caminho do ticket. `artifacts/` conserva somente snapshots históricos: não há novas cópias nem limpeza automática desses dados. Ausência de log é indisponibilidade, não conteúdo vazio bem-sucedido.
 

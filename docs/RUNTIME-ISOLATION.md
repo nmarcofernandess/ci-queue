@@ -67,8 +67,10 @@ O hook terminal recuperável usa o mesmo binding Node do projeto e valida o
 runtime da própria tentativa. Seu prazo é independente do teste; ele não cria
 sessão permanente nem supervisor adicional. Sidecars `runtime/job-*`, inclusive
 os usados pelo hook, são temporários do respectivo owner. O descarte exige
-confirmação de término do grupo. Ownership incerto preserva reserva e
-impede manutenção; siga [CONTRACTS](CONTRACTS.md) para reentrada pública.
+confirmação de término do grupo. Uma tentativa corrente mantém seu claim/lock;
+resíduo ou ownership incerto histórico conserva diagnóstico sem bloquear drain
+ou instalação. Não confunda esses sidecars com o owner de sessão viva abaixo.
+Siga [CONTRACTS](CONTRACTS.md) para reentrada pública do mesmo ID.
 
 ## Instalação
 
@@ -185,10 +187,36 @@ continua descrevendo apenas jobs, sem incorporar sessões.
 
 Instalação, atualização e uninstall recusam sessões não liberadas, registros
 incertos e locks de publicação. O estado released só é aceito com o owner
-privado íntegro e bundle ausente. Uma reserva de dados sem processo não é uma
-sessão Queue e não bloqueia instalação. Inversamente, ausência de sessionRuntimes
+privado íntegro e bundle ausente, inclusive sem symlink quebrado. A identidade
+histórica do catálogo pode diferir da atual nesse receipt terminal; essa
+tolerância é exclusiva da manutenção, não do reader operacional nem das
+operações de recovery/reentrada/descarte da sessão. Uma reserva de dados sem
+processo não é uma sessão Queue e não bloqueia instalação. Inversamente, ausência de sessionRuntimes
 não prova porta livre, ausência de sessão direct ou descarte de dados.
 
 O guard continua sendo cooperação em espaço de usuário. Grupos Node observados
 não representam cobertura completa de SO; os escapes descritos acima permanecem
 fora da cobertura, inclusive para uma sessão.
+
+## Configuração do consumidor no executor
+
+Worker Node é o interpretador da distribuição; binding de jobs é opt-in.
+Nenhum deles materializa a configuração do app. O shell que chama enqueue e o
+worker iniciado pelo serviço são processos distintos. A receita usa o cwd real
+do ticket e carrega somente configuração própria disponível nesse executor,
+sem copiar dotenv de outro projeto ou registrar seus valores.
+
+Use a API nativa compatível com a versão instalada. Next carrega `.env*` e expõe
+`@next/env` para código fora de seu runtime; Vite usa arquivos por modo e
+`import.meta.env`, com prefixo público próprio; Node oferece `--env-file` nas
+versões que o suportam. Esses loaders têm regras próprias de precedência e de
+exposição pública: não os substitua por `source .env` nem generalize opções de
+Next para Vite. Consulte as fontes primárias da versão consumida:
+[Next environment variables](https://nextjs.org/docs/app/guides/environment-variables),
+[Vite env and mode](https://vite.dev/guide/env-and-mode),
+[Node CLI env-file](https://nodejs.org/api/cli.html#--env-filefile).
+
+O consumidor decide o lifecycle de outputs, temporários, dados e cache. Preserve
+cache útil de dev/build; cache não é output selecionado nem resíduo que a Queue
+deva apagar. Um build descartável precisa de política explícita no seu produtor,
+sem timer, TTL global ou faxina manual como pré-condição do próximo comando.
