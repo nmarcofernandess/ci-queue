@@ -174,7 +174,10 @@ locks incertos recusam install/update/uninstall, mesmo com o job já terminal.
 Não apague o owner/bundle por idade ou por ausência de um PID. Confirme o release
 pelo controle privado do launcher ou pelo recovery com binding, CAS e grupos
 validados, usando runtime corrente. O receipt released fica durável para
-reentrada; somente seu bundle é removido.
+reentrada; somente seu bundle é removido. Com receipt privado íntegro e bundle
+ausente, a identidade histórica do catálogo pode diferir da atual sem bloquear
+manutenção. Isso não autoriza replay, recovery ou descarte daquela sessão;
+essas operações conservam seus guards de identidade e binding.
 
 `ci-queue status --state STATE --json` e a API mostram `sessionRuntimes` sem
 segredos. `globalOccupancy` conserva o significado de jobs; uma projeção vazia

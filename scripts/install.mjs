@@ -124,7 +124,8 @@ function assertQuietState(stateRoot) {
   }
   // This is the private runtime owner, not a PID-only liveness shortcut.
   // Any unfinished/uncertain session protects the installation, even after
-  // running.json is gone. Released records remain as durable recovery receipts.
+  // running.json is gone. A released receipt with no bundle is historical;
+  // its catalog identity need not match a subsequently recreated catalog.
   const sessions = join(root, "runtime-sessions")
   let hasSessions = false
   try { lstatSync(sessions); hasSessions = true } catch (error) {
@@ -145,7 +146,7 @@ function assertQuietState(stateRoot) {
     }
     try {
       const owner = privateInfo(sessions, true)
-      const same = identity => identity && identity.uid === owner.uid && identity.ino === owner.ino && identity.dev === owner.dev
+      const identity = value => value && [value.uid, value.ino, value.dev].every(n => Number.isSafeInteger(n) && n >= 0)
       const group = g => g && g.hostname === hostname() && Number.isSafeInteger(g.leaderPid) && g.leaderPid > 0 && g.pgid === g.leaderPid && typeof g.startedAt === "string" && g.startedAt
       for (const name of readdirSync(sessions)) {
         if (!/^session-[A-Za-z0-9][A-Za-z0-9_-]{0,95}\.json$/.test(name)) uncertain()
@@ -157,7 +158,7 @@ function assertQuietState(stateRoot) {
           || ![r.token, r.bindingDigest, r.requirementDigest].every(value => typeof value === "string" && /^[a-f0-9]{64}$/.test(value))
           || !r.env || typeof r.env !== "object" || Array.isArray(r.env)
           || r.state !== "released" || !Number.isSafeInteger(r.stateRevision) || r.stateRevision < 1
-          || !same(r.catalogIdentity) || !group(r.owner) || !group(r.producer) || !Array.isArray(r.groups) || r.groups.length > 512 || !r.groups.every(group)
+          || !identity(r.catalogIdentity) || !group(r.owner) || !group(r.producer) || !Array.isArray(r.groups) || r.groups.length > 512 || !r.groups.every(group)
           || !Number.isSafeInteger(r.evidenceOffset) || r.evidenceOffset < 0 || !r.directoryIdentity || r.directoryIdentity.uid !== owner.uid
           || ![r.directoryIdentity.uid, r.directoryIdentity.ino, r.directoryIdentity.dev].every(n => Number.isSafeInteger(n) && n >= 0)
           || lstatSync(join(root, "runtime")).isSymbolicLink()

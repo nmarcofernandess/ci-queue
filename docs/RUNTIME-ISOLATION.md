@@ -187,8 +187,11 @@ continua descrevendo apenas jobs, sem incorporar sessões.
 
 Instalação, atualização e uninstall recusam sessões não liberadas, registros
 incertos e locks de publicação. O estado released só é aceito com o owner
-privado íntegro e bundle ausente. Uma reserva de dados sem processo não é uma
-sessão Queue e não bloqueia instalação. Inversamente, ausência de sessionRuntimes
+privado íntegro e bundle ausente, inclusive sem symlink quebrado. A identidade
+histórica do catálogo pode diferir da atual nesse receipt terminal; essa
+tolerância é exclusiva da manutenção, não do reader operacional nem das
+operações de recovery/reentrada/descarte da sessão. Uma reserva de dados sem
+processo não é uma sessão Queue e não bloqueia instalação. Inversamente, ausência de sessionRuntimes
 não prova porta livre, ausência de sessão direct ou descarte de dados.
 
 O guard continua sendo cooperação em espaço de usuário. Grupos Node observados
