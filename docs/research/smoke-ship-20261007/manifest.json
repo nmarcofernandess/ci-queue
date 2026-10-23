@@ -1,0 +1,314 @@
+{
+  "schemaVersion": 1,
+  "kind": "documentary-audit-input-not-proof",
+  "collectedAtUTC": "2026-10-07T21:42:01.084304+00:00",
+  "authorizedScope": "Existing evidence collection and documentation publication; no execution/policy/product changes",
+  "repositoryVisibility": {
+    "ciQueue": "private (GitHub connector confirmed)",
+    "dietFlow": "private (GitHub API confirmed)"
+  },
+  "sources": {
+    "dietFlowDev": "0907cd94fac6b483c5f8a48038d037d2297e2c73",
+    "ciQueueDev": "16f3a275688e0f977b7982ca53035001c045d4da",
+    "ciQueueMain": "dd323b014244340b86bdb5cb6ef4d80677c69d45"
+  },
+  "origins": [
+    {
+      "ticket": "20261007202354-f4e085c7",
+      "commit": "8766d0ea8ad69f020834a30f978e61bf21dcca78",
+      "baseCommit": "93fc3149e0f4dd9c3812fce6a34c918a272772ef",
+      "branch": "codex/exames-r2-r3-20261007",
+      "status": "failed",
+      "durationMs": 138241,
+      "stages": [
+        {
+          "id": "static",
+          "parentId": null,
+          "kind": "stage",
+          "status": "failed",
+          "label": "Static",
+          "durationMs": 134000,
+          "durationSource": "emitter"
+        },
+        {
+          "id": "jest",
+          "parentId": null,
+          "kind": "stage",
+          "status": "pending",
+          "label": "Jest"
+        },
+        {
+          "id": "artifacts",
+          "parentId": null,
+          "kind": "artifact",
+          "status": "passed",
+          "label": "Artefatos",
+          "durationMs": 4,
+          "durationSource": "collector"
+        }
+      ],
+      "diagnosticProvidedByMarco": true
+    },
+    {
+      "ticket": "20261007202938-55694893",
+      "commit": "b6e6d9985c2b3950dbdd359ba456383dbe44dd94",
+      "baseCommit": "93fc3149e0f4dd9c3812fce6a34c918a272772ef",
+      "branch": "codex/exames-r2-r3-20261007",
+      "status": "failed",
+      "durationMs": 158932,
+      "stages": [
+        {
+          "id": "static",
+          "parentId": null,
+          "kind": "stage",
+          "status": "failed",
+          "label": "Static",
+          "durationMs": 152000,
+          "durationSource": "emitter"
+        },
+        {
+          "id": "jest",
+          "parentId": null,
+          "kind": "stage",
+          "status": "pending",
+          "label": "Jest"
+        },
+        {
+          "id": "artifacts",
+          "parentId": null,
+          "kind": "artifact",
+          "status": "passed",
+          "label": "Artefatos",
+          "durationMs": 7,
+          "durationSource": "collector"
+        }
+      ],
+      "diagnosticProvidedByMarco": true
+    },
+    {
+      "ticket": "20261007203453-d2ebe2b7",
+      "commit": "9f914e7218b6925200dfdd00b07480cab993d899",
+      "baseCommit": "93fc3149e0f4dd9c3812fce6a34c918a272772ef",
+      "branch": "codex/exames-r2-r3-20261007",
+      "status": "failed",
+      "durationMs": 359940,
+      "stages": [
+        {
+          "id": "static",
+          "parentId": null,
+          "kind": "stage",
+          "status": "failed",
+          "label": "Static",
+          "durationMs": 356000,
+          "durationSource": "emitter"
+        },
+        {
+          "id": "jest",
+          "parentId": null,
+          "kind": "stage",
+          "status": "pending",
+          "label": "Jest"
+        },
+        {
+          "id": "artifacts",
+          "parentId": null,
+          "kind": "artifact",
+          "status": "passed",
+          "label": "Artefatos",
+          "durationMs": 11,
+          "durationSource": "collector"
+        }
+      ],
+      "diagnosticProvidedByMarco": true
+    },
+    {
+      "ticket": "20261007204501-3b50e0bd",
+      "commit": "6421c4630ac54972b7aaee63c3a80a58513d5d9b",
+      "baseCommit": "93fc3149e0f4dd9c3812fce6a34c918a272772ef",
+      "branch": "codex/exames-r2-r3-20261007",
+      "status": "passed",
+      "durationMs": 1155457,
+      "stages": [
+        {
+          "id": "static",
+          "parentId": null,
+          "kind": "stage",
+          "status": "passed",
+          "label": "Static",
+          "durationMs": 333000,
+          "durationSource": "emitter"
+        },
+        {
+          "id": "jest",
+          "parentId": null,
+          "kind": "stage",
+          "status": "passed",
+          "label": "Jest",
+          "durationMs": 799000,
+          "durationSource": "emitter"
+        },
+        {
+          "id": "review",
+          "parentId": null,
+          "kind": "stage",
+          "status": "passed",
+          "label": "Review",
+          "durationMs": 798606,
+          "durationSource": "collector"
+        },
+        {
+          "id": "artifacts",
+          "parentId": null,
+          "kind": "artifact",
+          "status": "passed",
+          "label": "Artefatos",
+          "durationMs": 6,
+          "durationSource": "collector"
+        }
+      ],
+      "diagnosticProvidedByMarco": false
+    }
+  ],
+  "evidence": [
+    {
+      "path": "evidence-logs/20261007202354-f4e085c7.txt",
+      "origin": "queue/logs/20261007202354-f4e085c7.log",
+      "originalSha256": "88016bc2a34e4c197fba67f2a40a94d85e25774557821eecf7276a5f142332ce",
+      "sourceBytes": 2942,
+      "contentCompleteExceptRedactions": true
+    },
+    {
+      "path": "tickets/20261007202354-f4e085c7.json",
+      "origin": "queue/history/20261007202354-f4e085c7.json",
+      "originalSha256": "52184ebb170965732c6258759276a0647a70c7d078fa932cc5541ac2cd6dec1a",
+      "projection": "execution fields; runtime process argv/observations and operator identity omitted"
+    },
+    {
+      "path": "measurements/20261007202354-f4e085c7.jsonl",
+      "origin": "queue/artifacts/20261007202354-f4e085c7/artifacts/ci/queue-current/diagnostics/performance-measurements.jsonl",
+      "originalSha256": "b9bd960b17fa6fdb83b831f6352bd9ed689e6292fcd1304559150be5678f897f",
+      "rows": 38,
+      "association": "present job IDs match ticket; run dir matches ticket cwd; all intervals within ticket; copied artifact directory",
+      "linesWithoutExplicitJobIDs": [],
+      "limit": "these nested child rows have artifact/parent/time association only; do not treat as independent exact-ticket proof"
+    },
+    {
+      "path": "diagnostics/ci-diagnostic-20261007202354-f4e085c7.json",
+      "origin": "Downloads/ci-diagnostic-20261007202354-f4e085c7.json",
+      "originalSha256": "87d84e9539dfb961faa99fcaaa8e5001185bf1d49b87b74785f035a83c7f079e",
+      "projection": "original diagnostic structure with redactions"
+    },
+    {
+      "path": "evidence-logs/20261007202938-55694893.txt",
+      "origin": "queue/logs/20261007202938-55694893.log",
+      "originalSha256": "2c28dfd12bf5e3faeb844a58b3976380d95ab02a53a3667e517db1824d2db261",
+      "sourceBytes": 3294,
+      "contentCompleteExceptRedactions": true
+    },
+    {
+      "path": "tickets/20261007202938-55694893.json",
+      "origin": "queue/history/20261007202938-55694893.json",
+      "originalSha256": "805ff56dddf9c13634cf3d67395e15d48334dd0f1a4efde8593d961a1b16cc91",
+      "projection": "execution fields; runtime process argv/observations and operator identity omitted"
+    },
+    {
+      "path": "measurements/20261007202938-55694893.jsonl",
+      "origin": "queue/artifacts/20261007202938-55694893/artifacts/ci/queue-current/diagnostics/performance-measurements.jsonl",
+      "originalSha256": "0162c35fab95fb7361502f9659097f5629221f93984cf64626c77a8475482f08",
+      "rows": 50,
+      "association": "present job IDs match ticket; run dir matches ticket cwd; all intervals within ticket; copied artifact directory",
+      "linesWithoutExplicitJobIDs": [],
+      "limit": "these nested child rows have artifact/parent/time association only; do not treat as independent exact-ticket proof"
+    },
+    {
+      "path": "diagnostics/ci-diagnostic-20261007202938-55694893.json",
+      "origin": "Downloads/ci-diagnostic-20261007202938-55694893.json",
+      "originalSha256": "b18b8f09e5e5927a0446d48d37b629731740f8005b34832a6bd74781731f6ab6",
+      "projection": "original diagnostic structure with redactions"
+    },
+    {
+      "path": "evidence-logs/20261007203453-d2ebe2b7.txt",
+      "origin": "queue/logs/20261007203453-d2ebe2b7.log",
+      "originalSha256": "8b331fc7441b443b80faae40646d67f03487b487a0bd6affc25289ab931339a7",
+      "sourceBytes": 123105,
+      "contentCompleteExceptRedactions": true
+    },
+    {
+      "path": "tickets/20261007203453-d2ebe2b7.json",
+      "origin": "queue/history/20261007203453-d2ebe2b7.json",
+      "originalSha256": "72c7b9adbd57d0aa43dbe9b43378ea92d909dbac1756520b468dd9a650dfbf86",
+      "projection": "execution fields; runtime process argv/observations and operator identity omitted"
+    },
+    {
+      "path": "measurements/20261007203453-d2ebe2b7.jsonl",
+      "origin": "queue/artifacts/20261007203453-d2ebe2b7/artifacts/ci/queue-current/diagnostics/performance-measurements.jsonl",
+      "originalSha256": "b5737671315e55e21ad91438825aec4815c584d4fbdf7b7bd7d7954213f874c2",
+      "rows": 62,
+      "association": "present job IDs match ticket; run dir matches ticket cwd; all intervals within ticket; copied artifact directory",
+      "linesWithoutExplicitJobIDs": [],
+      "limit": "these nested child rows have artifact/parent/time association only; do not treat as independent exact-ticket proof"
+    },
+    {
+      "path": "diagnostics/ci-diagnostic-20261007203453-d2ebe2b7.json",
+      "origin": "Downloads/ci-diagnostic-20261007203453-d2ebe2b7.json",
+      "originalSha256": "dbc9c0f5b2b395b545a9e4d756691f4dac66c05e3883a611e1137cb3af1ba35b",
+      "projection": "original diagnostic structure with redactions"
+    },
+    {
+      "path": "evidence-logs/20261007204501-3b50e0bd.txt",
+      "origin": "queue/logs/20261007204501-3b50e0bd.log",
+      "originalSha256": "515a4e593eb08d2694d6a0bae90deb8df1e2d8f002c6beff0dd589779aed4376",
+      "sourceBytes": 534824,
+      "contentCompleteExceptRedactions": false
+    },
+    {
+      "path": "tickets/20261007204501-3b50e0bd.json",
+      "origin": "queue/history/20261007204501-3b50e0bd.json",
+      "originalSha256": "4f2a94e361f96a8f773fdd751b9cfd6b862b6c3f3a447e735536b5fa6172705d",
+      "projection": "execution fields; runtime process argv/observations and operator identity omitted"
+    },
+    {
+      "path": "measurements/20261007204501-3b50e0bd.jsonl",
+      "origin": "queue/artifacts/20261007204501-3b50e0bd/artifacts/ci/queue-current/diagnostics/performance-measurements.jsonl",
+      "originalSha256": "e9734ac37466ba11ef3ba09024006d558f3f96f73a5b59e12a3e282a53c32b23",
+      "rows": 87,
+      "association": "present job IDs match ticket; run dir matches ticket cwd; all intervals within ticket; copied artifact directory",
+      "linesWithoutExplicitJobIDs": [
+        75,
+        76,
+        77,
+        78,
+        83,
+        84,
+        85,
+        86
+      ],
+      "limit": "these nested child rows have artifact/parent/time association only; do not treat as independent exact-ticket proof"
+    }
+  ],
+  "missing": [
+    "No new runs generated",
+    "No per-gate duration in three provided diagnostic JSONs; separate existing measurement artifacts recovered",
+    "No per-invocation native measurement for catalog-proof/forced/related inside Jest wrapper",
+    "No CPU/RSS child attribution or continuous host contention profile; start/end shell snapshots insufficient",
+    "No proof that any proposed minimal 120s Smoke preserves coverage; no policy change",
+    "No exhaustive semantic overlap or runtime dependency graph; coverage descriptions are bounded source readings",
+    "Private source links require GPT reviewer repository access; collection does not grant access"
+  ],
+  "sanitization": {
+    "rules": [
+      "home path replaced by <HOME>",
+      "credential URLs/JWT/GitHub/API token patterns/emails redacted",
+      "ticket projections omit operator identity and runtime process observations",
+      "latest passed log excerpt excludes all console fixture payloads and stack traces"
+    ],
+    "originalFilesModified": false,
+    "sourceCodeCopied": false
+  },
+  "validation": {
+    "execution": "none; only parsing/hashing/Git reads/documentation checks",
+    "measurements": "present job IDs, run directory and ticket time-window checked; missing child job IDs recorded per file",
+    "json": "parsed",
+    "links": "local Markdown targets and source Git objects checked; remote private source readability requires access"
+  }
+}
