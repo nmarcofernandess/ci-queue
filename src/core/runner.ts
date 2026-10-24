@@ -223,16 +223,33 @@ function assertPreflight(ticket: QueueTicket, flags: TicketFlags): GitInfo | und
   return info
 }
 
-function childExit(child: ReturnType<typeof spawn>): Promise<{ code: number; signal: NodeJS.Signals | null }> {
+// A descendant that inherited stdout/stderr can hold the pipes open after the
+// command exits, inside or outside its group. The terminal follows the exit;
+// the pipes only get a bounded drain, so the runner never waits on a process
+// whose lifetime it cannot confirm or end.
+const STDIO_DRAIN_AFTER_EXIT_MS = 2_000
+
+type ChildExit = { code: number; signal: NodeJS.Signals | null; stdio: "closed" | "held" }
+
+function childExit(child: ReturnType<typeof spawn>): Promise<ChildExit> {
   return new Promise((resolve) => {
     let done = false
-    const finish = (code: number | null, signal: NodeJS.Signals | null) => {
+    let drain: NodeJS.Timeout | undefined
+    const finish = (code: number | null, signal: NodeJS.Signals | null, stdio: ChildExit["stdio"]) => {
       if (done) return
       done = true
-      resolve({ code: code ?? (signal ? 1 : 0), signal })
+      if (drain) clearTimeout(drain)
+      resolve({ code: code ?? (signal ? 1 : 0), signal, stdio })
     }
-    child.once("error", () => finish(1, null))
-    child.once("close", finish)
+    child.once("error", () => finish(1, null, "closed"))
+    child.once("close", (code, signal) => finish(code, signal, "closed"))
+    child.once("exit", (code, signal) => {
+      drain = setTimeout(() => {
+        finish(code, signal, "held")
+        child.stdout?.destroy()
+        child.stderr?.destroy()
+      }, STDIO_DRAIN_AFTER_EXIT_MS)
+    })
   })
 }
 
@@ -726,13 +743,14 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   hooks.onJob?.(ticket); hooks.onChildPid?.(child.pid, identity)
 
   let timedOut = false
-  let childClosed = false
+  let childExited = false
   let staleAborted = false
+  child.once("exit", () => { childExited = true })
   let deadlineTimer: NodeJS.Timeout | undefined
   if (ticket.executionDeadline?.state === "armed") {
     const deadline = ticket.executionDeadline
     deadlineTimer = setTimeout(() => {
-      if (childClosed || staleAborted) return
+      if (childExited || staleAborted) return
       const current = readRunningJob(root)
       if (!current || current.id !== ticket.id) return
       timedOut = true
@@ -755,7 +773,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
       sleep: hooks.spendAbort?.sleep ?? abortableSleep,
       nowMs: hooks.spendAbort?.nowMs ?? Date.now,
       onStale: async (_remoteSha) => {
-        if (childClosed) return
+        if (childExited) return
         const current = readRunningJob(root)
         if (!current || current.id !== ticket.id) return
         if (current.cancelRequestedAt) return
@@ -768,12 +786,14 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     : undefined
 
   const exit = await childExit(child)
-  childClosed = true
   if (deadlineTimer) clearTimeout(deadlineTimer)
   if (observer) await observer.stop()
   stdoutProgress.flush()
   stderrProgress.flush()
   appendRedactedLog(ticket.logPath, logRedactor.flush())
+  if (exit.stdio === "held") {
+    appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] processo terminou; saída mantida aberta por descendente após ${STDIO_DRAIN_AFTER_EXIT_MS} ms; coleta encerrada, resíduo preservado\n`)
+  }
   const latest = readRunningJob(root)
   const interrupted = Boolean(hooks.interruptedReason?.())
   const cancelRequested = Boolean(latest?.id === ticket.id && latest.cancelRequestedAt)
@@ -816,7 +836,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   const completedDeadline = deadline?.state === "armed"
     ? { state: "completed" as const, timeoutMs: deadline.timeoutMs, armedAt: deadline.armedAt, expiresAt: deadline.expiresAt }
     : deadline
-  const observation = readProcessObservation(identity, { capture: "end", cwd: ticket.cwd, jobId: ticket.id, exitedBeforeObservation: true })
+  const observation = readProcessObservation(identity, { capture: "end", cwd: ticket.cwd, jobId: ticket.id, exitedBeforeObservation: exit.stdio === "closed" })
   const candidate = withFinalProgress(root, {
     ...ticket,
     ...(latest?.cancelRequestedAt ? { cancelRequestedAt: latest.cancelRequestedAt } : {}),
