@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, onTestFinished } from "vitest"
 
 import { initialExecutionDeadline } from "../../src/core/deadline.js"
 import { enqueueTicket } from "../../src/core/enqueue.js"
@@ -268,6 +268,75 @@ describe("queue lifecycle", () => {
     expect(listHistoryJobs(state)[0]).toMatchObject({ id: ticket.id, status: "failed", exitCode: 7 })
     expect(readRunningJob(state)).toBeUndefined()
   })
+
+  it.each([
+    { placement: "the command's group", detached: false },
+    { placement: "its own group", detached: true },
+  ])("drains the next job when a failed command leaves a descendant in $placement holding its stdout", async ({ detached }) => {
+    const { project, state } = fixture({
+      leaky: { argv: [process.execPath, "-e", [
+        "const descendant = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'inherit', detached: " + String(detached) + " })",
+        "require('node:fs').writeFileSync('descendant.pid', String(descendant.pid))",
+        "descendant.unref()",
+        "setTimeout(() => process.exit(1), 100)",
+      ].join("; ")] },
+      next: { argv: [process.execPath, "-e", "process.exit(0)"] },
+    })
+    const leaky = enqueueTicket({ preset: "leaky", cwd: project, stateRoot: state })
+    const next = enqueueTicket({ preset: "next", cwd: project, stateRoot: state })
+    const startedAt = Date.now()
+
+    const worker = runWorker(state)
+    const pidFile = join(project, "descendant.pid")
+    await waitFor(() => existsSync(pidFile))
+    const descendant = Number(readFileSync(pidFile, "utf8"))
+    onTestFinished(() => {
+      try { process.kill(descendant, "SIGKILL") } catch { /* already gone */ }
+    })
+    const report = await worker
+
+    expect(Date.now() - startedAt).toBeLessThan(10_000)
+    expect(report.processed).toEqual([leaky.id, next.id])
+    const history = listHistoryJobs(state)
+    const leakyTerminal = history.find((job) => job.id === leaky.id)!
+    expect(leakyTerminal).toMatchObject({ status: "failed", exitCode: 1, failureReason: "processo terminou com código 1" })
+    expect(history.find((job) => job.id === next.id)).toMatchObject({ status: "passed", exitCode: 0 })
+    expect(readRunningJob(state)).toBeUndefined()
+    expect(() => process.kill(descendant, 0)).not.toThrow()
+    expect(readFileSync(leakyTerminal.logPath, "utf8")).toContain("saída mantida aberta por descendente")
+    const groupAtEnd = leakyTerminal.processObservations?.at(-1)?.items.map((item) => item.pid) ?? []
+    expect(groupAtEnd.includes(descendant)).toBe(!detached)
+  }, 20_000)
+
+  it.each([
+    { scenario: "the deadline passes after the command exited", leader: "setTimeout(() => process.exit(1), 100)", executionTimeoutMs: 500, cancel: false, expected: { status: "failed", exitCode: 1, failureReason: "processo terminou com código 1", executionDeadline: { state: "completed" } } },
+    { scenario: "a running command is cancelled", leader: "setInterval(() => {}, 1000)", cancel: true, expected: { status: "cancelled", exitCode: null } },
+  ])("closes the attempt when $scenario while its descendant holds stdout", async ({ leader, executionTimeoutMs, cancel, expected }) => {
+    const { project, state } = fixture({
+      leaky: { argv: [process.execPath, "-e", [
+        "const descendant = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'inherit', detached: true })",
+        "require('node:fs').writeFileSync('descendant.pid', String(descendant.pid))",
+        "descendant.unref()",
+        leader,
+      ].join("; ")], ...(executionTimeoutMs ? { executionTimeoutMs } : {}) },
+    })
+    const ticket = enqueueTicket({ preset: "leaky", cwd: project, stateRoot: state })
+
+    const worker = runWorker(state)
+    const pidFile = join(project, "descendant.pid")
+    await waitFor(() => existsSync(pidFile) && Boolean(readRunningJob(state)?.processGroupIdentity))
+    const descendant = Number(readFileSync(pidFile, "utf8"))
+    onTestFinished(() => {
+      try { process.kill(descendant, "SIGKILL") } catch { /* already gone */ }
+    })
+    if (cancel) expect((await cancelQueuedOrRunningTicket(state, ticket.id)).kind).toBe("running")
+    const report = await worker
+
+    expect(report.processed).toEqual([ticket.id])
+    expect(listHistoryJobs(state)[0]).toMatchObject({ id: ticket.id, ...expected })
+    expect(readRunningJob(state)).toBeUndefined()
+    expect(() => process.kill(descendant, 0)).not.toThrow()
+  }, 20_000)
 
   it("redacts command and streamed secrets before they reach the on-disk log", async () => {
     const secret = "runner-secret-value"

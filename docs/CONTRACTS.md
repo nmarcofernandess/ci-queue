@@ -45,6 +45,8 @@ Avançar a base remota não recusa automaticamente uma receita sem `fetchBase`; 
 
 `ci-queue enqueue <preset> --config /projeto/ci-queue.json --state /estado` congela o pedido. O worker é dono do claim e executa argv/cwd do ticket, não relê internals de DietFlow. Estados: queued, running, passed, failed, cancelled, interrupted. Exit code, runtime e verificações Git podem determinar falha; progress não fabrica sucesso.
 
+O terminal segue a saída do comando. Depois dela, stdout/stderr têm drenagem limitada a 2 s: um descendente que herdou e mantém esses pipes abertos, no grupo ou fora dele, não retém o worker. A coleta é encerrada, o log registra o fato, a observação final lista o grupo remanescente e o resíduo é preservado sem sinalização; o próximo job não depende do término desse descendente.
+
 ### Finalização terminal (`terminal-finalization-v1`)
 
 A CLI mantém API 1 e anuncia `terminal-finalization-v1`,
