@@ -129,13 +129,30 @@ async function waitForJob(root: string, id: string, timeoutMs: number): Promise<
   return undefined
 }
 
+const SHIP_USAGE = "ship [--pr N] [--repo [HOST/]OWNER/REPO] [--dry-run] [--remote|--no-remote] [--timeout-ms N]"
+const SHIP_VALUE_OPTIONS = ["--pr", "--repo", "--timeout-ms"]
+const SHIP_FLAGS = ["--dry-run", "--remote", "--no-remote"]
+
+// Ship can mark a PR ready and merge it, so a misspelled option must stop it.
+function shipArgumentError(rest: string[]): string | undefined {
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index]
+    if (SHIP_FLAGS.includes(arg)) continue
+    if (!SHIP_VALUE_OPTIONS.includes(arg)) return `opção desconhecida para ship: ${arg}`
+    const value = rest[index + 1]
+    if (value === undefined || value.startsWith("--")) return `${arg} exige um valor`
+    index += 1
+  }
+  return undefined
+}
+
 function usage(): string {
   return [
     "Uso: ci-queue <comando> [--state DIR] [--cwd DIR] [--config FILE] [--json]",
     "  version",
     "  init [--name NAME] [--base-ref REMOTE/BRANCH] [--argv-json JSON] [--workflow] [--force]",
     "  guard [--cwd PATH] [--config FILE] [--state ROOT] [--json]",
-    "  ship [--pr N] [--repo [HOST/]OWNER/REPO] [--dry-run] [--remote|--no-remote] [--timeout-ms N]",
+    `  ${SHIP_USAGE}`,
     "  enqueue <preset> [--wait] [--timeout-ms N] [-- <args da receita>]",
     "  enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH [--flags-json JSON]",
     "  worker",
@@ -231,6 +248,11 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         })
       }
       case "ship": {
+        if (args.rest.includes("--help") || args.rest.includes("-h")) {
+          return success({ usage: `Uso: ci-queue ${SHIP_USAGE} [--state DIR] [--cwd DIR] [--config FILE] [--json]` })
+        }
+        const argumentError = shipArgumentError(args.rest)
+        if (argumentError) return failure("USAGE", `${argumentError}\nUso: ci-queue ${SHIP_USAGE}`)
         const timeoutRaw = optionValue(args.rest, "--timeout-ms")
         const timeoutMs = timeoutRaw ? Number(timeoutRaw) : 60 * 60_000
         if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return failure("USAGE", "--timeout-ms precisa ser número positivo")

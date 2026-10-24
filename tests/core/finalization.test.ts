@@ -365,6 +365,36 @@ describe("terminal cleanup continuity", () => {
     expect(existsSync(f.events)).toBe(false)
     expect(readFileSync(f.hashes, "utf8")).toBe("next")
   })
+
+  it.each([
+    { placement: "its own group", detached: true, expected: { phase: "passed", result: { cleanup: "confirmed" } } },
+    { placement: "the hook's group", detached: false, expected: { phase: "interrupted", recovery: "blocked-ownership", failureReason: expect.stringContaining("hook terminou com saída mantida aberta por descendente") } },
+  ])("does not report a timeout when the hook exits and a descendant in $placement holds its stdout", async ({ detached, expected }) => {
+    const f = fixture()
+    const pidFile = join(f.root, "descendant.pid")
+    const ticket = enqueue(f, "process.exit(0)", hook([
+      readInput,
+      `const descendant=require('node:child_process').spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit',detached:${detached}})`,
+      `fs.writeFileSync(${JSON.stringify(pidFile)},String(descendant.pid))`,
+      "descendant.unref()",
+      writeResult(),
+    ].join("; "), 6_000))
+    const next = enqueue(f, "process.exit(0)", undefined, undefined, 1)
+    const startedAt = Date.now()
+    try {
+      const report = await runWorker(f.state)
+
+      expect(Date.now() - startedAt).toBeLessThan(6_000)
+      expect(report.processed).toEqual([ticket.id, next.id])
+      expect(record(f.state, ticket.id)).toMatchObject(expected)
+      expect(record(f.state, ticket.id)?.failureReason ?? "").not.toContain("prazo")
+      expect(readJsonFile<QueueTicket>(historyPath(f.state, ticket.id))).toMatchObject({ status: "passed", exitCode: 0 })
+      expect(readFileSync(ticket.logPath, "utf8").includes("saída mantida aberta por descendente")).toBe(detached)
+      expect(() => process.kill(Number(readFileSync(pidFile, "utf8")), 0)).not.toThrow()
+    } finally {
+      try { process.kill(Number(readFileSync(pidFile, "utf8")), "SIGKILL") } catch { /* already gone */ }
+    }
+  }, 20_000)
 })
 
 describe("finalization recovery and ownership", () => {

@@ -5,7 +5,7 @@ import { hostname } from "node:os"
 import { dirname, join, relative, resolve } from "node:path"
 
 import { FINALIZATION_JSON_MAX_BYTES, finalizationDigest, isTerminalStatus, normalizeFinalization, normalizeFinalizationResult, type FinalizationRecord, type FinalizationResult, type ProcessGroupIdentity, type QueueTicket } from "../contracts/schema.js"
-import { observeProcessGroup, observeTestProducer, observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "./process.js"
+import { childExit, observeProcessGroup, observeTestProducer, observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, STDIO_DRAIN_AFTER_EXIT_MS, terminateVerifiedProcessGroup } from "./process.js"
 import { buildJobEnv, LogRedactor, redactLogText } from "./runner.js"
 import { discardRuntimeDirectory, prepareJobRuntime, type RuntimeSession } from "./runtime.js"
 import { acquireDirectoryLock, appendLog, atomicWriteJson, finalizationPath, historyPath, listHistoryJobs, queuePaths, readBoundedFile, readFinalization, serializedJson, withTicketLock } from "./state.js"
@@ -193,28 +193,36 @@ export async function runFinalization(root: string, ticket: QueueTicket, activat
       const redactor = new LogRedactor()
       child.stdout?.on("data", (chunk: Buffer) => appendLog(terminal.logPath, redactor.push(chunk.toString("utf8"))))
       child.stderr?.on("data", (chunk: Buffer) => appendLog(terminal.logPath, redactor.push(chunk.toString("utf8"))))
-      const closed = new Promise<void>(resolveClose => {
-        child.once("error", error => { failureReason = `spawn da finalização falhou: ${smallError(error)}` })
-        child.once("close", (exitCode, exitSignal) => { signal = exitSignal; code = exitCode; resolveClose() })
-      })
+      child.once("error", error => { failureReason = `spawn da finalização falhou: ${smallError(error)}` })
+      // The deadline bounds a running hook. Once it exits, only the bounded
+      // stdio drain remains, so a held pipe is not reported as a timeout.
+      let hookExited = false
+      child.once("exit", () => { hookExited = true })
+      const settled = childExit(child)
       spawned = Boolean(child.pid)
       childPid = child.pid
       identity = child.pid ? probeProcessGroupIdentity(child.pid) : undefined
       record = await save(root, { ...record, ...(identity ? { processGroupIdentity: identity } : {}) })
       let timer: NodeJS.Timeout | undefined
-      const timedOut = await Promise.race([closed.then(() => false), new Promise<boolean>(resolveTimeout => { timer = setTimeout(() => resolveTimeout(true), spec.timeoutMs) })])
+      const outcome = await Promise.race([settled, new Promise<"timeout">(resolveTimeout => { timer = setTimeout(() => { if (!hookExited) resolveTimeout("timeout") }, spec.timeoutMs) })])
       if (timer) clearTimeout(timer)
+      const timedOut = outcome === "timeout"
+      const stdioHeld = !timedOut && outcome.stdio === "held"
       if (timedOut) {
         failureReason = "prazo de finalização excedido"
         const termination = await terminateVerifiedProcessGroup(identity)
         if (!termination.terminated) failureReason += `; ${termination.reason}`
+      } else {
+        code = outcome.exitCode
+        signal = outcome.signal
       }
       const group = spawned ? observeProcessGroup(identity ?? { hostname: hostname(), leaderPid: child.pid!, pgid: child.pid!, startedAt: "" }) : { state: "dead" as const }
       if (group.state !== "dead") {
         preserveRuntime = true
-        return await save(root, { ...record, phase: "interrupted", recovery: "blocked-ownership", failureReason: `${failureReason ?? "grupo da finalização não encerrou"}; ${"reason" in group ? group.reason : "ownership incerto"}` })
+        return await save(root, { ...record, phase: "interrupted", recovery: "blocked-ownership", failureReason: `${failureReason ?? (stdioHeld ? "hook terminou com saída mantida aberta por descendente" : "grupo da finalização não encerrou")}; ${"reason" in group ? group.reason : "ownership incerto"}` })
       }
       appendLog(terminal.logPath, redactor.flush())
+      if (stdioHeld) log(terminal, `hook terminou; saída mantida aberta por descendente após ${STDIO_DRAIN_AFTER_EXIT_MS} ms; coleta encerrada, resíduo preservado`)
       const validSource = digest(readFileSync(sourcePath)) === record.ticketDigest
       const validRuntime = runtime.finish().state !== "rejected"
       if (!validSource) failureReason = "ticket digest mudou durante a finalização"

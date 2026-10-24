@@ -1,9 +1,40 @@
-import { spawnSync } from "node:child_process"
+import { spawnSync, type ChildProcess } from "node:child_process"
 import { hostname } from "node:os"
 
 import { NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, type WorkerIdentity, type ProcessGroupIdentity, type ProcessObservation, type ProcessObservationItem, type QueueTicket } from "../contracts/schema.js"
 
 const C_ENV = { ...process.env, LC_ALL: "C", LANG: "C" }
+
+// A descendant that inherited stdout/stderr can hold the pipes open after the
+// child exits, inside or outside its group. The child is settled by its exit;
+// the pipes only get a bounded drain, so no supervisor waits on a process
+// whose lifetime it cannot confirm or end.
+export const STDIO_DRAIN_AFTER_EXIT_MS = 2_000
+
+/** `code` is the verdict-ready exit; `exitCode` keeps the raw value (null after a signal or spawn error). */
+export type ChildExit = { code: number; exitCode: number | null; signal: NodeJS.Signals | null; stdio: "closed" | "held" }
+
+export function childExit(child: ChildProcess): Promise<ChildExit> {
+  return new Promise((resolve) => {
+    let done = false
+    let drain: NodeJS.Timeout | undefined
+    const finish = (exitCode: number | null, signal: NodeJS.Signals | null, stdio: ChildExit["stdio"], code = exitCode ?? (signal ? 1 : 0)) => {
+      if (done) return
+      done = true
+      if (drain) clearTimeout(drain)
+      resolve({ code, exitCode, signal, stdio })
+    }
+    child.once("error", () => finish(null, null, "closed", 1))
+    child.once("close", (exitCode, signal) => finish(exitCode, signal, "closed"))
+    child.once("exit", (exitCode, signal) => {
+      drain = setTimeout(() => {
+        finish(exitCode, signal, "held")
+        child.stdout?.destroy()
+        child.stderr?.destroy()
+      }, STDIO_DRAIN_AFTER_EXIT_MS)
+    })
+  })
+}
 
 export function probeProcessGroupIdentity(leaderPid: number): ProcessGroupIdentity | undefined {
   if (!Number.isSafeInteger(leaderPid) || leaderPid <= 0 || (process.platform !== "darwin" && process.platform !== "linux")) return undefined
