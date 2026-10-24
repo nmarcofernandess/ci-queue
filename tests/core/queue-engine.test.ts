@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process"
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -645,6 +645,34 @@ describe("state-root compatibility", () => {
 })
 
 describe("CLI JSON v1", () => {
+  it("answers ship --help with its usage and no ship side effect", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "ci-queue-ship-help-"))
+    const state = mkdtempSync(join(tmpdir(), "ci-queue-ship-help-state-"))
+    cleanup.push(cwd, state)
+
+    for (const flag of ["--help", "-h"]) {
+      const result = await runCli(["ship", flag, "--pr", "43", "--cwd", cwd, "--state", state, "--json"])
+      expect(result).toMatchObject({ ok: true, result: { usage: expect.stringContaining("ci-queue ship [--pr N]") } })
+    }
+    expect(readdirSync(state)).toEqual([])
+  })
+
+  it.each([
+    { argv: ["--bogus"], option: "--bogus" },
+    { argv: ["--pr", "43", "extra"], option: "extra" },
+    { argv: ["--pr"], option: "--pr" },
+    { argv: ["--repo", "--dry-run"], option: "--repo" },
+  ])("refuses ship $argv with USAGE before shipping", async ({ argv, option }) => {
+    const cwd = mkdtempSync(join(tmpdir(), "ci-queue-ship-usage-"))
+    const state = mkdtempSync(join(tmpdir(), "ci-queue-ship-usage-state-"))
+    cleanup.push(cwd, state)
+
+    const result = await runCli(["ship", ...argv, "--cwd", cwd, "--state", state, "--json"])
+
+    expect(result).toMatchObject({ ok: false, error: { code: "USAGE", message: expect.stringContaining(option) } })
+    expect(readdirSync(state)).toEqual([])
+  })
+
   it("announces the execution flags and job environment contract together", async () => {
     const version = await runCli(["version", "--json"])
 

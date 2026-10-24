@@ -7,7 +7,7 @@ import { RUNTIME_CAPABILITY } from "../contracts/runtime.js"
 
 import { initialExecutionDeadline, captureExecutionDeadline, validateQueuedDeadline } from "./deadline.js"
 import { ProgressCollector, removeProgressSnapshot } from "./progress.js"
-import { observeTestProducer, observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, readProcessObservation, terminateVerifiedProcessGroup } from "./process.js"
+import { childExit, observeTestProducer, observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, readProcessObservation, STDIO_DRAIN_AFTER_EXIT_MS, terminateVerifiedProcessGroup } from "./process.js"
 import { preparePendingFinalization, runFinalization, type RecoveryActivation } from "./finalization.js"
 import {
   decideSpendAbort,
@@ -221,36 +221,6 @@ function assertPreflight(ticket: QueueTicket, flags: TicketFlags): GitInfo | und
   if (flags.fetchBase && !info.baseSha) throw new Error(`base ${flags.fetchBase} não encontrada após fetch`)
   if (flags.fetchBase) assertBaseIsAncestor(ticket.cwd, info.baseSha, info.headSha)
   return info
-}
-
-// A descendant that inherited stdout/stderr can hold the pipes open after the
-// command exits, inside or outside its group. The terminal follows the exit;
-// the pipes only get a bounded drain, so the runner never waits on a process
-// whose lifetime it cannot confirm or end.
-const STDIO_DRAIN_AFTER_EXIT_MS = 2_000
-
-type ChildExit = { code: number; signal: NodeJS.Signals | null; stdio: "closed" | "held" }
-
-function childExit(child: ReturnType<typeof spawn>): Promise<ChildExit> {
-  return new Promise((resolve) => {
-    let done = false
-    let drain: NodeJS.Timeout | undefined
-    const finish = (code: number | null, signal: NodeJS.Signals | null, stdio: ChildExit["stdio"]) => {
-      if (done) return
-      done = true
-      if (drain) clearTimeout(drain)
-      resolve({ code: code ?? (signal ? 1 : 0), signal, stdio })
-    }
-    child.once("error", () => finish(1, null, "closed"))
-    child.once("close", (code, signal) => finish(code, signal, "closed"))
-    child.once("exit", (code, signal) => {
-      drain = setTimeout(() => {
-        finish(code, signal, "held")
-        child.stdout?.destroy()
-        child.stderr?.destroy()
-      }, STDIO_DRAIN_AFTER_EXIT_MS)
-    })
-  })
 }
 
 function mergeRunning(root: string, candidate: QueueTicket): QueueTicket {

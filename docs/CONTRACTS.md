@@ -58,6 +58,10 @@ O catálogo declara `presets.<nome>.finalization`; o enqueue explícito aceita
 `--finalization-json` com o mesmo objeto. `--artifacts-json` aceita somente `[]`
 durante adoção. A Queue não interpreta o domínio do contrato nem publica no Git.
 O hook recebe argv congelado, sem interpolação de shell, e prazo próprio.
+O prazo limita o hook enquanto ele roda. Depois da saída vale a mesma drenagem
+limitada do comando: saída mantida aberta por descendente fica no log e não é
+registrada como prazo excedido. Descendente que permanece no grupo do hook ainda
+preserva a reserva como ownership incerto.
 Ausência de hook não exige arquivos de finalização.
 
 `contractDigest` é SHA-256 do contrato serializado com chaves de objeto ordenadas
@@ -163,7 +167,7 @@ O state explícito/ambiente deve ser o mesmo da API/worker. Sem override, o cami
 
 `--wait` e seu timeout não cancelam o job. `cancel` é explícito e segue ownership do processo. Um worker por state. Worker on-demand ausente enquanto a fila está vazia pode ser saudável. Não apagar locks ou sinalizar PID sem identidade para forçar recuperação.
 
-CLI JSON usa `{apiVersion, ok, result}` ou `{apiVersion, ok:false, error}`. Comandos reais vivem em `src/cli.ts`: version, config, init, enqueue, worker, finalize, status, history, observe, preset-history, logs, cancel, runtime, advisory, guard e ship. `guard` é opcional e só impõe admissão quando o consumidor decide invocá-lo; não é requisito das receitas nem da adoção. Não inventar `ci-queue doctor` ou `logs --follow`; o wrapper DietFlow oferece seu próprio follow.
+CLI JSON usa `{apiVersion, ok, result}` ou `{apiVersion, ok:false, error}`. Comandos reais vivem em `src/cli.ts`: version, config, init, enqueue, worker, finalize, status, history, observe, preset-history, logs, cancel, runtime, advisory, guard e ship. `guard` é opcional e só impõe admissão quando o consumidor decide invocá-lo; não é requisito das receitas nem da adoção. Não inventar `ci-queue doctor` ou `logs --follow`; o wrapper DietFlow oferece seu próprio follow. `ship` recusa com `USAGE`, antes de qualquer efeito, opção desconhecida, argumento solto ou opção sem valor; `ship --help`/`-h` devolve só o uso.
 
 ### Observações de execução directa (`execution-observe-v1`)
 
