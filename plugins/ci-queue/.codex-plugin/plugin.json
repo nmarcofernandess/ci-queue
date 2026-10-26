@@ -1,11 +1,12 @@
 {
   "name": "ci-queue",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Adoção, operação e diagnóstico do CI Queue.",
   "author": { "name": "CI Queue" },
   "skills": "./skills/",
   "interface": {
     "displayName": "CI Queue",
-    "shortDescription": "Adoção, execução solicitada, diagnóstico e pendências de CI"
+    "shortDescription": "Playbooks de CI e pendências",
+    "category": "Developer Tools"
   }
 }
