@@ -631,7 +631,7 @@ def create_handler(context):
                 return
             if path == "/api/dashboard-state":
                 self.send_payload(200, with_context(
-                    read_dashboard_state(self.api_context.state_root, project.config, project.project_id),
+                    read_dashboard_state(self.api_context.state_root, project.config, project.project_id, project=project),
                     scope,
                     revision,
                 ))

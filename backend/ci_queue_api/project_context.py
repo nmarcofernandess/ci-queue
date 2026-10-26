@@ -54,6 +54,8 @@ class ResolvedProject:
     archived: bool
     repository_available: bool = True
     base_ref: str = "HEAD"
+    registered_repository_path: Optional[Path] = None
+    registered_config_path: Optional[Path] = None
 
     @property
     def project_name(self):
@@ -112,6 +114,8 @@ def resolve_project(project_id, registry, bootstrap_config=None):
             repository_available=bootstrap_config.repository_path is not None
             and Path(bootstrap_config.repository_path).exists(),
             base_ref=bootstrap_config.base_ref,
+            registered_repository_path=bootstrap_config.repository_path or bootstrap_config.path.parent,
+            registered_config_path=bootstrap_config.path,
         )
     if not isinstance(entry, dict):
         raise LookupError("projeto não encontrado")
@@ -124,6 +128,7 @@ def resolve_project(project_id, registry, bootstrap_config=None):
     )
     common = Path(entry["gitCommonDir"]) if entry.get("gitCommonDir") else None
     base_ref = config.base_ref if config else "HEAD"
+    validation_source = entry.get("validationSource", entry)
     return ResolvedProject(
         project_id=entry["id"],
         display_name=entry.get("displayName") or entry["id"],
@@ -136,6 +141,8 @@ def resolve_project(project_id, registry, bootstrap_config=None):
         archived=bool(entry.get("archivedAt")),
         repository_available=locators["available"],
         base_ref=base_ref,
+        registered_repository_path=Path(validation_source["repositoryPath"]) if validation_source.get("repositoryPath") else None,
+        registered_config_path=Path(validation_source["configPath"]) if validation_source.get("configPath") else None,
     )
 
 

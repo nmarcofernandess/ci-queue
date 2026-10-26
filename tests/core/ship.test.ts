@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 
@@ -13,6 +15,7 @@ import {
 } from "../../src/ship/ops.js"
 import { runShip } from "../../src/ship/ship.js"
 import type { QueueTicket, ShipConfig, TicketFlags } from "../../src/contracts/schema.js"
+import { readQueueConfig } from "../../src/contracts/config.js"
 
 const H = "a".repeat(40)
 const B = "b".repeat(40)
@@ -311,6 +314,32 @@ function expectNoMutation(fake: Fake) {
 }
 
 describe("runShip", () => {
+  it.each(["pending", "missing", "invalid"])("does not add a merge gate for a %s consumer validation record", async state => {
+    const root = mkdtempSync(join(tmpdir(), "ci-queue-advisory-ship-"))
+    try {
+      const record = join(root, "validations.json")
+      if (state === "pending") writeFileSync(record, JSON.stringify({
+        kind: "ci-queue-validations", schemaVersion: 1, projectId: "fixture",
+        requirements: [{ id: "new", preset: "full", headSha: H, scope: "full", reason: "not requested", createdAt: "2026-10-26T09:00:00Z" }],
+      }))
+      if (state === "invalid") writeFileSync(record, "{broken")
+      writeFileSync(join(root, "ci-queue.json"), JSON.stringify({
+        schemaVersion: 1, project: { id: "fixture", name: "Fixture" },
+        presets: { check: { argv: [...recipe.argv], ...flags } },
+        ship: shipConfig, validationRecord: "validations.json",
+      }))
+      const config = readQueueConfig(root).config
+      const fake = createFake({ history: [valid], policy: "skipped", config: config.ship })
+      const report = await runShip(fake, request())
+      expect(report.effects.merged).toBe(true)
+      expect(fake.calls.mergePinned).toHaveLength(1)
+      expect(fake.calls.enqueue).toHaveLength(0)
+      if (state === "invalid") expect(readFileSync(record, "utf8")).toBe("{broken")
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it("dry-run without proof returns LOCAL_RED after resolveTarget and does not mutate", async () => {
     const fake = createFake({ history: [] })
     const error = await expectShipError(() => runShip(fake, request({ dryRun: true })), "LOCAL_RED")

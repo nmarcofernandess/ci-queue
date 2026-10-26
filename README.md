@@ -12,6 +12,7 @@ Executor local opcional de CI com fila, supervisão de processos, registros, API
 - [Instalação de uma release e verificação local](docs/INSTALL.md)
 - [Pin opt-in de Node e seus limites](docs/RUNTIME-ISOLATION.md)
 - [Consumidor exemplo isolado](examples/local-project/README.md)
+- [Plugin oficial CI Queue para Codex e Claude](plugins/ci-queue/README.md)
 
 O código atual desta integração é a branch **dev**. Uma revisão de documentação não promove main, não instala release e não comprova o state de uma máquina. Código do checkout, bundle instalado e state de jobs são três objetos diferentes.
 

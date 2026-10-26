@@ -10,6 +10,7 @@ from pathlib import Path
 from .config import PRESET_NAME
 from .history import canonical_green
 from .records import history_key, read_history
+from .validation_record import read_consumer_validations
 from .validation_advisories import (
     read_pending_advisories,
     read_pending_advisories_snapshot,
@@ -107,10 +108,11 @@ def _meta(raw, config):
 
 
 def _decorated(state, state_root, config, project_id=None, *, catalog=None,
-               history=None, plan=None, plan_error=None):
+               history=None, plan=None, plan_error=None, project=None):
     ident = project_id or (config.project_id if config is not None else None)
+    record_pending, record_error, record_source = read_consumer_validations(config, project)
     if config is None:
-        pending, pending_error = (
+        pending, pending_error = (record_pending, record_error) if record_pending is not None else (
             read_pending_advisories_snapshot(
                 state_root, None, ident, plan,
                 history if history is not None else [], plan_error,
@@ -123,6 +125,7 @@ def _decorated(state, state_root, config, project_id=None, *, catalog=None,
             "catalog": catalog or "unlinked",
             "pending": pending,
             "pendingError": pending_error,
+            "pendingSource": record_source,
         }
         meta = state.get("meta")
         if meta:
@@ -137,7 +140,7 @@ def _decorated(state, state_root, config, project_id=None, *, catalog=None,
         "presets": sorted(config.presets),
         "catalog": catalog or "linked",
     }
-    pending, pending_error = (
+    pending, pending_error = (record_pending, record_error) if record_pending is not None else (
         read_pending_advisories_snapshot(
             state_root, config, ident, plan,
             history if history is not None else [], plan_error,
@@ -145,6 +148,7 @@ def _decorated(state, state_root, config, project_id=None, *, catalog=None,
     )
     result["pending"] = pending
     result["pendingError"] = pending_error
+    result["pendingSource"] = record_source
     meta = state.get("meta")
     if not meta:
         return result
@@ -186,12 +190,12 @@ def _decorated(state, state_root, config, project_id=None, *, catalog=None,
     return result
 
 
-def read_dashboard_state(state_root, config, project_id=None):
+def read_dashboard_state(state_root, config, project_id=None, *, project=None):
     ident = project_id or (config.project_id if config is not None else None)
     if not ident:
         raise ValueError("projeto obrigatório")
     state = _project_state(_read(_path(state_root)), ident)
-    return _decorated(state, state_root, config, ident)
+    return _decorated(state, state_root, config, ident, project=project)
 
 
 def read_dashboard_state_all(state_root, projects):
@@ -215,6 +219,7 @@ def read_dashboard_state_all(state_root, projects):
                     history=history,
                     plan=plan,
                     plan_error=plan_error,
+                    project=project,
                 ),
                 "catalog": project.binding_state,
                 "projectName": project.display_name,
