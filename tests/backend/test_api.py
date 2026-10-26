@@ -616,9 +616,11 @@ class StateAndDiagnosticTests(Fixture):
                        remote_slots_path=beta_mirror)
         projects = [
             SimpleNamespace(project_id="example", display_name="Example", config=alpha,
-                            binding_state="linked"),
+                            binding_state="linked", registered_repository_path=self.root,
+                            registered_config_path=self.config_path),
             SimpleNamespace(project_id="beta", display_name="Beta", config=beta,
-                            binding_state="linked"),
+                            binding_state="linked", registered_repository_path=self.root,
+                            registered_config_path=self.config_path),
         ]
         from ci_queue_api import dashboard_state, history
 
