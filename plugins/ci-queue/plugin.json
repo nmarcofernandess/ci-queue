@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ci-queue",
+  "version": "0.1.0",
+  "description": "Adote, opere e diagnostique CI Queue; mantenha validações pendentes no repositório consumidor.",
+  "author": { "name": "CI Queue", "url": "https://github.com/nmarcofernandess/ci-queue" },
+  "homepage": "https://github.com/nmarcofernandess/ci-queue/tree/dev/plugins/ci-queue",
+  "repository": "https://github.com/nmarcofernandess/ci-queue",
+  "license": "MIT",
+  "keywords": ["ci", "queue", "testing", "harness"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "CI Queue",
+        "shortDescription": "Adoção, execução solicitada, diagnóstico e pendências de CI",
+        "longDescription": "Playbooks oficiais do CI Queue com documentação viva no repositório do produto. Sem serviços ou automações.",
+        "developerName": "CI Queue",
+        "category": "Developer tools",
+        "capabilities": []
+      }
+    }
+  }
+}

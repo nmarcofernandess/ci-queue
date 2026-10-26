@@ -261,7 +261,7 @@ def create_handler(context):
                     scope = self._scope(query)
                     project = require_capability(self._resolved(scope), "meta-mutate")
                     result = with_context(
-                        write_dashboard_state(self.api_context.state_root, project.config, body),
+                        write_dashboard_state(self.api_context.state_root, project.config, body, project=project),
                         scope,
                         project.entry_revision,
                     )
@@ -631,7 +631,7 @@ def create_handler(context):
                 return
             if path == "/api/dashboard-state":
                 self.send_payload(200, with_context(
-                    read_dashboard_state(self.api_context.state_root, project.config, project.project_id),
+                    read_dashboard_state(self.api_context.state_root, project.config, project.project_id, project=project),
                     scope,
                     revision,
                 ))

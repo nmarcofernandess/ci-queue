@@ -5,6 +5,17 @@ description: Choose focal feedback, closing diagnostics or proof using the consu
 
 # Consumer testing method
 
+This versioned file is the consumer adapter. With the official CI Queue plugin
+installed, use its adoption/operation playbooks and keep this pointer to the
+consumer-owned map and procedure. Verify the replacement in a new chat before
+disabling any previous personal skill; do not copy the plugin into this file.
+
+Pending validations belong to the consumer's existing Git record, never a
+merge/ship gate or execution trigger. Consultations do not write or execute.
+Only an explicit user request runs pending work, using the capabilities actually
+available in that session. Keep harness friction in its own backlog. See the
+official plugin at https://github.com/nmarcofernandess/ci-queue/tree/dev/plugins/ci-queue.
+
 Read the consumer's README and AGENTS, then open its
 [method map](.context/patterns/ci.yaml). Resolve this path and the map's `method`
 from the **consumer repository root**, regardless of where this skill is copied.

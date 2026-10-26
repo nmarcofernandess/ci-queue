@@ -142,6 +142,12 @@ Não apague registros/reservas para trocar a release. Veja [INSTALL](INSTALL.md)
 
 ## Método de teste adotado pelo consumidor
 
+Pendências versionadas são opt-in por `validationRecord` e pertencem ao Git do
+consumidor. A projeção lê a principal cadastrada e nunca executa, bloqueia ship
+ou quita automaticamente por verde. Formato, migração do legado e falhas de
+leitura: [VALIDATION-RECORD](VALIDATION-RECORD.md). O catálogo, enqueue e a
+elegibilidade existentes não validam esse arquivo como requisito de execução.
+
 O método de feedback/prova e seus templates de adoção estão em
 [TESTING-METHOD](TESTING-METHOD.md). O mapa do consumidor é apenas navegação;
 `ci-queue.json` continua sendo a autoridade executável de receitas, flags e

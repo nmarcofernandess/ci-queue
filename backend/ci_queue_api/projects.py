@@ -325,6 +325,11 @@ def resolve_config_for_entry(entry):
 def _heal_entry(entry):
     current = dict(entry)
     changed = False
+    # Other views may heal to a living worktree. The record's source keeps the
+    # explicitly registered locators, including while that principal is absent.
+    if "validationSource" not in current:
+        current["validationSource"] = _validation_source(current)
+        changed = True
     preferred = preferred_checkout(current.get("gitCommonDir"), current.get("repositoryPath"))
     stored = current.get("repositoryPath")
     if preferred is not None and (stored is None or Path(stored).resolve() != preferred):
@@ -514,6 +519,10 @@ def _touch(document, entry, now):
     return document
 
 
+def _validation_source(entry):
+    return {key: entry.get(key) for key in ("repositoryPath", "configPath")}
+
+
 def _entry(project_id, display_name, repository_path, git_common_dir, config_path, now):
     return {
         "id": project_id,
@@ -521,6 +530,10 @@ def _entry(project_id, display_name, repository_path, git_common_dir, config_pat
         "repositoryPath": str(repository_path) if repository_path else None,
         "gitCommonDir": str(git_common_dir) if git_common_dir else None,
         "configPath": str(config_path) if config_path else None,
+        "validationSource": {
+            "repositoryPath": str(repository_path) if repository_path else None,
+            "configPath": str(config_path) if config_path else None,
+        },
         "archivedAt": None,
         "revision": 0,
         "createdAt": now,
@@ -700,6 +713,10 @@ def mutate_registry(state_root, body):
             entry["configPath"] = None
             document = _touch(document, entry, now)
         if json.dumps(document, sort_keys=True) != before:
+            if action in {"register", "relocate", "link-config", "unlink-config"}:
+                for entry in document["projects"].values():
+                    if entry.get("updatedAt") == now:
+                        entry["validationSource"] = _validation_source(entry)
             _write_atomic(path, document)
         return read_registry(state_root)
 
