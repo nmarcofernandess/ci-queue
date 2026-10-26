@@ -12,5 +12,6 @@ test("both repo marketplaces point to the self-contained package", () => {
   assert.equal(codex.name, claude.name)
   assert.deepEqual(codex.plugins[0].source, { source: "local", path: "./plugins/ci-queue" })
   assert.equal(codex.plugins[0].policy.installation, "AVAILABLE")
+  assert.equal(codex.plugins[0].category, "Developer Tools")
   assert.equal(claude.plugins[0].source, "./plugins/ci-queue")
 })

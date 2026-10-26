@@ -28,6 +28,10 @@ O pacote é autocontido nesta pasta. Os dois marketplaces ficam na **raiz do
 repositório**; não são parte do ZIP do plugin. Ambos resolvem o source desde a
 raiz do marketplace, apontando para `./plugins/ci-queue`.
 
+Registro e habilitação na CLI local não comprovam disponibilidade na conta ou
+no catálogo recebido por uma task de outra superfície. Confira as skills no
+destino real antes de declarar a substituição da skill anterior.
+
 Codex, com CLI que ofereça `plugin` (confira `codex plugin --help`):
 
 ```sh
@@ -64,6 +68,8 @@ O manifesto portable `plugin.json` é o owner de identidade/versão. Os adaptado
 dos hosts e devem conservar nome e SemVer idênticos. Não edite caches. Em uma
 release de conteúdo do pacote, incremente os três manifestos; o marketplace não
 duplica versão. Atualize a fonte e recarregue/reinstale pelo fluxo do cliente.
+Os manifestos usam descrição curta de até 30 caracteres e a categoria exata
+`Developer Tools`; são limites de listagem verificados além da validação Claude.
 Para rollback, use uma revisão/tag anterior do marketplace e reinstale conforme
 o cliente. Nada disso instala ou atualiza o executor CI Queue.
 
@@ -99,3 +105,4 @@ Contratos de distribuição conferidos em 26/10/2026:
 [Claude marketplace](https://code.claude.com/docs/en/plugins/marketplace-reference),
 [Claude manifest](https://code.claude.com/docs/en/plugins-reference),
 [Claude atualização](https://code.claude.com/docs/en/plugins/host-marketplace).
+[Erros de listagem OpenAI](https://developers.openai.com/plugins/deploy/submission-errors#listing-and-interface-errors).

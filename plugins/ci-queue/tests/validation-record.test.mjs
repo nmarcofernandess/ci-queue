@@ -154,10 +154,17 @@ test("separate worktrees transport their own obligations through ordinary Git", 
 test("portable and host manifests share identity and install with only package files", () => {
   const portable = JSON.parse(readFileSync(join(packageRoot, "plugin.json")))
   assert.equal(portable.$schema, "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json")
+  const listing = portable.extensions["com.openai"].interface
+  assert.ok(Array.from(listing.shortDescription).length <= 30, "listing shortDescription exceeds 30 characters")
+  assert.equal(listing.category, "Developer Tools")
   for (const adapter of [".codex-plugin", ".claude-plugin"]) {
     const manifest = JSON.parse(readFileSync(join(packageRoot, adapter, "plugin.json")))
     assert.equal(manifest.name, portable.name)
     assert.equal(manifest.version, portable.version)
+    if (adapter === ".codex-plugin") {
+      assert.equal(manifest.interface.shortDescription, listing.shortDescription)
+      assert.equal(manifest.interface.category, listing.category)
+    }
   }
   assert.equal(existsSync(join(packageRoot, "LICENSE")), true)
   for (const forbidden of ["hooks", "mcp.json", ".mcp.json", "settings.json", "node_modules"]) assert.equal(existsSync(join(packageRoot, forbidden)), false)
