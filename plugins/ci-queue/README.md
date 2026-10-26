@@ -87,6 +87,11 @@ exigem release do plugin. O helper embarcado de
 [validações](references/validations.md) requer Node >=20; é opcional, não executa
 testes e não converte um Markdown existente sem migração explícita.
 
+Em superfícies que expõem apenas as skills, a entrada geral resolve a revisão e
+abre os owners por HTTPS oficial. Skills vizinhas são descobertas pelo catálogo;
+o bootstrap não depende de caminhos relativos ao plugin root. O helper permanece
+opcional e exige pacote materializado com caminho real confirmado.
+
 ## Verificar o pacote
 
 ```sh

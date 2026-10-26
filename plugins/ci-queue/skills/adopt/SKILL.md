@@ -5,7 +5,8 @@ description: Use quando o usuário pedir adotar ou configurar CI Queue em um pro
 
 # Adotar CI Queue
 
-Leia [fontes](../../references/sources.md), as instruções e README do consumidor,
+Use o bootstrap da entrada `ci-queue:ci-queue`, localizada pelo catálogo do host.
+Leia [fontes](https://github.com/nmarcofernandess/ci-queue/blob/dev/plugins/ci-queue/references/sources.md) na revisão resolvida, as instruções e README do consumidor,
 seu mapa CI e procedimento existente. Confirme raiz, branch, HEAD, árvore, remotes
 e worktrees antes de editar; preserve WIP e processos alheios.
 
@@ -32,7 +33,7 @@ Para pendências, localize primeiro o registro já utilizado. Se houver Markdown
 ou outro formato, continue nesse owner; não crie um segundo JSON silenciosamente.
 A projeção estruturada da Queue exige migração explícita e reconciliada, mantendo
 links para o histórico. Novos projetos podem optar pelo
-[contrato de registro](../../references/validations.md). A adoção/configuração
+[contrato de registro](https://github.com/nmarcofernandess/ci-queue/blob/dev/docs/VALIDATION-RECORD.md). A adoção/configuração
 solicitada autoriza criar arquivo ausente com diff visível; status não autoriza.
 
 Confira máquina, CLI instalada, state e capacidades quando forem necessários ao

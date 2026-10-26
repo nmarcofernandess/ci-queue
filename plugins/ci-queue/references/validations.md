@@ -1,12 +1,16 @@
 # Operar o registro versionado
 
 Owner vivo do formato e da projeção: `docs/VALIDATION-RECORD.md` na
-[fonte oficial selecionada](sources.md). Esta referência ensina somente o helper
+[fonte oficial selecionada](https://github.com/nmarcofernandess/ci-queue/blob/dev/plugins/ci-queue/references/sources.md). Esta referência ensina somente o helper
 embarcado. Não serve para migrar automaticamente um ledger Markdown existente.
 
-Requer Node >=20. Resolva `PLUGIN` para a raiz **instalada** deste pacote pela
-localização da skill; não presuma checkout do produto nem execute `../../scripts`
-do repositório. `PROJECT` é a raiz da worktree consumidora selecionada.
+O helper é opcional e requer Node >=20 e uma cópia do pacote materializada no
+filesystem. Confirme seu caminho real antes de definir `PLUGIN`; uma URI
+`skill://` não é evidência de arquivos locais. Sem essa cópia, leia/edite o registro
+com as ferramentas de arquivos disponíveis seguindo o contrato vivo do consumidor,
+ou informe a capacidade ausente. Não baixe/execute scripts só para consultar.
+`PROJECT` é a raiz da worktree consumidora selecionada. Os comandos abaixo se
+aplicam somente depois de confirmar `PLUGIN` e o pedido de escrita correspondente.
 
 Na adoção/configuração explicitamente solicitada, edite o catálogo para declarar
 `"validationRecord": "docs/ci/validations.json"` e revise o diff. Depois:
@@ -48,6 +52,6 @@ dela. Nova obrigação usa ID novo; modificação de conteúdo invalida fechamen
 anterior na projeção. Não remova os outros motivos porque o preset passou.
 
 O script aceita somente dados e não possui comando de execução. Para executar a
-receita solicitada, use o catálogo e o procedimento de [operação](../skills/operate/SKILL.md).
+receita solicitada, use o catálogo e localize `ci-queue:operate` pelo catálogo do host.
 Ausência de capacidade/pedido e adiamento são motivos válidos. Resíduos de lock
 transitório não são ledger nem autorização para matar processo; verifique o dono.
