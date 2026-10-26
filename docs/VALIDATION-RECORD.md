@@ -85,7 +85,13 @@ executa receitas, publica status, sincroniza ou decide integração.
 
 O backend usa os localizadores **cadastrados** de repositório/catálogo para essa
 leitura, mesmo que outras views possam resolver worktree alternativa. Só uma
-relocação explícita muda essa fonte. O record não pode escapar da raiz por path
+nova ação explícita de cadastro, relocação ou vínculo/desvínculo muda essa fonte.
+O registry local conserva esses dois paths em `validationSource`; não copia o
+registro nem seus itens. Em cadastros antigos, o bootstrap preserva os paths
+existentes antes de recuperar os localizadores usados pelas outras views.
+Quando o catálogo não declara `repository.path`, a raiz determinística é a
+pasta do catálogo cadastrado, como na CLI; não a de um catálogo alternativo.
+O record não pode escapar da raiz por path
 absoluto, `..` ou symlink. Erros limitam a observabilidade desse registro.
 
 Ao ativar `validationRecord`, a nova projeção não lê nem combina

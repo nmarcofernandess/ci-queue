@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from ci_queue_api.config import load_project_config
-from ci_queue_api.dashboard_state import read_dashboard_state, read_dashboard_state_all
+from ci_queue_api.dashboard_state import read_dashboard_state, read_dashboard_state_all, write_dashboard_state
 from ci_queue_api.project_context import resolve_project
 from ci_queue_api.projects import bootstrap_registry, read_registry
 from ci_queue_api.validation_record import read_consumer_validations, requirement_fingerprint
@@ -145,9 +145,35 @@ class ValidationRecordTests(unittest.TestCase):
         self.assertEqual(pending, [])
         self.assertEqual(source["status"], "unavailable")
         self.assertIn("nenhuma outra worktree", error)
+        response = write_dashboard_state(self.state, project.config, {
+            "revision": 0, "action": "save-meta",
+            "meta": {"name": "Meta", "description": "", "presets": ["full"]},
+        }, project=project)
+        self.assertEqual(response["pendingSource"]["status"], "unavailable")
+        self.assertEqual(response["pending"], [])
         pinned = read_registry(self.state)["projects"]["fixture"]["validationSource"]
         self.assertEqual(Path(pinned["configPath"]).resolve(), self.catalog.resolve())
         self.assertEqual(json.loads((lane / "validations.json").read_text())["requirements"], [])
+
+    def test_unavailable_principal_and_symlink_escape_are_observability_errors(self):
+        self.write()
+        self.path.unlink()
+        outside = self.root / "outside.json"
+        outside.write_text(json.dumps(self.record))
+        self.path.symlink_to(outside)
+        self.assertEqual(self.dashboard()["pendingSource"]["status"], "invalid")
+        self.repo.rename(self.root / "offline-repo")
+        self.assertEqual(self.dashboard()["pendingSource"]["status"], "unavailable")
+
+    def test_catalog_without_repository_path_keeps_its_explicit_record(self):
+        del self.config_raw["repository"]
+        self.catalog.write_text(json.dumps(self.config_raw))
+        self.write()
+        project = resolve_project("fixture", bootstrap_registry(self.state, self.catalog))
+        response = read_dashboard_state(self.state, project.config, project=project)
+        self.assertEqual(response["pendingSource"]["status"], "ready")
+        self.assertEqual(response["pending"][0]["id"], "sample")
+        self.assertEqual(read_dashboard_state_all(self.state, [project])["projects"][0]["pending"][0]["id"], "sample")
 
 
 if __name__ == "__main__":

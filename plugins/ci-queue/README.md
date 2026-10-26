@@ -34,9 +34,12 @@ Codex, com CLI que ofereça `plugin` (confira `codex plugin --help`):
 codex plugin marketplace add nmarcofernandess/ci-queue --ref dev
 codex plugin add ci-queue@ci-queue
 codex plugin marketplace upgrade ci-queue
+codex plugin add ci-queue@ci-queue
 ```
 
 Também é possível registrar a raiz de um clone local em vez da URL. Para clientes
+com fonte local, atualize os arquivos da fonte e use `plugin add` novamente;
+`marketplace upgrade` atualiza somente fontes Git. Para clientes
 desktop sem esses subcomandos, abra o repositório com seu marketplace
 `.agents/plugins/marketplace.json`, reinicie/atualize o cliente conforme sua
 versão e instale pela fonte CI Queue. Confira instalação e skills em um novo

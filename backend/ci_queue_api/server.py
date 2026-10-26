@@ -261,7 +261,7 @@ def create_handler(context):
                     scope = self._scope(query)
                     project = require_capability(self._resolved(scope), "meta-mutate")
                     result = with_context(
-                        write_dashboard_state(self.api_context.state_root, project.config, body),
+                        write_dashboard_state(self.api_context.state_root, project.config, body, project=project),
                         scope,
                         project.entry_revision,
                     )

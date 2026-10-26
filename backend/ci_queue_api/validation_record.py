@@ -91,6 +91,10 @@ def read_consumer_validations(config, project=None):
         root = (config.repository_path or config.path.parent) if config is not None else None
         catalog = config.path if config is not None else None
         ident = config.project_id if config is not None else None
+    # Catalog-only registrations have the same deterministic root as the CLI.
+    # Derive it from the pinned catalog, never from a resolved alternate config.
+    if root is None and catalog is not None:
+        root = Path(catalog).parent
     source = {"status": "unconfigured", "path": None}
     if root is None or catalog is None:
         return None, None, source

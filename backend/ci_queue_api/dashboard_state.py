@@ -237,7 +237,7 @@ def read_dashboard_state_all(state_root, projects):
     }
 
 
-def write_dashboard_state(state_root, config, body):
+def write_dashboard_state(state_root, config, body, *, project=None):
     if config is None:
         raise ValueError("catálogo não vinculado")
     if not isinstance(body, dict) or type(body.get("revision")) is not int:
@@ -261,4 +261,4 @@ def write_dashboard_state(state_root, config, body):
         state["revision"] += 1
         document["projects"][config.project_id] = state
         _write_atomic(path, document)
-    return _decorated(state, state_root, config)
+    return _decorated(state, state_root, config, project=project)

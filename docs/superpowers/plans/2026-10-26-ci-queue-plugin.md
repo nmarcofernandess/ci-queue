@@ -45,13 +45,14 @@ Modelo/thinking solicitados: Sol/máximo; não alterar durante a campanha.
 
 - [x] Ler instruções, memória resumida pertinente, código/testes, contratos,
   templates e documentação oficial dos hosts. Preservar checkout principal.
-- [ ] Implementar pacote e projeção mínima.
-- [ ] Exercitar registro sem execução, leitura sem escrita, concorrência Git,
+- [x] Implementar pacote e projeção mínima.
+- [x] Exercitar registro sem execução, leitura sem escrita, concorrência Git,
   duplicados, fechamento antigo/obrigação nova, ausente/vazio/inválido/principal
   indisponível e independência de elegibilidade. Validar pacote isolado dos
   scripts do repo e manifestos nos hosts disponíveis.
-- [ ] Revisar candidata, corrigir, produzir check mínimo canônico para dev e
-  integrar via PR/ship se credenciais e capacidade permitirem.
+- [x] Revisar candidata e corrigir achados concretos.
+- [ ] Produzir check mínimo canônico para dev e integrar via PR/ship se
+  credenciais e capacidade permitirem.
 - [ ] Registrar recibo real de pacote, testes, Git/PR/merge e limites.
 
 Não executar Full/CI de consumidores, resolver Docker/cloud, instalar bundle
@@ -59,6 +60,22 @@ do executor, promover main, publicar em diretórios ou remover skills locais.
 
 ## Estado
 
-Estudo concluído, implementação em andamento. Managed worktree da aplicação não
+Autoria/revisão concluídas; checklist capturado antes da integração. Managed worktree da aplicação não
 é suportada neste tipo de tarefa; a lane foi criada por `git worktree`, após
 fetch de origin/dev. Nenhum processo consumidor ou worker iniciado.
+
+Verificação focal: pacote 7/7; backend novo 9/9; ship/config 39/39; cadastro
+existente 27/27 e escopo HTTP 29/29. Os dois últimos exigiram execução fora da
+restrição de sockets do sandbox (EPERM no IPC/loopback), sem alteração de código
+para contorná-la. Claude validou manifestos e catálogo em modo strict. Codex CLI
+0.162.0 registrou/instalou a 0.1.0 e atualizou uma cópia de fixture para 0.1.1 em
+perfil temporário, com cinco skills; não instalou no perfil do desktop.
+
+Revisão independente somente leitura corrigiu: retorno de POST Meta perdendo a
+fonte principal, catálogo válido sem repository.path e mutação sobre symlink
+interno. Cobertura acrescentada; nenhum achado material remanescente. Validação
+UTF-8 estrita preserva bytes inválidos. Testes consumidores, Full, cloud, promoção
+main e instalação do executor não foram executados nem autorizados por este plano.
+
+Recibos de integração e pacote ficam nos artefatos locais de execução e na PR,
+sem reescrever este retrato da autoria a cada transição Git.

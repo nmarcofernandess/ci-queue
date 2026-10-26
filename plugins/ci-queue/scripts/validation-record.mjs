@@ -1,11 +1,15 @@
 import { createHash, randomUUID } from "node:crypto"
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
+import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const PRESET = /^[a-z0-9][a-z0-9-]{0,63}$/
+
+function readJson(path) {
+  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(readFileSync(path)))
+}
 
 function text(value, label, limit = 2000) {
   if (typeof value !== "string" || !value.trim() || Array.from(value).length > limit) throw new Error(`${label} inválido`)
@@ -57,7 +61,7 @@ function contained(root, path) {
 
 function location(cwd) {
   const root = realpathSync(resolve(cwd))
-  const config = JSON.parse(readFileSync(resolve(root, "ci-queue.json"), "utf8"))
+  const config = readJson(resolve(root, "ci-queue.json"))
   const projectId = config.project?.id
   if (typeof projectId !== "string" || !ID.test(projectId)) throw new Error("project.id inválido")
   const path = config.validationRecord
@@ -68,15 +72,21 @@ function location(cwd) {
   if (absolute === root || !contained(root, absolute)) throw new Error("validationRecord fora do consumidor")
   let ancestor = absolute
   while (!existsSync(ancestor)) ancestor = dirname(ancestor)
-  if (!contained(root, realpathSync(ancestor))) throw new Error("validationRecord escapa por symlink")
-  return { root, config, projectId, path: absolute }
+  const effective = resolve(realpathSync(ancestor), relative(ancestor, absolute))
+  if (!contained(root, effective)) throw new Error("validationRecord escapa por symlink")
+  try {
+    if (lstatSync(absolute).isSymbolicLink() && !existsSync(absolute)) throw new Error("validationRecord é symlink sem alvo; preservado")
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error
+  }
+  return { root, config, projectId, path: effective }
 }
 
 export function listRecord(cwd) {
   const loc = location(cwd)
   if (!loc.path) return { status: "unconfigured", path: null, pending: [] }
   if (!existsSync(loc.path)) return { status: "missing", path: loc.path, pending: [] }
-  const record = validateRecord(JSON.parse(readFileSync(loc.path, "utf8")), loc.projectId)
+  const record = validateRecord(readJson(loc.path), loc.projectId)
   return {
     status: "ready", path: loc.path,
     pending: record.requirements.filter(item => !isResolved(item)).map(item => ({ ...item, fingerprint: fingerprint(item) })),
@@ -96,7 +106,7 @@ function mutate(cwd, action, initialize = false) {
     writeFileSync(lock, JSON.stringify({ pid: process.pid, operation: "validation-record" }))
     if (initialize && existsSync(loc.path)) throw new Error("registro já existe; preservado")
     const raw = initialize ? { kind: "ci-queue-validations", schemaVersion: 1, projectId: loc.projectId, requirements: [] }
-      : JSON.parse(readFileSync(loc.path, "utf8"))
+      : readJson(loc.path)
     const record = validateRecord(raw, loc.projectId)
     const result = action(record, loc)
     validateRecord(record, loc.projectId)

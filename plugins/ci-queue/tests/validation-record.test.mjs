@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -88,6 +88,11 @@ test("invalid JSON/schema and paths are preserved, and options are never shell c
   assert.throws(() => listRecord(f.root))
   assert.throws(() => addRequirement(f.root, input))
   assert.equal(readFileSync(f.record, "utf8"), "{broken")
+  const invalidUtf8 = Buffer.concat([Buffer.from('{"reason":"'), Buffer.from([0xff]), Buffer.from('"}')])
+  writeFileSync(f.record, invalidUtf8)
+  assert.throws(() => listRecord(f.root))
+  assert.throws(() => addRequirement(f.root, input))
+  assert.deepEqual(readFileSync(f.record), invalidUtf8)
   for (const path of ["../outside.json", "/tmp/outside.json", "docs\\outside.json"]) {
     writeFileSync(join(f.root, "ci-queue.json"), JSON.stringify({ ...f.config, validationRecord: path }))
     assert.throws(() => listRecord(f.root), /path relativo/)
@@ -97,6 +102,21 @@ test("invalid JSON/schema and paths are preserved, and options are never shell c
   const result = JSON.parse(execFileSync(process.execPath, [join(standalone, "scripts/validation-record.mjs"), "help"], { cwd: f.root, encoding: "utf8" }))
   assert.equal(result.ok, true)
   assert.equal(result.result.usage.includes("list|init|add|resolve"), true)
+})
+
+test("an internal symlink keeps one editable owner through writes", t => {
+  const f = fixture(t)
+  initRecord(f.root)
+  const alias = join(f.root, "alias.json")
+  symlinkSync("docs/ci/validations.json", alias)
+  writeFileSync(join(f.root, "ci-queue.json"), JSON.stringify({ ...f.config, validationRecord: "alias.json" }))
+  addRequirement(f.root, input)
+  assert.equal(lstatSync(alias).isSymbolicLink(), true)
+  assert.equal(JSON.parse(readFileSync(f.record)).requirements.length, 1)
+  assert.equal(listRecord(f.root).pending.length, 1)
+  rmSync(f.record)
+  assert.throws(() => initRecord(f.root), /symlink sem alvo/)
+  assert.equal(lstatSync(alias).isSymbolicLink(), true)
 })
 
 test("separate worktrees transport their own obligations through ordinary Git", t => {
