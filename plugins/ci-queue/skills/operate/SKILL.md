@@ -5,7 +5,8 @@ description: Use quando o usuário solicitar executar CI ou uma receita, acompan
 
 # Operar e diagnosticar
 
-Leia [fontes](../../references/sources.md), [arquitetura](../../references/architecture.md)
+Use o bootstrap da entrada `ci-queue:ci-queue`, localizada pelo catálogo do host.
+Leia [fontes](https://github.com/nmarcofernandess/ci-queue/blob/dev/plugins/ci-queue/references/sources.md), [arquitetura](https://github.com/nmarcofernandess/ci-queue/blob/dev/plugins/ci-queue/references/architecture.md) na revisão resolvida
 e o procedimento do consumidor. Determine se o pedido é leitura, execução,
 cancelamento ou correção. Consulta/diagnóstico não autoriza lançar uma receita.
 
@@ -38,7 +39,7 @@ Recovery de finalização usa o mesmo ID pela entrada pública, sem repetir test
 Progresso é observabilidade; screenshots e logs isolados não fabricam PASS.
 
 Se o usuário pediu executar pendências, primeiro leia os itens selecionados no
-[playbook de validações](../validations/SKILL.md). Depois da execução, reconcilie
+playbook `ci-queue:validations` pelo catálogo. Depois da execução, reconcilie
 somente IDs, escopo e revisão que a evidência cobre. Nunca feche tudo porque um
 preset ficou verde. Ship segue o controlador e os gates já existentes; o plugin
 não acrescenta confirmação de merge nem usa pendência para negar integração.

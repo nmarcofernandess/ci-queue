@@ -4,6 +4,12 @@ Repositório oficial: https://github.com/nmarcofernandess/ci-queue.
 A linha de desenvolvimento observada nesta edição é `dev`; `main` é outra linha.
 O pacote 0.1.0 foi estudado em `41fadb02bdef92f9d07561716d84071d2b4d121a`.
 
+Quando o host expõe somente `SKILL.md`, use o bootstrap contido na entrada geral
+`ci-queue:ci-queue` e leia este owner por HTTPS. `skill://` identifica um recurso
+do catálogo; não implica acesso ao plugin root nem um caminho de disco. Skills
+vizinhas são localizadas pelos nomes do catálogo real. Referências embarcadas e
+scripts opcionais exigem uma cópia local materializada e caminho confirmado.
+
 Primeiro leia as instruções, README, mapa e método do consumidor. Descubra a
 versão/capabilities instalada com a CLI disponível, quando aplicável. Se houver
 checkout do produto, confirme remote, branch/HEAD e árvore; não use uma pasta

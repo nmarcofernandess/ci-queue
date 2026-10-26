@@ -5,7 +5,8 @@ description: Use quando o usuário pedir retrospectiva ou registro de fricção 
 
 # Retrospectiva do harness
 
-Leia [fontes](../../references/sources.md) e procure o backlog/procedimento do
+Use o bootstrap da entrada `ci-queue:ci-queue`, localizada pelo catálogo do host.
+Leia [fontes](https://github.com/nmarcofernandess/ci-queue/blob/dev/plugins/ci-queue/references/sources.md) na revisão resolvida e procure o backlog/procedimento do
 harness já declarado no consumidor. Reutilize sua taxonomia, IDs e fingerprints.
 No DietFlow, a skill `dietflow-harness-retro` e o backlog que ela aponta continuam
 donos locais; o plugin não os substitui por dados genéricos.
@@ -17,7 +18,7 @@ defeito do executor e fricção do harness. Não lance testes para obter um rela
 se o pedido é apenas retrospectiva; use evidência existente ou diga o que falta.
 
 Um teste não executado pertence ao registro de
-[validações](../validations/SKILL.md). Um defeito que impediu sua execução pode
+`ci-queue:validations` pelo catálogo. Um defeito que impediu sua execução pode
 também ter item no backlog, ligado por referência. Resolver o defeito não dá
 crédito ao teste, e passar um teste não prova que a fricção foi corrigida.
 

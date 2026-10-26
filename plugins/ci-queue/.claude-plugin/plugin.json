@@ -1,6 +1,6 @@
 {
   "name": "ci-queue",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Adoção, execução solicitada, diagnóstico e pendências do CI Queue.",
   "author": { "name": "CI Queue" },
   "homepage": "https://github.com/nmarcofernandess/ci-queue/tree/dev/plugins/ci-queue",

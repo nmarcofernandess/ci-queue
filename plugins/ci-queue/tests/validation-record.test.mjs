@@ -173,11 +173,40 @@ test("portable and host manifests share identity and install with only package f
   for (const skill of skills) {
     const source = readFileSync(join(packageRoot, "skills", skill, "SKILL.md"), "utf8")
     assert.match(source, /^---\nname: [a-z-]+\ndescription: .+\n---\n/)
-    for (const match of source.matchAll(/\]\(([^)]+)\)/g)) {
-      assert.equal(existsSync(join(packageRoot, "skills", skill, match[1])), true, match[1])
-    }
   }
   const sample = { id: "sample", preset: "full", headSha: "a".repeat(40), scope: "escopo ação", reason: "Não solicitado.", createdAt: "2026-10-26T09:00:00Z", pr: 42 }
   assert.equal(fingerprint(sample).length, 64)
   assert.equal(isResolved(sample), false)
+})
+
+test("account skill bodies bootstrap without plugin-root filesystem resources", t => {
+  const published = mkdtempSync(join(tmpdir(), "ci-queue-published-skills-"))
+  t.after(() => rmSync(published, { recursive: true, force: true }))
+  for (const name of readdirSync(join(packageRoot, "skills"))) {
+    mkdirSync(join(published, name))
+    cpSync(join(packageRoot, "skills", name, "SKILL.md"), join(published, name, "SKILL.md"))
+    const body = readFileSync(join(published, name, "SKILL.md"), "utf8")
+    for (const match of body.matchAll(/\]\(([^)]+)\)/g)) {
+      assert.equal(new URL(match[1], `skill://account-plugin/${name}/SKILL.md`).protocol, "https:")
+    }
+  }
+  assert.equal(existsSync(join(published, "references")), false)
+  const paths = [
+    ...readdirSync(join(packageRoot, "skills")).map(name => `skills/${name}/SKILL.md`),
+    ...readdirSync(join(packageRoot, "references")).filter(name => name.endsWith(".md")).map(name => `references/${name}`),
+  ]
+  for (const path of paths) {
+    const source = readFileSync(join(packageRoot, path), "utf8")
+    for (const match of source.matchAll(/\]\(([^)]+)\)/g)) {
+      const href = match[1]
+      assert.match(href, /^https:\/\//, `${path}: account resources cannot resolve ${href}`)
+      const url = new URL(href)
+      assert.ok(
+        url.hostname === "github.com" && url.pathname.startsWith("/nmarcofernandess/ci-queue/")
+        || url.hostname === "raw.githubusercontent.com" && url.pathname.startsWith("/nmarcofernandess/ci-queue/")
+        || url.hostname === "api.github.com" && url.pathname.startsWith("/repos/nmarcofernandess/ci-queue/"),
+        `${path}: unexpected bootstrap source ${href}`,
+      )
+    }
+  }
 })
