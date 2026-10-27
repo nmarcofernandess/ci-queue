@@ -9,8 +9,8 @@ export function staleMirrorNote(source: RemoteSlotsSource | null | undefined) {
   }
   const readAt = source.refreshedAt ?? source.readAt
   return readAt
-    ? `espelho lido em ${formatTimelineDate(readAt)}; os verdes refletem essa leitura.`
-    : "espelho sem horário de leitura; os verdes refletem a última leitura local."
+    ? `espelho desatualizado, lido em ${formatTimelineDate(readAt)}; os verdes refletem essa leitura.`
+    : "espelho desatualizado, sem horário de leitura; os verdes refletem a última leitura local."
 }
 type GreenGrouping = "preset" | "commit"
 type Period = "all" | "today" | "48h" | "week" | "15d"
@@ -36,6 +36,7 @@ export function asMachineGreen(entry: PresetHistoryEntry): RunTableJob | undefin
     createdAt: reference.createdAt ?? undefined,
     finishedAt: reference.finishedAt ?? undefined,
     durationMs: reference.durationMs,
+    integration: reference.integration,
   }
 }
 
@@ -55,6 +56,7 @@ export function asGitGreen(green: RemoteGreen & { projectName?: string }): RunTa
     finishedAt: green.finishedAt,
     durationMs: green.durationMs,
     detailsAvailable: green.jobAvailable,
+    integration: green.integration,
   }
 }
 
@@ -98,6 +100,7 @@ export function mergeGreenRows(jobs: RunTableJob[]) {
       ticketId: preferred.ticketId ?? existing.ticketId ?? job.ticketId,
       detailsJobId: existingDetails ?? nextDetails,
       detailsAvailable: Boolean(existingDetails ?? nextDetails),
+      integration: preferred.integration ?? existing.integration ?? job.integration,
     })
   }
   return [...byIdentity.values()]

@@ -1011,6 +1011,7 @@ function HistoryPanel({
           emptyDescription="Não há execução canônica aprovada para os filtros selecionados."
           onOpenJob={onOpenJob}
           showOrigin={filters.origin === "both"}
+          showIntegration
           showProjectChip={scope.kind === "all"}
         />
       )}
