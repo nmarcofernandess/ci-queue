@@ -101,7 +101,7 @@ function columnClass(id: string) {
   if (id === "time") return "w-28"
   if (id === "duration") return "w-24"
   if (id === "revision") return "w-[24rem]"
-  if (id === "integration") return "w-32"
+  if (id === "integration") return "w-28"
   if (id === "actions") return "w-18 text-right"
   return undefined
 }

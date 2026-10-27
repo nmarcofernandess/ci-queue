@@ -1026,6 +1026,10 @@ for (const width of [390, 1440]) {
       await alpha.getByText('Em dev', { exact: true }).focus()
       await expect(page.getByRole('tooltip')).toContainText('Contido em origin/dev pela ref local de')
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      if (grouping === 'Por commit' && width >= 1440) {
+        const sha = history.getByRole('button', { name: 'abcdef12', exact: true }).first().locator('span')
+        expect(await sha.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+      }
       await page.screenshot({ path: testInfo.outputPath(`greens-integration-${grouping === 'Por preset' ? 'preset' : 'commit'}-${width}.png`) })
       await page.keyboard.press('Escape')
     }

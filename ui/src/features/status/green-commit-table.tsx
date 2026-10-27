@@ -61,8 +61,8 @@ function commitColumnClass(
   id: "status" | "commit" | "integration" | "time" | "count" | "origin" | "actions"
 ) {
   if (id === "status") return "w-16"
-  if (id === "commit") return "w-24"
-  if (id === "integration") return "w-32"
+  if (id === "commit") return "w-36"
+  if (id === "integration") return "w-28"
   if (id === "time") return "w-28"
   if (id === "count") return "w-24"
   if (id === "origin") return "w-28"
