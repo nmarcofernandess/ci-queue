@@ -245,8 +245,9 @@ function copyBundle(bundle, prefix, manifest) {
 }
 
 function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pythonPath, manifestSha256, homeDir, commandPath }) {
-  if (!nodePath && !pythonPath) return []
-  if (!nodePath || !pythonPath) throw new Error("--node e --python são obrigatórios ao gerar envelope de serviço")
+  // --node alone installs only the CLI launcher; --python asks for the services.
+  if (!pythonPath) return []
+  if (!nodePath) throw new Error("--node e --python são obrigatórios ao gerar envelope de serviço")
   // The dashboard reads every project from the registry; --config only seeds the first one.
   const catalog = configPath ? ["--config", configPath] : []
   const launchRoot = join(releasePath, "launch-agents")
