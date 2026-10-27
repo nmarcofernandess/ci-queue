@@ -367,11 +367,34 @@ def progress_summary(job, progress=None):
             "hasRetries": has_omitted_retries or has_visible_retries}
 
 
+def public_pause(pause):
+    """Pause facts for the browser. The frozen pids stay local."""
+    if not isinstance(pause, dict) or pause.get("state") not in ("paused", "running"):
+        return None
+    windows = [window for window in pause.get("windows") or [] if isinstance(window, dict)]
+    total = pause.get("pausedMsTotal")
+    result = {
+        "state": pause["state"],
+        "pausedMsTotal": total if type(total) is int and total >= 0 else 0,
+        "windows": len(windows),
+    }
+    last = windows[-1] if windows else {}
+    for key in ("pausedAt", "reason", "source"):
+        if isinstance(last.get(key), str):
+            result[key] = last[key]
+    if pause.get("possibleInterference") is True:
+        result["possibleInterference"] = True
+    return result
+
+
 def public_job(job):
     """A browser projection. Raw argv, environment and artifact paths stay local."""
     if not isinstance(job, dict):
         return job
     result = {key: job.get(key) for key in PUBLIC_JOB_FIELDS if key in job}
+    pause = public_pause(job.get("pause"))
+    if pause:
+        result["pause"] = pause
     if job.get("recordKind") != "observed-execution":
         result["completion"] = public_completion(job)
     if "recordKind" not in result and "id" in result:

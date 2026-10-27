@@ -3,6 +3,7 @@ import {
   CircleDotIcon,
   LoaderCircleIcon,
   MinusCircleIcon,
+  PauseCircleIcon,
   XCircleIcon,
   type LucideIcon,
 } from "lucide-react"
@@ -103,10 +104,19 @@ function progressHasFailure(node: ProgressNode): boolean {
 }
 
 export function describeExecutionState(
-  job: Pick<JobRecord, "status" | "hasRetries" | "progressSummary" | "completion">
+  job: Pick<JobRecord, "status" | "hasRetries" | "progressSummary" | "completion" | "pause">
 ): StateDescriptor {
   const base = describeJobState(job.status)
   const flaky = executionHasRetries(job)
+  if (job.status === "running" && job.pause?.state === "paused") {
+    return {
+      Icon: PauseCircleIcon,
+      label: "Pausado",
+      detail: job.pause.reason,
+      colorClass: statusColor("paused"),
+      animated: false,
+    }
+  }
   if (job.status === "running") {
     const failed = executionProgressSome(job, progressHasFailure)
     return {

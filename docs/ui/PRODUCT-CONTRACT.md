@@ -60,6 +60,10 @@ A página tem uma faixa de execução atual acima de um grid com coluna principa
   abrem o drawer do ticket. O olho da execução atual existe só no `ItemActions`
   do bloco de tempo. Abrir o drawer **não** troca o seletor.
 - Existe um único indicador de estado, no início da identidade.
+- Job pausado: o indicador mostra **Pausado** em âmbar (`warning`), sem animação,
+  com o motivo no tooltip; o número para no instante da pausa, descontadas as
+  janelas anteriores, e o rótulo vira `pausado · …motivo`. A interface só observa:
+  pausar e retomar são comandos da CLI, sem botão.
 - As etapas formam uma faixa horizontal abaixo da identidade, com oito visíveis no desktop e rolagem lateral. Nomes e ícones legíveis, sem rótulos redundantes de estado; contagens e durações reais permanecem. A faixa acompanha a etapa ativa até o usuário voltar manualmente. Não existe percentual, ETA ou barra de progresso temporal.
 - Ao terminar, o ticket sai imediatamente desta faixa e passa ao histórico. Um terminal ou queued nunca ocupa esta região.
 

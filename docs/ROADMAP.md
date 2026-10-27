@@ -27,6 +27,14 @@ uma afirmação sobre a instalação de qualquer Mac.
 O produto não precisa reabrir a etapa 1B para registrar esses limites. Código,
 fixture, instalação e direção futura permanecem fatos diferentes.
 
+## Pausa e disco — 26/10/2026
+
+Pausa e retomada manuais pela CLI (`execution-pause-v1`), restritas às etapas
+que a receita declara seguras, e o guarda de disco (`disk-guard-v1`) que retém a
+fila e pausa só o elegível abaixo de 2 GiB livres. O guarda instala em `observe`;
+`ci-queue disk-guard enforce` liga a ação depois da semana de observação. Botão
+no dashboard e gatilho por memória continuam fora do corte.
+
 ## Próximas prioridades já identificadas
 
 Captação de duração de subetapas; latência da API e navegação; auditoria das

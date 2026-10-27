@@ -12,6 +12,10 @@ export const TICKET_SCHEMA_VERSION = 4 as const
 export const TERMINAL_FINALIZATION_CAPABILITY = "terminal-finalization-v1" as const
 export const NO_ARTIFACT_SNAPSHOTS_CAPABILITY = "no-artifact-snapshots-v1" as const
 export const RECOVERABLE_FINALIZATION_CAPABILITY = "recoverable-finalization-v1" as const
+/** Pause/resume of a running job by command, limited to progress nodes the recipe declares safe. */
+export const EXECUTION_PAUSE_CAPABILITY = "execution-pause-v1" as const
+/** Free-space guard of the state volume: hold the queue and pause eligible work below a fixed floor. */
+export const DISK_GUARD_CAPABILITY = "disk-guard-v1" as const
 export const FINALIZATION_JSON_MAX_BYTES = 64 * 1024
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
@@ -156,6 +160,29 @@ export type TicketFlags = {
   abortOnStaleBase?: boolean
   /** Whether this recipe is allowed to emit structured progress markers. */
   progressEnabled?: boolean
+  /**
+   * Progress node labels whose work has no wall clock (type checks, lint, static
+   * checks). A pause acts only while every running leaf node is one of them.
+   */
+  pauseSafeNodes?: string[]
+}
+
+export const PAUSE_SAFE_NODES_MAX = 128
+
+/** Validates the recipe's pause-safe labels; absent means the recipe never pauses. */
+export function normalizePauseSafeNodes(value: unknown, owner = "pauseSafeNodes"): string[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || value.length === 0 || value.length > PAUSE_SAFE_NODES_MAX) {
+    throw new Error(`${owner} precisa ser lista não vazia com até ${PAUSE_SAFE_NODES_MAX} rótulos`)
+  }
+  const labels = new Set<string>()
+  for (const item of value) {
+    if (typeof item !== "string" || !item.trim() || item.length > 200 || /[\u0000\n\t]/.test(item)) {
+      throw new Error(`${owner} contém rótulo inválido`)
+    }
+    labels.add(item)
+  }
+  return [...labels]
 }
 
 function optionalBoolean(
@@ -212,6 +239,9 @@ export function normalizeTicketFlags(value: unknown): TicketFlags {
     ...(optionalBoolean(raw, "progressEnabled") !== undefined
       ? { progressEnabled: optionalBoolean(raw, "progressEnabled") }
       : {}),
+    ...(raw.pauseSafeNodes !== undefined
+      ? { pauseSafeNodes: normalizePauseSafeNodes(raw.pauseSafeNodes) }
+      : {}),
   }
 }
 
@@ -237,6 +267,56 @@ export type WorkerIdentity = {
   startedAt: string
   capabilities: string[]
 }
+
+/** A process outside the job group that the pause stopped; `startedAt` guards against PID reuse. */
+export type FrozenProcess = { pid: number; startedAt: string }
+
+export type PauseSource = "manual" | "auto"
+
+export type PauseWindow = {
+  pausedAt: string
+  source: PauseSource
+  reason: string
+  resumedAt?: string
+  resumedBy?: PauseSource
+}
+
+/**
+ * Optional pause record of a running job. `status` stays `running`: readers of
+ * the closed status set are unaffected. Only closed windows count in
+ * `pausedMsTotal`; the open one ends at `resumedAt`.
+ */
+export type ExecutionPause = {
+  schemaVersion: 1
+  state: "paused" | "running"
+  windows: PauseWindow[]
+  pausedMsTotal: number
+  /** Out-of-group descendants stopped by the current window. */
+  frozen: FrozenProcess[]
+  /** Set on the terminal record when a failure follows a pause window closely. */
+  possibleInterference?: boolean
+}
+
+export type ResourceEventKind =
+  | "disk-low"
+  | "disk-critical"
+  | "disk-recovered"
+  | "paused"
+  | "resumed"
+  | "not-eligible"
+  | "would-pause"
+  | "would-resume"
+
+/** What the disk guard saw or did during this job; `mode` tells observation from action. */
+export type ResourceEvent = {
+  at: string
+  kind: ResourceEventKind
+  mode: "observe" | "enforce"
+  freeBytes?: number
+  detail?: string
+}
+
+export const RESOURCE_EVENTS_MAX = 40
 
 export type ProcessObservationItem = {
   pid: number
@@ -384,6 +464,10 @@ export type QueueTicket = {
   runVariant?: RunVariant
   /** User-space Node guard evidence; never implies an OS sandbox. */
   runtime?: RuntimeReceipt
+  /** Pause windows of this execution; durationMs excludes the closed ones. */
+  pause?: ExecutionPause
+  /** Disk guard observations and actions; observational, never a verdict. */
+  resourceEvents?: ResourceEvent[]
 }
 
 export type ProjectPreset = TicketFlags & {

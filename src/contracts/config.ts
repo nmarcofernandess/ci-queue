@@ -4,6 +4,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path"
 import {
   isValidPresetArgv,
   normalizeFinalization,
+  normalizePauseSafeNodes,
   rejectArtifactSnapshots,
   isValidProjectId,
   type ProjectPreset,
@@ -67,6 +68,10 @@ function readPresets(value: unknown): Record<string, ProjectPreset> {
     if (abortOnStaleBase === true && !fetchBase) {
       throw new Error(`preset ${name} exige fetchBase quando abortOnStaleBase é true`)
     }
+    const pauseSafeNodes = normalizePauseSafeNodes(item.pauseSafeNodes, `preset ${name}.pauseSafeNodes`)
+    if (pauseSafeNodes && item.progress !== true) {
+      throw new Error(`preset ${name} só declara pauseSafeNodes com progress: true`)
+    }
     presets[name] = {
       argv: [...item.argv],
       ...(typeof item.note === "string" ? { note: item.note } : {}),
@@ -77,6 +82,7 @@ function readPresets(value: unknown): Record<string, ProjectPreset> {
       ...(typeof item.pinHeadSha === "boolean" ? { pinHeadSha: item.pinHeadSha } : {}),
       ...(abortOnStaleBase !== undefined ? { abortOnStaleBase } : {}),
       ...(typeof item.progress === "boolean" ? { progress: item.progress } : {}),
+      ...(pauseSafeNodes ? { pauseSafeNodes } : {}),
       ...(item.artifacts !== undefined ? { artifacts: [] } : {}),
       ...(finalization ? { finalization } : {}),
     }

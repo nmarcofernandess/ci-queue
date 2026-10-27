@@ -63,6 +63,17 @@ export type JobCompletion = {
 }
 
 /** Browser-safe job projection. Process arguments and environment stay private. */
+/** Paused time is not execution; `pausedAt`, `reason` and `source` describe the last window. */
+export type JobPause = {
+  state: "paused" | "running"
+  pausedMsTotal: number
+  windows: number
+  pausedAt?: string
+  reason?: string
+  source?: "manual" | "auto"
+  possibleInterference?: boolean
+}
+
 export type JobRecord = {
   id: string
   projectId?: string
@@ -77,6 +88,7 @@ export type JobRecord = {
   startedAt?: string
   finishedAt?: string
   durationMs?: number | null
+  pause?: JobPause
   cwd?: string
   failureReason?: string | null
   cleanupBlockedReason?: string | null

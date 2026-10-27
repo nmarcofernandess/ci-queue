@@ -16,6 +16,7 @@ import {
   parseRunVariant,
   TERMINAL_FINALIZATION_CAPABILITY,
   NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY,
+  EXECUTION_PAUSE_CAPABILITY, DISK_GUARD_CAPABILITY,
   type CliFailure,
   type CliResult,
   type CliSuccess,
@@ -32,6 +33,8 @@ import { buildPresetHistory } from "./core/preset-history.js"
 import { attachProgressToTicket, PROGRESS_Q2Q3_CAPABILITY } from "./core/progress.js"
 import { listAdvisories, upsertAdvisory } from "./core/advisories.js"
 import { evaluateExecutionEntry, EXECUTION_ENTRY_GUARD_CAPABILITY } from "./core/execution-entry.js"
+import { pauseRunningJob, resumeRunningJob } from "./core/pause.js"
+import { DISK_GUARD_MODES, DISK_GUARD_POLICY, readDiskGuardMode, readDiskGuardStatus, writeDiskGuardMode, type DiskGuardMode } from "./core/disk-guard.js"
 import {
   EXECUTION_OBSERVE_CAPABILITY,
   OBSERVATION_MAX_BYTES,
@@ -168,6 +171,9 @@ function usage(): string {
     "  runtime register --project ID --node PATH [--version x.y.z] [--npm-cli PATH] [--npx-cli PATH]",
     "  logs [latest|<ticketId>]",
     "  cancel <ticketId>",
+    "  pause <ticketId> --reason TEXT",
+    "  resume <ticketId>",
+    "  disk-guard [status|observe|enforce|off]",
     "  config",
   ].join("\n")
 }
@@ -191,7 +197,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           ...(manifest ? { distribution: { revision: manifest.revision, protocol: manifest.protocol } } : {}),
           apiVersion: API_VERSION,
           ticketSchemaVersion: TICKET_SCHEMA_VERSION,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, SESSION_RUNTIME_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read", "v4-ticket-read"],
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, SESSION_RUNTIME_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY, EXECUTION_PAUSE_CAPABILITY, DISK_GUARD_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read", "v4-ticket-read"],
         })
       }
       case "observe": {
@@ -352,7 +358,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         return success(await runWorker(root))
       case "status": {
         const running = readRunningJob(root)
-        return success({ sessionRuntimes: listSessionRuntimes(root), running: running ? { ...attachProgressToTicket(root, running), completion: executionCompletion(running) } : null, queued: listQueuedJobs(root).map(ticket => ({ ...ticket, completion: executionCompletion(ticket) })), latest: listExecutionSources(root).map(projectExecution)[0] ?? null })
+        return success({ sessionRuntimes: listSessionRuntimes(root), running: running ? { ...attachProgressToTicket(root, running), completion: executionCompletion(running) } : null, queued: listQueuedJobs(root).map(ticket => ({ ...ticket, completion: executionCompletion(ticket) })), latest: listExecutionSources(root).map(projectExecution)[0] ?? null, diskGuard: { mode: readDiskGuardMode(root), status: readDiskGuardStatus(root) ?? null } })
       }
       case "history": {
         const projectId = optionValue(args.rest, "--project")
@@ -467,6 +473,29 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         const id = args.rest.find((item) => !item.startsWith("--"))
         if (!id) return failure("USAGE", "cancel requer ticketId")
         return success(await cancelQueuedOrRunningTicket(root, id))
+      }
+      case "pause": {
+        const id = args.rest.find((item, index) => !item.startsWith("--") && args.rest[index - 1] !== "--reason")
+        const reason = optionValue(args.rest, "--reason")?.trim()
+        if (!id || !reason) return failure("USAGE", "uso: ci-queue pause <ticketId> --reason TEXT")
+        const result = await pauseRunningJob(root, id, { reason: reason.slice(0, 500), source: "manual" })
+        if (result.kind === "paused" || result.kind === "already-paused") return success(result)
+        return failure(result.kind === "refused" ? "PAUSE_REFUSED" : "NOT_RUNNING", result.reason, { kind: result.kind })
+      }
+      case "resume": {
+        const id = args.rest.find((item) => !item.startsWith("--"))
+        if (!id) return failure("USAGE", "uso: ci-queue resume <ticketId>")
+        const result = await resumeRunningJob(root, id, { source: "manual" })
+        if (result.kind === "resumed" || result.kind === "not-paused") return success(result)
+        return failure(result.kind === "refused" ? "RESUME_REFUSED" : "NOT_RUNNING", result.reason, { kind: result.kind })
+      }
+      case "disk-guard": {
+        const action = args.rest.find((item) => !item.startsWith("--")) ?? "status"
+        if (action !== "status") {
+          if (!(DISK_GUARD_MODES as readonly string[]).includes(action)) return failure("USAGE", "uso: ci-queue disk-guard [status|observe|enforce|off]")
+          writeDiskGuardMode(root, action as DiskGuardMode)
+        }
+        return success({ mode: readDiskGuardMode(root), status: readDiskGuardStatus(root) ?? null, policy: DISK_GUARD_POLICY })
       }
       case "config": {
         const config = readQueueConfig(args.cwd, args.configPath)

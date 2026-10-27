@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { parseTicket, claimQueuedTicket, reconcileInterruptedJob, reconcileTerminalClaims, rejectQueuedTicket, runJob } from "./runner.js"
 import { observeWorkerIdentity, probeWorkerIdentity, terminateVerifiedProcessGroup } from "./process.js"
 import { reconcileFinalizations, finalizationExecutionIds, type RecoveryActivation, type RecoverySummary } from "./finalization.js"
+import { WorkerDiskGuard, type DiskGuardHooks } from "./disk-guard-runtime.js"
 import {
   acquireRunnerLock,
   appendLog,
@@ -90,7 +91,7 @@ export function recoverProgressTemporaries(root: string): string[] {
 }
 
 /** Drains one state root and exits. The installer may invoke it on demand. */
-export async function runWorker(root: string, options: { finalizeOnly?: string } = {}): Promise<WorkerReport> {
+export async function runWorker(root: string, options: { finalizeOnly?: string; diskGuard?: DiskGuardHooks } = {}): Promise<WorkerReport> {
   ensureQueueDirs(root)
   const lock = acquireRunnerLock(root)
   if (!lock) return { processed: [], rejected: [], reconciliation: "active", busy: true }
@@ -102,7 +103,10 @@ export async function runWorker(root: string, options: { finalizeOnly?: string }
   let interrupted = false
   const handleSignal = () => {
     interrupted = true
-    if (current?.processGroupIdentity) void terminateVerifiedProcessGroup(current.processGroupIdentity)
+    if (current?.processGroupIdentity) {
+      const running = readRunningJob(root)
+      void terminateVerifiedProcessGroup(current.processGroupIdentity, undefined, { frozen: running?.id === current.id ? running.pause?.frozen : undefined })
+    }
   }
   process.once("SIGINT", handleSignal)
   process.once("SIGTERM", handleSignal)
@@ -147,6 +151,7 @@ export async function runWorker(root: string, options: { finalizeOnly?: string }
     recoverProgressTemporaries(root)
     recoverClaims(root)
     report.rejected.push(...await sweepInvalidTickets(root))
+    const diskGuard = new WorkerDiskGuard(root, options.diskGuard)
     for (;;) {
       const currentOwnership = readWorkerOwnership(root)
       if (currentOwnership.state === "invalid") {
@@ -165,6 +170,10 @@ export async function runWorker(root: string, options: { finalizeOnly?: string }
       if (finalizations.reconciled.length) report.reconciliation = "reconciled"
       if (interrupted) break
       if (readRunningJob(root)) break
+      if (!listQueuedJobs(root)[0]) break
+      // Below the disk floor the next job stays queued; it is never refused.
+      await diskGuard.waitBeforeClaim(() => interrupted)
+      if (interrupted) break
       const candidate = listQueuedJobs(root)[0]
       if (!candidate) break
       const claimed = await claimQueuedTicket(root, candidate.id, process.pid)
@@ -183,11 +192,15 @@ export async function runWorker(root: string, options: { finalizeOnly?: string }
         report.rejected.push(terminal.id)
         continue
       }
-      const terminal = await runJob(root, parsed, {
-        recoveryActivation: activation,
-        onJob: (job) => { current = job },
-        interruptedReason: () => interrupted ? "worker interrompido por sinal" : undefined,
-      })
+      const stopWatch = diskGuard.watchJob(parsed.ticket.id)
+      let terminal: QueueTicket
+      try {
+        terminal = await runJob(root, parsed, {
+          recoveryActivation: activation,
+          onJob: (job) => { current = job },
+          interruptedReason: () => interrupted ? "worker interrompido por sinal" : undefined,
+        })
+      } finally { await stopWatch() }
       report.processed.push(terminal.id)
     }
     return report
