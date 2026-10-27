@@ -78,8 +78,13 @@ def read_base(project):
 
 
 def _contains(common_dir, tip, sha):
+    # The base only moves forward, so a contained revision stays contained when
+    # the tip advances; only "outside" and "unknown" are tied to one tip.
+    contained_key = (common_dir, None, sha)
     key = (common_dir, tip, sha)
     with _cache_lock:
+        if contained_key in _cache:
+            return True
         if key in _cache:
             return _cache[key]
     result = _git(common_dir, "merge-base", "--is-ancestor", sha, tip)
@@ -87,7 +92,7 @@ def _contains(common_dir, tip, sha):
     with _cache_lock:
         if len(_cache) >= _MAX_CACHE:
             _cache.clear()
-        _cache[key] = answer
+        _cache[contained_key if answer else key] = answer
     return answer
 
 
