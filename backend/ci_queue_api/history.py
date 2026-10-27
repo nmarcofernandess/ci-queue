@@ -14,6 +14,9 @@ from .records import history_key, read_history, read_history_with_coverage, read
 
 REMOTE_SLOT_SCHEMA = 1
 REMOTE_SLOT_NAMESPACE = "refs/ci/last-green"
+# The mirror is rewritten by the consumer after each publication; a reading
+# older than a day may miss slots that another machine already published.
+REMOTE_MIRROR_MAX_AGE_SECONDS = 24 * 60 * 60
 _SHA = re.compile(r"[0-9a-f]{40}\Z")
 
 
@@ -278,6 +281,15 @@ def _timestamp_or_none(value):
     return value if _valid_timestamp(value) else None
 
 
+def _reading_is_old(read_at, refreshed_at, now):
+    """A reading without a valid time is never presented as fresh."""
+    stamp = _timestamp_or_none(refreshed_at) or _timestamp_or_none(read_at)
+    if stamp is None:
+        return True
+    moment = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    return (now - moment).total_seconds() > REMOTE_MIRROR_MAX_AGE_SECONDS
+
+
 def _remote_response(config, available, stale=False, reason=None, remote=None,
                      read_at=None, refreshed_at=None, greens=None,
                      without_tag=None, invalid_payloads=None):
@@ -432,13 +444,16 @@ def _canonical_git_green(slot, config, local_ticket_ids, completed_jobs=None):
     }, None
 
 
-def read_remote_slots(path, config, state_root=None, *, local_ticket_ids=None, completed_jobs=None):
+def read_remote_slots(path, config, state_root=None, *, local_ticket_ids=None, completed_jobs=None,
+                      now=None):
     """Read and normalize a local Git-slot mirror without fetching Git.
 
     The source format is the `SlotReadReport` emitted by the canonical
     `read-green --json` reader: annotated ``refs/ci/last-green/<preset>`` tags
     with schema-1 JSON payloads.  Older bridge cache envelopes are accepted,
-    but their opaque ``report`` is never passed to the browser.
+    but their opaque ``report`` is never passed to the browser.  A reading
+    older than ``REMOTE_MIRROR_MAX_AGE_SECONDS`` is marked stale; age never
+    changes ``available``.
     """
     if path is None:
         return _remote_response(
@@ -468,6 +483,8 @@ def read_remote_slots(path, config, state_root=None, *, local_ticket_ids=None, c
         )
     if _timestamp_or_none(read_at) is None:
         read_at = report.get("generatedAt")
+    if _reading_is_old(read_at, refreshed_at, now or datetime.now(timezone.utc)):
+        stale = True
     remote = report.get("remote")
     if any(project_id != config.project_id for project_id in _report_project_ids(report)):
         return _remote_response(

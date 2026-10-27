@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { asMachineGreen, asGitGreen, greenIdentity, mergeGreenRows, filterGreens } from "../../ui/src/features/status/green-rows"
-import type { PresetHistoryEntry, RemoteGreen } from "../../ui/src/lib/types"
+import { asMachineGreen, asGitGreen, greenIdentity, mergeGreenRows, filterGreens, staleMirrorNote } from "../../ui/src/features/status/green-rows"
+import type { PresetHistoryEntry, RemoteGreen, RemoteSlotsSource } from "../../ui/src/lib/types"
 import { groupGreenCommits } from "../../ui/src/features/status/green-commit"
 
 describe("latest greens grouped by commit", () => {
@@ -77,4 +77,18 @@ it("converts canonical machine and Git references with project identity", () => 
   const remote = { projectId: "alpha", projectName: "Alpha", preset: "full", ticketId: "ticket1", jobAvailable: false } as RemoteGreen & { projectName: string }
   expect(asMachineGreen(entry)).toMatchObject({ projectId: "alpha", projectName: "Alpha" })
   expect(asGitGreen(remote)).toMatchObject({ projectId: "alpha", projectName: "Alpha", detailsAvailable: false })
+})
+
+it("names when a stale Git mirror was read, preferring the refresh time", () => {
+  const source = {
+    kind: "git", available: true, stale: true, remote: "origin", namespace: "refs/ci/last-green",
+    readAt: new Date(2026, 8, 13, 10, 1).toISOString(), refreshedAt: null, reason: null,
+  } as RemoteSlotsSource
+  expect(staleMirrorNote({ ...source, stale: false })).toBeNull()
+  expect(staleMirrorNote(null)).toBeNull()
+  expect(staleMirrorNote(source)).toBe("espelho lido em 13/09 10:01; os verdes refletem essa leitura.")
+  expect(staleMirrorNote({ ...source, refreshedAt: new Date(2026, 8, 12, 8, 30).toISOString() }))
+    .toBe("espelho lido em 12/09 08:30; os verdes refletem essa leitura.")
+  expect(staleMirrorNote({ ...source, readAt: null }))
+    .toBe("espelho sem horário de leitura; os verdes refletem a última leitura local.")
 })

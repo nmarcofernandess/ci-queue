@@ -8,6 +8,7 @@ import tempfile
 import threading
 import unittest
 from dataclasses import replace
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest import mock
 from pathlib import Path
@@ -498,7 +499,8 @@ class RemoteGreensTests(Fixture):
         self.job("remote-ticket")
         mirror = self.write_remote_mirror(self.remote_report([self.remote_slot()]))
 
-        response = read_remote_slots(mirror, self.config, self.state)
+        response = read_remote_slots(mirror, self.config, self.state,
+                                     now=datetime(2026, 9, 13, 11, 0, tzinfo=timezone.utc))
 
         self.assertEqual(response["schemaVersion"], 2)
         self.assertNotIn("report", response)
@@ -534,6 +536,26 @@ class RemoteGreensTests(Fixture):
             "durationMs": 60000,
             "ref": "refs/ci/last-green/smoke",
         }])
+
+    def test_an_old_reading_is_stale_but_stays_available(self):
+        self.job("remote-ticket")
+        mirror = self.write_remote_mirror(self.remote_report([self.remote_slot()]))
+        read_at = datetime(2026, 9, 13, 10, 1, 20, tzinfo=timezone.utc)
+
+        within_a_day = read_remote_slots(mirror, self.config, self.state,
+                                         now=read_at.replace(day=14, hour=10, minute=0))
+        after_a_day = read_remote_slots(mirror, self.config, self.state,
+                                        now=read_at.replace(day=14, hour=10, minute=2))
+
+        self.assertFalse(within_a_day["source"]["stale"])
+        self.assertTrue(after_a_day["source"]["stale"])
+        self.assertTrue(after_a_day["source"]["available"])
+        self.assertIsNone(after_a_day["source"]["reason"])
+        self.assertEqual(after_a_day["source"]["readAt"], "2026-09-13T10:01:20Z")
+        self.assertEqual(after_a_day["greens"][0]["ticketId"], "remote-ticket")
+
+        undated = self.write_remote_mirror(self.remote_report([self.remote_slot()], generatedAt=None))
+        self.assertTrue(read_remote_slots(undated, self.config, self.state, now=read_at)["source"]["stale"])
 
     def test_distinguishes_a_readable_empty_mirror_from_an_unreadable_one(self):
         empty = self.write_remote_mirror(self.remote_report([]))

@@ -1,6 +1,17 @@
 import type { RunTableJob } from "@/features/shared/run-table"
-import type { PresetHistoryEntry, RemoteGreen } from "@/lib/types"
-import { queryPeriodStart } from "../shared/format"
+import type { PresetHistoryEntry, RemoteGreen, RemoteSlotsSource } from "@/lib/types"
+import { formatTimelineDate, queryPeriodStart } from "../shared/format"
+
+/** The backend decides staleness by age; the UI names when the mirror was read. */
+export function staleMirrorNote(source: RemoteSlotsSource | null | undefined) {
+  if (!source?.stale) {
+    return null
+  }
+  const readAt = source.refreshedAt ?? source.readAt
+  return readAt
+    ? `espelho lido em ${formatTimelineDate(readAt)}; os verdes refletem essa leitura.`
+    : "espelho sem horário de leitura; os verdes refletem a última leitura local."
+}
 type GreenGrouping = "preset" | "commit"
 type Period = "all" | "today" | "48h" | "week" | "15d"
 
