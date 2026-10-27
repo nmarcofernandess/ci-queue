@@ -47,6 +47,23 @@ class FinalizationTests(unittest.TestCase):
         ticket = json.loads(CASES[0]['terminalBytes'])
         self.assertFalse(canonical_green(ticket, {'argv': ['check']}))
 
+    def test_consumer_declared_finalization_is_green_when_recipe_declares_none(self):
+        # A1: consumers that declare finalization per execution froze their
+        # canonical green when the recipe itself declared none.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'history').mkdir()
+            (root / 'state/finalization').mkdir(parents=True)
+            (root / 'history/job-1.json').write_text(CASES[0]['terminalBytes'])
+            (root / 'state/finalization/job-1.json').write_text(json.dumps({**CASES[0]['record'], 'phase': 'pending'}))
+            self.assertFalse(canonical_green(read_history(root)[0], {'argv': ['check']}))
+            (root / 'state/finalization/job-1.json').write_text(json.dumps(CASES[0]['record']))
+            job = read_history(root)[0]
+            self.assertTrue(canonical_green(job, {'argv': ['check']}))
+            other = {**job['finalization'], 'timeoutMs': job['finalization']['timeoutMs'] + 1}
+            self.assertFalse(canonical_green(job, {'argv': ['check'], 'finalization': other}))
+            self.assertFalse(canonical_green(job, {'argv': ['other']}))
+
     def test_public_history_joins_record_and_keeps_test_status(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
