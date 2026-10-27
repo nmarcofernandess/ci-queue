@@ -975,3 +975,33 @@ for (const theme of ['light', 'dark'] as const) {
     })
   }
 }
+
+for (const width of [390, 1440]) {
+  test(`a paused current execution shows its reason and a stopped clock ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.clock.install({ time: new Date('2026-10-26T10:05:00Z') })
+    const paused = {
+      ...baseJob, id: 'paused', status: 'running', startedAt: '2026-10-26T10:00:00Z',
+      pause: { state: 'paused', pausedAt: '2026-10-26T10:01:30Z', pausedMsTotal: 20_000, windows: 2, reason: 'disco abaixo de 2.0 GiB', source: 'auto' },
+    }
+    await page.route('**/api/**', async route => {
+      const path = new URL(route.request().url()).pathname
+      if (path === '/api/projects') return route.fulfill({ json: fixtureProjects })
+      const data: Record<string, unknown> = {
+        '/api/session': {}, '/api/machine': {},
+        '/api/status': { project: { id: 'example', name: 'Example' }, running: paused, queued: [], history: [], globalOccupancy: true },
+        '/api/executions': { jobs: [], coverage: {} },
+        '/api/dashboard-state': { presets: [], meta: null, pending: [] },
+      }
+      await route.fulfill({ json: data[path] ?? {} })
+    })
+    await page.goto('/')
+    const current = page.locator('[data-slot="card"]').filter({ hasText: 'Execução atual' })
+    await expect(current.getByRole('img', { name: 'Pausado · disco abaixo de 2.0 GiB' })).toBeVisible()
+    await expect(current.getByText('1m 10s', { exact: true })).toBeVisible()
+    await expect(current.getByText('pausado · disco abaixo de 2.0 GiB', { exact: true })).toBeVisible()
+    await page.clock.fastForward(30_000)
+    await expect(current.getByText('1m 10s', { exact: true })).toBeVisible()
+    await expect(page.locator('.animate-spin')).toHaveCount(0)
+  })
+}

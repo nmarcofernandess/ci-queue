@@ -29,6 +29,13 @@ No enqueue explícito, o caller deve omitir `baseRef` ou fornecer o SHA observad
 para isolamento; refs flutuantes permanecem sua escolha. Com `fetchBase`,
 ancestralidade, fetch e verificações estritas de ship são preservados.
 
+Uma receita com `progress: true` pode declarar `pauseSafeNodes`: os rótulos das
+etapas que aguentam ser congeladas e retomadas, por não dependerem de relógio de
+parede, navegador ou banco (`tsc`, lint, checks, `prisma generate`). Sem a lista,
+a receita nunca pausa. Jest, E2E e proofs ficam fora: um temporizador vencido
+durante a pausa dispara ao retomar e vira falso vermelho. Confira
+`execution-pause-v1` na instalação antes de depender da pausa.
+
 `WAIT_TIMEOUT` encerra a espera do cliente, não cancela o job. Consulte o mesmo
 ticket antes de repetir ou cancelar; resultado ausente não significa PASS.
 

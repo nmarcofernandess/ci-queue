@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 // These tests exercise semantic descriptors, not SVG rendering.
-vi.mock('lucide-react', () => ({ CheckCircle2Icon: () => null, CircleDotIcon: () => null, LoaderCircleIcon: () => null, MinusCircleIcon: () => null, XCircleIcon: () => null }))
+vi.mock('lucide-react', () => ({ CheckCircle2Icon: () => null, CircleDotIcon: () => null, LoaderCircleIcon: () => null, MinusCircleIcon: () => null, PauseCircleIcon: () => null, XCircleIcon: () => null }))
 import {
   describeJobState,
   describeExecutionState,
@@ -213,4 +213,12 @@ it.each(['retryable', 'blocked-ownership'] as const)('shows %s recovery without 
   expect(describeExecutionState(job).detail).toContain(message)
   expect(describeCompletionFacts(job).find(fact => fact.label === 'Finalização')?.value).toContain(message)
   expect(describeCompletionFacts(job)[0].value).toBe('Teste falhou')
+})
+
+describe('pause', () => {
+  const paused = { id: 'p', status: 'running' as const, progressEnabled: true, pause: { state: 'paused' as const, pausedMsTotal: 0, windows: 1, pausedAt: '2026-10-26T10:00:30Z', reason: 'disco abaixo de 2.0 GiB', source: 'auto' as const } }
+  it('shows a paused job as paused with its reason, never as running', () => {
+    expect(describeExecutionState(paused)).toMatchObject({ label: 'Pausado', detail: 'disco abaixo de 2.0 GiB', animated: false, colorClass: 'text-warning' })
+    expect(describeExecutionState({ ...paused, pause: { ...paused.pause, state: 'running' as const } })).toMatchObject({ label: describeJobState('running').label, animated: true })
+  })
 })

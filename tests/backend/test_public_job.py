@@ -48,5 +48,37 @@ class PublicJobProgressEnabled(unittest.TestCase):
                 self.assertEqual(ticket_history_projection(job)["executor"], "unknown")
 
 
+class PublicJobPause(unittest.TestCase):
+    def test_projects_the_last_window_and_keeps_frozen_pids_local(self):
+        projected = public_job({
+            "id": "t4",
+            "status": "running",
+            "pause": {
+                "schemaVersion": 1,
+                "state": "paused",
+                "pausedMsTotal": 1500,
+                "frozen": [{"pid": 4242, "startedAt": "Mon Oct 26 22:15:47 2026"}],
+                "windows": [
+                    {"pausedAt": "2026-10-26T10:00:00Z", "source": "manual", "reason": "primeira", "resumedAt": "2026-10-26T10:00:01.500Z", "resumedBy": "manual"},
+                    {"pausedAt": "2026-10-26T10:05:00Z", "source": "auto", "reason": "disco abaixo de 2.0 GiB"},
+                ],
+            },
+        })
+        self.assertEqual(projected["pause"], {
+            "state": "paused",
+            "pausedMsTotal": 1500,
+            "windows": 2,
+            "pausedAt": "2026-10-26T10:05:00Z",
+            "reason": "disco abaixo de 2.0 GiB",
+            "source": "auto",
+        })
+        self.assertNotIn("frozen", projected["pause"])
+
+    def test_ignores_an_unreadable_pause(self):
+        for pause in (None, [], {"state": "stopped"}, "paused"):
+            with self.subTest(pause=pause):
+                self.assertNotIn("pause", public_job({"id": "t5", "pause": pause}))
+
+
 if __name__ == "__main__":
     unittest.main()

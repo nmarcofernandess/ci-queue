@@ -1,4 +1,4 @@
-import type { JobStatus } from "@/lib/types"
+import type { JobPause, JobStatus } from "@/lib/types"
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   dateStyle: "short",
@@ -153,6 +153,7 @@ export function jobDuration(
     status?: JobStatus
     startedAt?: string | null
     durationMs?: number | null
+    pause?: Pick<JobPause, "state" | "pausedAt" | "pausedMsTotal"> | null
   },
   now = Date.now(),
   compact = false,
@@ -163,8 +164,11 @@ export function jobDuration(
   }
   if (job.status === "running") {
     const start = job.startedAt ? Date.parse(job.startedAt) : NaN
+    // Active time: the clock stands still while the job is paused.
+    const pausedAt = job.pause?.state === "paused" && job.pause.pausedAt ? Date.parse(job.pause.pausedAt) : NaN
+    const end = Number.isFinite(pausedAt) ? pausedAt : now
     return formatDuration(
-      Number.isFinite(start) ? Math.max(0, now - start) : undefined,
+      Number.isFinite(start) ? Math.max(0, end - start - (job.pause?.pausedMsTotal ?? 0)) : undefined,
       unavailable,
     )
   }

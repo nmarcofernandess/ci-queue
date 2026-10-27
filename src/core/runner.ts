@@ -9,6 +9,7 @@ import { initialExecutionDeadline, captureExecutionDeadline, validateQueuedDeadl
 import { ProgressCollector, removeProgressSnapshot } from "./progress.js"
 import { childExit, observeTestProducer, observeWorkerIdentity, probeProcessGroupIdentity, probeWorkerIdentity, readProcessObservation, STDIO_DRAIN_AFTER_EXIT_MS, terminateVerifiedProcessGroup } from "./process.js"
 import { preparePendingFinalization, runFinalization, type RecoveryActivation } from "./finalization.js"
+import { pausedMs, pauseInterference } from "./pause.js"
 import {
   decideSpendAbort,
   observeRemoteBase,
@@ -225,11 +226,29 @@ function assertPreflight(ticket: QueueTicket, flags: TicketFlags): GitInfo | und
 
 function mergeRunning(root: string, candidate: QueueTicket): QueueTicket {
   const current = readRunningJob(root)
+  // Cancellation, pause and guard events are written by other processes under
+  // the ticket lock; the runner's own writes never drop them.
   const merged: QueueTicket = current?.id === candidate.id
-    ? { ...candidate, ...(current.cancelRequestedAt ? { cancelRequestedAt: current.cancelRequestedAt } : {}), ...(current.cancelledAt ? { cancelledAt: current.cancelledAt } : {}) }
+    ? {
+      ...candidate,
+      ...(current.cancelRequestedAt ? { cancelRequestedAt: current.cancelRequestedAt } : {}),
+      ...(current.cancelledAt ? { cancelledAt: current.cancelledAt } : {}),
+      ...(current.pause ? { pause: current.pause } : {}),
+      ...(current.resourceEvents ? { resourceEvents: current.resourceEvents } : {}),
+    }
     : candidate
   atomicWriteJson(queuePaths(root).running, merged)
   return merged
+}
+
+/** A window still open at exit (cancelled or killed while paused) closes at the finish. */
+function closePauseRecord(pause: QueueTicket["pause"], finishedAt: string, failed: boolean): QueueTicket["pause"] {
+  if (!pause) return undefined
+  const open = pause.state === "paused" ? pause.windows.at(-1) : undefined
+  const closed = open && !open.resumedAt
+    ? { ...pause, state: "running" as const, frozen: [], pausedMsTotal: pausedMs(pause, Date.parse(finishedAt)), windows: [...pause.windows.slice(0, -1), { ...open, resumedAt: finishedAt }] }
+    : pause
+  return failed && pauseInterference(closed, Date.parse(finishedAt)) ? { ...closed, possibleInterference: true } : closed
 }
 
 function terminalStatus(exitCode: number, cancelRequested: boolean, interrupted: boolean, timedOut: boolean): TerminalStatus {
@@ -320,9 +339,13 @@ export async function closeRunningTicket(root: string, candidate: QueueTicket): 
     }
     const running = readRunningJob(root)
     if (running && running.id !== candidate.id) throw new Error("outro ticket mantém a reserva do runner")
-    const merged = running?.id === candidate.id && running.cancelRequestedAt && !candidate.cancelRequestedAt
+    const cancelled = running?.id === candidate.id && running.cancelRequestedAt && !candidate.cancelRequestedAt
       ? { ...candidate, cancelRequestedAt: running.cancelRequestedAt }
       : candidate
+    // Guard events are append-only; the reservation may hold one written after the candidate was built.
+    const merged = running?.id === candidate.id && (running.resourceEvents?.length ?? 0) > (candidate.resourceEvents?.length ?? 0)
+      ? { ...cancelled, resourceEvents: running.resourceEvents }
+      : cancelled
     // Keep the completed candidate in the existing reservation across a crash
     // between pending and history, so recovery preserves its original verdict.
     atomicWriteJson(queuePaths(root).running, merged)
@@ -433,7 +456,7 @@ export async function cancelQueuedOrRunningTicket(root: string, id: string): Pro
     }
     const requested: QueueTicket = { ...found.ticket, cancelRequestedAt: found.ticket.cancelRequestedAt ?? new Date().toISOString() }
     atomicWriteJson(queuePaths(root).running, requested)
-    const signal = await terminateVerifiedProcessGroup(requested.processGroupIdentity)
+    const signal = await terminateVerifiedProcessGroup(requested.processGroupIdentity, undefined, { frozen: requested.pause?.frozen })
     appendRedactedLog(requested.logPath, `[${new Date().toISOString()}] cancelamento solicitado: ${signal.reason}\n`)
     return { kind: "running", job: requested, signalled: signal.terminated, reason: signal.reason } as const
   })
@@ -450,14 +473,17 @@ export async function reconcileInterruptedJob(root: string, activation?: Recover
   if (running.workerPid && running.workerPid !== process.pid) {
     try { process.kill(running.workerPid, 0); return { state: "active", job: running } } catch { /* dead owner */ }
   }
-  const termination = await terminateVerifiedProcessGroup(running.processGroupIdentity)
+  // A job left paused by a dead worker has nobody to SIGCONT it; recovery thaws before ending it.
+  const termination = await terminateVerifiedProcessGroup(running.processGroupIdentity, undefined, { frozen: running.pause?.frozen })
   const cleanupBlockedReason = termination.terminated ? undefined : `recuperação interrompida: ${termination.reason}`
   if (cleanupBlockedReason) appendRedactedLog(running.logPath, `[${new Date().toISOString()}] ${cleanupBlockedReason}; resíduo preservado\n`)
   const collector = new ProgressCollector(root, running.id)
+  const finishedAt = new Date().toISOString()
   const withProgress = withFinalProgress(root, {
     ...running,
+    ...(running.pause ? { pause: closePauseRecord(running.pause, finishedAt, false) } : {}),
     status: "interrupted",
-    finishedAt: new Date().toISOString(),
+    finishedAt,
     exitCode: null,
     failureReason: termination.terminated ? "worker interrompido; processo filho encerrado durante a recuperação" : "worker interrompido; encerramento do processo filho não confirmado",
     ...(cleanupBlockedReason ? { cleanupBlockedReason } : {}),
@@ -717,24 +743,39 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
   let staleAborted = false
   child.once("exit", () => { childExited = true })
   let deadlineTimer: NodeJS.Timeout | undefined
-  if (ticket.executionDeadline?.state === "armed") {
-    const deadline = ticket.executionDeadline
-    deadlineTimer = setTimeout(() => {
-      if (childExited || staleAborted) return
-      const current = readRunningJob(root)
-      if (!current || current.id !== ticket.id) return
-      timedOut = true
-      const expired = { ...current, executionDeadline: { state: "expired" as const, timeoutMs: deadline.timeoutMs, armedAt: deadline.armedAt, expiresAt: deadline.expiresAt, expiredAt: new Date().toISOString() } }
-      try {
-        atomicWriteJson(queuePaths(root).running, expired)
-        void terminateVerifiedProcessGroup(expired.processGroupIdentity)
-      } catch (error) {
-        timedOut = false
-        appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] deadline não persistido: ${error instanceof Error ? error.message : String(error)}\n`)
-      }
-    }, deadline.timeoutMs)
+  const armDeadline = (delayMs: number) => {
+    deadlineTimer = setTimeout(checkDeadline, Math.max(0, Math.min(delayMs, 2_147_483_647)))
     deadlineTimer.unref?.()
   }
+  // The deadline counts active time. A pause keeps the remainder: resume moves
+  // expiresAt by the window, so the check rereads it instead of trusting the
+  // delay it was armed with.
+  const expireIfDue = () => {
+    if (childExited || staleAborted) return
+    const current = readRunningJob(root)
+    if (!current || current.id !== ticket.id) return
+    const deadline = current.executionDeadline
+    if (deadline?.state !== "armed") return
+    if (current.pause?.state === "paused") return armDeadline(1_000)
+    const remaining = Date.parse(deadline.expiresAt) - Date.now()
+    if (remaining > 0) return armDeadline(remaining)
+    timedOut = true
+    const expired = { ...current, executionDeadline: { state: "expired" as const, timeoutMs: deadline.timeoutMs, armedAt: deadline.armedAt, expiresAt: deadline.expiresAt, expiredAt: new Date().toISOString() } }
+    try {
+      atomicWriteJson(queuePaths(root).running, expired)
+      void terminateVerifiedProcessGroup(expired.processGroupIdentity, undefined, { frozen: expired.pause?.frozen })
+    } catch (error) {
+      timedOut = false
+      appendRedactedLog(ticket.logPath, `[${new Date().toISOString()}] deadline não persistido: ${error instanceof Error ? error.message : String(error)}\n`)
+    }
+  }
+  // Expiry shares the ticket lock with pause, resume and cancellation, so a
+  // pause written meanwhile is never overwritten by a stale read.
+  const checkDeadline = () => {
+    void withTicketLock(root, ticket.id, () => { expireIfDue(); return true })
+      .then(locked => { if (!locked && !childExited) armDeadline(1_000) }, () => { if (!childExited) armDeadline(1_000) })
+  }
+  if (ticket.executionDeadline?.state === "armed") armDeadline(ticket.executionDeadline.timeoutMs)
 
   const observer = parsed.flags.abortOnStaleBase === true && parsed.flags.fetchBase
     ? startSpendAbortObserver({
@@ -750,7 +791,7 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
         if (current.executionDeadline?.state === "expired") return
         if (!current.processGroupIdentity) return
         staleAborted = true
-        await terminateVerifiedProcessGroup(current.processGroupIdentity)
+        await terminateVerifiedProcessGroup(current.processGroupIdentity, undefined, { frozen: current.pause?.frozen })
       },
     })
     : undefined
@@ -807,12 +848,19 @@ export async function runJob(root: string, parsed: ParsedTicket, hooks: RunJobHo
     ? { state: "completed" as const, timeoutMs: deadline.timeoutMs, armedAt: deadline.armedAt, expiresAt: deadline.expiresAt }
     : deadline
   const observation = readProcessObservation(identity, { capture: "end", cwd: ticket.cwd, jobId: ticket.id, exitedBeforeObservation: exit.stdio === "closed" })
+  const finishedAtMs = Date.now()
+  const finishedAt = new Date(finishedAtMs).toISOString()
+  const pause = closePauseRecord(latest?.id === ticket.id ? latest.pause : undefined, finishedAt, status === "failed")
+  if (pause?.possibleInterference) appendRedactedLog(ticket.logPath, `[${finishedAt}] falha próxima de uma janela de pausa: possível interferência da pausa\n`)
   const candidate = withFinalProgress(root, {
     ...ticket,
     ...(latest?.cancelRequestedAt ? { cancelRequestedAt: latest.cancelRequestedAt } : {}),
+    ...(pause ? { pause } : {}),
+    ...(latest?.id === ticket.id && latest.resourceEvents ? { resourceEvents: latest.resourceEvents } : {}),
     status,
-    finishedAt: new Date().toISOString(),
-    durationMs: Date.now() - Date.parse(ticket.startedAt ?? ticket.createdAt),
+    finishedAt,
+    // Active time: closed pause windows are not execution.
+    durationMs: finishedAtMs - Date.parse(ticket.startedAt ?? ticket.createdAt) - (pause?.pausedMsTotal ?? 0),
     exitCode,
     ...(failureReason ? { failureReason } : {}),
     ...(completedDeadline ? { executionDeadline: completedDeadline } : {}),

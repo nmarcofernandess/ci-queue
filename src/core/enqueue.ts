@@ -90,6 +90,7 @@ export function buildTicket(input: EnqueueInput, resolved?: ResolvedQueueConfig)
       ...(preset.pinHeadSha !== undefined ? { pinHeadSha: preset.pinHeadSha } : {}),
       ...(preset.abortOnStaleBase !== undefined ? { abortOnStaleBase: preset.abortOnStaleBase } : {}),
       ...(preset.progress !== undefined ? { progressEnabled: preset.progress } : {}),
+      ...(preset.pauseSafeNodes ? { pauseSafeNodes: [...preset.pauseSafeNodes] } : {}),
     },
     ...(baseRef ? { baseRef } : {}),
     ...(finalization ? { finalization, finalizationDigest: finalizationDigest(finalization) } : {}),
