@@ -38,6 +38,17 @@ def is_custom_run(job):
     return bool(job.get("custom")) or (isinstance(extra, list) and bool(extra))
 
 
+def finalization_matches_recipe(job, recipe):
+    """A recipe that declares finalization requires that exact digest.
+
+    Without a recipe declaration, a consumer-declared finalization counts:
+    completion eligibility has already verified its seal, record and result,
+    so a pending, failed or inconsistent one never reaches this point.
+    """
+    required = recipe_finalization_digest(recipe)
+    return required is None or job.get("finalizationDigest") == required
+
+
 def canonical_green(job, recipe):
     """A green that is comparable to the currently declared recipe.
 
@@ -48,7 +59,7 @@ def canonical_green(job, recipe):
     return (
         isinstance(recipe, dict)
         and completion_for_job(job)["eligible"]
-        and job.get("finalizationDigest") == recipe_finalization_digest(recipe)
+        and finalization_matches_recipe(job, recipe)
         and job.get("status") == "passed"
         and type(job.get("exitCode")) is int
         and job.get("exitCode") == 0

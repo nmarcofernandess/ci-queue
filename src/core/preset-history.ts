@@ -10,6 +10,15 @@ export function argvEquals(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right)
 }
 
+/**
+ * A recipe that declares finalization requires that exact digest. Without a
+ * recipe declaration, a consumer-declared finalization counts: completion
+ * eligibility has already verified its seal, record and result.
+ */
+export function finalizationMatchesRecipe(ticket: QueueTicket, recipe: QueueProjectConfig["presets"][string]): boolean {
+  return !recipe.finalization || ticket.finalizationDigest === finalizationDigest(recipe.finalization)
+}
+
 function runRef(ticket: QueueTicket) {
   return {
     ticketId: ticket.id,
@@ -31,7 +40,7 @@ export function buildPresetHistory(tickets: QueueTicket[], config: QueueProjectC
     const evidence = new Map(sources.map(source => [source.ticket.id, source]))
     const canonical = runs.filter((ticket) => (
       executionCompletion(ticket, evidence.get(ticket.id)?.record, evidence.get(ticket.id)?.terminalDigest).eligible
-      && ticket.finalizationDigest === (recipe.finalization ? finalizationDigest(recipe.finalization) : undefined)
+      && finalizationMatchesRecipe(ticket, recipe)
       && ticket.status === "passed"
       && ticket.exitCode === 0
       && !isCustomTicket(ticket)
