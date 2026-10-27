@@ -35,6 +35,17 @@ fila e pausa só o elegível abaixo de 2 GiB livres. O guarda instala em `observ
 `ci-queue disk-guard enforce` liga a ação depois da semana de observação. Botão
 no dashboard e gatilho por memória continuam fora do corte.
 
+## Painel sem checkout e verdes honestos — 27/10/2026
+
+O painel instalado deixa de exigir `--config` e lê os projetos do registro; numa
+máquina nova o primeiro projeto é cadastrado em Gerenciar projetos. Um teste fixa
+o que sobra quando os checkouts somem: apagar lanes mantém tudo; apagar o clone
+principal mantém histórico e tickets e nega os verdes com `CATALOG_UNLINKED`. O
+espelho Git com mais de 24 horas aparece desatualizado, com o horário da leitura.
+Cada verde diz se está na base pela ref local de rastreio e pelo reflog, sem
+fetch. Ficam fora: catálogo copiado no state, mirror Git próprio com rede,
+identidade completa no registro e a leitura entre máquinas sem segunda máquina.
+
 ## Próximas prioridades já identificadas
 
 Captação de duração de subetapas; latência da API e navegação; auditoria das

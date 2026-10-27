@@ -31,6 +31,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
+  describeIntegration,
   formatDuration,
   formatTimelineDate,
   shortSha,
@@ -40,7 +41,15 @@ import { describeJobState } from "@/features/shared/presentation"
 import { EntityIdentity } from "@/features/shared/entity-identity"
 import { InspectButton } from "@/features/shared/inspect-button"
 import { DataTableFrame } from "@/features/shared/data-table-frame"
+import { IntegrationValue } from "@/features/shared/integration-value"
 import type { GreenCommitGroup } from "@/features/status/green-commit"
+
+function integrationDetail(group: GreenCommitGroup) {
+  const integration = group.rows.find((row) => row.integration)?.integration
+  return integration
+    ? describeIntegration(integration).detail
+    : "Sem leitura local da base."
+}
 
 function originLabel(origins: GreenCommitGroup["origins"]) {
   return origins
@@ -49,10 +58,11 @@ function originLabel(origins: GreenCommitGroup["origins"]) {
 }
 
 function commitColumnClass(
-  id: "status" | "commit" | "time" | "count" | "origin" | "actions"
+  id: "status" | "commit" | "integration" | "time" | "count" | "origin" | "actions"
 ) {
   if (id === "status") return "w-16"
-  if (id === "commit") return "w-24"
+  if (id === "commit") return "w-36"
+  if (id === "integration") return "w-28"
   if (id === "time") return "w-28"
   if (id === "count") return "w-24"
   if (id === "origin") return "w-28"
@@ -102,6 +112,9 @@ export function GreenCommitTable({
           <TableHead className={commitColumnClass("commit")}>
             Commit
           </TableHead>
+          <TableHead className={commitColumnClass("integration")}>
+            Integração
+          </TableHead>
           <TableHead className={commitColumnClass("time")}>
             Último verde
           </TableHead>
@@ -136,6 +149,11 @@ export function GreenCommitTable({
                 }
                 monospaceTitle
                 onOpen={() => onOpen(group)}
+              />
+            </TableCell>
+            <TableCell className={commitColumnClass("integration")}>
+              <IntegrationValue
+                integration={group.rows.find((row) => row.integration)?.integration}
               />
             </TableCell>
             <TableCell className={commitColumnClass("time")}>
@@ -223,6 +241,11 @@ export function GreenCommitDrawer({
                 id: "origin",
                 label: "Origem",
                 value: originLabel(group.origins),
+              },
+              {
+                id: "integration",
+                label: "Integração",
+                value: integrationDetail(group),
               },
             ]}
           />

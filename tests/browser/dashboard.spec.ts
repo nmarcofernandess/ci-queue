@@ -694,7 +694,7 @@ test('all drawer keeps long project identity readable inside the narrow detail s
   await expect(drawer.getByRole('button', { name: 'Editar', exact: true })).toBeVisible()
 })
 
-async function allGreensFixture(page: import('@playwright/test').Page, partial = false, failed = false, empty = false, mixedGitCoverage = false) {
+async function allGreensFixture(page: import('@playwright/test').Page, partial = false, failed = false, empty = false, mixedGitCoverage = false, integrations: Record<string, unknown> = {}) {
   const projects = ['alpha', 'beta'].map(id => ({ ...fixtureProjects.projects[0], id, displayName: id === 'alpha' ? 'Alpha' : 'Beta' }))
   const requests: URL[] = []
   await page.route('**/api/**', async route => {
@@ -714,8 +714,8 @@ async function allGreensFixture(page: import('@playwright/test').Page, partial =
       '/api/executions': { jobs: [], coverage: {}, context },
       '/api/dashboard-state': { schemaVersion: 2, projects: [], projectErrors: [], context },
       '/api/machine': {},
-      '/api/preset-history': { schemaVersion: 2, context, projects: visible.map(project => ({ projectId: project.id, projectName: project.displayName, resolved: true, declaredCount: 1 })), projectErrors: errors, coverage: {}, presets: visible.map(project => ({ projectId: project.id, projectName: project.displayName, preset: 'full', lastGreenCanonical: { ticketId: 'shared-ticket', status: 'passed', headSha: 'abcdef123456', branch: 'dev', finishedAt: '2026-09-29T10:00:00Z' } })) },
-      '/api/remote-slots': { schemaVersion: 2, context, projects: visible.map(project => ({ projectId: project.id, projectName: project.displayName, catalog: 'linked', source: { ...source, stale: mixedGitCoverage && project.id === 'beta' }, coverage: { declaredPresets: mixedGitCoverage ? 2 : 1, greenPresets: 1, withoutTagPresets: mixedGitCoverage && project.id === 'alpha' ? ['full'] : [], invalidPayloads: mixedGitCoverage && project.id === 'beta' ? [{ preset: 'full', reason: 'payload-exit-not-green' }] : [] } })), projectErrors: errors, greens: visible.map(project => ({ projectId: project.id, projectName: project.displayName, origin: 'git', preset: mixedGitCoverage ? 'smoke' : 'full', ticketId: 'shared-ticket', jobAvailable: false, status: 'passed', headSha: 'abcdef123456', commitSha: 'abcdef123456', baseSha: null, branch: 'dev', finishedAt: '2026-09-29T10:00:00Z', publishedAt: '2026-09-29T10:00:00Z', durationMs: 1000, ref: mixedGitCoverage ? 'refs/green/smoke' : 'refs/green/full' })) },
+      '/api/preset-history': { schemaVersion: 2, context, projects: visible.map(project => ({ projectId: project.id, projectName: project.displayName, resolved: true, declaredCount: 1 })), projectErrors: errors, coverage: {}, presets: visible.map(project => ({ projectId: project.id, projectName: project.displayName, preset: 'full', lastGreenCanonical: { ticketId: 'shared-ticket', status: 'passed', headSha: 'abcdef123456', branch: 'dev', finishedAt: '2026-09-29T10:00:00Z', integration: integrations[project.id] } })) },
+      '/api/remote-slots': { schemaVersion: 2, context, projects: visible.map(project => ({ projectId: project.id, projectName: project.displayName, catalog: 'linked', source: { ...source, stale: mixedGitCoverage && project.id === 'beta' }, coverage: { declaredPresets: mixedGitCoverage ? 2 : 1, greenPresets: 1, withoutTagPresets: mixedGitCoverage && project.id === 'alpha' ? ['full'] : [], invalidPayloads: mixedGitCoverage && project.id === 'beta' ? [{ preset: 'full', reason: 'payload-exit-not-green' }] : [] } })), projectErrors: errors, greens: visible.map(project => ({ projectId: project.id, projectName: project.displayName, origin: 'git', preset: mixedGitCoverage ? 'smoke' : 'full', ticketId: 'shared-ticket', jobAvailable: false, status: 'passed', headSha: 'abcdef123456', commitSha: 'abcdef123456', baseSha: null, branch: 'dev', finishedAt: '2026-09-29T10:00:00Z', publishedAt: '2026-09-29T10:00:00Z', durationMs: 1000, ref: mixedGitCoverage ? 'refs/green/smoke' : 'refs/green/full', integration: integrations[project.id] })) },
     }
     await route.fulfill({ json: data[url.pathname] ?? {} })
   })
@@ -1003,5 +1003,37 @@ for (const width of [390, 1440]) {
     await page.clock.fastForward(30_000)
     await expect(current.getByText('1m 10s', { exact: true })).toBeVisible()
     await expect(page.locator('.animate-spin')).toHaveCount(0)
+  })
+}
+
+for (const width of [390, 1440]) {
+  test(`greens say whether each revision is already in the base at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 })
+    const read = { baseRef: 'origin/dev', baseName: 'dev', readAt: '2026-10-26T14:33:22Z', via: 'fetch --prune origin dev: fast-forward' }
+    await allGreensFixture(page, false, false, false, false, {
+      alpha: { ...read, state: 'integrated', reason: null },
+      beta: { ...read, state: 'stale', reason: 'A ref local de origin/dev não tem leitura das últimas 24 horas.' },
+    })
+    const history = page.getByRole('region', { name: 'Histórico', exact: true })
+    for (const grouping of ['Por preset', 'Por commit']) {
+      await history.getByRole('combobox', { name: 'Agrupamento do histórico' }).click()
+      await page.getByRole('option', { name: grouping, exact: true }).click()
+      await expect(history.getByRole('columnheader', { name: 'Integração', exact: true })).toHaveCount(1)
+      const alpha = history.getByRole('row').filter({ has: page.getByText('Alpha', { exact: true }) })
+      const beta = history.getByRole('row').filter({ has: page.getByText('Beta', { exact: true }) })
+      await expect(alpha.getByText('Em dev', { exact: true })).toBeVisible()
+      await expect(beta.getByText('Desatualizado', { exact: true })).toBeVisible()
+      await alpha.getByText('Em dev', { exact: true }).focus()
+      await expect(page.getByRole('tooltip')).toContainText('Contido em origin/dev pela ref local de')
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      if (grouping === 'Por commit' && width >= 1440) {
+        const sha = history.getByRole('button', { name: 'abcdef12', exact: true }).first().locator('span')
+        expect(await sha.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+      }
+      await page.screenshot({ path: testInfo.outputPath(`greens-integration-${grouping === 'Por preset' ? 'preset' : 'commit'}-${width}.png`) })
+      await page.keyboard.press('Escape')
+    }
+    await history.getByRole('button', { name: 'abcdef12', exact: true }).first().click()
+    await expect(page.getByRole('dialog')).toContainText('Contido em origin/dev pela ref local de')
   })
 }

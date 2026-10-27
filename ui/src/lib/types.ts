@@ -137,6 +137,16 @@ export type ExecutionsResponse = {
   coverage: { unattributedRecords: number; corruptRecords?: number }
 }
 
+/** Whether a green revision is contained in the project's base, by the local tracking ref. */
+export type GreenIntegration = {
+  state: "integrated" | "not-integrated" | "stale" | "unknown"
+  baseRef: string
+  baseName: string
+  readAt: string | null
+  via: string | null
+  reason: string | null
+}
+
 export type PresetRunReference = {
   ticketId: string | null
   startedAt: string | null
@@ -148,6 +158,7 @@ export type PresetRunReference = {
   custom: boolean
   durationMs: number | null
   failureReason?: string | null
+  integration?: GreenIntegration
 }
 
 export type PresetHistoryEntry = {
@@ -209,6 +220,7 @@ export type RemoteGreen = {
   publishedAt: string
   durationMs: number | null
   ref: string
+  integration?: GreenIntegration
 }
 
 export type RemoteSlotsResponse = {

@@ -245,8 +245,11 @@ function copyBundle(bundle, prefix, manifest) {
 }
 
 function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pythonPath, manifestSha256, homeDir, commandPath }) {
-  if (!configPath) return []
-  if (!nodePath || !pythonPath) throw new Error("--node e --python são obrigatórios ao gerar envelope de serviço")
+  // --node alone installs only the CLI launcher; --python asks for the services.
+  if (!pythonPath) return []
+  if (!nodePath) throw new Error("--node e --python são obrigatórios ao gerar envelope de serviço")
+  // The dashboard reads every project from the registry; --config only seeds the first one.
+  const catalog = configPath ? ["--config", configPath] : []
   const launchRoot = join(releasePath, "launch-agents")
   const environment = { PATH: servicePath(nodePath), CI_QUEUE_MANIFEST_PATH: join(releasePath, "manifest.json"), CI_QUEUE_MANIFEST_SHA256: manifestSha256 }
   return [
@@ -268,7 +271,7 @@ function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pytho
       file: join(homeDir, "Library", "LaunchAgents", "com.nmarcofernandess.ci-queue.dashboard.plist"),
       plist: {
         Label: "com.nmarcofernandess.ci-queue.dashboard",
-        ProgramArguments: [pythonPath, "-m", "ci_queue_api", "--config", configPath, "--state", stateRoot, "--ui", join(releasePath, "ui", "dist"), "--manifest", join(releasePath, "manifest.json"), "--manifest-sha256", manifestSha256],
+        ProgramArguments: [pythonPath, "-m", "ci_queue_api", ...catalog, "--state", stateRoot, "--ui", join(releasePath, "ui", "dist"), "--manifest", join(releasePath, "manifest.json"), "--manifest-sha256", manifestSha256],
         EnvironmentVariables: { ...environment, PYTHONPATH: join(releasePath, "backend") },
         KeepAlive: true,
         ProcessType: "Interactive",
@@ -432,7 +435,7 @@ function verifyLoaded(adapter, service, attempts = 3) {
 }
 
 function activateServices(services, adapter) {
-  if (!services.length) throw new Error("--activate requer --config, --node e --python")
+  if (!services.length) throw new Error("--activate requer --node e --python")
   const disabled = disabledLabels(adapter, services)
   if (disabled.length) throw new Error(`serviço desabilitado pelo usuário; preservei a escolha: ${disabled.join(", ")}`)
   const domain = launchDomain(adapter.platform, adapter.uid)
@@ -691,7 +694,7 @@ function main(argv = process.argv.slice(2)) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
     return
   }
-  throw new Error("uso: install.mjs install|update --bundle <release> [--prefix DIR] [--state DIR] [--config project/ci-queue.json --node PATH --python PATH --command PATH --activate] | uninstall [--prefix DIR] [--deactivate] [--purge-state]")
+  throw new Error("uso: install.mjs install|update --bundle <release> [--prefix DIR] [--state DIR] [--node PATH --python PATH --command PATH --activate] [--config project/ci-queue.json] | uninstall [--prefix DIR] [--deactivate] [--purge-state]")
 }
 
 function isMainModule(metaUrl) {

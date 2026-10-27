@@ -7,6 +7,7 @@ import { RelativeTime, JobDuration, QueueWait } from "./live-time"
 import { ProjectChip } from "./project-chip"
 import { projectChipFacts, projectChipVisible } from "./project-chip-model"
 import { RunVariantBadge } from "./run-variant-badge"
+import { IntegrationValue } from "./integration-value"
 import * as React from "react"
 import {
   createColumnHelper,
@@ -50,7 +51,7 @@ import {
   formatTimelineDate,
   shortSha,
 } from "@/features/shared/format"
-import type { JobRecord } from "@/lib/types"
+import type { GreenIntegration, JobRecord } from "@/lib/types"
 
 const features = tableFeatures({})
 export type RunTableJob = Omit<JobRecord, "id" | "progressEnabled"> & {
@@ -62,6 +63,7 @@ export type RunTableJob = Omit<JobRecord, "id" | "progressEnabled"> & {
   origin?: "machine" | "git"
   origins?: Array<"machine" | "git">
   progressEnabled?: boolean
+  integration?: GreenIntegration
 }
 const helper = createColumnHelper<typeof features, RunTableJob>()
 const EMPTY: RunTableJob[] = []
@@ -81,6 +83,7 @@ export type RunTableProps = {
   loadMoreError?: Error
   onLoadMore?: () => void
   showOrigin?: boolean
+  showIntegration?: boolean
   showFailureReason?: boolean
   kind?: "queue" | "terminal"
   showProjectChip?: boolean
@@ -98,6 +101,7 @@ function columnClass(id: string) {
   if (id === "time") return "w-28"
   if (id === "duration") return "w-24"
   if (id === "revision") return "w-[24rem]"
+  if (id === "integration") return "w-28"
   if (id === "actions") return "w-18 text-right"
   return undefined
 }
@@ -140,12 +144,14 @@ function RunDataTable({
   jobs,
   onOpenJob,
   showOrigin = false,
+  showIntegration = false,
   showProjectChip = false,
   filterProjectId,
 }: {
   jobs: RunTableJob[]
   onOpenJob: (jobId: string) => void
   showOrigin?: boolean
+  showIntegration?: boolean
   showProjectChip?: boolean
   filterProjectId?: string
 }) {
@@ -250,6 +256,17 @@ function RunDataTable({
             )
           },
         }),
+        ...(showIntegration
+          ? [
+              helper.display({
+                id: "integration",
+                header: "Integração",
+                cell: ({ row }) => (
+                  <IntegrationValue integration={row.original.integration} />
+                ),
+              }),
+            ]
+          : []),
         helper.display({
           id: "actions",
           header: () => <span className="sr-only">Ações</span>,
@@ -264,7 +281,7 @@ function RunDataTable({
           },
         }),
       ]),
-    [filterProjectId, onOpenJob, queued, showOrigin, showProjectChip]
+    [filterProjectId, onOpenJob, queued, showIntegration, showOrigin, showProjectChip]
   )
   const table = useTable({
     columns,
@@ -387,6 +404,7 @@ export function RunTable({
   loadMoreError,
   onLoadMore,
   showOrigin = false,
+  showIntegration = false,
   kind = "terminal",
   showProjectChip = false,
   filterProjectId,
@@ -467,6 +485,7 @@ export function RunTable({
             jobs={data}
             onOpenJob={onOpenJob}
             showOrigin={showOrigin}
+            showIntegration={showIntegration}
             showProjectChip={showProjectChip}
             filterProjectId={filterProjectId}
           />
