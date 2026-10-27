@@ -123,7 +123,23 @@ test("activation publishes owned regular canonical envelopes in an isolated HOME
     assert.match(worker, /<key>QueueDirectories<\/key>/)
     assert.doesNotMatch(worker, /<key>KeepAlive<\/key>/)
     assert.match(dashboard, /<key>KeepAlive<\/key><true\/>/)
+    assert.match(dashboard, /<string>--config<\/string>/)
     assert.equal(launchctl.calls.filter(([command]) => command === "bootstrap").length, 2)
+  } finally { rmSync(paths.root, { recursive: true, force: true }) }
+})
+
+test("activation without a catalog keeps both services and lets the dashboard read the registry", () => {
+  const paths = setup()
+  const launchctl = fakeLaunchctl()
+  try {
+    const installation = installRelease({ ...activationInput(paths, launchctl), configPath: undefined })
+    assert.equal(installation.activationStatus, "verified")
+    assert.deepEqual(installation.services.map(({ label }) => label.split(".").at(-1)).sort(), ["dashboard", "worker"])
+    const dashboard = readFileSync(installation.services.find(({ label }) => label.endsWith("dashboard")).file, "utf8")
+    assert.doesNotMatch(dashboard, /--config/)
+    assert.match(dashboard, /<string>--state<\/string>/)
+    assert.throws(() => installRelease({ ...activationInput(paths, fakeLaunchctl()), configPath: undefined,
+      nodePath: undefined, pythonPath: undefined }), /--activate requer --node e --python/)
   } finally { rmSync(paths.root, { recursive: true, force: true }) }
 })
 

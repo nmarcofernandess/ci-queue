@@ -44,9 +44,8 @@ exceção somente no fechamento autorizado, depois da autoria e dos reviews:
    Esse resultado aprova a ativação provisória; não substitui o ticket do ship.
 3. Produza e verifique o bundle oficial da mesma revisão. Use o instalador
    corrigido contido nele para ativá-lo provisoriamente no mesmo prefixo/state.
-   Preserve o bundle anterior, ownership e sessões vivas. Confira o catálogo
-   efetivamente usado pelo serviço e forneça seu caminho absoluto por `--config`,
-   junto com Node, Python e comando; `--activate` não recupera o catálogo sozinho.
+   Preserve o bundle anterior, ownership e sessões vivas. Forneça Node, Python e
+   comando; o painel lê os projetos do registro do state.
 4. Confira a revisão instalada e execute o ship canônico, produzindo seu ticket
    real elegível. Depois do merge observado, produza e ative o bundle do dev
    integrado e confira novamente a revisão efetiva.
@@ -110,7 +109,6 @@ node /bundle/scripts/install.mjs update \
   --bundle /bundle \
   --prefix "$HOME/.local/share/ci-queue" \
   --state /caminho/absoluto/do/state \
-  --config /projeto/ci-queue.json \
   --node /caminho/absoluto/da/distribuicao/bin/node \
   --python "$(command -v python3)" \
   --command "$HOME/.local/bin/ci-queue" --activate
@@ -118,7 +116,7 @@ node /bundle/scripts/install.mjs update \
 
 Use `install` na instalação inicial e `update` na atualização conforme o instalador da release. `--node` fixa o **worker**, não automaticamente os jobs. Registre os projectIds que precisam de pin usando `ci-queue runtime register`; [limites do runtime](RUNTIME-ISOLATION.md).
 
-Launcher e envelopes pinam `CI_QUEUE_MANIFEST_PATH` e seu SHA-256. A CLI verifica o bundle antes de carregar o worker; a API confere seus próprios bytes e a UI servida contra o mesmo inventário. `version --json` e `/build.json` expõem revisão/protocolo para conferir a distribuição efetiva. Worker recebe state e executa tickets completos; dashboard recebe catálogo de bootstrap, UI, manifest e state. A interface instalada é estática servida pela API, não o Vite de desenvolvimento.
+Launcher e envelopes pinam `CI_QUEUE_MANIFEST_PATH` e seu SHA-256. A CLI verifica o bundle antes de carregar o worker; a API confere seus próprios bytes e a UI servida contra o mesmo inventário. `version --json` e `/build.json` expõem revisão/protocolo para conferir a distribuição efetiva. Worker recebe state e executa tickets completos; dashboard recebe UI, manifest e state, e lê os projetos do registro em `<state>/state/projects.json`. O cadastro existente continua valendo depois de um `update`. Numa máquina nova o painel sobe sem projetos e o primeiro é cadastrado pela tela **Gerenciar projetos**. `--config` continua aceito e só cadastra ou cura aquele projeto ao iniciar; ele não é mais exigido nem decide quais projetos o painel mostra. A interface instalada é estática servida pela API, não o Vite de desenvolvimento.
 
 ## Ignição e login: o que o código garante e o que verificar
 
