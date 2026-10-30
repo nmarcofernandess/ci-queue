@@ -147,6 +147,17 @@ O ship reusa uma receita elegível de `ship.acceptedPresets`; se nenhuma existir
 
 ## 6. Remoto opcional e limites
 
+**Três capacidades distintas:** testes standalone não precisam de GitHub;
+ship com `--no-remote` ainda usa GitHub para PR/merge; publicar status exige
+uma permissão própria. “Sem Actions” não é “sem GitHub”.
+
+No ship genérico, falha comum ao publicar status bloqueia em `wait`, mas em
+`skipped` gera `limitation: "attestation-failed"` e o fluxo continua pelos
+demais controles. Não transformar esse aviso em bloqueio global, pedir admin
+ou trocar credenciais por reflexo. Abort/timeout e gates reais continuam
+bloqueantes. Consulte o [contrato e os limites](CONTRACTS.md#publicação-opcional-não-é-bloqueio-global)
+antes de diagnosticar ou configurar o controller; ships próprios pertencem ao consumidor.
+
 Arquivo `remote-verdict.json` ao lado do catálogo: `wait|skipped`; ausente significa wait. Wait exige `ship.remoteVerdict.workflow` e `job`. `--no-remote` força skipped, não corrige JSON inválido nem dispensa prova/identidade/HEAD/base/PR. `init --workflow` copia verificador de attestation, não uma suíte de testes remota. O verificador deve existir na base que o workflow fará checkout; verificar isso na primeira adoção.
 
 Garantia: **HEAD pinado, base observada**. Revalidação antes e inspeção depois não são lock atômico H+B. `MERGED_BASE_CHANGED` exige inspeção, não novo merge cego. Nenhum `--admin`, status manual ou ticket fabricado.
