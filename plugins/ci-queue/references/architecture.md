@@ -37,7 +37,7 @@ do novo playbook nem fonte paralela depois de uma migração opt-in.
 Teste standalone não exige GitHub. Ship GitHub em `skipped` dispensa Actions,
 não PR, acesso de merge ou prova elegível. O genérico já trata falha comum de
 atestação como limitação não bloqueante nesse modo; em `wait`, ela bloqueia.
-Leia [o contrato](../../../docs/CONTRACTS.md#publicação-opcional-não-é-bloqueio-global)
+Leia [o contrato](https://github.com/nmarcofernandess/ci-queue/blob/dev/docs/CONTRACTS.md#publicação-opcional-não-é-bloqueio-global)
 e o resultado terminal: publicação, prova e merge são fatos separados.
 Não criar gate, pedir admin ou ampliar credencial a partir de um aviso opcional.
 Preserve cancelamento, gates e restrições reais. Um ship próprio segue seu
