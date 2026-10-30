@@ -248,6 +248,38 @@ Política adjacente `remote-verdict.json`: wait/skipped, ausente=wait. Wait requ
 
 Autoria ocorre antes: commit/push/PR. Ship congela H/B0/catálogo, obtém prova, atesta, marca ready, espera remoto se aplicável, revalida e integra. Worker jamais faz esses passos. O template genérico verifica attestation; não executa testes como fallback.
 
+### Publicação opcional não é bloqueio global
+
+Teste standalone não exige GitHub nem `gh`. Ship GitHub com política
+`skipped` continua exigindo acesso ao repositório, PR, prova elegível e as
+verificações de HEAD/base; apenas dispensa o veredito remoto. Portanto
+“sem Actions” não significa “sem GitHub” nem “sem permissão de merge”.
+
+No controller genérico, uma falha comum na atestação (por exemplo, HTTP 403)
+interrompe `wait` com `ATTESTATION_FAILED`. Em `skipped`, ela é registrada
+como `limitation: "attestation-failed"`, com `effects.attested: false`, e o
+fluxo segue pelos demais controles. Cancelamento/abort/timeout não são
+convertidos em sucesso por essa tolerância. A ausência de status publicado
+não equivale a teste vermelho, nem prova que o merge ocorreu: confira
+`effects.merged` e `effects.mergeVerified` no resultado terminal.
+
+Não promover aviso intermediário a gate novo, exigir conta admin ou ampliar
+permissões por reflexo. Para publicar status, a credencial precisa da capacidade
+dessa operação; permissão de push e nome da conta não a comprovam. No caminho
+que admite publicação opcional, a falta dessa capacidade não exige reparo para
+concluir a entrega. Isso não autoriza contornar acesso negado, mudar a política
+remota ou ignorar uma ordem humana de parada.
+
+Um consumidor com ship próprio deve declarar e verificar essa distinção no
+seu owner, sem herdar automaticamente a política ou o formato do relatório
+genérico. Uma pausa diagnóstica criada por um agente conserva origem, alcance
+e condição de retomada; não vira decisão humana ou requisito técnico ao ser
+copiada para um plano.
+
+Fontes: `src/ship/ship.ts` e `tests/core/ship.test.ts` (falha em wait versus
+limitação não bloqueante em skipped). Não é necessário provocar um POST real
+recusado para verificar uma regra já coberta pelo teste de contrato.
+
 Garantia: **head-pinned-base-observed**, não lock atômico H+B. PUT de merge leva sha=H; revalidar B0 antes e inspecionar pais/árvore depois. `MERGED_BASE_CHANGED` pode significar merge já realizado: inspecionar antes de repetir. Sem admin/status manual/ticket fabricado.
 
 ## Multi-projeto e UI

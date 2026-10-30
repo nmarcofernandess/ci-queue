@@ -29,6 +29,12 @@ Progress is observability, never ship eligibility. An offline manual is not a
 runtime proof. Draft documentation PRs do not authorize merge, installation,
 cutover, Full execution or changes to product policy.
 
+For ship diagnosis, distinguish optional publication from required proof and
+merge capability. See `docs/CONTRACTS.md#publicação-opcional-não-é-bloqueio-global`:
+read the terminal controller result, not an isolated HTTP warning. Do not turn
+an agent's diagnostic pause into permanent policy or infer an admin requirement.
+Respect actual access restrictions, user stops and the consumer's own controller.
+
 ## Working in this repository
 
 - Product commands in this repository remain runnable directly. Use the
