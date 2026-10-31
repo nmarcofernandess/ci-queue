@@ -46,13 +46,18 @@ import {
   storeExecutionObservation,
 } from "./core/execution-observations.js"
 
-type GlobalArgs = { command?: string; rest: string[]; json: boolean; stateRoot?: string; cwd?: string; configPath?: string }
+type GlobalArgs = { command?: string; rest: string[]; json: boolean; help?: boolean; stateRoot?: string; cwd?: string; configPath?: string }
 
 function parseGlobal(argv: string[]): GlobalArgs {
-  const values: GlobalArgs = { rest: [], json: false }
+  const separator = argv.indexOf("--")
+  // A missing option value must not consume help and dispatch a real command.
+  const help = argv.slice(0, separator === -1 ? undefined : separator).some(arg => arg === "--help" || arg === "-h")
+  const values: GlobalArgs = { rest: [], json: false, help }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
-    if (arg === "--json") values.json = true
+    if (arg === "--") { values.rest.push(...argv.slice(index)); break }
+    if (arg === "--help" || arg === "-h") values.help = true
+    else if (arg === "--json") values.json = true
     else if (arg === "--state") values.stateRoot = argv[++index]
     else if (arg === "--cwd") values.cwd = argv[++index]
     else if (arg === "--config") values.configPath = argv[++index]
@@ -149,37 +154,60 @@ function shipArgumentError(rest: string[]): string | undefined {
   return undefined
 }
 
-function usage(): string {
+const COMMAND_USAGE: Record<string, string[]> = {
+  help: ["help [comando]"],
+  version: ["version"],
+  init: ["init [--name NAME] [--base-ref REMOTE/BRANCH] [--argv-json JSON] [--workflow] [--force]"],
+  guard: ["guard [--cwd PATH] [--config FILE] [--state ROOT] [--json]"],
+  ship: [SHIP_USAGE],
+  enqueue: ["enqueue <preset> [--wait] [--timeout-ms N] [-- <args da receita>]",
+    "enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH [--flags-json JSON]"],
+  finalize: ["finalize <ticketId>"],
+  worker: ["worker"],
+  status: ["status"],
+  observe: ["observe --stdin [--json]"],
+  history: ["history [--project ID] [--legacy]", "history --include-observed [--project ID]"],
+  "preset-history": ["preset-history [--preset NAME]"],
+  advisory: ["advisory upsert --preset NAME --head-sha SHA --reason TEXT [--pr N]", "advisory list"],
+  runtime: ["runtime show", "runtime prepare-session|checkpoint-session|release-session --stdin --json (private)",
+    "runtime register --project ID --node PATH [--version x.y.z] [--npm-cli PATH] [--npx-cli PATH]"],
+  logs: ["logs [latest|<ticketId>]"],
+  cancel: ["cancel <ticketId>"],
+  pause: ["pause <ticketId> --reason TEXT"],
+  resume: ["resume <ticketId>"],
+  "disk-guard": ["disk-guard [status|observe|enforce|off]"],
+  config: ["config"],
+}
+
+const COMMAND_GUIDANCE: Record<string, string> = {
+  enqueue: "--wait e seu timeout não cancelam o ticket. Consulte status e logs antes de enfileirar novamente. Argumentos após -- pertencem à receita, inclusive --help, -h e --json.",
+  worker: "Drena a fila no state selecionado. Use somente o executor oficial; não inicie outro worker no state do operador.",
+  cancel: "Solicita cancelamento do ticket. Durante a finalização, registra a solicitação e aguarda o prazo próprio do finalizador. Não descarta dados nem encerra reservas do consumidor.",
+  finalize: "Recupera somente a finalização deste ticket, com os locks e a identidade existentes. Não repete o teste nem drena novos jobs. Falha definitiva continua falha; ownership incerto preserva o diagnóstico.",
+  runtime: "O controle de sessão é privado do launcher: JSON por stdin, sem expor handle, token ou env. Runtime released não comprova descarte de dados ou encerramento da reserva do consumidor.",
+  ship: "Usa a prova elegível do HEAD/base e os gates do projeto. Progresso ou ajuda não concedem elegibilidade, merge, release ou instalação.",
+}
+
+function usage(command?: string): string {
+  const forms = command ? COMMAND_USAGE[command] : Object.values(COMMAND_USAGE).flat()
   return [
-    "Uso: ci-queue <comando> [--state DIR] [--cwd DIR] [--config FILE] [--json]",
-    "  version",
-    "  init [--name NAME] [--base-ref REMOTE/BRANCH] [--argv-json JSON] [--workflow] [--force]",
-    "  guard [--cwd PATH] [--config FILE] [--state ROOT] [--json]",
-    `  ${SHIP_USAGE}`,
-    "  enqueue <preset> [--wait] [--timeout-ms N] [-- <args da receita>]",
-    "  enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH [--flags-json JSON]",
-    "  worker",
-    "  status",
-    "  observe --stdin [--json]",
-    "  history [--project ID] [--legacy]",
-    "  history --include-observed [--project ID]",
-    "  preset-history [--preset NAME]",
-    "  advisory upsert --preset NAME --head-sha SHA --reason TEXT [--pr N]",
-    "  advisory list",
-    "  runtime show",
-    "  runtime prepare-session|checkpoint-session|release-session --stdin --json (private)",
-    "  runtime register --project ID --node PATH [--version x.y.z] [--npm-cli PATH] [--npx-cli PATH]",
-    "  logs [latest|<ticketId>]",
-    "  cancel <ticketId>",
-    "  pause <ticketId> --reason TEXT",
-    "  resume <ticketId>",
-    "  disk-guard [status|observe|enforce|off]",
-    "  config",
+    command ? `Uso: ci-queue ${forms[0]} [--state DIR] [--cwd DIR] [--config FILE] [--json]`
+      : "Uso: ci-queue <comando> [--state DIR] [--cwd DIR] [--config FILE] [--json]",
+    ...forms.slice(command ? 1 : 0).map(form => `  ${form}`),
+    ...(command && COMMAND_GUIDANCE[command] ? [COMMAND_GUIDANCE[command]] : []),
+    "Ajuda: ci-queue help [comando], ci-queue <comando> --help ou -h. É consulta antes de --, sem executar o comando ou ler stdin.",
+    "Diagnóstico: ci-queue status --json; ci-queue logs <ticketId> --json.",
+    "Ações distintas: ci-queue cancel <ticketId> cancela o ticket; ci-queue finalize <ticketId> recupera sua publicação. Sessão, reserva e dados são encerrados pela entrada pública do consumidor.",
   ].join("\n")
 }
 
 export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
   const args = parseGlobal(argv)
+  if (args.help || args.command === "help") {
+    const command = args.command === "help" ? args.rest[0] : args.command
+    if (command && !Object.hasOwn(COMMAND_USAGE, command)) return failure("USAGE", `comando desconhecido: ${command}\n${usage()}`)
+    return success({ usage: usage(command) })
+  }
   const root = resolveStateRoot(args.stateRoot)
   try {
     switch (args.command) {
@@ -254,9 +282,6 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         })
       }
       case "ship": {
-        if (args.rest.includes("--help") || args.rest.includes("-h")) {
-          return success({ usage: `Uso: ci-queue ${SHIP_USAGE} [--state DIR] [--cwd DIR] [--config FILE] [--json]` })
-        }
         const argumentError = shipArgumentError(args.rest)
         if (argumentError) return failure("USAGE", `${argumentError}\nUso: ci-queue ${SHIP_USAGE}`)
         const timeoutRaw = optionValue(args.rest, "--timeout-ms")

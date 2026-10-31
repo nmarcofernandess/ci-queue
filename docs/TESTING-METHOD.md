@@ -81,6 +81,19 @@ inspecione o ticket anterior em vez de criar outro por causa de um waiter
 encerrado. O executor e o ciclo de vida da sessão pertencem a owners distintos:
 o produto consumidor documenta como preparar, validar e encerrar seus recursos.
 
+Quando o trabalho terminar, conclua também o encerramento dos recursos que esta
+tarefa criou e não têm continuação reservada, pelo procedimento público do
+consumidor. Isso faz parte da entrega autorizada, sem novo GO de rotina. Uma
+reserva própria não se torna recurso de terceiro por continuar registrada;
+reservas recebidas e condições de fechamento do domínio conservam seus owners.
+Se faltar uma operação de encerramento, corrija o owner pertinente dentro do
+pedido, sem repetir testes para tentar liberar o recurso.
+
+`cancel <id>` cancela o ticket; `finalize <id>` retoma a finalização do mesmo ID
+sem reexecutar a receita. Nenhum deles descarta por si uma reserva de dados do
+consumidor. Ticket terminal, finalização e encerramento da sessão/reserva são
+resultados separados: confira cada resultado no owner que o produz.
+
 ## Limite da evidência
 
 Um feedback verde continua sendo apenas o resultado daquela seleção, revisão,
