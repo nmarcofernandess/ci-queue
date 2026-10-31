@@ -17,11 +17,26 @@ para diagnóstico humano. A forma é uma destas:
 
 Comandos atuais incluem `version`, `init`, `config`, `enqueue`, `worker`, `status`,
 `history`, `observe`, `preset-history`, `advisory`, `logs`, `cancel`, `pause`,
-`resume`, `disk-guard`, `runtime`, `guard` e `ship`; consulte a ajuda emitida pela
-CLI para as formas aceitas. O
-projeto declara receitas em `ci-queue.json`. Seus comandos continuam executáveis
+`resume`, `finalize`, `disk-guard`, `runtime`, `guard` e `ship`; consulte a ajuda
+emitida pela CLI para as formas aceitas. O projeto declara receitas em
+`ci-queue.json`. Seus comandos continuam executáveis
 sem a CLI. `guard` é uma opção do consumidor para impor admissão Queue em um
 comando específico, não um requisito de adoção.
+
+`ci-queue help` e as flags `--help` e `-h` antes do separador `--` consultam a
+ajuda sem executar o comando, ler stdin ou iniciar worker. Por exemplo,
+`ci-queue enqueue --help`
+apenas explica a entrada. Depois do separador, os argumentos pertencem à receita:
+`ci-queue enqueue check -- --help` conserva esse argumento no pedido enfileirado.
+
+`cancel <id>` retorna `kind` `missing`, `terminal`, `queued` ou `running`.
+`terminal` informa que o ticket já terminou; em `running`, `signalled` e `reason`
+descrevem a tentativa de sinalizar seu grupo verificado. O retorno do cancel não
+é confirmação de conclusão da finalização nem de descarte de dados do consumidor.
+`finalize <id>` retoma somente a finalização desse ID, sem repetir a receita;
+`FINALIZATION_PENDING` ou `FINALIZATION_FAILED` conservam o resultado correspondente.
+Sessões e reservas do consumidor são encerradas por sua entrada pública própria;
+o release de um runtime Node Q não concede autoridade sobre esses dados.
 
 `advisory upsert --preset <nome> --head-sha <sha-completo> --reason <texto>
 [--pr <numero>]` registra uma recomendação de validação. A chave é
