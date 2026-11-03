@@ -178,7 +178,9 @@ motor. Instale por uma revisão Git **imutável** revisada:
 npm install --save-dev 'github:nmarcofernandess/ci-queue#<SHA-integrado>'
 ```
 
-A instalação da dependência não registra projeto, não instala release e não
+A dependência instala somente o bin leve `ci-queue-consumer`: não cria um
+`node_modules/.bin/ci-queue` que sombreie a distribuição oficial. A instalação
+não registra projeto, não instala release e não
 inicia worker/API. O binário de execução `ci-queue` continua exigindo a release
 verificada de INSTALL. O binário leve `ci-queue-consumer` funciona sem ela:
 
@@ -215,3 +217,9 @@ antes de qualquer submissão só permite execução direta oficial equivalente,
 com recursos próprios e efeitos autorizados pelo consumidor. Ocupação, pausa,
 recusa, HOLD ou resultado incerto nunca autorizam fallback; consulte o mesmo
 ID/log antes de retomar. Instalar a API não muda essa política.
+
+No executor cloud Linux com PID1 que não coleta filhos órfãos, o observador de
+processos diferencia zombies (`ps stat=Z`) de processos executáveis. Um grupo só
+de zombies não reserva o executor; um descendente vivo continua protegido.
+Nascimento/pgid/host divergentes continuam incertos. Isso não troca state,
+não mata processos e não recupera publicação sem os guards do mesmo ID.

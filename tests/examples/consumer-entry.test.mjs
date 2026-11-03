@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 const require = createRequire(import.meta.url)
@@ -24,6 +24,8 @@ test('packed consumer inspects a second project without worker, plugin or produc
     const archive = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', root], { encoding: 'utf8' }))[0].filename
     execFileSync('tar', ['-xzf', join(root, archive), '-C', root])
     writeFileSync(join(root, 'ci-queue.json'), JSON.stringify({schemaVersion: 1, project: {id: 'minimal', name: 'Minimal'}, execution: {executor: 'queue'}, presets: {check: {argv: ['node', '-e', 'process.exit(99)']}}}))
+    const metadata = JSON.parse(readFileSync(join(root, 'package/package.json'), 'utf8'))
+    assert.equal(metadata.bin['ci-queue'], undefined, 'dependency must not shadow the installed worker launcher')
     const cli = join(root, 'package/bin/ci-queue-consumer.cjs')
     const result = spawnSync(process.execPath, [cli, 'inspect', 'check', '--executor', 'direct', '--', 'literal value'], {cwd: root, encoding: 'utf8'})
     assert.equal(result.status, 0, result.stderr)
