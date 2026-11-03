@@ -5,6 +5,9 @@
     "name": "CI Queue example"
   },
   "presets": {
+    "extension": {
+      "argv": ["node", "scripts/extension.mjs"]
+    },
     "success": {
       "argv": ["node", "scripts/success.mjs"]
     },

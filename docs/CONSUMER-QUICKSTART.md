@@ -167,3 +167,62 @@ Garantia: **HEAD pinado, base observada**. Revalidação antes e inspeção depo
 ## Caso de consumidor: DietFlow e portabilidade
 
 O [mapa de portabilidade do DietFlow](https://github.com/dietflowoficial/Dietflow-app/blob/dev/docs/harness/MAPA-CLOUD-PORTABILIDADE.md) preserva resultados Mac/Cursor/Codex, limites de backend e hipóteses de retomada. O mapa aponta de volta a este quickstart. São evidências e contratos do consumidor; CI Queue não instala o backend, não concede capacidade Docker/rede, não exige uma conta GitHub nominal e não certifica o produto por executar seu comando. Contratos genéricos da fila permanecem nesta documentação.
+
+## Entrada reutilizável sem worker ou plugin (consumer API v1)
+
+O pacote deste repositório exporta `@nmarcofernandess/ci-queue/consumer`, em
+JavaScript Node >=20, com tipos, sem build, dependências runtime ou import do
+motor. Instale por uma revisão Git **imutável** revisada:
+
+```bash
+npm install --save-dev 'github:nmarcofernandess/ci-queue#<SHA-integrado>'
+```
+
+A dependência instala somente o bin leve `ci-queue-consumer`: não cria um
+`node_modules/.bin/ci-queue` que sombreie a distribuição oficial. A instalação
+não registra projeto, não instala release e não
+inicia worker/API. O binário de execução `ci-queue` continua exigindo a release
+verificada de INSTALL. O binário leve `ci-queue-consumer` funciona sem ela:
+
+```bash
+npx --no-install ci-queue-consumer inspect check
+npx --no-install ci-queue-consumer inspect check --executor direct -- --case exemplo
+```
+
+Inspeção lê o catálogo schema1 no cwd, mostra executor e argv literais e declara
+`started: false`. Não prepara nem roda a receita; não confirma recursos, outputs,
+protocolo da instalação ou elegibilidade de ship. Extensões podem transformar o
+argv posteriormente. Não use a inspeção como substituto do doctor consumidor.
+A API `selectExecutor` valida valores e aplica explícito → ambiente fornecido
+pelo adaptador → catálogo → default direct; o DietFlow mantém queue no catálogo.
+`appendRecipeArgs` preserva tokens e o separador `--`, sem shell ou execução.
+Uma versão incompatível falha, sem baixar garantias nem selecionar auto.
+
+O adaptador consumidor mantém seus argumentos especiais, loader, preparo,
+encerramento, recursos, outputs e registros. Exemplo executável:
+`examples/local-project/ci-queue.json#presets.extension` chama
+`scripts/extension.mjs`: prepara um diretório temporário próprio, testa seu
+conteúdo, encerra em finally e retém `artifacts/example/report.json`, também
+quando `--fail` demonstra falha. O relatório técnico é do consumidor, sem
+snapshot pela Queue nem elegibilidade de proof. Queue chama
+o mesmo argv e, se declarado, o hook de finalização do consumidor; o núcleo
+leve não transfere esse lifecycle nem cria supervisor. Veja
+`tests/examples/consumer-entry.test.mjs`: um segundo projeto temporário recebe
+o pacote por `npm pack`, inspeciona sua receita sem executar o comando com
+exit99, sem conhecimento de Supabase, Playwright ou domínio clínico.
+
+Atualize AGENTS, mapa e skill versionada por diff localizado dos templates;
+nunca sobrescreva os arquivos inteiros de um projeto adotado. Preserve
+project.id, receitas, gates, pendências e customizações. O plugin é opcional e
+aponta aos mesmos owners. Sem plugin, leia a skill local, o mapa e o método.
+Queue requerida para recursos compartilhados permanece requerida. Ausência
+antes de qualquer submissão só permite execução direta oficial equivalente,
+com recursos próprios e efeitos autorizados pelo consumidor. Ocupação, pausa,
+recusa, HOLD ou resultado incerto nunca autorizam fallback; consulte o mesmo
+ID/log antes de retomar. Instalar a API não muda essa política.
+
+No executor cloud Linux com PID1 que não coleta filhos órfãos, o observador de
+processos diferencia zombies (`ps stat=Z`) de processos executáveis. Um grupo só
+de zombies não reserva o executor; um descendente vivo continua protegido.
+Nascimento/pgid/host divergentes continuam incertos. Isso não troca state,
+não mata processos e não recupera publicação sem os guards do mesmo ID.

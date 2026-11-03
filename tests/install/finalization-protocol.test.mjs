@@ -19,7 +19,7 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'ci-queue-finalization-install-'))
   const put = (path, bytes) => { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), bytes) }
   put('package.json', JSON.stringify({ version: '0.1.0', type: 'module' }))
-  for (const path of ['package-lock.json', 'LICENSE', 'README.md', 'scripts/install.mjs', 'scripts/release.mjs', 'scripts/legacy-projects.mjs', 'scripts/ci/verify-local-attestation.sh', 'scripts/ci/check-with-progress.sh', 'scripts/ci/test-suite.sh', 'scripts/progress-emit.sh', 'docs/INSTALL.md', 'templates/github/ci-queue-verdict.yml', 'examples/local-project/ci-queue.json', ...Object.values(components).flat()]) put(path, path)
+  for (const path of ['consumer/index.cjs', 'package-lock.json', 'LICENSE', 'README.md', 'scripts/install.mjs', 'scripts/release.mjs', 'scripts/legacy-projects.mjs', 'scripts/ci/verify-local-attestation.sh', 'scripts/ci/check-with-progress.sh', 'scripts/ci/test-suite.sh', 'scripts/progress-emit.sh', 'docs/INSTALL.md', 'templates/github/ci-queue-verdict.yml', 'examples/local-project/ci-queue.json', ...Object.values(components).flat()]) put(path, path)
   const stamp = (component, overrides = {}) => {
     const files = components[component].map(path => { const bytes = readFileSync(join(root, path)); return { path, bytes: bytes.length, sha256: hash(bytes) } })
     put(`build-provenance/${component}.json`, JSON.stringify({ schemaVersion: 1, component, revision, protocol, files, ...overrides }))

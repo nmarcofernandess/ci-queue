@@ -1,6 +1,11 @@
 # Todos os paths deste mapa são relativos à raiz do consumidor.
 schema: ci-method-v1
 runtime_contract: ci-queue.json
+consumer_entry:
+  api: "@nmarcofernandess/ci-queue/consumer (v1, opcional)"
+  inspect: ci-queue-consumer inspect <receita>
+  owner: docs/CONSUMER-QUICKSTART.md no repositorio oficial
+  limit: inspecao_sem_execucao_ou_certificacao_de_recursos
 method: docs/ci/TESTING-METHOD.md
 feedback:
   available: false

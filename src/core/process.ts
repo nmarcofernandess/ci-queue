@@ -55,20 +55,27 @@ export function identityIsCurrent(identity: ProcessGroupIdentity | undefined): b
   return Boolean(current && current.pgid === identity.pgid && current.startedAt === identity.startedAt)
 }
 
-export function probeWorkerIdentity(pid = process.pid): WorkerIdentity | undefined {
-  const result = spawnSync("ps", ["-o", "pid=,lstart=", "-p", String(pid)], { encoding: "utf8", timeout: 2_000, env: C_ENV })
-  const match = result.status === 0 ? /^\s*(\d+)\s+(.+?)\s*$/.exec(String(result.stdout).trim()) : null
+function probeWorkerProcess(pid: number): { identity: WorkerIdentity; stat: string } | undefined {
+  const result = spawnSync("ps", ["-o", "pid=,stat=,lstart=", "-p", String(pid)], { encoding: "utf8", timeout: 2_000, env: C_ENV })
+  const match = result.status === 0 ? /^\s*(\d+)\s+(\S+)\s+(.+?)\s*$/.exec(String(result.stdout).trim()) : null
   return match && Number(match[1]) === pid
-    ? { schemaVersion: 1, hostname: hostname(), pid, startedAt: match[2], capabilities: [TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY, EXECUTION_PAUSE_CAPABILITY, DISK_GUARD_CAPABILITY] }
+    ? { stat: match[2], identity: { schemaVersion: 1, hostname: hostname(), pid, startedAt: match[3], capabilities: [TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY, EXECUTION_PAUSE_CAPABILITY, DISK_GUARD_CAPABILITY] } }
     : undefined
+}
+
+export function probeWorkerIdentity(pid = process.pid): WorkerIdentity | undefined {
+  return probeWorkerProcess(pid)?.identity
 }
 
 export function observeWorkerIdentity(identity: WorkerIdentity | undefined): ProcessGroupState {
   if (!identity || identity.schemaVersion !== 1 || identity.hostname !== hostname() || !Number.isSafeInteger(identity.pid) || identity.pid <= 0 || !identity.startedAt) return { state: "uncertain", reason: "host/identidade do supervisor incerto" }
-  const actual = probeWorkerIdentity(identity.pid)
-  if (actual) return actual.startedAt === identity.startedAt
-    ? { state: "alive", reason: "supervisor próprio ainda vivo" }
-    : { state: "uncertain", reason: "PID do supervisor reutilizado" }
+  const actual = probeWorkerProcess(identity.pid)
+  if (actual) {
+    if (actual.identity.startedAt !== identity.startedAt) return { state: "uncertain", reason: "PID do supervisor reutilizado" }
+    return actual.stat.startsWith("Z")
+      ? { state: "dead", reason: "supervisor encerrado aguardando reap" }
+      : { state: "alive", reason: "supervisor próprio ainda vivo" }
+  }
   try { process.kill(identity.pid, 0) } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ESRCH") return { state: "dead", reason: "supervisor comprovadamente encerrado" }
   }
@@ -96,14 +103,15 @@ function localLegacyGroupIdentity(identity: ProcessGroupIdentity): ProcessGroupI
 /** A missing leader alone cannot prove that its detached descendants exited. */
 export function observeProcessGroup(identity: ProcessGroupIdentity | undefined): ProcessGroupState {
   if (!identity || identity.hostname !== hostname()) return { state: "uncertain", reason: "host/identidade do grupo incerto" }
-  const result = spawnSync("ps", ["-axo", "pid=,pgid=,lstart="], { encoding: "utf8", timeout: 2_000, env: C_ENV })
+  const result = spawnSync("ps", ["-axo", "pid=,pgid=,stat=,lstart="], { encoding: "utf8", timeout: 2_000, env: C_ENV })
   if (result.status !== 0) return { state: "uncertain", reason: "sonda ps indisponível" }
-  const rows = String(result.stdout).split("\n").map(line => /^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/.exec(line)).filter((row): row is RegExpExecArray => Boolean(row))
+  const rows = String(result.stdout).split("\n").map(line => /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(.+?)\s*$/.exec(line)).filter((row): row is RegExpExecArray => Boolean(row))
   const leader = rows.find(row => Number(row[1]) === identity.leaderPid)
-  if (leader && (Number(leader[2]) !== identity.pgid || leader[3] !== identity.startedAt)) return { state: "uncertain", reason: "PID reutilizado ou grupo divergente" }
-  const members = rows.filter(row => Number(row[2]) === identity.pgid)
-  if (!members.length && !leader) return { state: "dead", reason: "grupo comprovadamente encerrado" }
-  if (!leader) return { state: "uncertain", reason: "descendentes sem líder verificável" }
+  if (leader && (Number(leader[2]) !== identity.pgid || leader[4] !== identity.startedAt)) return { state: "uncertain", reason: "PID reutilizado ou grupo divergente" }
+  const members = rows.filter(row => Number(row[2]) === identity.pgid && !row[3].startsWith("Z"))
+  // Zombies cannot execute; birth identity was checked above.
+  if (!members.length && (!leader || leader[3].startsWith("Z"))) return { state: "dead", reason: "grupo comprovadamente encerrado" }
+  if (!leader || leader[3].startsWith("Z")) return { state: "uncertain", reason: "descendentes sem líder executável verificável" }
   return { state: "alive", reason: "grupo próprio ainda vivo" }
 }
 

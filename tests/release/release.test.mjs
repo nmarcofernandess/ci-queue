@@ -15,6 +15,7 @@ function fixture() {
   writeFileSync(join(root, "LICENSE"), "MIT\n")
   writeFileSync(join(root, "README.md"), "# CI Queue\n")
   for (const path of [
+    "consumer/index.cjs",
     "bin/ci-queue.mjs",
     "dist/cli.js",
     "backend/ci_queue_api/__main__.py",
@@ -58,6 +59,7 @@ test("release bundles omit Python caches and historical specs while retaining pr
     assert.equal(paths.includes("docs/CONSUMER-QUICKSTART.md"), true)
     assert.equal(paths.includes("docs/GUIA-INTEGRACAO-CI-QUEUE.html"), true)
     assert.equal(paths.includes("docs/INSTALL.md"), true)
+    assert.equal(paths.includes("consumer/index.cjs"), true)
     assert.equal(paths.includes("templates/github/ci-queue-verdict.yml"), true)
     assert.equal(verifyRelease(destination).revision, "b".repeat(40))
   } finally {

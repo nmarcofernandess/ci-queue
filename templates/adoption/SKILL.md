@@ -22,6 +22,10 @@ from the **consumer repository root**, regardless of where this skill is copied.
 The default owner is `docs/ci/TESTING-METHOD.md`; change `method` to the existing
 consumer procedure when adopting (for example `docs/ci/FEEDBACK-LOOP.md`).
 
+Sem plugin, siga esta skill, o mapa e o método local; a entrada opcional
+`ci-queue-consumer inspect <receita>` mostra catálogo/argv sem iniciar trabalho
+nem certificar recursos. A API e a distribuição têm owners no quickstart.
+
 Consumer commands remain executable directly. Choose Queue for scheduling,
 serialization and records when useful or required by a declared resource
 contract. Use feedback only after the map declares a real implemented recipe;
@@ -42,3 +46,7 @@ public entry without rerunning tests or deleting reservations.
 Follow the map's consumer-owned procedure for the transition after planned
 tasks/reviews, closing diagnostics and record retention. Generic reference:
 [CI Queue testing method](https://github.com/nmarcofernandess/ci-queue/blob/main/docs/TESTING-METHOD.md).
+
+Queue requerida permanece requerida. Ausência antes de submissão só admite
+caminho direto oficial equivalente e autorizado. Espera, recusa, HOLD ou outcome
+incerto exigem inspecionar o ID existente, nunca fallback ou job duplicado.

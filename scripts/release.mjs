@@ -27,6 +27,7 @@ export const productRoot = resolve(here, "..")
 export const MANIFEST_FILENAME = "manifest.json"
 const releasePaths = [
   "bin",
+  "consumer",
   "build-provenance",
   "dist",
   "backend",
