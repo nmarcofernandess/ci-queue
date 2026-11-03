@@ -199,9 +199,12 @@ pelo adaptador → catálogo → default direct; o DietFlow mantém queue no cat
 Uma versão incompatível falha, sem baixar garantias nem selecionar auto.
 
 O adaptador consumidor mantém seus argumentos especiais, loader, preparo,
-encerramento, recursos, outputs e registros. Exemplo: uma receita chama seu
-script, que prepara um diretório temporário próprio, executa testes, publica
-apenas os artefatos declarados e encerra seus recursos em finally. Queue chama
+encerramento, recursos, outputs e registros. Exemplo executável:
+`examples/local-project/ci-queue.json#presets.extension` chama
+`scripts/extension.mjs`: prepara um diretório temporário próprio, testa seu
+conteúdo, encerra em finally e retém `artifacts/example/report.json`, também
+quando `--fail` demonstra falha. O relatório técnico é do consumidor, sem
+snapshot pela Queue nem elegibilidade de proof. Queue chama
 o mesmo argv e, se declarado, o hook de finalização do consumidor; o núcleo
 leve não transfere esse lifecycle nem cria supervisor. Veja
 `tests/examples/consumer-entry.test.mjs`: um segundo projeto temporário recebe

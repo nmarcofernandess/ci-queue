@@ -39,3 +39,18 @@ test('packed consumer inspects a second project without worker, plugin or produc
     assert.match(incompatible.stderr, /direct.*queue/)
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
+
+test('consumer extension prepares and closes its own resources, retaining its report on failure', () => {
+  const root = mkdtempSync(join(tmpdir(), 'consumer-extension-'))
+  try {
+    const script = new URL('../../examples/local-project/scripts/extension.mjs', import.meta.url)
+    for (const fail of [false, true]) {
+      const result = spawnSync(process.execPath, [script.pathname, ...(fail ? ['--fail'] : [])], {cwd: root, encoding: 'utf8'})
+      assert.equal(result.status, fail ? 1 : 0, result.stderr)
+      const report = JSON.parse(readFileSync(join(root, 'artifacts/example/report.json'), 'utf8'))
+      assert.equal(report.status, fail ? 'failed' : 'passed')
+      assert.equal(report.cleanup, 'confirmed')
+      assert.equal(report.schemaVersion, 1)
+    }
+  } finally { rmSync(root, {recursive: true, force: true}) }
+})

@@ -55,3 +55,11 @@ $QUEUE history --project ci-queue-example --state "$CI_QUEUE_STATE_DIR" --json
 
 O worker seguinte reconcilia o ticket abandonado e o registra como
 `interrupted`; não adota o subprocesso de forma silenciosa.
+
+## Extensão do consumidor
+
+`node scripts/extension.mjs` prepara um recurso temporário, verifica conteúdo e
+encerra em finally, retendo `artifacts/example/report.json`. `--fail` demonstra
+falha com cleanup e relatório preservados. A receita `extension` executa o mesmo
+comando pela Queue; o relatório técnico não é prova de ship. Inspeção sem worker:
+`ci-queue-consumer inspect extension`. Não copie infraestrutura do DietFlow.
