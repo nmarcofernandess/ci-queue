@@ -19,3 +19,8 @@ antes de criar outro. Encerre somente os recursos próprios pelo comando do proj
 Fechamento após tasks/reviews e retenção seguem esse owner consumidor; resultados
 ficam no registro escolhido pelo projeto, sem plano concorrente. Referência genérica:
 [método CI Queue](https://github.com/nmarcofernandess/ci-queue/blob/main/docs/TESTING-METHOD.md).
+
+Sem plugin/worker, a skill versionada e o método continuam sendo a entrada.
+Inspeção opcional: `ci-queue-consumer inspect <receita>` (não executa nem prova
+compatibilidade de recursos). A API leve é distribuída pelo pacote versionado
+do CI Queue; siga o quickstart, sem copiar infraestrutura de outro consumidor.

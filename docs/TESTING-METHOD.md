@@ -153,3 +153,8 @@ cleanup incerto ou fonte histórica inválida limitam o próprio ID e não exige
 provar um computador limpo antes do próximo comando ou da atualização. Owners
 correntes e locks reais conservam sua proteção; não remova registros para forçar
 passagem. [CONTRACTS](CONTRACTS.md) governa publicação, replay e manutenção.
+
+A [entrada leve do quickstart](CONSUMER-QUICKSTART.md#entrada-reutilizável-sem-worker-ou-plugin-consumer-api-v1)
+permite inspecionar catálogo sem plugin/worker. O núcleo versionado não copia
+infraestrutura do consumidor nem muda suas garantias. Queue requerida continua
+requerida; ausência pré-submissão não equivale a recusa, HOLD ou outcome incerto.

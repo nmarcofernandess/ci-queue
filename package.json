@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Independent local CI queue, executor and observability service",
   "bin": {
-    "ci-queue": "./bin/ci-queue.mjs"
+    "ci-queue": "./bin/ci-queue.mjs",
+    "ci-queue-consumer": "./bin/ci-queue-consumer.cjs"
   },
   "scripts": {
     "build": "tsc --project tsconfig.json && node scripts/release.mjs stamp --component runtime",
@@ -36,5 +37,11 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "exports": {
+    "./consumer": {
+      "types": "./consumer/index.d.cts",
+      "default": "./consumer/index.cjs"
+    }
   }
 }
