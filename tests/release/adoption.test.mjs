@@ -19,6 +19,7 @@ import { buildRelease, verifyRelease, releaseEnvironment } from "../helpers/rele
 const productRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const releaseInputs = [
   "bin",
+  "consumer",
   "dist",
   "backend",
   "ui/dist",

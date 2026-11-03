@@ -18,6 +18,7 @@ function sourceFixture() {
   writeFileSync(join(root, "LICENSE"), "MIT\n")
   writeFileSync(join(root, "README.md"), "# CI Queue\n")
   for (const path of [
+    "consumer/index.cjs",
     "bin/ci-queue.mjs",
     "dist/cli.js",
     "backend/ci_queue_api/__main__.py",

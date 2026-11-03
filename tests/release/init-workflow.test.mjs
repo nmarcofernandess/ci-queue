@@ -55,6 +55,7 @@ function productishSource(root) {
   writeFileSync(join(root, "README.md"), "# CI Queue\n")
   for (const path of [
     "bin",
+  "consumer",
     "dist",
     "templates",
     "scripts/ci/verify-local-attestation.sh",
