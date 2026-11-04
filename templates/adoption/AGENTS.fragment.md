@@ -1,26 +1,7 @@
+
 ## Testes e CI
-Use os playbooks do plugin oficial CI Queue quando instalado; a instrução
-versionada deste consumidor mantém seus comandos, mapa e owner próprios.
-Pendências são informação no registro Git do consumidor, sem efeito sobre
-merge/ship e sem execução automática. Executá-las exige pedido explícito no chat.
-Retrospectiva de defeitos do harness permanece no backlog próprio.
-
-Leia o [mapa do consumidor](.context/patterns/ci.yaml), resolvido desde a raiz do
-repositório, e o owner declarado em `method` (default
-`docs/ci/TESTING-METHOD.md`). Adapte esse ponteiro ao procedimento existente;
-README, mapa e skill operacional devem apontar ao mesmo owner editável.
-
-Os comandos do projeto permanecem executáveis diretamente. O consumidor escolhe
-Queue para agendamento, serialização, logs, histórico e cancelamento quando útil
-ou exigido pelo recurso. Feedback só existe com receita real declarada; não
-representa prova final. Ao retomar uma execução enfileirada, confira seu ticket
-antes de criar outro. Encerre somente os recursos próprios pelo comando do projeto.
-
-Fechamento após tasks/reviews e retenção seguem esse owner consumidor; resultados
-ficam no registro escolhido pelo projeto, sem plano concorrente. Referência genérica:
-[método CI Queue](https://github.com/nmarcofernandess/ci-queue/blob/main/docs/TESTING-METHOD.md).
-
-Sem plugin/worker, a skill versionada e o método continuam sendo a entrada.
-Inspeção opcional: `ci-queue-consumer inspect <receita>` (não executa nem prova
-compatibilidade de recursos). A API leve é distribuída pelo pacote versionado
-do CI Queue; siga o quickstart, sem copiar infraestrutura de outro consumidor.
+`npx ci-queue-consumer guide` mostra o que rodar neste repositório: as receitas,
+o executor deste host com o motivo e como integrar. O que só este repositório
+sabe fica no `ci-queue.json` (`guide.notes`, `ship.notes`); o procedimento de
+feedback e prova está no [mapa do consumidor](.context/patterns/ci.yaml),
+resolvido desde a raiz do repositório.

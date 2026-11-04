@@ -4,7 +4,7 @@ Executor local opcional de CI com fila, supervisão de processos, registros, API
 
 ## Comece aqui
 
-**[Quickstart de integração](docs/CONSUMER-QUICKSTART.md)** é a porta de entrada genérica. O **[manual HTML offline](docs/GUIA-INTEGRACAO-CI-QUEUE.html)** ensina máquina/projeto, protocolo TSV, receitas agregadoras, ship, Node por projeto, worktrees, filtros e diagnóstico. Salve o HTML e abra no navegador; o GitHub mostra o código-fonte, não executa a página.
+**[Quickstart de integração](docs/CONSUMER-QUICKSTART.md)** é a porta de entrada genérica. Num repositório que já adotou, `npx ci-queue-consumer guide` ensina o que rodar ali e por quê. O **[manual HTML offline](docs/GUIA-INTEGRACAO-CI-QUEUE.html)** ensina máquina/projeto, protocolo TSV, receitas agregadoras, ship, Node por projeto, worktrees, filtros e diagnóstico. Salve o HTML e abra no navegador; o GitHub mostra o código-fonte, não executa a página.
 
 - [Índice e donos da documentação](docs/README.md)
 - [Contratos de catálogo, ticket, progresso e ship](docs/CONTRACTS.md)

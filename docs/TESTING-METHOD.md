@@ -130,11 +130,12 @@ Mantenha um único owner editável de procedimento no consumidor. README, AGENTS
 mapa, skill e runbooks vizinhos apontam para ele. O bundle genérico sempre deixa
 feedback desativado até o consumidor declarar e implementar sua receita.
 
-## Mesmo comando, executor escolhido
+## Mesmo comando, executor do host
 
-O consumidor escolhe execução direta ou Queue. Jest puro barato normalmente roda
-direto; recursos compartilhados podem pedir serialização. Não transforme a
-existência de um preset em obrigação universal ou preparação de stack. Adoção
+O executor é resolvido pelo host (ver [executor do host](CONSUMER-QUICKSTART.md#executor-do-host));
+`ci-queue-consumer guide` mostra qual é e por quê. Jest puro barato normalmente
+roda direto; recursos compartilhados pedem a fila no host que a tem. Não
+transforme a existência de um preset em obrigação universal ou preparação de stack. Adoção
 standalone não exige ship-bound; as flags de prova pertencem às receitas aceitas
 pelo ship, quando esse controller for adotado. `init` conserva sua inferência de
 `scripts.check` inequívoco; argv explícito atende os demais casos.
@@ -155,6 +156,5 @@ correntes e locks reais conservam sua proteção; não remova registros para for
 passagem. [CONTRACTS](CONTRACTS.md) governa publicação, replay e manutenção.
 
 A [entrada leve do quickstart](CONSUMER-QUICKSTART.md#entrada-reutilizável-sem-worker-ou-plugin-consumer-api-v1)
-permite inspecionar catálogo sem plugin/worker. O núcleo versionado não copia
-infraestrutura do consumidor nem muda suas garantias. Queue requerida continua
-requerida; ausência pré-submissão não equivale a recusa, HOLD ou outcome incerto.
+ensina o catálogo e o host sem plugin/worker. O núcleo versionado não copia
+infraestrutura do consumidor nem muda suas garantias.

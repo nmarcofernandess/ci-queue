@@ -1,52 +1,22 @@
 ---
 name: consumer-testing-method
-description: Choose focal feedback, closing diagnostics or proof using the consumer's CI method map.
+description: Choose focal feedback, closing diagnostics or proof using the consumer's CI guide and method map.
 ---
 
 # Consumer testing method
 
-This versioned file is the consumer adapter. With the official CI Queue plugin
-installed, use its adoption/operation playbooks and keep this pointer to the
-consumer-owned map and procedure. Verify the replacement in a new chat before
-disabling any previous personal skill; do not copy the plugin into this file.
+Start with `npx ci-queue-consumer guide`. It reads this repository's catalog and
+host and shows the recipes, the executor on this host and why, how to integrate,
+and the repository's own teachings. `ci-queue-consumer inspect <recipe>` shows
+one recipe's argv and the next line to run, without running it.
 
-Pending validations belong to the consumer's existing Git record, never a
-merge/ship gate or execution trigger. Consultations do not write or execute.
-Only an explicit user request runs pending work, using the capabilities actually
-available in that session. Keep harness friction in its own backlog. See the
-official plugin at https://github.com/nmarcofernandess/ci-queue/tree/dev/plugins/ci-queue.
+For the procedure (when focal feedback is enough, when a proof is due, how the
+result is recorded), open the [method map](.context/patterns/ci.yaml) from the
+**consumer repository root** and follow its `method` owner (default
+`docs/ci/TESTING-METHOD.md`, or the existing consumer procedure).
 
-Read the consumer's README and AGENTS, then open its
-[method map](.context/patterns/ci.yaml). Resolve this path and the map's `method`
-from the **consumer repository root**, regardless of where this skill is copied.
-The default owner is `docs/ci/TESTING-METHOD.md`; change `method` to the existing
-consumer procedure when adopting (for example `docs/ci/FEEDBACK-LOOP.md`).
-
-Sem plugin, siga esta skill, o mapa e o método local; a entrada opcional
-`ci-queue-consumer inspect <receita>` mostra catálogo/argv sem iniciar trabalho
-nem certificar recursos. A API e a distribuição têm owners no quickstart.
-
-Consumer commands remain executable directly. Choose Queue for scheduling,
-serialization and records when useful or required by a declared resource
-contract. Use feedback only after the map declares a real implemented recipe;
-otherwise it stays unavailable. Feedback does not grant proof or ship eligibility.
-
-For Queue, inspect the installed revision, state, cwd and existing ticket before
-retrying. Worker Node and caller environment are separate; the consumer loads
-its own configuration in the actual executor. Job Node binding is opt-in. Use
-framework/version-compatible native loaders; do not copy another project's env.
-
-The consumer owns outputs, useful caches and resource lifecycle. Once the command
-and any current finalization attempt end, queue work is released; historical
-uncertain cleanup is diagnostic and does not demand
-a globally clean computer. A finalization hook is optional unless the declared
-output contract requires it. Recover publication for that same ID through the
-public entry without rerunning tests or deleting reservations.
-
-Follow the map's consumer-owned procedure for the transition after planned
-tasks/reviews, closing diagnostics and record retention. Generic reference:
+Pending validations belong to the consumer's Git record; they are information,
+not a merge gate or an execution trigger. The consumer owns outputs, caches and
+resource lifecycle; recovering a finalization reuses the same ID through the
+public entry. Generic reference:
 [CI Queue testing method](https://github.com/nmarcofernandess/ci-queue/blob/main/docs/TESTING-METHOD.md).
-
-Queue requerida permanece requerida. Ausência antes de submissão só admite
-caminho direto oficial equivalente e autorizado. Espera, recusa, HOLD ou outcome
-incerto exigem inspecionar o ID existente, nunca fallback ou job duplicado.

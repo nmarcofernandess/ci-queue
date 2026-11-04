@@ -18,7 +18,9 @@ instala o executor, registra projeto ou habilita execução.
 
 No diff de adoção, atualize explicitamente:
 
-1. `AGENTS.md`, escrevendo no alvo real se for symlink;
+1. `AGENTS.md`, escrevendo no alvo real se for symlink: uma linha que aponta
+   `ci-queue-consumer guide`; os ensinamentos do repositório vão para o catálogo
+   (`guide`, `ship.command`, `ship.notes`);
 2. a skill/instrução operacional **versionada** do consumidor, que passa a ser
    um adaptador curto para o plugin, mapa e procedimento locais;
 3. mapa e catálogo, preservando `project.id`, receitas, gates e owner existente.

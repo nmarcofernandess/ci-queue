@@ -20,8 +20,11 @@ Read live code/tests on the requested branch before reconciling prose. Historica
 specs/plans are context, not current operational policy. Do not rewrite their
 phases as part of a docs reconciliation.
 
-When adopting CI Queue in a consumer, explicitly update its AGENTS file (the
-actual target if it is a symlink) and its versioned operational skill/instruction.
+When adopting CI Queue in a consumer, its AGENTS file (the actual target if it
+is a symlink) gets one line pointing to `ci-queue-consumer guide`. What only that
+repository knows goes into its catalog (`presets.*.note`, `guide`, `ship.command`,
+`ship.notes`), where the guide shows it. Executor, queue and fallback rules are
+taught by the tool at the moment of use; do not copy them into consumer prose.
 Keep one editable owner; use pointers rather than parallel contract copies.
 `ship.acceptedPresets` is OR; absent proof enqueues the first recipe. Required
 multiple checks belong in a real aggregate recipe with failure propagation.

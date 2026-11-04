@@ -52,16 +52,34 @@ ci-queue init --cwd "$PWD" --name "Meu projeto" --base-ref origin/dev \
 inferência válida. Adoção standalone não exige flags ship-bound; elas governam
 as receitas aceitas pelo ship. O catálogo precisa estar commitado em H antes do ship.
 
-## 3. Atualize as instruções do consumidor
+## 3. Ensine pelo catálogo, não pelo AGENTS
 
-Antes do commit de adoção, atualizar **AGENTS.md ou seu alvo se symlink** e a **skill/instrução operacional versionada**. Registrar: entrada canônica; comando standalone; fila e state conferido; receitas aceitas; autorização de ship; progresso como aviso; fonte de diagnóstico. Evitar cópias paralelas. Se uma skill só existir fora do Git, entregar delta aplicável e caminho, sem alegar aplicação local.
+O que um agente precisa saber para verificar e integrar vem da CLI:
+`ci-queue-consumer guide` lê o catálogo e o host e mostra os dois tipos de
+trabalho (verificar uma receita, integrar pelo ship), o executor deste host e
+o porquê, e os ensinamentos do repositório. No AGENTS do consumidor (o alvo, se
+for symlink), uma linha basta: o comando que abre o guia. Regras de executor,
+fila ou fallback copiadas para o AGENTS, skills ou handbooks viram instruções
+que agentes repetem fora do contexto em que valiam; deixe-as para a ferramenta.
 
-Use `templates/adoption/AGENTS.fragment.md` como ponteiro e adapte
+O que só o repositório sabe entra no catálogo, em campos que o motor ignora e o
+guia mostra:
+
+| Campo | Para quê |
+|---|---|
+| `presets.<nome>.note` | Quando usar a receita. A primeira frase aparece no guia. |
+| `guide.verify` | Comando do repositório para rodar uma receita, com `<receita>` no lugar do nome (ex.: `npm run ci:run -- <receita>`). |
+| `guide.notes` | Lista curta do que vale só aqui (o que é prova, o que é feedback). |
+| `ship.command` | Entrada de integração quando o repositório tem ship próprio. |
+| `ship.notes` | O que fazer nos casos comuns da integração (base movida, docs-only). |
+
+O guia aponta o que o catálogo ainda não declara. Use
+`templates/adoption/AGENTS.fragment.md` como a linha do AGENTS e adapte
 `templates/adoption/ci.yaml` para `.context/patterns/ci.yaml`. Mantenha
 `feedback.available: false` até existir uma receita real no catálogo; então
-aponte `method` para o procedimento do consumidor e registre seus comandos e
-perfil. Resolva mapa e `method` desde a raiz do consumidor: default
-`docs/ci/TESTING-METHOD.md`, customizável para seu owner existente. O mapa é navegação para humanos/agentes, não é lido pelo runtime. O
+aponte `method` para o procedimento do consumidor. Resolva mapa e `method`
+desde a raiz do consumidor: default `docs/ci/TESTING-METHOD.md`, customizável
+para seu owner existente. O mapa é navegação, não é lido pelo runtime. O
 catálogo `ci-queue.json` continua sendo a autoridade de receitas, flags e
 finalização. A skill curta de adoção está em `templates/adoption/SKILL.md`.
 
@@ -185,18 +203,32 @@ inicia worker/API. O binário de execução `ci-queue` continua exigindo a relea
 verificada de INSTALL. O binário leve `ci-queue-consumer` funciona sem ela:
 
 ```bash
+npx --no-install ci-queue-consumer guide
+npx --no-install ci-queue-consumer guide --json
 npx --no-install ci-queue-consumer inspect check
 npx --no-install ci-queue-consumer inspect check --executor direct -- --case exemplo
 ```
 
-Inspeção lê o catálogo schema1 no cwd, mostra executor e argv literais e declara
-`started: false`. Não prepara nem roda a receita; não confirma recursos, outputs,
-protocolo da instalação ou elegibilidade de ship. Extensões podem transformar o
-argv posteriormente. Não use a inspeção como substituto do doctor consumidor.
-A API `selectExecutor` valida valores e aplica explícito → ambiente fornecido
-pelo adaptador → catálogo → default direct; o DietFlow mantém queue no catálogo.
+`guide` (também o comando sem argumentos) procura o catálogo schema1 a partir
+do cwd e mostra o executor deste host com o motivo, as receitas com a primeira
+frase de `note`, a entrada e a prova do ship e os ensinamentos genéricos e do
+repositório. `inspect` mostra argv literais, executor, motivo, a próxima
+linha a rodar e `started: false`. Nenhum dos dois prepara ou roda a receita,
+confirma recursos, outputs, protocolo da instalação ou elegibilidade de ship.
+
+### Executor do host
+
+O catálogo declara uma preferência (`execution.executor: "queue"`); quem decide
+é o host. `resolveExecutor` aplica, nesta ordem: opção `--executor` (exceção
+pontual) → variável `CI_QUEUE_EXECUTOR` do host → host sem CI Queue roda direto
+→ preferência do catálogo → direct. `detectQueueHost` considera o host com fila
+quando o comando de `execution.queue.command` está no PATH, quando
+`CI_QUEUE_STATE_DIR` existe ou quando há `installation.json` nos states usuais.
+Um container de nuvem sem nada disso roda direto sem configuração. Um host com
+instalação e comando indisponível continua `queue` e falha com o motivo, em vez
+de rodar em outro lugar. `selectExecutor` permanece para chamadores da v1.
 `appendRecipeArgs` preserva tokens e o separador `--`, sem shell ou execução.
-Uma versão incompatível falha, sem baixar garantias nem selecionar auto.
+Valores fora de `direct|queue` falham com o nome da origem.
 
 O adaptador consumidor mantém seus argumentos especiais, loader, preparo,
 encerramento, recursos, outputs e registros. Exemplo executável:

@@ -26,7 +26,11 @@ Fonte do formato: `src/contracts/schema.ts` e `config.ts`. Tickets v1/v2/v3/v4 c
 | `progress` | Declaração da receita, persistida em `flags.progressEnabled`; nunca gate de ship. |
 | `artifacts` | Compatibilidade de adoção: somente ausência ou `[]`. Nova seleção global, por receita ou CLI é recusada com orientação de migração para `finalization`. Tickets antigos mantêm os campos históricos, mas o worker novo nunca copia arquivos. |
 | `finalization` | Hook obrigatório quando presente: `schemaVersion: 2` para recuperação explícita; v1 legado continua legível, sem inferir retry. Exige `argv` não vazio, `timeoutMs` inteiro de 1 a 2.147.483.647, `contract` JSON finito até 64 KiB UTF-8 e `contractDigest` SHA-256 canônico. O enqueue congela o hook e seu `finalizationDigest` no ticket v4; o worker não relê o catálogo. |
-| `note` | Documentação, não política executável. |
+| `note` | Documentação, não política executável. A primeira frase aparece em `ci-queue-consumer guide`. |
+| `guide.verify` | Opcional, só do consumidor: comando para rodar uma receita, com `<receita>` como marcador. Mostrado por `guide` e usado como `next` em `inspect`. |
+| `guide.notes` | Opcional, só do consumidor: lista de frases que o guia mostra como ensinamentos do repositório. O motor ignora. |
+| `ship.command` / `ship.notes` | Opcionais, só do consumidor: entrada do ship próprio e frases para os casos comuns da integração. O motor e o ship genérico ignoram. |
+| `execution.executor` | Preferência do catálogo (`queue`). O executor efetivo é do host: `--executor` → `CI_QUEUE_EXECUTOR` → host sem CI Queue roda direto → catálogo → direct. |
 | `ship.acceptedPresets` | Lista não vazia/única de receitas existentes e ship-bound. É OR; sem prova reutilizável usa a primeira. |
 | `ship.attestationContext` | Contexto remoto da atestação do ship genérico. Não é nome de teste. |
 | `ship.remoteVerdict` | Workflow/job esperados quando policy=wait. Não configura teste clínico nem classificador por diff. |
