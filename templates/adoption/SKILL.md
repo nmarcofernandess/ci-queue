@@ -1,21 +1,22 @@
 ---
 name: consumer-testing-method
-description: Choose feedback, closing diagnostics or proof using a consumer's CI method map.
+description: Choose focal feedback, closing diagnostics or proof using the consumer's CI guide and method map.
 ---
 
 # Consumer testing method
 
-Read the consumer's README and AGENTS first, then follow the map path they name.
-Consumer commands work independently; use CI Queue when its catalog declares a
-real recipe for the task. Feedback is focal. Use the consumer's declared proof
-process for delivery decisions.
+Start with `npx ci-queue-consumer guide`. It reads this repository's catalog and
+host and shows the recipes, the executor on this host and why, how to integrate,
+and the repository's own teachings. `ci-queue-consumer inspect <recipe>` shows
+one recipe's argv and the next line to run, without running it.
 
-When resuming a queued job, verify host, cwd, installed revision, state root,
-session and ticket. Follow the consumer-owned method for its environment and cleanup.
-Feedback is a focal iteration result; proof and ship eligibility come from the
-consumer's catalog and delivery contract. Do not invent commands or duplicate
-the queue's ticket and ship formats here.
+For the procedure (when focal feedback is enough, when a proof is due, how the
+result is recorded), open the [method map](.context/patterns/ci.yaml) from the
+**consumer repository root** and follow its `method` owner (default
+`docs/ci/TESTING-METHOD.md`, or the existing consumer procedure).
 
-For the transition after planned tasks/reviews, closing diagnostics and record
-retention, follow the consumer-owned procedure and the boundary in
-[TESTING-METHOD](../../docs/TESTING-METHOD.md#fechamento-depois-da-autoria).
+Pending validations belong to the consumer's Git record; they are information,
+not a merge gate or an execution trigger. The consumer owns outputs, caches and
+resource lifecycle; recovering a finalization reuses the same ID through the
+public entry. Generic reference:
+[CI Queue testing method](https://github.com/nmarcofernandess/ci-queue/blob/main/docs/TESTING-METHOD.md).

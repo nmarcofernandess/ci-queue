@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto"
+import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -57,6 +59,26 @@ function ineligible(raw: unknown, proof = query) {
 }
 
 describe("ship eligibility", () => {
+  it("rejects a passed test whose required finalization has no record", () => {
+    const hooked = { ...valid, schemaVersion: 4, finalization: { schemaVersion: 1, argv: ["hook"], timeoutMs: 100, contract: {}, contractDigest: "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a" }, finalizationDigest: "a".repeat(64) }
+    expect(isShipEligibleTicket(hooked, query)).toBe(false)
+  })
+  it("does not reuse a legacy green for a recipe requiring finalization", () => {
+    expect(isShipEligibleTicket(valid, { ...query, acceptedRecipes: [{ ...query.acceptedRecipes[0], finalizationDigest: "a".repeat(64) }] } as ShipProofQuery)).toBe(false)
+  })
+  it("uses explicit joined evidence and the recipe digest, ignoring forged completion JSON", () => {
+    const sample = JSON.parse(readFileSync(new URL("../fixtures/finalization-completion.json", import.meta.url), "utf8"))[0]
+    const hooked: QueueTicket = { ...valid, schemaVersion: 4, finalization: JSON.parse(sample.terminalBytes).finalization, finalizationDigest: sample.record.finalizationDigest }
+    const terminalDigest = createHash("sha256").update(JSON.stringify(hooked)).digest("hex")
+    const record = { ...sample.record, ticketId: hooked.id, ticketDigest: terminalDigest }
+    const proof: ShipProofQuery = { ...query, acceptedRecipes: [{ ...query.acceptedRecipes[0], finalizationDigest: hooked.finalizationDigest }] }
+    expect(isShipEligibleTicket({ ...hooked, completion: { state: "complete", eligible: true } }, proof)).toBe(false)
+    expect(isShipEligibleTicket(hooked, proof, record, terminalDigest)).toBe(true)
+    expect(isShipEligibleTicket(hooked, proof, record, "0".repeat(64))).toBe(false)
+    expect(findEligibleTicket([{ ticket: hooked, record, terminalDigest }], proof)).toBe(hooked)
+    expect(findEligibleTicket([{ ticket: hooked, record: { ...record, phase: "failed" }, terminalDigest }], proof)).toBeUndefined()
+  })
+
   it("accepts a canonical passed ticket for the recipe at H", () => {
     expect(isShipEligibleTicket(valid, query)).toBe(true)
     expect(evaluateShipTicket(valid, query)).toEqual({ eligible: true, ticket: valid })

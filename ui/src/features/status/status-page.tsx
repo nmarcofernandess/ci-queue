@@ -3,6 +3,7 @@ import {
   asGitGreen,
   mergeGreenRows,
   filterGreens,
+  staleMirrorNote,
 } from "@/features/status/green-rows"
 import { EntityIdentity } from "@/features/shared/entity-identity"
 import { describeExecutionState } from "@/features/shared/presentation"
@@ -877,6 +878,9 @@ function HistoryPanel({
       ? `Máquina indisponível: ${machineFailure.message}` : null,
     needsGit && remote.data && "source" in remote.data && remote.data.source.reason && selectedSourceSucceeded
       ? `Git: ${remote.data.source.reason.message}` : null,
+    needsGit && remote.data && "source" in remote.data && !remote.data.source.reason &&
+      staleMirrorNote(remote.data.source)
+      ? `Git: ${staleMirrorNote(remote.data.source)}` : null,
     needsGit && remote.error && selectedSourceSucceeded
       ? `Git indisponível: ${remote.error.message}` : null,
     ...projectNotes,
@@ -884,8 +888,8 @@ function HistoryPanel({
       ? remote.data.projects.flatMap(project => [
         project.source?.reason
           ? `Git · ${project.projectName}: ${project.source.reason.message}` : null,
-        project.source?.stale
-          ? `Git · ${project.projectName}: espelho desatualizado; os verdes refletem a última leitura local.` : null,
+        staleMirrorNote(project.source)
+          ? `Git · ${project.projectName}: ${staleMirrorNote(project.source)}` : null,
         ...(project.coverage?.invalidPayloads.map(payload =>
           `Git · ${project.projectName} · ${payload.preset ?? "Preset não identificado"}: payload publicado inválido; último verde omitido.`
         ) ?? []),
@@ -1007,6 +1011,7 @@ function HistoryPanel({
           emptyDescription="Não há execução canônica aprovada para os filtros selecionados."
           onOpenJob={onOpenJob}
           showOrigin={filters.origin === "both"}
+          showIntegration
           showProjectChip={scope.kind === "all"}
         />
       )}

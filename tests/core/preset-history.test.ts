@@ -1,7 +1,12 @@
+import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 import { buildPresetHistory } from "../../src/core/preset-history.js"
-import type { QueueProjectConfig, QueueTicket } from "../../src/contracts/schema.js"
+import type { FinalizationRecord, QueueProjectConfig, QueueTicket } from "../../src/contracts/schema.js"
+
+const confirmed = JSON.parse(readFileSync(new URL("../fixtures/finalization-completion.json", import.meta.url), "utf8"))[0] as {
+  terminalBytes: string; terminalDigest: string; record: FinalizationRecord
+}
 
 const config: QueueProjectConfig = {
   schemaVersion: 1,
@@ -33,6 +38,10 @@ function ticket(overrides: Partial<QueueTicket> = {}): QueueTicket {
 }
 
 describe("preset history", () => {
+  it("does not announce a green before required finalization", () => {
+    const hooked = ticket({ schemaVersion: 4, finalizationDigest: "a".repeat(64), finalization: { schemaVersion: 1, argv: ["hook"], timeoutMs: 100, contract: {}, contractDigest: "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a" } })
+    expect(buildPresetHistory([hooked], config).presets[0].lastGreenCanonical).toBeNull()
+  })
   it("selects only the newest canonical green for the declared recipe", () => {
     const report = buildPresetHistory([
       ticket(),
@@ -41,5 +50,19 @@ describe("preset history", () => {
     ], config)
     expect(report.aggregatorSchema).toBe(1)
     expect(report.presets[0].lastGreenCanonical?.ticketId).toBe("green")
+  })
+  // A1: consumers that declare finalization per execution (DietFlow) froze
+  // their canonical green when the recipe itself declared none.
+  it("counts a verified consumer-declared finalization when the recipe declares none", () => {
+    const hooked = { ...JSON.parse(confirmed.terminalBytes), projectId: "dietflow" } as QueueTicket
+    const source = { ticket: hooked, record: confirmed.record, terminalDigest: confirmed.terminalDigest }
+    const consumerConfig = { ...config, presets: { check: { argv: ["check"] } } }
+    expect(buildPresetHistory([hooked], consumerConfig, [source]).presets[0].lastGreenCanonical?.ticketId).toBe("job-1")
+    expect(buildPresetHistory([hooked], consumerConfig).presets[0].lastGreenCanonical).toBeNull()
+    const pending = { ...source, record: { ...confirmed.record, phase: "pending" as const } }
+    expect(buildPresetHistory([hooked], consumerConfig, [pending]).presets[0].lastGreenCanonical).toBeNull()
+    const otherHook = { ...hooked.finalization!, timeoutMs: hooked.finalization!.timeoutMs + 1 }
+    const declared = { ...config, presets: { check: { argv: ["check"], finalization: otherHook } } }
+    expect(buildPresetHistory([hooked], declared, [source]).presets[0].lastGreenCanonical).toBeNull()
   })
 })

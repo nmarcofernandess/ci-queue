@@ -1,3 +1,5 @@
+import { executionCompletion, type ExecutionSource } from "../core/completion.js"
+import type { FinalizationRecord } from "../contracts/schema.js"
 import { isAbsolute, resolve } from "node:path"
 
 import {
@@ -13,6 +15,8 @@ export type AcceptedRecipe = {
   name: string
   argv: readonly string[]
   flags: TicketFlags
+  /** Required hook contract; dynamic consumers supply their frozen digest here. */
+  finalizationDigest?: string
 }
 
 export type ShipProofQuery = {
@@ -117,7 +121,11 @@ function evaluateForRecipe(
   ticket: QueueTicket,
   query: ShipProofQuery,
   recipe: AcceptedRecipe,
+  record?: FinalizationRecord,
+  terminalDigest?: string,
 ): ProofEvaluation {
+  if (recipe.finalizationDigest !== ticket.finalizationDigest) return { eligible: false, reason: "finalization-digest-mismatch" }
+  if (!executionCompletion(ticket, record, terminalDigest).eligible) return { eligible: false, reason: "execution-incomplete" }
   if (ticket.projectId !== query.projectId) return { eligible: false, reason: "project-mismatch" }
   if (!sameCwd(ticket.cwd, query.executionCwd)) return { eligible: false, reason: "cwd-mismatch" }
   if (ticket.preset !== recipe.name) return { eligible: false, reason: "recipe-mismatch" }
@@ -183,32 +191,38 @@ function inCanonicalTuple(
   return preflight.headSha === query.headSha && preflight.baseSha === query.baseSha
 }
 
-export function evaluateShipTicket(raw: unknown, query: ShipProofQuery): ProofEvaluation {
+export function evaluateShipTicket(raw: unknown, query: ShipProofQuery, record?: FinalizationRecord, terminalDigest?: string): ProofEvaluation {
   const ticket = asTicket(raw)
   if (!ticket) return { eligible: false, reason: "invalid-ticket" }
   let reason = "no-accepted-recipe"
   for (const recipe of query.acceptedRecipes) {
-    const result = evaluateForRecipe(ticket, query, recipe)
+    const result = evaluateForRecipe(ticket, query, recipe, record, terminalDigest)
     if (result.eligible) return result
     reason = result.reason
   }
   return { eligible: false, reason }
 }
 
-export function isShipEligibleTicket(raw: unknown, query: ShipProofQuery): boolean {
-  return evaluateShipTicket(raw, query).eligible
+export function isShipEligibleTicket(raw: unknown, query: ShipProofQuery, record?: FinalizationRecord, terminalDigest?: string): boolean {
+  return evaluateShipTicket(raw, query, record, terminalDigest).eligible
 }
 
 export function findEligibleTicket(jobs: readonly unknown[], query: ShipProofQuery): QueueTicket | undefined {
   for (const recipe of query.acceptedRecipes) {
     const members = jobs
-      .map(asTicket)
-      .filter((ticket): ticket is QueueTicket => ticket !== undefined && inCanonicalTuple(ticket, query, recipe))
-      .sort(compareLatestStarted)
+      .map((raw): ExecutionSource | undefined => {
+        if (raw && typeof raw === "object" && "ticket" in raw) {
+          const source = raw as ExecutionSource
+          return asTicket(source.ticket) ? source : undefined
+        }
+        const ticket = asTicket(raw)
+        return ticket ? { ticket } : undefined
+      })
+      .filter((source): source is ExecutionSource => source !== undefined && inCanonicalTuple(source.ticket, query, recipe))
+      .sort((left, right) => compareLatestStarted(left.ticket, right.ticket))
     const latest = members[0]
     if (!latest) continue
-    if (latest.status === "failed" || latest.status === "interrupted") continue
-    const result = evaluateShipTicket(latest, { ...query, acceptedRecipes: [recipe] })
+    const result = evaluateShipTicket(latest.ticket, { ...query, acceptedRecipes: [recipe] }, latest.record, latest.terminalDigest)
     if (result.eligible) return result.ticket
   }
   return undefined

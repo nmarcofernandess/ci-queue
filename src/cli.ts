@@ -1,3 +1,4 @@
+import { executionCompletion, completionExitCode, listExecutionSources, readExecutionSource, projectExecution } from "./core/completion.js"
 import { readQueueConfig } from "./contracts/config.js"
 import { InitError, initProject } from "./ship/init.js"
 import { ShipError } from "./ship/ops.js"
@@ -7,10 +8,15 @@ import { existsSync, readFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import {
   API_VERSION,
+  TICKET_SCHEMA_VERSION,
   normalizeTicketFlags,
+  normalizeFinalization,
+  rejectArtifactSnapshots,
   parseRequestContext,
   parseRunVariant,
-  RECIPE_ARTIFACTS_CAPABILITY,
+  TERMINAL_FINALIZATION_CAPABILITY,
+  NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY,
+  EXECUTION_PAUSE_CAPABILITY, DISK_GUARD_CAPABILITY,
   type CliFailure,
   type CliResult,
   type CliSuccess,
@@ -18,8 +24,8 @@ import {
 } from "./contracts/schema.js"
 import { SPEND_ABORT_CAPABILITY } from "./core/spend-abort.js"
 import { JOB_ENV_CAPABILITY, cancelQueuedOrRunningTicket } from "./core/runner.js"
-import { RUNTIME_CAPABILITY } from "./contracts/runtime.js"
-import { registerProjectRuntime, readRuntimeRegistry, runtimeRegistryPath, RuntimeError } from "./core/runtime.js"
+import { SESSION_RUNTIME_CAPABILITY, RUNTIME_CAPABILITY } from "./contracts/runtime.js"
+import { prepareSessionRuntime, checkpointSessionRuntime, releaseSessionRuntime, listSessionRuntimes, registerProjectRuntime, readRuntimeRegistry, runtimeRegistryPath, RuntimeError } from "./core/runtime.js"
 import { enqueueExplicitTicket, enqueueTicket } from "./core/enqueue.js"
 import { runWorker } from "./core/worker.js"
 import { findJobById, listHistoryJobs, listQueuedJobs, readRunningJob, resolveStateRoot } from "./core/state.js"
@@ -27,6 +33,8 @@ import { buildPresetHistory } from "./core/preset-history.js"
 import { attachProgressToTicket, PROGRESS_Q2Q3_CAPABILITY } from "./core/progress.js"
 import { listAdvisories, upsertAdvisory } from "./core/advisories.js"
 import { evaluateExecutionEntry, EXECUTION_ENTRY_GUARD_CAPABILITY } from "./core/execution-entry.js"
+import { pauseRunningJob, resumeRunningJob } from "./core/pause.js"
+import { DISK_GUARD_MODES, DISK_GUARD_POLICY, readDiskGuardMode, readDiskGuardStatus, writeDiskGuardMode, type DiskGuardMode } from "./core/disk-guard.js"
 import {
   EXECUTION_OBSERVE_CAPABILITY,
   OBSERVATION_MAX_BYTES,
@@ -38,13 +46,18 @@ import {
   storeExecutionObservation,
 } from "./core/execution-observations.js"
 
-type GlobalArgs = { command?: string; rest: string[]; json: boolean; stateRoot?: string; cwd?: string; configPath?: string }
+type GlobalArgs = { command?: string; rest: string[]; json: boolean; help?: boolean; stateRoot?: string; cwd?: string; configPath?: string }
 
 function parseGlobal(argv: string[]): GlobalArgs {
-  const values: GlobalArgs = { rest: [], json: false }
+  const separator = argv.indexOf("--")
+  // A missing option value must not consume help and dispatch a real command.
+  const help = argv.slice(0, separator === -1 ? undefined : separator).some(arg => arg === "--help" || arg === "-h")
+  const values: GlobalArgs = { rest: [], json: false, help }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
-    if (arg === "--json") values.json = true
+    if (arg === "--") { values.rest.push(...argv.slice(index)); break }
+    if (arg === "--help" || arg === "-h") values.help = true
+    else if (arg === "--json") values.json = true
     else if (arg === "--state") values.stateRoot = argv[++index]
     else if (arg === "--cwd") values.cwd = argv[++index]
     else if (arg === "--config") values.configPath = argv[++index]
@@ -82,7 +95,7 @@ function splitExtra(args: string[]): string[] {
 }
 
 function enqueuePreset(args: string[]): string | undefined {
-  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--flags-json", "--timeout-ms", "--request-context", "--run-variant"])
+  const valueOptions = new Set(["--recipe", "--argv-json", "--project-id", "--project-name", "--base-ref", "--artifacts-json", "--finalization-json", "--flags-json", "--timeout-ms", "--request-context", "--run-variant"])
   for (let index = 0; index < args.length; index += 1) {
     const value = args[index]
     if (value === "--") return undefined
@@ -115,39 +128,86 @@ async function waitForJob(root: string, id: string, timeoutMs: number): Promise<
   const start = Date.now()
   while (Date.now() - start <= timeoutMs) {
     const job = findJobById(root, id)?.ticket
-    if (job && ["passed", "failed", "cancelled", "interrupted"].includes(job.status)) return job
+    if (job && ["passed", "failed", "cancelled", "interrupted"].includes(job.status)) {
+      const source = readExecutionSource(root, id)
+      if (source && executionCompletion(source.ticket, source.record, source.terminalDigest).state !== "running") return projectExecution(source)
+    }
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   return undefined
 }
 
-function usage(): string {
+const SHIP_USAGE = "ship [--pr N] [--repo [HOST/]OWNER/REPO] [--dry-run] [--remote|--no-remote] [--timeout-ms N]"
+const SHIP_VALUE_OPTIONS = ["--pr", "--repo", "--timeout-ms"]
+const SHIP_FLAGS = ["--dry-run", "--remote", "--no-remote"]
+
+// Ship can mark a PR ready and merge it, so a misspelled option must stop it.
+function shipArgumentError(rest: string[]): string | undefined {
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index]
+    if (SHIP_FLAGS.includes(arg)) continue
+    if (!SHIP_VALUE_OPTIONS.includes(arg)) return `opção desconhecida para ship: ${arg}`
+    const value = rest[index + 1]
+    if (value === undefined || value.startsWith("--")) return `${arg} exige um valor`
+    index += 1
+  }
+  return undefined
+}
+
+const COMMAND_USAGE: Record<string, string[]> = {
+  help: ["help [comando]"],
+  version: ["version"],
+  init: ["init [--name NAME] [--base-ref REMOTE/BRANCH] [--argv-json JSON] [--workflow] [--force]"],
+  guard: ["guard [--cwd PATH] [--config FILE] [--state ROOT] [--json]"],
+  ship: [SHIP_USAGE],
+  enqueue: ["enqueue <preset> [--wait] [--timeout-ms N] [-- <args da receita>]",
+    "enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH [--flags-json JSON]"],
+  finalize: ["finalize <ticketId>"],
+  worker: ["worker"],
+  status: ["status"],
+  observe: ["observe --stdin [--json]"],
+  history: ["history [--project ID] [--legacy]", "history --include-observed [--project ID]"],
+  "preset-history": ["preset-history [--preset NAME]"],
+  advisory: ["advisory upsert --preset NAME --head-sha SHA --reason TEXT [--pr N]", "advisory list"],
+  runtime: ["runtime show", "runtime prepare-session|checkpoint-session|release-session --stdin --json (private)",
+    "runtime register --project ID --node PATH [--version x.y.z] [--npm-cli PATH] [--npx-cli PATH]"],
+  logs: ["logs [latest|<ticketId>]"],
+  cancel: ["cancel <ticketId>"],
+  pause: ["pause <ticketId> --reason TEXT"],
+  resume: ["resume <ticketId>"],
+  "disk-guard": ["disk-guard [status|observe|enforce|off]"],
+  config: ["config"],
+}
+
+const COMMAND_GUIDANCE: Record<string, string> = {
+  enqueue: "--wait e seu timeout não cancelam o ticket. Consulte status e logs antes de enfileirar novamente. Argumentos após -- pertencem à receita, inclusive --help, -h e --json.",
+  worker: "Drena a fila no state selecionado. Use somente o executor oficial; não inicie outro worker no state do operador.",
+  cancel: "Solicita cancelamento do ticket. Durante a finalização, registra a solicitação e aguarda o prazo próprio do finalizador. Não descarta dados nem encerra reservas do consumidor.",
+  finalize: "Recupera somente a finalização deste ticket, com os locks e a identidade existentes. Não repete o teste nem drena novos jobs. Falha definitiva continua falha; ownership incerto preserva o diagnóstico.",
+  runtime: "O controle de sessão é privado do launcher: JSON por stdin, sem expor handle, token ou env. Runtime released não comprova descarte de dados ou encerramento da reserva do consumidor.",
+  ship: "Usa a prova elegível do HEAD/base e os gates do projeto. Progresso ou ajuda não concedem elegibilidade, merge, release ou instalação.",
+}
+
+function usage(command?: string): string {
+  const forms = command ? COMMAND_USAGE[command] : Object.values(COMMAND_USAGE).flat()
   return [
-    "Uso: ci-queue <comando> [--state DIR] [--cwd DIR] [--config FILE] [--json]",
-    "  version",
-    "  init [--name NAME] [--base-ref REMOTE/BRANCH] [--argv-json JSON] [--workflow] [--force]",
-    "  guard [--cwd PATH] [--config FILE] [--state ROOT] [--json]",
-    "  ship [--pr N] [--repo [HOST/]OWNER/REPO] [--dry-run] [--remote|--no-remote] [--timeout-ms N]",
-    "  enqueue <preset> [--wait] [--timeout-ms N] [-- <args da receita>]",
-    "  enqueue --recipe NAME --argv-json JSON --project-id ID --project-name NAME --cwd PATH [--flags-json JSON]",
-    "  worker",
-    "  status",
-    "  observe --stdin [--json]",
-    "  history [--project ID] [--legacy]",
-    "  history --include-observed [--project ID]",
-    "  preset-history [--preset NAME]",
-    "  advisory upsert --preset NAME --head-sha SHA --reason TEXT [--pr N]",
-    "  advisory list",
-    "  runtime show",
-    "  runtime register --project ID --node PATH [--version x.y.z] [--npm-cli PATH] [--npx-cli PATH]",
-    "  logs [latest|<ticketId>]",
-    "  cancel <ticketId>",
-    "  config",
+    command ? `Uso: ci-queue ${forms[0]} [--state DIR] [--cwd DIR] [--config FILE] [--json]`
+      : "Uso: ci-queue <comando> [--state DIR] [--cwd DIR] [--config FILE] [--json]",
+    ...forms.slice(command ? 1 : 0).map(form => `  ${form}`),
+    ...(command && COMMAND_GUIDANCE[command] ? [COMMAND_GUIDANCE[command]] : []),
+    "Ajuda: ci-queue help [comando], ci-queue <comando> --help ou -h. É consulta antes de --, sem executar o comando ou ler stdin.",
+    "Diagnóstico: ci-queue status --json; ci-queue logs <ticketId> --json.",
+    "Ações distintas: ci-queue cancel <ticketId> cancela o ticket; ci-queue finalize <ticketId> recupera sua publicação. Sessão, reserva e dados são encerrados pela entrada pública do consumidor.",
   ].join("\n")
 }
 
 export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
   const args = parseGlobal(argv)
+  if (args.help || args.command === "help") {
+    const command = args.command === "help" ? args.rest[0] : args.command
+    if (command && !Object.hasOwn(COMMAND_USAGE, command)) return failure("USAGE", `comando desconhecido: ${command}\n${usage()}`)
+    return success({ usage: usage(command) })
+  }
   const root = resolveStateRoot(args.stateRoot)
   try {
     switch (args.command) {
@@ -162,9 +222,10 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           version: manifest?.version ?? "0.1.0",
           revision: manifest?.revision ?? null,
           manifestSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
+          ...(manifest ? { distribution: { revision: manifest.revision, protocol: manifest.protocol } } : {}),
           apiVersion: API_VERSION,
-          ticketSchemaVersion: 3,
-          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, RECIPE_ARTIFACTS_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read"],
+          ticketSchemaVersion: TICKET_SCHEMA_VERSION,
+          capabilities: ["enqueue", "worker", "status", "history", "preset-history", "logs", "cancel", "advisory-v1", "execution-flags-v1", JOB_ENV_CAPABILITY, SPEND_ABORT_CAPABILITY, RUNTIME_CAPABILITY, SESSION_RUNTIME_CAPABILITY, TERMINAL_FINALIZATION_CAPABILITY, NO_ARTIFACT_SNAPSHOTS_CAPABILITY, RECOVERABLE_FINALIZATION_CAPABILITY, EXECUTION_PAUSE_CAPABILITY, DISK_GUARD_CAPABILITY, "ship", EXECUTION_ENTRY_GUARD_CAPABILITY, EXECUTION_OBSERVE_CAPABILITY, PROGRESS_Q2Q3_CAPABILITY, "v1-ticket-read", "v2-ticket-read", "v3-ticket-read", "v4-ticket-read"],
         })
       }
       case "observe": {
@@ -221,6 +282,8 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         })
       }
       case "ship": {
+        const argumentError = shipArgumentError(args.rest)
+        if (argumentError) return failure("USAGE", `${argumentError}\nUso: ci-queue ${SHIP_USAGE}`)
         const timeoutRaw = optionValue(args.rest, "--timeout-ms")
         const timeoutMs = timeoutRaw ? Number(timeoutRaw) : 60 * 60_000
         if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return failure("USAGE", "--timeout-ms precisa ser número positivo")
@@ -276,6 +339,14 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         } else {
           runVariant = undefined
         }
+        const finalizationJson = optionValue(args.rest, "--finalization-json")
+        if (args.rest.includes("--finalization-json") && (!recipe || !finalizationJson)) {
+          return failure("USAGE", "--finalization-json requer --recipe e JSON válido")
+        }
+        const finalization = finalizationJson === undefined ? undefined : normalizeFinalization(JSON.parse(finalizationJson))
+        if (args.rest.includes("--artifacts-json")) {
+          rejectArtifactSnapshots(parseJsonArray(optionValue(args.rest, "--artifacts-json"), "--artifacts-json"), "--artifacts-json")
+        }
         const ticket = recipe
           ? enqueueExplicitTicket({
             recipe,
@@ -288,6 +359,7 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
             ...(optionValue(args.rest, "--artifacts-json") ? { artifacts: parseJsonArray(optionValue(args.rest, "--artifacts-json"), "--artifacts-json") } : {}),
             ...(optionValue(args.rest, "--flags-json") ? { flags: parseFlags(optionValue(args.rest, "--flags-json")) } : {}),
             requestContext,
+            ...(finalization ? { finalization } : {}),
             ...(runVariant ? { runVariant } : {}),
           })
           : enqueueTicket({ preset: preset!, stateRoot: root, cwd: args.cwd, configPath: args.configPath, extraArgs: splitExtra(args.rest), requestContext })
@@ -300,11 +372,18 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         }
         return success({ ticket })
       }
+      case "finalize": {
+        if (args.rest.length !== 1 || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(args.rest[0])) return failure("USAGE", "uso: ci-queue finalize <id>")
+        const report = await runWorker(root, { finalizeOnly: args.rest[0] })
+        if (report.busy || report.reconciliation === "blocked" || report.recovery?.pending.length) return failure("FINALIZATION_PENDING", "finalização permanece pendente", { report })
+        if (report.recovery?.failed.length) return failure("FINALIZATION_FAILED", report.recovery.failed.map(item => `${item.id}: ${item.error}`).join("; "), { report })
+        return success(report)
+      }
       case "worker":
         return success(await runWorker(root))
       case "status": {
         const running = readRunningJob(root)
-        return success({ running: running ? attachProgressToTicket(root, running) : null, queued: listQueuedJobs(root), latest: listHistoryJobs(root)[0] ?? null })
+        return success({ sessionRuntimes: listSessionRuntimes(root), running: running ? { ...attachProgressToTicket(root, running), completion: executionCompletion(running) } : null, queued: listQueuedJobs(root).map(ticket => ({ ...ticket, completion: executionCompletion(ticket) })), latest: listExecutionSources(root).map(projectExecution)[0] ?? null, diskGuard: { mode: readDiskGuardMode(root), status: readDiskGuardStatus(root) ?? null } })
       }
       case "history": {
         const projectId = optionValue(args.rest, "--project")
@@ -312,17 +391,24 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
           if (args.rest.includes("--legacy")) {
             return failure("USAGE", "--legacy não pode ser combinado com --include-observed")
           }
-          return success({ executions: listExecutionHistory(root, projectId) })
+          return success({ executions: listExecutionHistory(root, projectId).map(record => {
+            if (record.recordKind !== "queue-ticket") return record
+            const source = readExecutionSource(root, record.id)
+            return { ...record, completion: source
+              ? executionCompletion(source.ticket, source.record, source.terminalDigest)
+              : { state: "running", eligible: false, testStatus: record.status, reason: "terminal-source-unreadable" } }
+          }) })
         }
         return success({
-          jobs: listHistoryJobs(root, projectId).filter(
+          jobs: listExecutionSources(root, projectId).map(projectExecution).filter(
             (ticket) => !args.rest.includes("--legacy") || !ticket.projectId,
           ),
         })
       }
       case "preset-history": {
         const loaded = readQueueConfig(args.cwd, args.configPath)
-        const report = buildPresetHistory(listHistoryJobs(root, loaded.config.project.id), loaded.config)
+        const sources = listExecutionSources(root, loaded.config.project.id)
+        const report = buildPresetHistory(sources.map(source => source.ticket), loaded.config, sources)
         const preset = optionValue(args.rest, "--preset")
         return success(preset ? { ...report, presets: report.presets.filter((item) => item.preset === preset) } : report)
       }
@@ -352,6 +438,18 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
       }
       case "runtime": {
         const action = args.rest.find((item) => !item.startsWith("--"))
+        if (["prepare-session", "checkpoint-session", "release-session"].includes(action ?? "")) {
+          if (!args.rest.includes("--stdin") || args.rest.some(item => item !== action && item !== "--stdin")) return failure("USAGE", "runtime session requires private --stdin only")
+          try {
+            const input = JSON.parse(await readStdinLimited(process.stdin, 64 * 1024))
+            if (!input || typeof input !== "object" || Array.isArray(input)) return failure("RUNTIME_SESSION_INVALID", "private JSON object required")
+            if (action !== "prepare-session" && input.root !== root) return failure("RUNTIME_SESSION_AUTHORITY", "state root mismatch")
+            return success(action === "prepare-session" ? prepareSessionRuntime(root, input)
+              : action === "checkpoint-session" ? checkpointSessionRuntime(input) : releaseSessionRuntime(input))
+          } catch (error) {
+            return failure(error instanceof RuntimeError ? error.code : "RUNTIME_SESSION_INVALID", error instanceof RuntimeError ? error.message : "invalid private session request")
+          }
+        }
         if (action === "show") {
           try {
             const registry = readRuntimeRegistry(root) ?? { schemaVersion: 1 as const, projects: {} }
@@ -401,6 +499,29 @@ export async function runCli(argv: string[]): Promise<CliResult<unknown>> {
         if (!id) return failure("USAGE", "cancel requer ticketId")
         return success(await cancelQueuedOrRunningTicket(root, id))
       }
+      case "pause": {
+        const id = args.rest.find((item, index) => !item.startsWith("--") && args.rest[index - 1] !== "--reason")
+        const reason = optionValue(args.rest, "--reason")?.trim()
+        if (!id || !reason) return failure("USAGE", "uso: ci-queue pause <ticketId> --reason TEXT")
+        const result = await pauseRunningJob(root, id, { reason: reason.slice(0, 500), source: "manual" })
+        if (result.kind === "paused" || result.kind === "already-paused") return success(result)
+        return failure(result.kind === "refused" ? "PAUSE_REFUSED" : "NOT_RUNNING", result.reason, { kind: result.kind })
+      }
+      case "resume": {
+        const id = args.rest.find((item) => !item.startsWith("--"))
+        if (!id) return failure("USAGE", "uso: ci-queue resume <ticketId>")
+        const result = await resumeRunningJob(root, id, { source: "manual" })
+        if (result.kind === "resumed" || result.kind === "not-paused") return success(result)
+        return failure(result.kind === "refused" ? "RESUME_REFUSED" : "NOT_RUNNING", result.reason, { kind: result.kind })
+      }
+      case "disk-guard": {
+        const action = args.rest.find((item) => !item.startsWith("--")) ?? "status"
+        if (action !== "status") {
+          if (!(DISK_GUARD_MODES as readonly string[]).includes(action)) return failure("USAGE", "uso: ci-queue disk-guard [status|observe|enforce|off]")
+          writeDiskGuardMode(root, action as DiskGuardMode)
+        }
+        return success({ mode: readDiskGuardMode(root), status: readDiskGuardStatus(root) ?? null, policy: DISK_GUARD_POLICY })
+      }
       case "config": {
         const config = readQueueConfig(args.cwd, args.configPath)
         return success({ config: config.config, configPath: config.configPath, executionCwd: config.executionCwd })
@@ -426,6 +547,10 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   const result = await runCli(argv)
   print(result, parsed.json)
   if (!result.ok) process.exitCode = result.error.code === "USAGE" ? 2 : 1
+  else if (parsed.command === "enqueue" && parsed.rest.includes("--wait")) {
+    const terminal = (result.result as { terminal?: QueueTicket & { completion: ReturnType<typeof executionCompletion> } }).terminal
+    if (terminal) process.exitCode = completionExitCode(terminal, terminal.completion)
+  }
 }
 
 const invoked = process.argv[1]?.endsWith("cli.js") || process.argv[1]?.endsWith("cli.ts")

@@ -1,11 +1,7 @@
-## Testes e CI
-Leia `.context/patterns/ci.yaml` para saber quais receitas o projeto escolheu
-expor ao CI Queue. Os comandos do projeto permanecem executáveis diretamente;
-Queue é uma opção de agendamento, supervisão, logs, histórico e cancelamento.
-Feedback é focal e não representa prova final. Ao retomar uma execução
-enfileirada, confira seu ticket antes de criar outro. Encerre os recursos próprios
-pelo comando documentado pelo projeto.
 
-Fechamento após tasks/reviews e retenção seguem o procedimento do consumidor e
-`docs/TESTING-METHOD.md#fechamento-depois-da-autoria` no CI Queue; resultados ficam
-no registro selecionado pelo projeto, sem plano concorrente.
+## Testes e CI
+`npx ci-queue-consumer guide` mostra o que rodar neste repositório: as receitas,
+o executor deste host com o motivo e como integrar. O que só este repositório
+sabe fica no `ci-queue.json` (`guide.notes`, `ship.notes`); o procedimento de
+feedback e prova está no [mapa do consumidor](.context/patterns/ci.yaml),
+resolvido desde a raiz do repositório.

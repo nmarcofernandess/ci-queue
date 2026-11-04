@@ -7,9 +7,9 @@
  */
 import { createHash } from "node:crypto"
 import { execFileSync } from "node:child_process"
-import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
-import { homedir } from "node:os"
+import { hostname, homedir } from "node:os"
 import { fileURLToPath } from "node:url"
 
 import { verifyRelease } from "./release.mjs"
@@ -115,11 +115,91 @@ function assertQuietState(stateRoot) {
     join(root, "runner.lock"),
     join(root, "locks", "runner.lock"),
     join(root, "state", "maintenance.lock"),
+    join(root, "state", "worker.json"),
+    join(root, "state", "worker.pid"),
   ]) {
     if (existsSync(path)) {
       throw new Error(`estado da fila incerto: ${path} existe; aguarde o executor terminar ou recupere-o antes da manutenção`)
     }
   }
+  // This is the private runtime owner, not a PID-only liveness shortcut.
+  // Any unfinished/uncertain session protects the installation, even after
+  // running.json is gone. A released receipt with no bundle is historical;
+  // its catalog identity need not match a subsequently recreated catalog.
+  const sessions = join(root, "runtime-sessions")
+  let hasSessions = false
+  try { lstatSync(sessions); hasSessions = true } catch (error) {
+    if (error?.code !== "ENOENT") throw new Error("runtime de sessão incerto; catálogo inacessível")
+  }
+  if (hasSessions) {
+    const uncertain = () => { throw new Error("runtime de sessão ativo ou incerto; confirme release antes da manutenção") }
+    const privateInfo = (path, directory = false) => {
+      const info = lstatSync(path)
+      if (info.isSymbolicLink() || (directory ? !info.isDirectory() : !info.isFile()) || info.uid !== process.getuid?.() || (info.mode & 0o077)) uncertain()
+      return info
+    }
+    const entryExists = path => {
+      try { lstatSync(path); return true } catch (error) {
+        if (error?.code === "ENOENT") return false
+        uncertain()
+      }
+    }
+    try {
+      const owner = privateInfo(sessions, true)
+      const identity = value => value && [value.uid, value.ino, value.dev].every(n => Number.isSafeInteger(n) && n >= 0)
+      const group = g => g && g.hostname === hostname() && Number.isSafeInteger(g.leaderPid) && g.leaderPid > 0 && g.pgid === g.leaderPid && typeof g.startedAt === "string" && g.startedAt
+      for (const name of readdirSync(sessions)) {
+        if (!/^session-[A-Za-z0-9][A-Za-z0-9_-]{0,95}\.json$/.test(name)) uncertain()
+        const path = join(sessions, name)
+        if (privateInfo(path).size > 256 * 1024) uncertain()
+        const r = JSON.parse(readFileSync(path, "utf8"))
+        if (r.schemaVersion !== 1 || r.runtimeId + ".json" !== name || r.runtimeId !== "session-" + r.sessionId
+          || typeof r.projectId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(r.projectId)
+          || ![r.token, r.bindingDigest, r.requirementDigest].every(value => typeof value === "string" && /^[a-f0-9]{64}$/.test(value))
+          || !r.env || typeof r.env !== "object" || Array.isArray(r.env)
+          || r.state !== "released" || !Number.isSafeInteger(r.stateRevision) || r.stateRevision < 1
+          || !identity(r.catalogIdentity) || !group(r.owner) || !group(r.producer) || !Array.isArray(r.groups) || r.groups.length > 512 || !r.groups.every(group)
+          || !Number.isSafeInteger(r.evidenceOffset) || r.evidenceOffset < 0 || !r.directoryIdentity || r.directoryIdentity.uid !== owner.uid
+          || ![r.directoryIdentity.uid, r.directoryIdentity.ino, r.directoryIdentity.dev].every(n => Number.isSafeInteger(n) && n >= 0)
+          || lstatSync(join(root, "runtime")).isSymbolicLink()
+          || r.directory !== join(realpathSync(root), "runtime", r.runtimeId) || entryExists(r.directory)) uncertain()
+        const receipt = r.receipt, selected = receipt?.node
+        if (receipt?.capability !== "node-runtime-guard-v1" || receipt.coverage !== "guarded-node-processes"
+          || !["prepared", "verified", "preflight-only"].includes(receipt.state)
+          || receipt.evidencePath !== join(r.directory, "processes.jsonl") || receipt.requirementDigest !== r.requirementDigest
+          || !Array.isArray(receipt.observations) || receipt.observations.length > 64
+          || !selected || typeof selected.executable !== "string" || !selected.executable.startsWith("/")
+          || typeof selected.version !== "string" || typeof selected.sha256 !== "string"
+          || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(selected.version)
+          || !/^[a-f0-9]{64}$/.test(selected.sha256)) uncertain()
+        if (r.recovery !== undefined) {
+          const recovery = r.recovery, stamp = recovery?.recoveryOwnerStamp
+          if (!recovery || typeof recovery.operationId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/.test(recovery.operationId)
+            || !Number.isSafeInteger(recovery.originalStateRevision) || recovery.originalStateRevision < 1 || recovery.originalStateRevision >= r.stateRevision
+            || !stamp || !Number.isSafeInteger(stamp.pid) || stamp.pid < 1 || stamp.pgid !== stamp.pid || typeof stamp.startedAt !== "string" || !stamp.startedAt) uncertain()
+        }
+      }
+    } catch { uncertain() }
+  }
+  const jobLocks = join(root, "locks", "jobs")
+  for (const directory of [join(root, "claims"), jobLocks]) {
+    if (!existsSync(directory)) continue
+    const stat = lstatSync(directory)
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      throw new Error(`estado da fila incerto: ownership/recuperação pendente em ${directory}`)
+    }
+    for (const name of readdirSync(directory)) {
+      const entry = lstatSync(join(directory, name))
+      // Legacy proper-lockfile targets remain after release; reservations add .lock.
+      const legacyTarget = directory === jobLocks
+        && /^(?:[0-9]{8}-[0-9]{6}-[a-f0-9]{6}|validation-plan)\.state$/.test(name)
+        && entry.isFile() && entry.size === 0 && entry.nlink === 1
+        && typeof process.getuid === "function" && entry.uid === process.getuid()
+      if (!legacyTarget) throw new Error(`estado da fila incerto: ownership/recuperação pendente em ${directory}`)
+    }
+  }
+  // Historical finalization/source validity governs replay of that ticket, not
+  // maintenance ownership. Preserve those bytes without traversing them here.
 }
 
 function safeReleaseName(manifest) {
@@ -165,10 +245,13 @@ function copyBundle(bundle, prefix, manifest) {
 }
 
 function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pythonPath, manifestSha256, homeDir, commandPath }) {
-  if (!configPath) return []
-  if (!nodePath || !pythonPath) throw new Error("--node e --python são obrigatórios ao gerar envelope de serviço")
+  // --node alone installs only the CLI launcher; --python asks for the services.
+  if (!pythonPath) return []
+  if (!nodePath) throw new Error("--node e --python são obrigatórios ao gerar envelope de serviço")
+  // The dashboard reads every project from the registry; --config only seeds the first one.
+  const catalog = configPath ? ["--config", configPath] : []
   const launchRoot = join(releasePath, "launch-agents")
-  const environment = { PATH: servicePath(nodePath, commandPath) }
+  const environment = { PATH: servicePath(nodePath), CI_QUEUE_MANIFEST_PATH: join(releasePath, "manifest.json"), CI_QUEUE_MANIFEST_SHA256: manifestSha256 }
   return [
     {
       label: "com.nmarcofernandess.ci-queue.worker",
@@ -188,7 +271,7 @@ function serviceDefinition({ releasePath, stateRoot, configPath, nodePath, pytho
       file: join(homeDir, "Library", "LaunchAgents", "com.nmarcofernandess.ci-queue.dashboard.plist"),
       plist: {
         Label: "com.nmarcofernandess.ci-queue.dashboard",
-        ProgramArguments: [pythonPath, "-m", "ci_queue_api", "--config", configPath, "--state", stateRoot, "--ui", join(releasePath, "ui", "dist"), "--manifest", join(releasePath, "manifest.json"), "--manifest-sha256", manifestSha256],
+        ProgramArguments: [pythonPath, "-m", "ci_queue_api", ...catalog, "--state", stateRoot, "--ui", join(releasePath, "ui", "dist"), "--manifest", join(releasePath, "manifest.json"), "--manifest-sha256", manifestSha256],
         EnvironmentVariables: { ...environment, PYTHONPATH: join(releasePath, "backend") },
         KeepAlive: true,
         ProcessType: "Interactive",
@@ -232,6 +315,8 @@ function writeCommandLauncher(path, nodePath, releasePath, stateRoot) {
     `if [ -z "\${CI_QUEUE_STATE_DIR:-}" ]; then`,
     `  export CI_QUEUE_STATE_DIR=${shellQuote(resolve(stateRoot))}`,
     "fi",
+    `export CI_QUEUE_MANIFEST_PATH=${shellQuote(join(releasePath, "manifest.json"))}`,
+    `export CI_QUEUE_MANIFEST_SHA256=${shellQuote(sha256(join(releasePath, "manifest.json")))}`,
     `exec ${shellQuote(nodePath)} ${shellQuote(join(releasePath, "bin", "ci-queue.mjs"))} "$@"`,
     "",
   ].join("\n")
@@ -350,7 +435,7 @@ function verifyLoaded(adapter, service, attempts = 3) {
 }
 
 function activateServices(services, adapter) {
-  if (!services.length) throw new Error("--activate requer --config, --node e --python")
+  if (!services.length) throw new Error("--activate requer --node e --python")
   const disabled = disabledLabels(adapter, services)
   if (disabled.length) throw new Error(`serviço desabilitado pelo usuário; preservei a escolha: ${disabled.join(", ")}`)
   const domain = launchDomain(adapter.platform, adapter.uid)
@@ -609,7 +694,7 @@ function main(argv = process.argv.slice(2)) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
     return
   }
-  throw new Error("uso: install.mjs install|update --bundle <release> [--prefix DIR] [--state DIR] [--config project/ci-queue.json --node PATH --python PATH --command PATH --activate] | uninstall [--prefix DIR] [--deactivate] [--purge-state]")
+  throw new Error("uso: install.mjs install|update --bundle <release> [--prefix DIR] [--state DIR] [--node PATH --python PATH --command PATH --activate] [--config project/ci-queue.json] | uninstall [--prefix DIR] [--deactivate] [--purge-state]")
 }
 
 function isMainModule(metaUrl) {

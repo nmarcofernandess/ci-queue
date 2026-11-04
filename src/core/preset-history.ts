@@ -1,3 +1,5 @@
+import { executionCompletion, type ExecutionSource } from "./completion.js"
+import { finalizationDigest } from "../contracts/schema.js"
 import type { QueueProjectConfig, QueueTicket } from "../contracts/schema.js"
 
 export function isCustomTicket(ticket: QueueTicket): boolean {
@@ -6,6 +8,15 @@ export function isCustomTicket(ticket: QueueTicket): boolean {
 
 export function argvEquals(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right)
+}
+
+/**
+ * A recipe that declares finalization requires that exact digest. Without a
+ * recipe declaration, a consumer-declared finalization counts: completion
+ * eligibility has already verified its seal, record and result.
+ */
+export function finalizationMatchesRecipe(ticket: QueueTicket, recipe: QueueProjectConfig["presets"][string]): boolean {
+  return !recipe.finalization || ticket.finalizationDigest === finalizationDigest(recipe.finalization)
 }
 
 function runRef(ticket: QueueTicket) {
@@ -17,16 +28,20 @@ function runRef(ticket: QueueTicket) {
     branch: ticket.branch,
     custom: isCustomTicket(ticket),
     durationMs: ticket.durationMs ?? null,
+    ...(ticket.finalizationDigest ? { finalizationDigest: ticket.finalizationDigest } : {}),
   }
 }
 
-export function buildPresetHistory(tickets: QueueTicket[], config: QueueProjectConfig) {
+export function buildPresetHistory(tickets: QueueTicket[], config: QueueProjectConfig, sources: readonly ExecutionSource[] = []) {
   const presets = Object.entries(config.presets).map(([preset, recipe]) => {
     const runs = tickets
       .filter((ticket) => ticket.projectId === config.project.id && ticket.preset === preset)
       .sort((left, right) => (right.finishedAt ?? right.createdAt).localeCompare(left.finishedAt ?? left.createdAt))
+    const evidence = new Map(sources.map(source => [source.ticket.id, source]))
     const canonical = runs.filter((ticket) => (
-      ticket.status === "passed"
+      executionCompletion(ticket, evidence.get(ticket.id)?.record, evidence.get(ticket.id)?.terminalDigest).eligible
+      && finalizationMatchesRecipe(ticket, recipe)
+      && ticket.status === "passed"
       && ticket.exitCode === 0
       && !isCustomTicket(ticket)
       && argvEquals(ticket.argv, recipe.argv)

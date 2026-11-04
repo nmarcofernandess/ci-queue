@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
+import type { JobRecord } from '../../ui/src/lib/types'
 import type { DashboardProjectState } from '../../ui/src/lib/types'
 
 const fixtureProjects = {
@@ -692,7 +694,7 @@ test('all drawer keeps long project identity readable inside the narrow detail s
   await expect(drawer.getByRole('button', { name: 'Editar', exact: true })).toBeVisible()
 })
 
-async function allGreensFixture(page: import('@playwright/test').Page, partial = false, failed = false, empty = false, mixedGitCoverage = false) {
+async function allGreensFixture(page: import('@playwright/test').Page, partial = false, failed = false, empty = false, mixedGitCoverage = false, integrations: Record<string, unknown> = {}) {
   const projects = ['alpha', 'beta'].map(id => ({ ...fixtureProjects.projects[0], id, displayName: id === 'alpha' ? 'Alpha' : 'Beta' }))
   const requests: URL[] = []
   await page.route('**/api/**', async route => {
@@ -712,8 +714,8 @@ async function allGreensFixture(page: import('@playwright/test').Page, partial =
       '/api/executions': { jobs: [], coverage: {}, context },
       '/api/dashboard-state': { schemaVersion: 2, projects: [], projectErrors: [], context },
       '/api/machine': {},
-      '/api/preset-history': { schemaVersion: 2, context, projects: visible.map(project => ({ projectId: project.id, projectName: project.displayName, resolved: true, declaredCount: 1 })), projectErrors: errors, coverage: {}, presets: visible.map(project => ({ projectId: project.id, projectName: project.displayName, preset: 'full', lastGreenCanonical: { ticketId: 'shared-ticket', status: 'passed', headSha: 'abcdef123456', branch: 'dev', finishedAt: '2026-09-29T10:00:00Z' } })) },
-      '/api/remote-slots': { schemaVersion: 2, context, projects: visible.map(project => ({ projectId: project.id, projectName: project.displayName, catalog: 'linked', source: { ...source, stale: mixedGitCoverage && project.id === 'beta' }, coverage: { declaredPresets: mixedGitCoverage ? 2 : 1, greenPresets: 1, withoutTagPresets: mixedGitCoverage && project.id === 'alpha' ? ['full'] : [], invalidPayloads: mixedGitCoverage && project.id === 'beta' ? [{ preset: 'full', reason: 'payload-exit-not-green' }] : [] } })), projectErrors: errors, greens: visible.map(project => ({ projectId: project.id, projectName: project.displayName, origin: 'git', preset: mixedGitCoverage ? 'smoke' : 'full', ticketId: 'shared-ticket', jobAvailable: false, status: 'passed', headSha: 'abcdef123456', commitSha: 'abcdef123456', baseSha: null, branch: 'dev', finishedAt: '2026-09-29T10:00:00Z', publishedAt: '2026-09-29T10:00:00Z', durationMs: 1000, ref: mixedGitCoverage ? 'refs/green/smoke' : 'refs/green/full' })) },
+      '/api/preset-history': { schemaVersion: 2, context, projects: visible.map(project => ({ projectId: project.id, projectName: project.displayName, resolved: true, declaredCount: 1 })), projectErrors: errors, coverage: {}, presets: visible.map(project => ({ projectId: project.id, projectName: project.displayName, preset: 'full', lastGreenCanonical: { ticketId: 'shared-ticket', status: 'passed', headSha: 'abcdef123456', branch: 'dev', finishedAt: '2026-09-29T10:00:00Z', integration: integrations[project.id] } })) },
+      '/api/remote-slots': { schemaVersion: 2, context, projects: visible.map(project => ({ projectId: project.id, projectName: project.displayName, catalog: 'linked', source: { ...source, stale: mixedGitCoverage && project.id === 'beta' }, coverage: { declaredPresets: mixedGitCoverage ? 2 : 1, greenPresets: 1, withoutTagPresets: mixedGitCoverage && project.id === 'alpha' ? ['full'] : [], invalidPayloads: mixedGitCoverage && project.id === 'beta' ? [{ preset: 'full', reason: 'payload-exit-not-green' }] : [] } })), projectErrors: errors, greens: visible.map(project => ({ projectId: project.id, projectName: project.displayName, origin: 'git', preset: mixedGitCoverage ? 'smoke' : 'full', ticketId: 'shared-ticket', jobAvailable: false, status: 'passed', headSha: 'abcdef123456', commitSha: 'abcdef123456', baseSha: null, branch: 'dev', finishedAt: '2026-09-29T10:00:00Z', publishedAt: '2026-09-29T10:00:00Z', durationMs: 1000, ref: mixedGitCoverage ? 'refs/green/smoke' : 'refs/green/full', integration: integrations[project.id] })) },
     }
     await route.fulfill({ json: data[url.pathname] ?? {} })
   })
@@ -842,3 +844,196 @@ test('all greens explain stale and invalid Git coverage beside valid greens in b
   }
   expect(requests.every(url => url.searchParams.get('context') === 'all' && !url.searchParams.has('projectId'))).toBe(true)
 })
+
+
+// Exercise the current Python public reader, including verification of record joins.
+const completionViewerJobs: Record<string, JobRecord> = JSON.parse(execFileSync('python3', ['-c', `
+import json, sys, tempfile
+from pathlib import Path
+sys.path.insert(0, 'backend')
+from ci_queue_api.records import read_history, public_job
+cases = json.loads(Path('tests/fixtures/finalization-completion.json').read_text())
+selected = {'confirmed', 'pending', 'running', 'failed', 'uncertain', 'failed-test', 'legacy-3', 'missing-record', 'wrong-ticket', 'invalid-result-outputs', 'v2-confirmed', 'v2-retryable', 'v2-blocked'}
+projected = {}
+for case in cases:
+    if case['name'] not in selected:
+        continue
+    with tempfile.TemporaryDirectory(prefix='ci-queue-viewer-') as directory:
+        root = Path(directory)
+        (root / 'history').mkdir()
+        (root / 'state/finalization').mkdir(parents=True)
+        (root / 'history/job-1.json').write_text(case['terminalBytes'])
+        if case['record']:
+            (root / 'state/finalization/job-1.json').write_text(json.dumps(case['record']))
+        projected[case['name']] = public_job(read_history(root)[0])
+print(json.dumps(projected))
+`], { encoding: 'utf8' }))
+
+for (const theme of ['light', 'dark'] as const) {
+  for (const width of [390, 820, 1440]) {
+    test(`completion viewer composition ${theme} at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 })
+      await page.addInitScript((theme) => localStorage.setItem('ci-queue-theme', theme), theme)
+      const jobs = Object.entries(completionViewerJobs).map(([name, publicJob]) => ({
+        ...baseJob, ...publicJob, id: name, preset: name, projectId: 'example', projectName: 'Example',
+        ...(name === 'failed-test' ? { failureReason: 'Original test assertion failed' } : {}),
+      }))
+      let detailMode: 'data' | 'loading' | 'error' = 'data'
+      let detailCompleted = false
+      let historyEmpty = false
+      let detailReads = 0
+      await page.route('**/api/**', async route => {
+        const url = new URL(route.request().url())
+        if (url.pathname === '/api/job') {
+          detailReads++
+          if (detailMode === 'loading') return
+          if (detailMode === 'error') {
+            await route.fulfill({ status: 503, json: { error: 'Fixture detail unavailable' } })
+            return
+          }
+          const selected = jobs.find(job => job.id === url.searchParams.get('jobId'))!
+          await route.fulfill({ json: selected.id === 'pending' && detailCompleted ? { ...selected, completion: completionViewerJobs.confirmed.completion } : selected })
+          return
+        }
+        const data: Record<string, unknown> = {
+          '/api/projects': fixtureProjects,
+          '/api/status': { project: { id: 'example', name: 'Example' }, running: { ...baseJob, id: 'live', preset: 'running-test', status: 'running', completion: { state: 'running', eligible: false, testStatus: 'running' }, progressSummary: { available: true, schemaVersion: 1, nodes, roots: [nodes[0]], active: nodes } }, queued: [], globalOccupancy: true },
+          '/api/session': { csrfToken: 'fixture', canReveal: false },
+          '/api/executions': { jobs: historyEmpty ? [] : jobs, hasMore: false, coverage: { unattributedRecords: 0 } },
+          '/api/dashboard-state': { revision: 0, presets: ['check'], meta: null, pending: [] },
+          '/api/machine': {},
+        }
+        await route.fulfill({ json: data[url.pathname] ?? {} })
+      })
+      await page.goto('/#status')
+      await expect(page.locator('html')).toHaveClass(new RegExp(theme))
+      await expect(page.getByLabel('Em execução · Flaky detectado', { exact: true })).toBeVisible()
+      const labels: Record<string, string> = {
+        confirmed: 'Passou · Finalização concluída', pending: 'Finalizando · Teste passou', running: 'Finalizando · Teste passou',
+        failed: 'Falha na finalização · Teste passou; entrega incompleta',
+        uncertain: 'Passou · Finalização concluída · Limpeza não confirmada · O finalizador não confirmou a limpeza',
+        'failed-test': 'Falhou · Finalização concluída', 'legacy-3': 'Passou',
+        'missing-record': 'Finalizando · Teste passou · Finalização não verificada',
+        'wrong-ticket': 'Finalizando · Teste passou · Finalização não verificada',
+        'invalid-result-outputs': 'Falha na finalização · Teste passou; entrega incompleta',
+        'v2-confirmed': 'Passou · Finalização concluída',
+        'v2-retryable': 'Limpeza não confirmada · Teste passou; entrega incompleta · O finalizador não confirmou a limpeza · Recuperação pendente',
+        'v2-blocked': 'Limpeza não confirmada · Teste passou; entrega incompleta · O finalizador não confirmou a limpeza · Propriedade dos processos não confirmada',
+      }
+      for (const job of jobs) {
+        const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: job.preset, exact: true }) })
+        await expect(row.getByRole('img', { name: labels[job.id], exact: true })).toBeVisible()
+        if (job.completion?.state === 'running') await expect(row.getByRole('img')).not.toHaveClass(/text-success/)
+        await row.getByRole('button', { name: job.preset, exact: true }).click()
+        const drawer = page.getByRole('dialog')
+        await expect(drawer.getByRole('img', { name: labels[job.id], exact: true }).first()).toBeVisible()
+        const facts = drawer.getByRole('table', { name: 'Resultado, finalização e limpeza' })
+        await expect(facts.getByRole('row')).toHaveCount(3)
+        await expect(facts.getByRole('rowheader')).toHaveText(['Resultado do teste', 'Finalização', 'Limpeza'])
+        await expect(facts).toContainText(job.status === 'failed' ? 'Teste falhou' : 'Teste passou')
+        if (job.id === 'legacy-3') await expect(facts).toContainText('Sem registro de finalização')
+        if (job.id === 'uncertain') await expect(facts.getByRole('cell')).toHaveText([
+          'Teste passou',
+          'Finalização concluída',
+          'Limpeza não confirmada · O finalizador não confirmou a limpeza',
+        ])
+        if (job.id === 'failed-test') await expect(drawer).toContainText('Original test assertion failed')
+        if (job.id === 'v2-retryable') await expect(facts).toContainText('Recuperação pendente')
+        if (job.id === 'v2-blocked') await expect(facts).toContainText('Propriedade dos processos não confirmada')
+        const bounds = await drawer.boundingBox()
+        expect(bounds!.width).toBeLessThanOrEqual(width)
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+        await drawer.getByRole('button', { name: 'Fechar execução' }).click()
+        await expect(drawer).toHaveCount(0)
+      }
+      // A terminal test must continue polling its independent finalization.
+      await page.getByRole('button', { name: 'pending', exact: true }).click()
+      await expect(page.getByRole('dialog').getByLabel(labels.pending, { exact: true })).toBeVisible()
+      detailCompleted = true
+      await expect(page.getByRole('dialog').getByLabel(labels.confirmed, { exact: true })).toBeVisible({ timeout: 5000 })
+      const completedReads = detailReads
+      await page.waitForTimeout(2200)
+      expect(detailReads).toBe(completedReads)
+      await page.getByRole('button', { name: 'Fechar execução' }).click()
+
+      // New document avoids reusing the legitimately cached successful detail.
+      await page.reload()
+      await expect(page.getByRole('button', { name: 'confirmed', exact: true })).toBeVisible()
+      detailMode = 'loading'
+      await page.getByRole('button', { name: 'confirmed', exact: true }).click()
+      await expect(page.getByRole('dialog').locator('[data-slot=skeleton]').first()).toBeVisible()
+      await expect(page.getByRole('dialog').locator('[data-slot=status-indicator]')).toHaveCount(0)
+      await page.getByRole('button', { name: 'Fechar execução' }).click()
+      detailMode = 'error'
+      await page.getByRole('button', { name: 'failed', exact: true }).click()
+      await expect(page.getByRole('dialog')).toContainText('Não foi possível carregar a execução')
+      await expect(page.getByRole('dialog').locator('[data-slot=status-indicator]')).toHaveCount(0)
+      await page.getByRole('button', { name: 'Fechar execução' }).click()
+      historyEmpty = true
+      await page.getByRole('textbox', { name: 'Buscar por preset, branch, SHA ou ticket' }).fill('empty')
+      await expect(page.getByText('Nenhuma execução corresponde aos filtros')).toBeVisible()
+    })
+  }
+}
+
+for (const width of [390, 1440]) {
+  test(`a paused current execution shows its reason and a stopped clock ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.clock.install({ time: new Date('2026-10-26T10:05:00Z') })
+    const paused = {
+      ...baseJob, id: 'paused', status: 'running', startedAt: '2026-10-26T10:00:00Z',
+      pause: { state: 'paused', pausedAt: '2026-10-26T10:01:30Z', pausedMsTotal: 20_000, windows: 2, reason: 'disco abaixo de 2.0 GiB', source: 'auto' },
+    }
+    await page.route('**/api/**', async route => {
+      const path = new URL(route.request().url()).pathname
+      if (path === '/api/projects') return route.fulfill({ json: fixtureProjects })
+      const data: Record<string, unknown> = {
+        '/api/session': {}, '/api/machine': {},
+        '/api/status': { project: { id: 'example', name: 'Example' }, running: paused, queued: [], history: [], globalOccupancy: true },
+        '/api/executions': { jobs: [], coverage: {} },
+        '/api/dashboard-state': { presets: [], meta: null, pending: [] },
+      }
+      await route.fulfill({ json: data[path] ?? {} })
+    })
+    await page.goto('/')
+    const current = page.locator('[data-slot="card"]').filter({ hasText: 'Execução atual' })
+    await expect(current.getByRole('img', { name: 'Pausado · disco abaixo de 2.0 GiB' })).toBeVisible()
+    await expect(current.getByText('1m 10s', { exact: true })).toBeVisible()
+    await expect(current.getByText('pausado · disco abaixo de 2.0 GiB', { exact: true })).toBeVisible()
+    await page.clock.fastForward(30_000)
+    await expect(current.getByText('1m 10s', { exact: true })).toBeVisible()
+    await expect(page.locator('.animate-spin')).toHaveCount(0)
+  })
+}
+
+for (const width of [390, 1440]) {
+  test(`greens say whether each revision is already in the base at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 })
+    const read = { baseRef: 'origin/dev', baseName: 'dev', readAt: '2026-10-26T14:33:22Z', via: 'fetch --prune origin dev: fast-forward' }
+    await allGreensFixture(page, false, false, false, false, {
+      alpha: { ...read, state: 'integrated', reason: null },
+      beta: { ...read, state: 'stale', reason: 'A ref local de origin/dev não tem leitura das últimas 24 horas.' },
+    })
+    const history = page.getByRole('region', { name: 'Histórico', exact: true })
+    for (const grouping of ['Por preset', 'Por commit']) {
+      await history.getByRole('combobox', { name: 'Agrupamento do histórico' }).click()
+      await page.getByRole('option', { name: grouping, exact: true }).click()
+      await expect(history.getByRole('columnheader', { name: 'Integração', exact: true })).toHaveCount(1)
+      const alpha = history.getByRole('row').filter({ has: page.getByText('Alpha', { exact: true }) })
+      const beta = history.getByRole('row').filter({ has: page.getByText('Beta', { exact: true }) })
+      await expect(alpha.getByText('Em dev', { exact: true })).toBeVisible()
+      await expect(beta.getByText('Desatualizado', { exact: true })).toBeVisible()
+      await alpha.getByText('Em dev', { exact: true }).focus()
+      await expect(page.getByRole('tooltip')).toContainText('Contido em origin/dev pela ref local de')
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      if (grouping === 'Por commit' && width >= 1440) {
+        const sha = history.getByRole('button', { name: 'abcdef12', exact: true }).first().locator('span')
+        expect(await sha.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+      }
+      await page.screenshot({ path: testInfo.outputPath(`greens-integration-${grouping === 'Por preset' ? 'preset' : 'commit'}-${width}.png`) })
+      await page.keyboard.press('Escape')
+    }
+    await history.getByRole('button', { name: 'abcdef12', exact: true }).first().click()
+    await expect(page.getByRole('dialog')).toContainText('Contido em origin/dev pela ref local de')
+  })
+}

@@ -95,7 +95,7 @@ export function ElapsedItem({
 }: {
   job: Pick<
     JobRecord,
-    "status" | "startedAt" | "durationMs" | "durationReference"
+    "status" | "startedAt" | "durationMs" | "durationReference" | "pause"
   >
   presentation?: IdentityPresentation
   onInspect?: () => void
@@ -106,12 +106,15 @@ export function ElapsedItem({
     typeof meanMs === "number" && Number.isFinite(meanMs)
       ? formatDuration(meanMs)
       : null
+  const paused = job.status === "running" && job.pause?.state === "paused"
   return (
     <Item variant="default">
       <ItemContent className="min-w-0">
         <span className={elapsedPresentation[presentation]}>{elapsed}</span>
         <ItemDescription>
-          {mean ? `decorrido · média ${mean}` : "decorrido"}
+          {[paused ? "pausado" : "decorrido", mean ? `média ${mean}` : null, paused ? job.pause?.reason : null]
+            .filter(Boolean)
+            .join(" · ")}
         </ItemDescription>
       </ItemContent>
       {onInspect ? (

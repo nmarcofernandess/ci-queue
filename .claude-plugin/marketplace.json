@@ -1,0 +1,12 @@
+{
+  "name": "ci-queue",
+  "owner": { "name": "CI Queue" },
+  "description": "Playbooks oficiais do projeto CI Queue.",
+  "plugins": [
+    {
+      "name": "ci-queue",
+      "source": "./plugins/ci-queue",
+      "description": "Adoção, execução solicitada, diagnóstico e pendências de CI."
+    }
+  ]
+}

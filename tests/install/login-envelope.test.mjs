@@ -6,17 +6,18 @@ import test from "node:test"
 import assert from "node:assert/strict"
 
 import { installRelease, uninstallRelease } from "../../scripts/install.mjs"
-import { buildRelease } from "../../scripts/release.mjs"
+import { buildRelease } from "../helpers/release-fixture.mjs"
 
 const productRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "ci-queue-login-envelope-"))
-  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "ci-queue", version: "0.1.0" }))
+  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "ci-queue", version: "0.1.0", type: "module" }))
   writeFileSync(join(root, "package-lock.json"), "{}\n")
   writeFileSync(join(root, "LICENSE"), "MIT\n")
   writeFileSync(join(root, "README.md"), "# CI Queue\n")
   for (const path of [
+    "consumer/index.cjs",
     "bin/ci-queue.mjs", "dist/cli.js", "backend/ci_queue_api/__main__.py",
     "ui/dist/index.html", "examples/local-project/ci-queue.json", "docs/INSTALL.md",
     "scripts/ci/verify-local-attestation.sh", "scripts/ci/check-with-progress.sh",
@@ -123,7 +124,23 @@ test("activation publishes owned regular canonical envelopes in an isolated HOME
     assert.match(worker, /<key>QueueDirectories<\/key>/)
     assert.doesNotMatch(worker, /<key>KeepAlive<\/key>/)
     assert.match(dashboard, /<key>KeepAlive<\/key><true\/>/)
+    assert.match(dashboard, /<string>--config<\/string>/)
     assert.equal(launchctl.calls.filter(([command]) => command === "bootstrap").length, 2)
+  } finally { rmSync(paths.root, { recursive: true, force: true }) }
+})
+
+test("activation without a catalog keeps both services and lets the dashboard read the registry", () => {
+  const paths = setup()
+  const launchctl = fakeLaunchctl()
+  try {
+    const installation = installRelease({ ...activationInput(paths, launchctl), configPath: undefined })
+    assert.equal(installation.activationStatus, "verified")
+    assert.deepEqual(installation.services.map(({ label }) => label.split(".").at(-1)).sort(), ["dashboard", "worker"])
+    const dashboard = readFileSync(installation.services.find(({ label }) => label.endsWith("dashboard")).file, "utf8")
+    assert.doesNotMatch(dashboard, /--config/)
+    assert.match(dashboard, /<string>--state<\/string>/)
+    assert.throws(() => installRelease({ ...activationInput(paths, fakeLaunchctl()), configPath: undefined,
+      nodePath: undefined, pythonPath: undefined }), /--activate requer --node e --python/)
   } finally { rmSync(paths.root, { recursive: true, force: true }) }
 })
 

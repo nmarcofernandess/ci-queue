@@ -4,7 +4,7 @@ Executor local opcional de CI com fila, supervisão de processos, registros, API
 
 ## Comece aqui
 
-**[Quickstart de integração](docs/CONSUMER-QUICKSTART.md)** é a porta de entrada genérica. O **[manual HTML offline](docs/GUIA-INTEGRACAO-CI-QUEUE.html)** ensina máquina/projeto, protocolo TSV, receitas agregadoras, ship, Node por projeto, worktrees, filtros e diagnóstico. Salve o HTML e abra no navegador; o GitHub mostra o código-fonte, não executa a página.
+**[Quickstart de integração](docs/CONSUMER-QUICKSTART.md)** é a porta de entrada genérica. Num repositório que já adotou, `npx ci-queue-consumer guide` ensina o que rodar ali e por quê. O **[manual HTML offline](docs/GUIA-INTEGRACAO-CI-QUEUE.html)** ensina máquina/projeto, protocolo TSV, receitas agregadoras, ship, Node por projeto, worktrees, filtros e diagnóstico. Salve o HTML e abra no navegador; o GitHub mostra o código-fonte, não executa a página.
 
 - [Índice e donos da documentação](docs/README.md)
 - [Contratos de catálogo, ticket, progresso e ship](docs/CONTRACTS.md)
@@ -12,6 +12,7 @@ Executor local opcional de CI com fila, supervisão de processos, registros, API
 - [Instalação de uma release e verificação local](docs/INSTALL.md)
 - [Pin opt-in de Node e seus limites](docs/RUNTIME-ISOLATION.md)
 - [Consumidor exemplo isolado](examples/local-project/README.md)
+- [Plugin oficial CI Queue para Codex e Claude](plugins/ci-queue/README.md)
 
 O código atual desta integração é a branch **dev**. Uma revisão de documentação não promove main, não instala release e não comprova o state de uma máquina. Código do checkout, bundle instalado e state de jobs são três objetos diferentes.
 

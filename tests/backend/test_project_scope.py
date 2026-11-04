@@ -655,5 +655,37 @@ class ProjectScopeHttpTests(unittest.TestCase):
         self.assertEqual(rejected.exception.code, 409)
 
 
+class RegistryOnlyDashboardTests(unittest.TestCase):
+    """The installed dashboard runs without --config and reads the registry."""
+
+    def test_default_project_and_listing_come_from_the_registry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / "state-root"
+            for name in ("history", "jobs", "logs", "progress", "state"):
+                (state / name).mkdir(parents=True, exist_ok=True)
+            bootstrap_registry(state, _config(_init_repo(root / "repo-a"), "alpha", "Alpha"))
+            server = create_server(ApiContext(None, state, None, "csrf-test"), port=0)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = "http://127.0.0.1:%s" % server.server_address[1]
+            try:
+                with urlopen(base + "/health", timeout=3) as response:
+                    health = json.loads(response.read())
+                with urlopen(base + "/api/status", timeout=3) as response:
+                    status = json.loads(response.read())
+                with urlopen(base + "/api/projects", timeout=3) as response:
+                    listing = json.loads(response.read())
+            finally:
+                server.shutdown()
+                thread.join(1)
+                server.server_close()
+            self.assertTrue(health["ok"])
+            self.assertNotIn("projectId", health)
+            self.assertEqual(status["context"], {"kind": "project", "projectId": "alpha"})
+            self.assertEqual([item["id"] for item in listing["projects"]], ["alpha"])
+            self.assertEqual(listing["bootstrapProjectId"], "alpha")
+
+
 if __name__ == "__main__":
     unittest.main()

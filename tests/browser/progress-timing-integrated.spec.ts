@@ -1,3 +1,4 @@
+import { sourceApiEnvironment } from "./fixtures/api-environment"
 import { expect, test } from "@playwright/test"
 import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -112,8 +113,7 @@ async function startCandidateApi(running?: { job: Record<string, unknown>; progr
     writeFileSync(join(state, "running.json"), JSON.stringify(running.job))
     writeFileSync(join(state, "progress", `${running.job.id}.json`), JSON.stringify(running.progress))
   }
-  const env = { ...process.env }
-  delete env.CI_QUEUE_STATE_DIR
+  const env = sourceApiEnvironment()
   const child: ChildProcess = spawn(
     "python3",
     ["-m", "ci_queue_api.server", "--state", state, "--host", "127.0.0.1", "--port", String(PORT)],
@@ -285,8 +285,7 @@ async function stopChild(child: ChildProcess): Promise<void> {
 }
 
 async function startApiForState(state: string, port: number) {
-  const env = { ...process.env }
-  delete env.CI_QUEUE_STATE_DIR
+  const env = sourceApiEnvironment()
   const child: ChildProcess = spawn(
     "python3",
     ["-m", "ci_queue_api.server", "--state", state, "--host", "127.0.0.1", "--port", String(port)],

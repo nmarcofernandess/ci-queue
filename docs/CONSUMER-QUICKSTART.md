@@ -14,6 +14,7 @@ O projeto precisa do comando de teste verdadeiro e das dependências que ele usa
 
 ## 2. Mantenha o comando independente; aponte a Queue se desejado
 
+O consumidor escolhe execução direta ou Queue; Jest puro não exige fila.
 O catálogo aponta para comandos que já funcionam no projeto; CI Queue os executa com supervisão, fila e registros. Rodar o comando diretamente continua válido e não cria ticket nem prova reutilizável pelo ship genérico. Para exigir duas verificações, faça um agregador que execute ambas e preserve falhas. `acceptedPresets: ["lint","test"]` significa **OR**, não AND.
 
 Mantenha o teste como uma única receita. Um teste avulso pode continuar mesmo que a base avance; não configure `fetchBase` ou `abortOnStaleBase` só para transformá-lo em prova. Se o repositório possui um ship próprio, esse processo pode aplicar flags estritas no enqueue da mesma receita, validar o ticket e revalidar HEAD/base antes do merge. O ship genérico atual lê as flags do catálogo e exige que as receitas aceitas já sejam ship-bound. O consumidor decide se um teste isolado é cancelável. O CI Queue executa as flags recebidas; não deduz intenção de ship pelo nome da receita ou pelo diff.
@@ -28,6 +29,13 @@ No enqueue explícito, o caller deve omitir `baseRef` ou fornecer o SHA observad
 para isolamento; refs flutuantes permanecem sua escolha. Com `fetchBase`,
 ancestralidade, fetch e verificações estritas de ship são preservados.
 
+Uma receita com `progress: true` pode declarar `pauseSafeNodes`: os rótulos das
+etapas que aguentam ser congeladas e retomadas, por não dependerem de relógio de
+parede, navegador ou banco (`tsc`, lint, checks, `prisma generate`). Sem a lista,
+a receita nunca pausa. Jest, E2E e proofs ficam fora: um temporizador vencido
+durante a pausa dispara ao retomar e vira falso vermelho. Confira
+`execution-pause-v1` na instalação antes de depender da pausa.
+
 `WAIT_TIMEOUT` encerra a espera do cliente, não cancela o job. Consulte o mesmo
 ticket antes de repetir ou cancelar; resultado ausente não significa PASS.
 
@@ -40,21 +48,58 @@ ci-queue init --cwd "$PWD" --name "Meu projeto" --base-ref origin/dev \
   --argv-json '["npm","run","check"]' --json
 ```
 
-`init` não inicializa Git, não instala dependências, não inventa testes e não cadastra o projeto no dashboard. Pode declarar progress, mas não instrumenta o script. Preserve `project.id`. O catálogo precisa estar commitado em H antes do ship.
+`init` não inicializa Git, não instala dependências, não inventa testes e não cadastra o projeto no dashboard. Pode declarar progress, mas não instrumenta o script. Preserve `project.id`. `init` pode inferir `scripts.check` inequívoco; não é preciso desativar essa
+inferência válida. Adoção standalone não exige flags ship-bound; elas governam
+as receitas aceitas pelo ship. O catálogo precisa estar commitado em H antes do ship.
 
-## 3. Atualize as instruções do consumidor
+## 3. Ensine pelo catálogo, não pelo AGENTS
 
-Antes do commit de adoção, atualizar **AGENTS.md ou seu alvo se symlink** e a **skill/instrução operacional versionada**. Registrar: entrada canônica; comando standalone; fila e state conferido; receitas aceitas; autorização de ship; progresso como aviso; fonte de diagnóstico. Evitar cópias paralelas. Se uma skill só existir fora do Git, entregar delta aplicável e caminho, sem alegar aplicação local.
+O que um agente precisa saber para verificar e integrar vem da CLI:
+`ci-queue-consumer guide` lê o catálogo e o host e mostra os dois tipos de
+trabalho (verificar uma receita, integrar pelo ship), o executor deste host e
+o porquê, e os ensinamentos do repositório. No AGENTS do consumidor (o alvo, se
+for symlink), uma linha basta: o comando que abre o guia. Regras de executor,
+fila ou fallback copiadas para o AGENTS, skills ou handbooks viram instruções
+que agentes repetem fora do contexto em que valiam; deixe-as para a ferramenta.
 
-Use `templates/adoption/AGENTS.fragment.md` como ponteiro e adapte
+O que só o repositório sabe entra no catálogo, em campos que o motor ignora e o
+guia mostra:
+
+| Campo | Para quê |
+|---|---|
+| `presets.<nome>.note` | Quando usar a receita. A primeira frase aparece no guia. |
+| `guide.verify` | Comando do repositório para rodar uma receita, com `<receita>` no lugar do nome (ex.: `npm run ci:run -- <receita>`). |
+| `guide.notes` | Lista curta do que vale só aqui (o que é prova, o que é feedback). |
+| `ship.command` | Entrada de integração quando o repositório tem ship próprio. |
+| `ship.notes` | O que fazer nos casos comuns da integração (base movida, docs-only). |
+
+O guia aponta o que o catálogo ainda não declara. Use
+`templates/adoption/AGENTS.fragment.md` como a linha do AGENTS e adapte
 `templates/adoption/ci.yaml` para `.context/patterns/ci.yaml`. Mantenha
 `feedback.available: false` até existir uma receita real no catálogo; então
-aponte `method` para o procedimento do consumidor e registre seus comandos e
-perfil. O mapa é navegação para humanos/agentes, não é lido pelo runtime. O
+aponte `method` para o procedimento do consumidor. Resolva mapa e `method`
+desde a raiz do consumidor: default `docs/ci/TESTING-METHOD.md`, customizável
+para seu owner existente. O mapa é navegação, não é lido pelo runtime. O
 catálogo `ci-queue.json` continua sendo a autoridade de receitas, flags e
-artefatos. A skill curta de adoção está em `templates/adoption/SKILL.md`.
+finalização. A skill curta de adoção está em `templates/adoption/SKILL.md`.
 
 ## 4. Enfileire no state correto
+
+Confira `ci-queue version --json`: API1/ticket4, revisão e protocolo de
+`distribution` devem corresponder ao manifest instalado e aos componentes
+launcher/worker/API/UI. Consumidores de outputs nativos exigem
+`terminal-finalization-v1`, `no-artifact-snapshots-v1` e
+`recoverable-finalization-v1`. Uma instalação antiga ou mista recebe erro de
+migração, sem fallback.
+
+Não declare diretórios em `artifacts`: a Queue não copia mídia. Se o consumidor
+precisar de arquivos, congele um hook `finalization` v2 com contrato próprio; o
+hook publica no repositório consumidor depois do postflight e retorna referências
+com hash e diagnóstico de cleanup. Hook é opcional salvo contrato de outputs
+declarado. Publicação válida pode concluir com aviso cleanup uncertain; erros,
+outputs inválidos e recovery pendente continuam recusados. Resíduo histórico não
+bloqueia drain/install. Sem consumidor, não produza arquivos. Os formatos e a entrada
+`ci-queue finalize <id>` estão em [CONTRACTS](CONTRACTS.md#finalização-terminal-terminal-finalization-v1).
 
 ```bash
 PROJECT="$PWD"
@@ -80,7 +125,10 @@ ci-queue guard --cwd "$PROJECT" --config "$PROJECT/ci-queue.json" --state "$STAT
 
 O comando `guard` valida a associação com um ticket em execução e pode retornar `QUEUE_REQUIRED` fora desse contexto. Não enfileira automaticamente. O worker injeta `CI_QUEUE_JOB_ID` / aliases. Scripts que não adotam essa política não precisam chamar o guard.
 
-No Project Manager, confira e registre pasta/catálogo para inventário e histórico filtrado. Running e fila permanecem globais. Binding Node em `runtimes.json` é separado do cadastro; ver [RUNTIME-ISOLATION](RUNTIME-ISOLATION.md).
+No Project Manager, confira e registre pasta/catálogo para inventário e histórico filtrado. Running e fila permanecem globais. Binding Node em `runtimes.json` é opt-in e separado do cadastro e do Node do
+worker. A receita deve carregar a configuração do próprio checkout no executor
+efetivo; o ambiente do caller não basta. Loader/framework, outputs e cache:
+[RUNTIME-ISOLATION](RUNTIME-ISOLATION.md#configuração-do-consumidor-no-executor).
 
 ### 4.2 Observação terminal opcional (sem enfileirar)
 
@@ -117,6 +165,17 @@ O ship reusa uma receita elegível de `ship.acceptedPresets`; se nenhuma existir
 
 ## 6. Remoto opcional e limites
 
+**Três capacidades distintas:** testes standalone não precisam de GitHub;
+ship com `--no-remote` ainda usa GitHub para PR/merge; publicar status exige
+uma permissão própria. “Sem Actions” não é “sem GitHub”.
+
+No ship genérico, falha comum ao publicar status bloqueia em `wait`, mas em
+`skipped` gera `limitation: "attestation-failed"` e o fluxo continua pelos
+demais controles. Não transformar esse aviso em bloqueio global, pedir admin
+ou trocar credenciais por reflexo. Abort/timeout e gates reais continuam
+bloqueantes. Consulte o [contrato e os limites](CONTRACTS.md#publicação-opcional-não-é-bloqueio-global)
+antes de diagnosticar ou configurar o controller; ships próprios pertencem ao consumidor.
+
 Arquivo `remote-verdict.json` ao lado do catálogo: `wait|skipped`; ausente significa wait. Wait exige `ship.remoteVerdict.workflow` e `job`. `--no-remote` força skipped, não corrige JSON inválido nem dispensa prova/identidade/HEAD/base/PR. `init --workflow` copia verificador de attestation, não uma suíte de testes remota. O verificador deve existir na base que o workflow fará checkout; verificar isso na primeira adoção.
 
 Garantia: **HEAD pinado, base observada**. Revalidação antes e inspeção depois não são lock atômico H+B. `MERGED_BASE_CHANGED` exige inspeção, não novo merge cego. Nenhum `--admin`, status manual ou ticket fabricado.
@@ -126,3 +185,76 @@ Garantia: **HEAD pinado, base observada**. Revalidação antes e inspeção depo
 ## Caso de consumidor: DietFlow e portabilidade
 
 O [mapa de portabilidade do DietFlow](https://github.com/dietflowoficial/Dietflow-app/blob/dev/docs/harness/MAPA-CLOUD-PORTABILIDADE.md) preserva resultados Mac/Cursor/Codex, limites de backend e hipóteses de retomada. O mapa aponta de volta a este quickstart. São evidências e contratos do consumidor; CI Queue não instala o backend, não concede capacidade Docker/rede, não exige uma conta GitHub nominal e não certifica o produto por executar seu comando. Contratos genéricos da fila permanecem nesta documentação.
+
+## Entrada reutilizável sem worker ou plugin (consumer API v1)
+
+O pacote deste repositório exporta `@nmarcofernandess/ci-queue/consumer`, em
+JavaScript Node >=20, com tipos, sem build, dependências runtime ou import do
+motor. Instale por uma revisão Git **imutável** revisada:
+
+```bash
+npm install --save-dev 'github:nmarcofernandess/ci-queue#<SHA-integrado>'
+```
+
+A dependência instala somente o bin leve `ci-queue-consumer`: não cria um
+`node_modules/.bin/ci-queue` que sombreie a distribuição oficial. A instalação
+não registra projeto, não instala release e não
+inicia worker/API. O binário de execução `ci-queue` continua exigindo a release
+verificada de INSTALL. O binário leve `ci-queue-consumer` funciona sem ela:
+
+```bash
+npx --no-install ci-queue-consumer guide
+npx --no-install ci-queue-consumer guide --json
+npx --no-install ci-queue-consumer inspect check
+npx --no-install ci-queue-consumer inspect check --executor direct -- --case exemplo
+```
+
+`guide` (também o comando sem argumentos) procura o catálogo schema1 a partir
+do cwd e mostra o executor deste host com o motivo, as receitas com a primeira
+frase de `note`, a entrada e a prova do ship e os ensinamentos genéricos e do
+repositório. `inspect` mostra argv literais, executor, motivo, a próxima
+linha a rodar e `started: false`. Nenhum dos dois prepara ou roda a receita,
+confirma recursos, outputs, protocolo da instalação ou elegibilidade de ship.
+
+### Executor do host
+
+O catálogo declara uma preferência (`execution.executor: "queue"`); quem decide
+é o host. `resolveExecutor` aplica, nesta ordem: opção `--executor` (exceção
+pontual) → variável `CI_QUEUE_EXECUTOR` do host → host sem CI Queue roda direto
+→ preferência do catálogo → direct. `detectQueueHost` considera o host com fila
+quando o comando de `execution.queue.command` está no PATH, quando
+`CI_QUEUE_STATE_DIR` existe ou quando há `installation.json` nos states usuais.
+Um container de nuvem sem nada disso roda direto sem configuração. Um host com
+instalação e comando indisponível continua `queue` e falha com o motivo, em vez
+de rodar em outro lugar. `selectExecutor` permanece para chamadores da v1.
+`appendRecipeArgs` preserva tokens e o separador `--`, sem shell ou execução.
+Valores fora de `direct|queue` falham com o nome da origem.
+
+O adaptador consumidor mantém seus argumentos especiais, loader, preparo,
+encerramento, recursos, outputs e registros. Exemplo executável:
+`examples/local-project/ci-queue.json#presets.extension` chama
+`scripts/extension.mjs`: prepara um diretório temporário próprio, testa seu
+conteúdo, encerra em finally e retém `artifacts/example/report.json`, também
+quando `--fail` demonstra falha. O relatório técnico é do consumidor, sem
+snapshot pela Queue nem elegibilidade de proof. Queue chama
+o mesmo argv e, se declarado, o hook de finalização do consumidor; o núcleo
+leve não transfere esse lifecycle nem cria supervisor. Veja
+`tests/examples/consumer-entry.test.mjs`: um segundo projeto temporário recebe
+o pacote por `npm pack`, inspeciona sua receita sem executar o comando com
+exit99, sem conhecimento de Supabase, Playwright ou domínio clínico.
+
+Atualize AGENTS, mapa e skill versionada por diff localizado dos templates;
+nunca sobrescreva os arquivos inteiros de um projeto adotado. Preserve
+project.id, receitas, gates, pendências e customizações. O plugin é opcional e
+aponta aos mesmos owners. Sem plugin, leia a skill local, o mapa e o método.
+Queue requerida para recursos compartilhados permanece requerida. Ausência
+antes de qualquer submissão só permite execução direta oficial equivalente,
+com recursos próprios e efeitos autorizados pelo consumidor. Ocupação, pausa,
+recusa, HOLD ou resultado incerto nunca autorizam fallback; consulte o mesmo
+ID/log antes de retomar. Instalar a API não muda essa política.
+
+No executor cloud Linux com PID1 que não coleta filhos órfãos, o observador de
+processos diferencia zombies (`ps stat=Z`) de processos executáveis. Um grupo só
+de zombies não reserva o executor; um descendente vivo continua protegido.
+Nascimento/pgid/host divergentes continuam incertos. Isso não troca state,
+não mata processos e não recupera publicação sem os guards do mesmo ID.

@@ -37,3 +37,12 @@ describe("live facts", () => {
     expect(() => appendLog(chunk("abc", 0), chunk("x", 0))).toThrow("cursor")
   })
 })
+
+describe("paused clock", () => {
+  it("stops at the pause and discounts closed windows", () => {
+    const startedAt = "2026-10-26T10:00:00Z", start = Date.parse(startedAt)
+    const pause = { state: "paused" as const, pausedAt: "2026-10-26T10:01:30Z", pausedMsTotal: 20_000 }
+    expect(jobDuration({ status: "running", startedAt, pause }, start + 600_000)).toBe("1m 10s")
+    expect(jobDuration({ status: "running", startedAt, pause: { ...pause, state: "running" as const } }, start + 120_000)).toBe("1m 40s")
+  })
+})

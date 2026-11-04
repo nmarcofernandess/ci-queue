@@ -5,10 +5,10 @@ import { join } from "node:path"
 
 import { afterEach, describe, expect, it } from "vitest"
 
-import { parseQueueConfig, readQueueConfig } from "../../src/contracts/config.js"
+import { parseQueueConfig } from "../../src/contracts/config.js"
 import { runCli } from "../../src/cli.js"
 import { buildTicket, enqueueExplicitTicket, enqueueTicket } from "../../src/core/enqueue.js"
-import { listHistoryJobs, queuePaths } from "../../src/core/state.js"
+import { listHistoryJobs, queuePaths, ensureQueueDirs, stageTicketWrite } from "../../src/core/state.js"
 import { runWorker } from "../../src/core/worker.js"
 
 const cleanup: string[] = []
@@ -49,55 +49,59 @@ function readEnqueuedTicket(state: string, id: string): Record<string, unknown> 
 }
 
 describe("recipe-specific artifacts", () => {
-  it("inherits global artifacts when absent and replaces them when declared", () => {
-    const inherited = fixture()
-    const inheritedTicket = buildTicket({ preset: "review", cwd: inherited.project, stateRoot: inherited.state })
-    expect(inheritedTicket.artifacts).toEqual(["old-proofs"])
-
-    const replaced = fixture(["current-proof"])
-    const replacedTicket = buildTicket({ preset: "review", cwd: replaced.project, stateRoot: replaced.state })
-    expect(replacedTicket.artifacts).toEqual(["current-proof"])
+  it("rejects new snapshot selections from the global catalog or recipe", () => {
+    for (const selection of [undefined, [], ["current-proof"]]) {
+      const { project, state } = fixture(selection)
+      expect(() => buildTicket({ preset: "review", cwd: project, stateRoot: state })).toThrow(/artifacts/)
+    }
   })
 
-  it("preserves legacy global artifact paths when the recipe has no override", () => {
-    const { project, state } = fixture()
-    const configPath = join(project, "ci-queue.json")
-    const config = JSON.parse(readFileSync(configPath, "utf8")) as { artifacts?: string[] }
-    config.artifacts = ["old-proofs", "/legacy/global-path"]
-    writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)
-
-    const ticket = buildTicket({ preset: "review", cwd: project, stateRoot: state })
-
-    expect(ticket.artifacts).toEqual(["old-proofs", "/legacy/global-path"])
-  })
-
-  it("serializes an empty recipe override and skips global capture", async () => {
-    const { project, state } = fixture([])
-    const ticket = enqueueTicket({ preset: "review", cwd: project, stateRoot: state })
-
-    expect(ticket.artifacts).toEqual([])
-    expect(readEnqueuedTicket(state, ticket.id).artifacts).toEqual([])
-
-    await runWorker(state)
-
-    const terminal = listHistoryJobs(state)[0]
-    expect(terminal).toMatchObject({ id: ticket.id, status: "passed" })
-    expect(terminal?.artifactsPath).toBeUndefined()
-  })
-
-  it("copies only the current recipe artifacts into the ticket snapshot", async () => {
+  it("rejects recipe snapshots even without a global selection", () => {
     const { project, state } = fixture(["current-proof"])
+    const path = join(project, "ci-queue.json")
+    const config = JSON.parse(readFileSync(path, "utf8"))
+    delete config.artifacts
+    writeFileSync(path, JSON.stringify(config))
+    expect(() => buildTicket({ preset: "review", cwd: project, stateRoot: state })).toThrow(/artifacts/)
+  })
+
+  it("accepts legacy empty artifact declarations without snapshots", async () => {
+    const { project, state } = fixture([])
+    const path = join(project, "ci-queue.json")
+    const config = JSON.parse(readFileSync(path, "utf8"))
+    config.artifacts = []
+    writeFileSync(path, JSON.stringify(config))
     const ticket = enqueueTicket({ preset: "review", cwd: project, stateRoot: state })
-
-    expect(readEnqueuedTicket(state, ticket.id).artifacts).toEqual(["current-proof"])
-
     await runWorker(state)
+    expect(listHistoryJobs(state)[0]).toMatchObject({ id: ticket.id, status: "passed" })
+    expect(existsSync(join(state, "artifacts", ticket.id))).toBe(false)
+  })
 
-    const terminal = listHistoryJobs(state)[0]
-    const snapshot = join(state, "artifacts", ticket.id)
-    expect(terminal).toMatchObject({ id: ticket.id, status: "passed", artifactsPath: snapshot })
-    expect(readFileSync(join(snapshot, "current-proof", "receipt.txt"), "utf8")).toBe("current receipt\n")
-    expect(existsSync(join(snapshot, "old-proofs", "sentinel.txt"))).toBe(false)
+  it("executes a manually persisted v3 ticket without copying its historical selection", async () => {
+    const { project, state } = fixture()
+    const paths = ensureQueueDirs(state)
+    const ticket = {
+      id: "legacy-v3-artifacts", schemaVersion: 3, status: "queued" as const,
+      createdAt: new Date().toISOString(), preset: "review", cwd: project,
+      branch: "main", headSha: "unknown", requestedBy: "fixture",
+      command: "node -e process.exit(0)", argv: [process.execPath, "-e", "process.exit(0)"],
+      flags: {}, executionDeadline: { state: "disabled" as const },
+      logPath: join(paths.logs, "legacy-v3-artifacts.log"), artifacts: ["old-proofs"],
+    }
+    stageTicketWrite(state, ticket)
+    await runWorker(state)
+    expect(listHistoryJobs(state)[0]).toMatchObject({ id: ticket.id, status: "passed", artifacts: ["old-proofs"] })
+    expect(existsSync(join(state, "artifacts", ticket.id))).toBe(false)
+    expect(readFileSync(join(project, "old-proofs", "sentinel.txt"), "utf8")).toContain("earlier")
+  })
+
+  it("rejects an explicit snapshot selection", () => {
+    const { project, state } = fixture()
+    expect(() => enqueueExplicitTicket({
+      recipe: "explicit", argv: [process.execPath, "-e", "process.exit(0)"],
+      projectId: "fixture-project", projectName: "Fixture project", cwd: project,
+      stateRoot: state, artifacts: ["old-proofs"],
+    })).toThrow(/artifacts/)
   })
 
   it.each([
@@ -135,11 +139,14 @@ describe("recipe-specific artifacts", () => {
     expect(listHistoryJobs(state)[0]?.artifactsPath).toBeUndefined()
   })
 
-  it("advertises recipe artifact resolution support", async () => {
+  it("advertises terminal finalization and snapshot removal", async () => {
     const version = await runCli(["version", "--json"])
     expect(version.ok).toBe(true)
     if (version.ok) {
-      expect((version.result as { capabilities: string[] }).capabilities).toContain("recipe-artifacts-v1")
+      expect(version.result).toMatchObject({ apiVersion: 1, ticketSchemaVersion: 4 })
+      const capabilities = (version.result as { capabilities: string[] }).capabilities
+      expect(capabilities).toEqual(expect.arrayContaining(["terminal-finalization-v1", "no-artifact-snapshots-v1", "v4-ticket-read"]))
+      expect(capabilities).not.toContain("recipe-artifacts-v1")
     }
   })
 })

@@ -1,6 +1,17 @@
 import type { RunTableJob } from "@/features/shared/run-table"
-import type { PresetHistoryEntry, RemoteGreen } from "@/lib/types"
-import { queryPeriodStart } from "../shared/format"
+import type { PresetHistoryEntry, RemoteGreen, RemoteSlotsSource } from "@/lib/types"
+import { formatTimelineDate, queryPeriodStart } from "../shared/format"
+
+/** The backend decides staleness by age; the UI names when the mirror was read. */
+export function staleMirrorNote(source: RemoteSlotsSource | null | undefined) {
+  if (!source?.stale) {
+    return null
+  }
+  const readAt = source.refreshedAt ?? source.readAt
+  return readAt
+    ? `espelho desatualizado, lido em ${formatTimelineDate(readAt)}; os verdes refletem essa leitura.`
+    : "espelho desatualizado, sem horário de leitura; os verdes refletem a última leitura local."
+}
 type GreenGrouping = "preset" | "commit"
 type Period = "all" | "today" | "48h" | "week" | "15d"
 
@@ -25,6 +36,7 @@ export function asMachineGreen(entry: PresetHistoryEntry): RunTableJob | undefin
     createdAt: reference.createdAt ?? undefined,
     finishedAt: reference.finishedAt ?? undefined,
     durationMs: reference.durationMs,
+    integration: reference.integration,
   }
 }
 
@@ -44,6 +56,7 @@ export function asGitGreen(green: RemoteGreen & { projectName?: string }): RunTa
     finishedAt: green.finishedAt,
     durationMs: green.durationMs,
     detailsAvailable: green.jobAvailable,
+    integration: green.integration,
   }
 }
 
@@ -87,6 +100,7 @@ export function mergeGreenRows(jobs: RunTableJob[]) {
       ticketId: preferred.ticketId ?? existing.ticketId ?? job.ticketId,
       detailsJobId: existingDetails ?? nextDetails,
       detailsAvailable: Boolean(existingDetails ?? nextDetails),
+      integration: preferred.integration ?? existing.integration ?? job.integration,
     })
   }
   return [...byIdentity.values()]

@@ -1,14 +1,14 @@
 {
   "name": "@nmarcofernandess/ci-queue",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Independent local CI queue, executor and observability service",
   "bin": {
-    "ci-queue": "./bin/ci-queue.mjs"
+    "ci-queue-consumer": "./bin/ci-queue-consumer.cjs"
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json",
+    "build": "tsc --project tsconfig.json && node scripts/release.mjs stamp --component runtime",
     "check": "bash scripts/ci/check-with-progress.sh",
     "ci-queue": "tsx src/cli.ts",
     "test:core": "vitest run tests/core --exclude 'tests/core/*.evidence.test.ts'",
@@ -36,5 +36,11 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "exports": {
+    "./consumer": {
+      "types": "./consumer/index.d.cts",
+      "default": "./consumer/index.cjs"
+    }
   }
 }

@@ -1,4 +1,4 @@
-import type { JobStatus } from "@/lib/types"
+import type { GreenIntegration, JobPause, JobStatus } from "@/lib/types"
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   dateStyle: "short",
@@ -153,6 +153,7 @@ export function jobDuration(
     status?: JobStatus
     startedAt?: string | null
     durationMs?: number | null
+    pause?: Pick<JobPause, "state" | "pausedAt" | "pausedMsTotal"> | null
   },
   now = Date.now(),
   compact = false,
@@ -163,10 +164,37 @@ export function jobDuration(
   }
   if (job.status === "running") {
     const start = job.startedAt ? Date.parse(job.startedAt) : NaN
+    // Active time: the clock stands still while the job is paused.
+    const pausedAt = job.pause?.state === "paused" && job.pause.pausedAt ? Date.parse(job.pause.pausedAt) : NaN
+    const end = Number.isFinite(pausedAt) ? pausedAt : now
     return formatDuration(
-      Number.isFinite(start) ? Math.max(0, now - start) : undefined,
+      Number.isFinite(start) ? Math.max(0, end - start - (job.pause?.pausedMsTotal ?? 0)) : undefined,
       unavailable,
     )
   }
   return formatDuration(job.durationMs, unavailable)
+}
+
+/** Short label and full sentence for "is this green already in the base". */
+export function describeIntegration(integration: GreenIntegration) {
+  const read = integration.readAt
+    ? ` pela ref local de ${formatTimelineDate(integration.readAt)}`
+    : " pela ref local"
+  const via = integration.via ? ` Origem: ${integration.via}.` : ""
+  if (integration.state === "integrated") {
+    return { label: `Em ${integration.baseName}`, muted: false,
+      detail: `Contido em ${integration.baseRef}${read}.${via}` }
+  }
+  if (integration.state === "not-integrated") {
+    return { label: `Fora de ${integration.baseName}`, muted: false,
+      detail: `Ainda fora de ${integration.baseRef}${read}.${via}` }
+  }
+  const reason = integration.reason ?? "Sem leitura local da base."
+  if (integration.state === "stale") {
+    return { label: "Desatualizado", muted: true,
+      detail: integration.readAt
+        ? `${reason} Última leitura: ${formatTimelineDate(integration.readAt)}.${via}`
+        : reason }
+  }
+  return { label: "Desconhecido", muted: true, detail: reason }
 }

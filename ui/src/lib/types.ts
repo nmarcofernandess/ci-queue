@@ -48,13 +48,39 @@ export type ProgressSummary = {
 
 export type RunVariant = "custom" | "focal"
 
+/** Sanitized API projection; no hook argv, environment or private record paths. */
+export type JobCompletion = {
+  state: "running" | "complete" | "failed" | "legacy"
+  eligible: boolean
+  testStatus: JobStatus | null
+  reason?: "finalization-contract-invalid" | "finalization-unverified" | "finalization-failed" | "cleanup-uncertain"
+  finalization?: {
+    phase: "pending" | "running" | "passed" | "failed" | "interrupted"
+    cleanup?: "confirmed" | "not-required" | "uncertain"
+    recovery?: "none" | "retryable" | "blocked-ownership"
+    error?: "finalization-failed"
+  }
+}
+
 /** Browser-safe job projection. Process arguments and environment stay private. */
+/** Paused time is not execution; `pausedAt`, `reason` and `source` describe the last window. */
+export type JobPause = {
+  state: "paused" | "running"
+  pausedMsTotal: number
+  windows: number
+  pausedAt?: string
+  reason?: string
+  source?: "manual" | "auto"
+  possibleInterference?: boolean
+}
+
 export type JobRecord = {
   id: string
   projectId?: string
   projectName?: string
   preset?: string
   status?: JobStatus
+  completion?: JobCompletion
   exitCode?: number | null
   branch?: string
   headSha?: string
@@ -62,6 +88,7 @@ export type JobRecord = {
   startedAt?: string
   finishedAt?: string
   durationMs?: number | null
+  pause?: JobPause
   cwd?: string
   failureReason?: string | null
   cleanupBlockedReason?: string | null
@@ -110,6 +137,16 @@ export type ExecutionsResponse = {
   coverage: { unattributedRecords: number; corruptRecords?: number }
 }
 
+/** Whether a green revision is contained in the project's base, by the local tracking ref. */
+export type GreenIntegration = {
+  state: "integrated" | "not-integrated" | "stale" | "unknown"
+  baseRef: string
+  baseName: string
+  readAt: string | null
+  via: string | null
+  reason: string | null
+}
+
 export type PresetRunReference = {
   ticketId: string | null
   startedAt: string | null
@@ -121,6 +158,7 @@ export type PresetRunReference = {
   custom: boolean
   durationMs: number | null
   failureReason?: string | null
+  integration?: GreenIntegration
 }
 
 export type PresetHistoryEntry = {
@@ -182,6 +220,7 @@ export type RemoteGreen = {
   publishedAt: string
   durationMs: number | null
   ref: string
+  integration?: GreenIntegration
 }
 
 export type RemoteSlotsResponse = {

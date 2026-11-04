@@ -143,6 +143,7 @@ def read_pending_advisories_snapshot(state_root, config, project_id, plan, jobs,
         config,
         state_root,
         local_ticket_ids=local_ticket_ids,
+        completed_jobs={job.get("id"): job for job in jobs},
     )
     remote_greens = remote.get("greens") if isinstance(remote, dict) else []
     if not isinstance(remote_greens, list):

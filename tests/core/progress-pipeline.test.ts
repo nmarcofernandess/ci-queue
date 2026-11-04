@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { enqueueTicket } from "../../src/core/enqueue.js"
-import { progressPath, ensureQueueDirs, listHistoryJobs, queuePaths, acquireDirectoryLock } from "../../src/core/state.js"
+import { progressPath, ensureQueueDirs, listHistoryJobs, queuePaths, acquireDirectoryLock, stageTicketWrite } from "../../src/core/state.js"
 import { closeRunningTicket } from "../../src/core/runner.js"
 import { writeProgressSnapshot } from "../../src/core/progress.js"
 import { runWorker } from "../../src/core/worker.js"
@@ -60,7 +60,7 @@ describe("progress pipeline R01/R04/R06", () => {
     expect(existsSync(progressPath(state, ticket.id))).toBe(false)
   })
 
-  it("measures artifacts copy as running→terminal on the same collector", async () => {
+  it("does not measure a removed snapshot phase for legacy artifact tickets", async () => {
     const { project, state } = fixture(
       {
         withArt: {
@@ -68,7 +68,6 @@ describe("progress pipeline R01/R04/R06", () => {
           progress: true,
         },
       },
-      { artifacts: ["test-results"] },
     )
     writeFileSync(
       join(project, "make-artifact.mjs"),
@@ -79,14 +78,16 @@ describe("progress pipeline R01/R04/R06", () => {
       ].join("\n"),
     )
     const ticket = enqueueTicket({ preset: "withArt", cwd: project, stateRoot: state })
+    stageTicketWrite(state, { ...ticket, schemaVersion: 3, artifacts: ["test-results"] })
     await runWorker(state)
     const history = listHistoryJobs(state)[0]
     expect(history.id).toBe(ticket.id)
     const artifacts = history.progress?.nodes?.find((n) => n.id === "artifacts")
-    expect(artifacts).toMatchObject({ status: "passed", durationSource: "collector" })
-    expect(typeof artifacts?.durationMs).toBe("number")
-    expect(artifacts!.durationMs!).toBeGreaterThanOrEqual(0)
-    expect(artifacts).not.toHaveProperty("durationUnavailableReason")
+    expect(history.status).toBe("passed")
+    expect(artifacts).toMatchObject({ status: "skipped", durationUnavailableReason: "missing-start" })
+    expect(artifacts).not.toHaveProperty("durationMs")
+    expect(existsSync(join(state, "artifacts", ticket.id))).toBe(false)
+    expect(existsSync(join(project, "test-results", "result.txt"))).toBe(true)
   })
 
   it("keeps sidecar when closeRunningTicket cannot take the lock", async () => {

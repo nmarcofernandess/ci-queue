@@ -22,6 +22,7 @@ from .dashboard_state import (
 )
 from .diagnostics import read_log_export, read_log_slice, read_diagnostic
 from .history import build_preset_history, build_preset_history_all, read_remote_slots, read_remote_slots_all
+from .integration import annotate_integration
 from .machine import read_machine
 from .native_actions import (
     TARGETS,
@@ -48,7 +49,7 @@ from .projects import (
     mutate_registry,
     probe_project,
 )
-from .provenance import release_provenance
+from .provenance import release_provenance, assert_installed_distribution
 from .records import (
     RecordError,
     iso_now,
@@ -261,7 +262,7 @@ def create_handler(context):
                     scope = self._scope(query)
                     project = require_capability(self._resolved(scope), "meta-mutate")
                     result = with_context(
-                        write_dashboard_state(self.api_context.state_root, project.config, body),
+                        write_dashboard_state(self.api_context.state_root, project.config, body, project=project),
                         scope,
                         project.entry_revision,
                     )
@@ -486,6 +487,8 @@ def create_handler(context):
                     "/api/remote-slots": read_remote_slots_all,
                 }[path]
                 payload = reader(self.api_context.state_root, projects)
+                if path != "/api/dashboard-state":
+                    annotate_integration(payload, projects)
                 payload["projectErrors"] = project_errors + payload["projectErrors"]
                 self.send_payload(200, with_context(payload, scope))
                 return
@@ -594,15 +597,17 @@ def create_handler(context):
                 return
             if path == "/api/preset-history":
                 require_capability(project, "greens")
-                self.send_payload(200, with_context(build_preset_history(self.api_context.state_root, project.config), scope, revision))
+                payload = build_preset_history(self.api_context.state_root, project.config)
+                self.send_payload(200, with_context(annotate_integration(payload, [project]), scope, revision))
                 return
             if path == "/api/remote-slots":
                 require_capability(project, "greens")
                 if query.get("refresh", ["0"])[0] not in {"", "0"}:
                     raise ValueError("esta API não atualiza Git; use a publicação explícita da CLI")
-                self.send_payload(200, with_context(read_remote_slots(
+                payload = read_remote_slots(
                     project.config.remote_slots_path, project.config, self.api_context.state_root,
-                ), scope, revision))
+                )
+                self.send_payload(200, with_context(annotate_integration(payload, [project]), scope, revision))
                 return
             if path == "/api/analysis":
                 metric = query.get("metric", [""])[0]
@@ -631,7 +636,7 @@ def create_handler(context):
                 return
             if path == "/api/dashboard-state":
                 self.send_payload(200, with_context(
-                    read_dashboard_state(self.api_context.state_root, project.config, project.project_id),
+                    read_dashboard_state(self.api_context.state_root, project.config, project.project_id, project=project),
                     scope,
                     revision,
                 ))
@@ -671,6 +676,10 @@ def main(argv=None):
         raise SystemExit("--state ou CI_QUEUE_STATE_DIR é obrigatório")
     state_root = Path(args.state).expanduser().resolve()
     ui_root = Path(args.ui).expanduser().resolve() if args.ui else None
+    try:
+        assert_installed_distribution(args.manifest, args.manifest_sha256, ui_root)
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
     config = None
     bootstrap_error = None
     if args.config:
