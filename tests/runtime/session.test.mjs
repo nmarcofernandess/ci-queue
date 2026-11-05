@@ -61,8 +61,21 @@ const handleMessage=async (message,reply=send)=>{
   if(p.status!==0)throw new Error(p.stderr);result=p.stdout.trim();
  }
  if(message.action==='child') {
-  child=spawn(join(handle.directory,'bin/node'),['-e',"const {spawn}=require('node:child_process');spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});setInterval(()=>{},1000)"],{env:{...process.env,...handle.env},detached:true,stdio:'ignore'});
-  await new Promise(resolve=>setTimeout(resolve,180));result=probeProcessGroupIdentity(child.pid);
+  // Both guarded processes must execute their preload before checkpointing.
+  // A fixed sleep can leave a live group absent from the session evidence.
+  const leafCode="process.send({ready:true});setInterval(()=>{},1000)";
+  const leaderCode="const {spawn}=require('node:child_process');const leaf=spawn(process.execPath,['-e',"+JSON.stringify(leafCode)+"],{stdio:['ignore','ignore','ignore','ipc']});leaf.once('message',()=>{leaf.disconnect();process.send({ready:true})});setInterval(()=>{},1000)";
+  child=spawn(join(handle.directory,'bin/node'),['-e',leaderCode],{env:{...process.env,...handle.env},detached:true,stdio:['ignore','ignore','ignore','ipc']});
+  try {
+   await new Promise((resolve,reject)=>{
+    const finish=error=>{clearTimeout(timer);child.off('message',ready);child.off('error',failed);child.off('exit',exited);error?reject(error):resolve()};
+    const ready=message=>finish(message.ready?undefined:new Error('invalid child readiness'));
+    const failed=error=>finish(error),exited=code=>finish(new Error('guarded child exited '+code));
+    const timer=setTimeout(()=>finish(new Error('guarded child readiness timeout')),15000);
+    child.once('message',ready);child.once('error',failed);child.once('exit',exited);
+   });
+  } catch(error) {if(probeProcessGroupIdentity(child.pid))process.kill(-child.pid,'SIGTERM');throw error;}
+  child.disconnect();result=probeProcessGroupIdentity(child.pid);
  }
  if(message.action==='stop-child') {const done=new Promise(resolve=>child.once('exit',resolve));process.kill(-child.pid,'SIGTERM');await done;result=true;}
  if(message.action==='prepare-requirement-change') {
