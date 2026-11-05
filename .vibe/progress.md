@@ -29,3 +29,5 @@ Revisão do lifecycle: desconto de descendentes imediatas vivas, sem symlinks; v
 Verificação focal após o recorte final: python3 -m unittest discover -s tests/backend -p test_worktrees.py — PASS, 8 testes (aninhamento, prefixo irmão, symlink, remoção sem prune, mudança de limites, coalescência de solicitações, timeout e leitura parcial).
 
 Próximo passo contratado: commit/push da candidata, PR para main, ticket check-main elegível e ci-queue ship. Os recibos terminais e o merge serão referenciados na PR, sem alterar HEAD depois de produzir a prova. Nenhuma mudança de UI integra esta entrega.
+
+PR de integração e recibo operacional: https://github.com/nmarcofernandess/ci-queue/pull/54. Este pacote conserva o snapshot de autoria concluída; ticket, veredito e merge ficam no recibo da PR para não mudar HEAD/base durante o fechamento. A limpeza depende de confirmar esse merge.

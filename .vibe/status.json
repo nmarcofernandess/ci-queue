@@ -1,6 +1,6 @@
 {
-  "current_phase": "integration",
-  "status": "NEEDS_REVIEW",
+  "current_phase": "authorship_complete",
+  "status": "READY",
   "updated_at": "2026-11-05T22:20:59.542593+00:00",
   "tasks": [
     {
@@ -9,7 +9,7 @@
       "status": "completed",
       "commit": null,
       "verification": "passed",
-      "notes": "Autoria encerrada; 8 testes backend PASS. Ship direto em main e cleanup autorizados; gate check-main e recibos de integração seguem na PR."
+      "notes": "Autoria concluída e 8 testes backend PASS. A PR 54 é o registro operacional do fechamento em main."
     }
   ],
   "artifacts": {
@@ -22,6 +22,11 @@
   },
   "cleanup": {
     "safe_to_archive": false,
-    "reason": "awaiting_main_integration"
+    "reason": "confirm_main_merge_from_pr_receipt_before_cleanup"
+  },
+  "integration": {
+    "destination": "main",
+    "receipt": "https://github.com/nmarcofernandess/ci-queue/pull/54",
+    "note": "Snapshot de autoria. Ticket, resultado terminal e merge são registrados na PR para conservar o HEAD da prova."
   }
 }
