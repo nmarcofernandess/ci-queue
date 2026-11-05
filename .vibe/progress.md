@@ -31,3 +31,9 @@ Verificação focal após o recorte final: python3 -m unittest discover -s tests
 Próximo passo contratado: commit/push da candidata, PR para main, ticket check-main elegível e ci-queue ship. Os recibos terminais e o merge serão referenciados na PR, sem alterar HEAD depois de produzir a prova. Nenhuma mudança de UI integra esta entrega.
 
 PR de integração e recibo operacional: https://github.com/nmarcofernandess/ci-queue/pull/54. Este pacote conserva o snapshot de autoria concluída; ticket, veredito e merge ficam no recibo da PR para não mudar HEAD/base durante o fechamento. A limpeza depende de confirmar esse merge.
+
+## Fechamento: diagnóstico do primeiro check-main — 2026-11-05
+
+Ticket 20261105222320-91eda72e falhou em tests/runtime/session.test.mjs:210: recovery retornou sem RUNTIME_SESSION_OCCUPIED depois da morte do owner, embora a fixture ainda observasse seu grupo filho vivo. A reprodução focal isolada passou. A fixture liberava checkpoint após sleep fixo de 180ms, sem garantir que os dois processos guardados haviam executado o preload e publicado evidência. Substituído o tempo arbitrário por handshake IPC dos dois processos; mantidas as assertions de ocupação, CAS e replay. Sem alteração no runtime do produto. Próximo passo: seleção focal de sessão e renovação do gate no novo HEAD.
+
+Verificação da correção de fixture: node --test tests/runtime/session.test.mjs — PASS, 9/9 testes. Renovar check-main, sem reutilizar o ticket vermelho.
