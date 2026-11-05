@@ -3,6 +3,7 @@
 import hashlib
 import os
 import queue
+import re
 import subprocess
 import threading
 import time
@@ -83,6 +84,22 @@ def discover(source):
     return rows
 
 
+def _size_exclusions(row, rows):
+    path = Path(row["path"])
+    # Missing/prunable checkouts occupy no space. Discount only the nearest
+    # living descendants, so a grandchild is not subtracted twice.
+    nested = sorted({Path(item["path"]) for item in rows
+                     if path in Path(item["path"]).parents
+                     and not Path(item["path"]).is_symlink()
+                     and Path(item["path"]).is_dir()},
+                    key=lambda child: len(child.parts))
+    children = []
+    for child in nested:
+        if not any(parent in child.parents for parent in children):
+            children.append(child)
+    return tuple(sorted(str(child) for child in children))
+
+
 def _changed_count(raw):
     if raw is None:
         return None
@@ -90,58 +107,74 @@ def _changed_count(raw):
     return len(values)
 
 
-def _size_report(path):
+def _size_report(path, excluded=()):
     key = str(Path(path).resolve())
     with _lock:
         cached = _sizes.get(key)
-    if cached:
+    if cached and cached.get("excluded", ()) == excluded:
         return {"bytes": cached["bytes"], "state": "ready", "error": cached["error"], "observedAt": cached["observedAt"]}
     return {"bytes": None, "state": "unmeasured", "error": None, "observedAt": None}
 
 
-def _measure(path):
+def _measure(path, excluded=()):
     key = str(Path(path).resolve())
     try:
         # du is the portable tool already present on supported macOS/Linux
         # modes. Measurements are serialized to avoid competing disk scans.
-        result = subprocess.run(["du", "-sk", key], text=True, capture_output=True, timeout=60)
+        # Read parent and direct child totals in the SAME traversal so cached
+        # measurements from different moments cannot produce a false difference.
+        depth = max((len(Path(child).relative_to(key).parts) for child in excluded), default=0)
+        argv = ["du", "-k", "-d", str(depth), key] if excluded else ["du", "-sk", key]
+        result = subprocess.run(argv, text=True, capture_output=True, timeout=60)
         if result.returncode != 0:
             raise OSError("du indisponível")
-        kib = int(result.stdout.split()[0])
+        if excluded:
+            def total(folder):
+                match = re.search(r"(?m)^(\d+)\t" + re.escape(folder) + r"$", result.stdout)
+                if match is None:
+                    raise ValueError("tamanho parcial")
+                return int(match.group(1))
+            kib = total(key) - sum(total(child) for child in excluded)
+            if kib < 0:
+                raise ValueError("tamanho inconsistente")
+        else:
+            kib = int(result.stdout.split()[0])
         value, error = kib * 1024, None
     except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
         with _lock:
             previous = _sizes.get(key)
-        value = previous.get("bytes") if previous else None
+        value = previous.get("bytes") if previous and previous.get("excluded", ()) == excluded else None
         error = "Não foi possível atualizar o tamanho da worktree."
     with _lock:
-        _sizes[key] = {"bytes": value, "error": error, "observedAt": _now(), "monotonic": time.monotonic()}
-        _pending.discard(key)
+        _sizes[key] = {"bytes": value, "error": error, "observedAt": _now(), "monotonic": time.monotonic(), "excluded": excluded}
+        _pending.discard((key, excluded))
 
 
 def _run_measurements():
     while True:
-        path = _requests.get()
+        path, excluded = _requests.get()
         try:
-            _measure(path)
+            _measure(path, excluded)
         finally:
             _requests.task_done()
 
 
-def schedule_size(path):
+def schedule_size(path, excluded=()):
     global _worker
     key = str(Path(path).resolve())
+    excluded = tuple(sorted(str(Path(child).resolve()) for child in excluded))
+    request_key = (key, excluded)
     with _lock:
         cached = _sizes.get(key)
-        stale = not cached or time.monotonic() - cached["monotonic"] >= SIZE_CACHE_SECONDS
-        if stale and key not in _pending:
-            _pending.add(key)
-            _requests.put(key)
-        pending = key in _pending
+        stale = not cached or cached.get("excluded", ()) != excluded or time.monotonic() - cached["monotonic"] >= SIZE_CACHE_SECONDS
+        if stale and request_key not in _pending:
+            _pending.add(request_key)
+            _requests.put(request_key)
+        pending = request_key in _pending
         if _worker is None:
             _worker = threading.Thread(target=_run_measurements, name="ci-queue-worktree-size", daemon=True)
             _worker.start()
-    report = _size_report(key)
+    report = _size_report(key, excluded)
     return {**report, "state": "measuring" if pending else report["state"]}
 
 
@@ -268,7 +301,7 @@ def list_worktrees(source):
                 timed_out = _remaining(deadline) is None
                 row.update({"dirty": bool(changed) if changed is not None else None,
                             "changedEntries": changed, "ahead": ahead, "behind": behind,
-                            "gitObservedAt": _now(), "size": schedule_size(row["path"]),
+                            "gitObservedAt": _now(), "size": schedule_size(row["path"], _size_exclusions(row, rows)),
                             "error": "Orçamento de leitura das worktrees esgotado." if timed_out else None})
             payload = {"schemaVersion": 1, "observedAt": _now(), "baseRef": base_ref,
                        "baseSha": base_sha, "worktrees": rows, "error": None}
@@ -321,7 +354,7 @@ def worktree_view(source, identifier):
             pass
     return {**row, "dirty": bool(changed) if changed is not None else None,
             "changedEntries": changed, "ahead": ahead, "behind": behind,
-            "size": schedule_size(row["path"])}
+            "size": schedule_size(row["path"], _size_exclusions(row, rows))}
 
 
 def resolve_worktree(config, identifier):

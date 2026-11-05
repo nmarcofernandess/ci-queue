@@ -126,6 +126,7 @@ o filtro do header.
 - A seleção múltipla persiste por projeto e mostra uma barra de seleção com apenas Copiar.
 - Copiar abre DropdownMenu com Copiar caminho e Copiar contexto.
 - O drawer contém caminho, SHA, alterações, relação com a base e tamanho quando medido. Oferece Abrir e o mesmo menu Copiar.
+- O tamanho de uma worktree exclui as worktrees fisicamente aninhadas que já constam no inventário. Filhas diretas são descontadas na mesma leitura de disco; o cache distingue mudanças nesse conjunto para evitar dupla contagem.
 - Inventário Git e tamanhos atualizam automaticamente a cada 60 segundos por uma única fonte. Medições de tamanho são serializadas e preservam o último valor válido quando uma atualização falha. Não existe ação manual de medir ou atualizar.
 - Em Todos, a API agrega os projetos ativos, cada linha leva chip do dono, e a persistência de seleção usa `ci-queue:worktrees:all`. Reveal e a vista do drawer usam o `projectId` dono da linha. Sem projeto a rota continua exigindo um projeto.
 - Carregamento navegado preserva dados anteriores; não pisca um empty state técnico a cada entrada na rota.

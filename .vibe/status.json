@@ -1,0 +1,27 @@
+{
+  "current_phase": "integration",
+  "status": "NEEDS_REVIEW",
+  "updated_at": "2026-11-05T22:20:59.542593+00:00",
+  "tasks": [
+    {
+      "id": "exclusive-worktree-size",
+      "title": "Tamanho sem dupla contagem",
+      "status": "completed",
+      "commit": null,
+      "verification": "passed",
+      "notes": "Autoria encerrada; 8 testes backend PASS. Ship direto em main e cleanup autorizados; gate check-main e recibos de integração seguem na PR."
+    }
+  ],
+  "artifacts": {
+    "progress": ".vibe/progress.md"
+  },
+  "preview": {
+    "url": "http://127.0.0.1:5194/?projectId=da61d8ae-19f9-4dce-bafb-02271a6f1601#worktrees",
+    "api_port": 18879,
+    "ui_port": 5194
+  },
+  "cleanup": {
+    "safe_to_archive": false,
+    "reason": "awaiting_main_integration"
+  }
+}
