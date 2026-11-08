@@ -2,10 +2,11 @@
 schema: ci-method-v1
 runtime_contract: ci-queue.json
 consumer_entry:
-  api: "@nmarcofernandess/ci-queue/consumer (v1, opcional)"
+  api: "@nmarcofernandess/ci-queue/consumer (v1, execution-description-v1)"
   guide: ci-queue-consumer guide
   inspect: ci-queue-consumer inspect <receita>
   owner: docs/CONSUMER-QUICKSTART.md no repositorio oficial
+  description: fatos_do_consumidor_sem_discovery_ou_gate_de_populacao
   limit: inspecao_sem_execucao_ou_certificacao_de_recursos
 method: docs/ci/TESTING-METHOD.md
 feedback:

@@ -6,8 +6,8 @@ description: Use para registrar, consultar ou reconciliar validações não exec
 # Validações pendentes
 
 Use o bootstrap da entrada `ci-queue:ci-queue`, localizada pelo catálogo do host.
-Leia [fontes](https://github.com/nmarcofernandess/ci-queue/blob/dev/plugins/ci-queue/references/sources.md) e o
-[contrato do registro](https://github.com/nmarcofernandess/ci-queue/blob/dev/docs/VALIDATION-RECORD.md) na revisão resolvida. Localize o owner indicado
+Leia [fontes](https://github.com/nmarcofernandess/ci-queue/blob/main/plugins/ci-queue/references/sources.md) e o
+[contrato do registro](https://github.com/nmarcofernandess/ci-queue/blob/main/docs/VALIDATION-RECORD.md) na revisão resolvida. Localize o owner indicado
 nas instruções/mapa do consumidor. Registro existente prevalece; não duplique
 Markdown em JSON nem use `state/validation-plan.json` como segunda fonte.
 
@@ -44,7 +44,7 @@ confirmado; `skill://` não é esse caminho. Sem essa cópia, use as ferramentas
 arquivos disponíveis e o contrato do consumidor para ler/editar o registro,
 preservando IDs e a vinculação do fechamento. Se a capacidade faltar, informe o
 limite concreto e conserve a pendência; isso não bloqueia o restante do trabalho.
-As [instruções do helper](https://github.com/nmarcofernandess/ci-queue/blob/dev/plugins/ci-queue/references/validations.md) são lidas por HTTPS na mesma revisão.
+As [instruções do helper](https://github.com/nmarcofernandess/ci-queue/blob/main/plugins/ci-queue/references/validations.md) são lidas por HTTPS na mesma revisão.
 Use o helper autocontido somente para o formato estruturado opt-in. Para um
 ledger existente, siga seu procedimento e registre a mesma distinção de escopo
 e revisão. Não converta fricção do harness em teste pendente: use

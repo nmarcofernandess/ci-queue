@@ -1,7 +1,7 @@
 # Operar o registro versionado
 
 Owner vivo do formato e da projeção: `docs/VALIDATION-RECORD.md` na
-[fonte oficial selecionada](https://github.com/nmarcofernandess/ci-queue/blob/dev/plugins/ci-queue/references/sources.md). Esta referência ensina somente o helper
+[fonte oficial selecionada](https://github.com/nmarcofernandess/ci-queue/blob/main/plugins/ci-queue/references/sources.md). Esta referência ensina somente o helper
 embarcado. Não serve para migrar automaticamente um ledger Markdown existente.
 
 O helper é opcional e requer Node >=20 e uma cópia do pacote materializada no

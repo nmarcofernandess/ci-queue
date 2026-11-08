@@ -6,22 +6,50 @@
   },
   "presets": {
     "extension": {
-      "argv": ["node", "scripts/extension.mjs"]
+      "argv": [
+        "node",
+        "scripts/extension.mjs"
+      ]
     },
     "success": {
-      "argv": ["node", "scripts/success.mjs"]
+      "argv": [
+        "node",
+        "scripts/success.mjs"
+      ]
     },
     "failure": {
-      "argv": ["node", "scripts/failure.mjs"]
+      "argv": [
+        "node",
+        "scripts/failure.mjs"
+      ]
     },
     "wait": {
-      "argv": ["node", "scripts/wait.mjs"]
+      "argv": [
+        "node",
+        "scripts/wait.mjs"
+      ]
     },
     "cancel": {
-      "argv": ["node", "scripts/hold.mjs"]
+      "argv": [
+        "node",
+        "scripts/hold.mjs"
+      ]
     },
     "interrupt": {
-      "argv": ["node", "scripts/hold.mjs"]
+      "argv": [
+        "node",
+        "scripts/hold.mjs"
+      ]
     }
+  },
+  "guide": {
+    "verify": [
+      "node",
+      "scripts/run.mjs",
+      "<receita>"
+    ],
+    "notes": [
+      "O exemplo conserva o lifecycle e os outputs de cada receita, sem integra\u00e7\u00e3o ou prova de produto."
+    ]
   }
 }

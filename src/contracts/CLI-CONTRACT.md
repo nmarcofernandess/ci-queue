@@ -59,3 +59,13 @@ o estado local entra por `CI_QUEUE_STATE_DIR` ou `--state`, nunca pelo arquivo
 versionado. `enqueue` só grava um ticket; `worker` é o único comando que drena
 a fila. Isso permite um instalador iniciar um worker efêmero sem transformar o
 checkout consumidor em dono do executor.
+
+
+## Entrada leve do consumidor
+
+`ci-queue-consumer` é um bin distinto, read-only, sem o envelope da CLI worker.
+`inspect` conserva os campos anteriores e acrescenta `description`, `nextArgv`,
+`nextShell` e `integrate`. O vetor do próximo pedido é a fonte portátil;
+`nextShell=POSIX` identifica a representação textual. Entrada legado em string
+não é analisada como shell, nem um pedido de teste é substituído por ship.
+Formatos: [Consumer API](../../docs/CONTRACTS.md#descrição-de-execução-consumer-api-v1).

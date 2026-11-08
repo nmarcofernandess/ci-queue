@@ -101,6 +101,13 @@ export function validateRuntimeArgv(argv: string[]): void {
   if (!argv.length || argv.some(arg => typeof arg !== "string" || /[\0\r\n]/.test(arg))) fail("RUNTIME_ARGV_INVALID", "invalid argv")
   if (basename(argv[0]) === "env") {
     let i = 1
+    // env applies unsets before assignments. Preserve absence without allowing
+    // callers to remove the runtime binding or clear the whole environment.
+    while (argv[i] === "-u") {
+      const name = argv[i + 1]
+      if (!name || !/^[A-Za-z_][A-Za-z_0-9]*$/.test(name) || RESERVED.test(name)) fail("RUNTIME_ENV_OVERRIDE", "invalid or protected env unset")
+      i += 2
+    }
     if (argv[i] === "--") i++
     while (i < argv.length && /^[A-Za-z_][A-Za-z_0-9]*=/.test(argv[i])) {
       if (RESERVED.test(argv[i].split("=", 1)[0])) fail("RUNTIME_ENV_OVERRIDE", "env overrides runtime control")

@@ -367,3 +367,20 @@ test('deadline and process-group ownership survive the shell launcher', async ()
   assert.equal(result.processGroupIdentity.leaderPid, result.childPid)
   assert.match(result.failureReason, /prazo de execução excedido/)
 })
+
+test('structured unset preserves absence and empty values in the bound child', async () => {
+  const old = process.env.CI_QUEUE_PUBLIC_FIXTURE
+  process.env.CI_QUEUE_PUBLIC_FIXTURE = 'inherited'
+  try {
+    const f = fixture(['env', '-u', 'CI_QUEUE_PUBLIC_FIXTURE', 'CI_QUEUE_PUBLIC_EMPTY=', 'node', '-e',
+      'console.log(JSON.stringify({absent:!Object.hasOwn(process.env,"CI_QUEUE_PUBLIC_FIXTURE"),empty:process.env.CI_QUEUE_PUBLIC_EMPTY,node:process.execPath}))'])
+    const result = await f.run()
+    assert.equal(result.status, 'passed', log(f))
+    assert.match(log(f), /"absent":true,"empty":""/)
+    assert.ok(result.runtime.observations.some(item => item.execPath === node && item.status !== 'rejected'))
+    assert.equal(result.runtime.coverage, 'guarded-node-processes')
+  } finally {
+    if (old === undefined) delete process.env.CI_QUEUE_PUBLIC_FIXTURE
+    else process.env.CI_QUEUE_PUBLIC_FIXTURE = old
+  }
+})

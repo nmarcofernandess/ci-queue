@@ -63,3 +63,8 @@ encerra em finally, retendo `artifacts/example/report.json`. `--fail` demonstra
 falha com cleanup e relatório preservados. A receita `extension` executa o mesmo
 comando pela Queue; o relatório técnico não é prova de ship. Inspeção sem worker:
 `ci-queue-consumer inspect extension`. Não copie infraestrutura do DietFlow.
+
+
+`ci-queue-consumer inspect extension --executor direct -- --fail` only describes
+the request (`nextArgv`); it never starts the extension. Engine observations can
+use the pure `execution-description-v1` Consumer API; see the quickstart.
