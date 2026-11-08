@@ -225,7 +225,10 @@ quando o comando de `execution.queue.command` está no PATH, quando
 Um container de nuvem sem nada disso roda direto sem configuração. Um host com
 instalação e comando indisponível continua `queue` e falha com o motivo, em vez
 de rodar em outro lugar. `selectExecutor` permanece para chamadores da v1.
-`appendRecipeArgs` preserva tokens e o separador `--`, sem shell ou execução.
+`appendRecipeArgs` preserva tokens e separadores declarados, sem shell ou execução.
+Acrescenta `--` ao comando npm quando necessário para repassar argumentos ao
+script; programas nativos recebem os argumentos diretamente. Wrappers que
+precisam de um separador próprio o declaram no argv do catálogo.
 Valores fora de `direct|queue` falham com o nome da origem.
 
 O adaptador consumidor mantém seus argumentos especiais, loader, preparo,
