@@ -27,7 +27,7 @@ Fonte do formato: `src/contracts/schema.ts` e `config.ts`. Tickets v1/v2/v3/v4 c
 | `artifacts` | Compatibilidade de adoção: somente ausência ou `[]`. Nova seleção global, por receita ou CLI é recusada com orientação de migração para `finalization`. Tickets antigos mantêm os campos históricos, mas o worker novo nunca copia arquivos. |
 | `finalization` | Hook obrigatório quando presente: `schemaVersion: 2` para recuperação explícita; v1 legado continua legível, sem inferir retry. Exige `argv` não vazio, `timeoutMs` inteiro de 1 a 2.147.483.647, `contract` JSON finito até 64 KiB UTF-8 e `contractDigest` SHA-256 canônico. O enqueue congela o hook e seu `finalizationDigest` no ticket v4; o worker não relê o catálogo. |
 | `note` | Documentação, não política executável. A primeira frase aparece em `ci-queue-consumer guide`. |
-| `guide.verify` | Opcional, só do consumidor: comando para rodar uma receita, com `<receita>` como marcador. Mostrado por `guide` e usado como `next` em `inspect`. |
+| `guide.verify` | Opcional, só do consumidor: texto legado ou vetor de tokens da entrada pública. O token `<receita>` permite `nextArgv` no inspect; strings são orientação, sem parse de shell. |
 | `guide.notes` | Opcional, só do consumidor: lista de frases que o guia mostra como ensinamentos do repositório. O motor ignora. |
 | `ship.command` / `ship.notes` | Opcionais, só do consumidor: entrada do ship próprio e frases para os casos comuns da integração. O motor e o ship genérico ignoram. |
 | `execution.executor` | Preferência do catálogo (`queue`). O executor efetivo é do host: `--executor` → `CI_QUEUE_EXECUTOR` → host sem CI Queue roda direto → catálogo → direct. |
@@ -316,3 +316,41 @@ estado active/closing/unknown, pid/startedAt, revisão e último checkpoint.
 Ausência não comprova liberdade de stack ou dados. Manutenção recusa qualquer
 sessão não liberada ou owner incerto. Shapes, digest do requisito, limites,
 reentrada e operação estão no [owner de runtime](RUNTIME-ISOLATION.md#sessão-independente-do-job).
+
+
+## Descrição de execução (Consumer API v1)
+
+A feature `execution-description-v1` exporta `buildExecutionDescription(facts)`
+e `formatExecutionDescription(description)` sem I/O, discovery ou decisão de
+publicação. O consumidor fornece fatos dos seus owners, não estimativas pelo
+nome do teste. Tipos públicos: `consumer/index.d.cts`.
+
+- `phase`: `resolved`, `selected` ou `finished`; `recipe`: nome, nota e seletores.
+- `executor`: `effective`, `baseline` (resolução sem override do pedido, mantendo
+  o ambiente do mesmo host) e `host`. `divergent` é comparação informativa.
+- `selection`: `unknown` com motivo, ou `known` com populações por `scope`,
+  `unit` e, quando houver, `project`/`profile`. `selected` é obrigatório em uma
+  população conhecida; zero é observado, ausência não vira zero. `started`,
+  `outcomes` (passed/failed/skipped/interrupted/unreached) e `attempts` só entram
+  quando observados. Tentativas incluem retries; populações não são somadas
+  automaticamente como casos únicos. Falha de discovery permanece falha.
+- `policies`: escopo, modo `collect|stop`, workers, retries e maxFailures
+  conhecidos. Campo ausente continua pendente, sem default inventado.
+- `context`, `effects`, `results`, `limits`: listas de frases do consumidor.
+  Não transferem regras clínicas ou autoridade de publicação para a Queue.
+
+Números precisam ser inteiros seguros não negativos. A API copia os campos
+contratados e não altera o input. Ela valida forma, não comprova a observação.
+O anúncio de seleção pode ocorrer após parte do preparo, conforme o motor.
+
+Guide pode expor `verify.entryArgv`. Inspect com `guide.verify` estruturado
+substitui somente o token `<receita>` e preserva executor explícito e argumentos
+após `--` em `nextArgv`. `next` é sua apresentação com quoting `nextShell=POSIX`.
+Sem vetor/placeholder, `nextArgv=null`: não se reconstrói shell arbitrário.
+`integrate` conserva a orientação separada de ship; inspecionar uma receita
+aceita pelo ship não troca o pedido de testes por uma integração.
+
+WIP e direct explícito são capacidades legítimas. Flags Git pertencem às
+receitas que as declaram; integridade de um resultado histórico, compatibilidade
+funcional com um delta e elegibilidade de ship são alegações distintas do
+consumidor. Nenhuma delas é inferida pela descrição ou pela contagem.

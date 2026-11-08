@@ -16,16 +16,16 @@ retorna; `ci-queue:operate`, por exemplo, é um nome para localizar, não um pat
 Uma URI `skill://` não demonstra que o pacote esteja montado no filesystem.
 
 Para documentação, confirme um checkout oficial ou resolva a ref escolhida do
-repo `nmarcofernandess/ci-queue` para um SHA. O default observado é `dev`; use
-Git/GitHub somente leitura ou a [consulta pública da ref](https://api.github.com/repos/nmarcofernandess/ci-queue/commits/dev).
-Os links HTTPS abaixo são localizadores: substitua `dev` pelo SHA resolvido antes
+repo `nmarcofernandess/ci-queue` para um SHA. O default documental é a linha publicada `main` (ou ref explicitamente escolhida); use
+Git/GitHub somente leitura ou a [consulta pública da ref](https://api.github.com/repos/nmarcofernandess/ci-queue/commits/main).
+Os links HTTPS abaixo são localizadores: substitua `main` pelo SHA resolvido antes
 das leituras relacionadas, ou use `https://raw.githubusercontent.com/nmarcofernandess/ci-queue/<SHA>/<path>`.
 Paths documentais são relativos à raiz desse repo. Leia-os no checkout verificado
 ou por HTTPS, sem pedir arquivos do plugin root a `skills.read`. Se faltar acesso,
 informe ref/path e limite a conclusão; continue o trabalho independente.
 
-Leia [fontes e compatibilidade](https://github.com/nmarcofernandess/ci-queue/blob/dev/plugins/ci-queue/references/sources.md)
-e [arquitetura](https://github.com/nmarcofernandess/ci-queue/blob/dev/plugins/ci-queue/references/architecture.md).
+Leia [fontes e compatibilidade](https://github.com/nmarcofernandess/ci-queue/blob/main/plugins/ci-queue/references/sources.md)
+e [arquitetura](https://github.com/nmarcofernandess/ci-queue/blob/main/plugins/ci-queue/references/architecture.md).
 Referências e helper embarcados também podem ser usados quando uma cópia local
 do pacote tiver sido materializada e seu caminho real estiver confirmado.
 

@@ -50,7 +50,8 @@ detalhes de instalação ficam fora. [Blueprint](../../EGM-CI.md).
   finalização, sem tratá-los como veto geral a todo próximo claim.
 - Binding Node é opt-in. Sem registro, recibo é unconfigured. Com binding,
   runtime sanitiza controles reservados, reconstrói ambiente/shims e valida argv;
-  opções de `env`, inclusive `-u`, não são aceitas nesse caminho atual.
+  somente `env -u NAME` com nome válido e não reservado é admitido antes de
+  assignments; outras opções de env continuam recusadas.
   Guarda cobre processos cooperantes; não é isolamento do sistema operacional.
 - Sessão de runtime exige ticket running, protocolo/linhagem e autoridade
   privada. Release/recovery dependem de grupos/identidades e estado durável.

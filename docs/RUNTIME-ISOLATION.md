@@ -220,3 +220,14 @@ O consumidor decide o lifecycle de outputs, temporários, dados e cache. Preserv
 cache útil de dev/build; cache não é output selecionado nem resíduo que a Queue
 deva apagar. Um build descartável precisa de política explícita no seu produtor,
 sem timer, TTL global ou faxina manual como pré-condição do próximo comando.
+
+
+## Ambiente público estruturado
+
+No argv mediado, `env -u NAME [-u OTHER] [--] NAME=value comando ...` conserva
+inputs ausentes, vazios e preenchidos sem herdar um valor indevido do worker.
+Somente a forma curta `-u` com nome lexical de variável é admitida; controles
+reservados de runtime não podem ser removidos ou sobrescritos. O restante do
+comando continua validado. `env -i`, opções arbitrárias e shell login/interativo
+não ganham permissão por esse prefixo. O consumidor projeta somente os inputs
+públicos que conhece, nunca todo o ambiente, credenciais ou identidade de job.

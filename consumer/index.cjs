@@ -5,7 +5,7 @@ const { accessSync, constants, existsSync, statSync } = require('node:fs')
 const { delimiter, isAbsolute, join } = require('node:path')
 
 const CONSUMER_API_VERSION = 1
-const CONSUMER_FEATURES = Object.freeze(['host-executor-v1', 'guide-v1'])
+const CONSUMER_FEATURES = Object.freeze(['host-executor-v1', 'guide-v1', 'execution-description-v1'])
 const EXECUTORS = Object.freeze(['direct', 'queue'])
 const HOST_EXECUTOR_ENV = 'CI_QUEUE_EXECUTOR'
 const INSTALLATION_STATES = Object.freeze(['.local/state/ci-queue', '.local/state/local-ci/queue'])
@@ -86,12 +86,94 @@ function appendRecipeArgs(argv, extraArgs) {
   return extraArgs.length ? [...argv, ...(argv.at(-1) === '--' ? [] : ['--']), ...extraArgs] : [...argv]
 }
 
+// Facts come from the consumer and engine. This API never discovers tests.
+function descriptionText(value, label) {
+  if (typeof value !== 'string' || !value.trim()) throw new Error(`${label}: texto não vazio requerido.`)
+  return value
+}
+function descriptionCount(value, label) {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${label}: inteiro não negativo requerido.`)
+  return value
+}
+function descriptionExecutor(value, label) {
+  if (!value || typeof value !== 'object') throw new Error(`${label}: resolução requerida.`)
+  assertExecutor(value.executor, label)
+  if (!EXECUTORS.includes(value.executor)) throw new Error(`${label}: executor requerido.`)
+  if (!['explicit', 'environment', 'host-without-queue', 'catalog', 'default'].includes(value.reason)) throw new Error(`${label}: motivo inválido.`)
+  return { executor: value.executor, reason: value.reason, detail: descriptionText(value.detail, `${label}.detail`) }
+}
+function buildExecutionDescription(facts) {
+  if (!facts || !['resolved', 'selected', 'finished'].includes(facts.phase)) throw new Error('phase: resolved, selected ou finished requerida.')
+  const recipe = { name: descriptionText(facts.recipe?.name, 'recipe.name') }
+  if (facts.recipe.note !== undefined) recipe.note = descriptionText(facts.recipe.note, 'recipe.note')
+  if (facts.recipe.selectors !== undefined) {
+    if (!Array.isArray(facts.recipe.selectors) || facts.recipe.selectors.some(token => typeof token !== 'string')) throw new Error('recipe.selectors: argv deve conter strings.')
+    recipe.selectors = [...facts.recipe.selectors]
+  }
+  const effective = descriptionExecutor(facts.executor?.effective, 'executor.effective')
+  const baseline = descriptionExecutor(facts.executor?.baseline, 'executor.baseline')
+  const host = facts.executor.host
+  if (!host || typeof host.installed !== 'boolean') throw new Error('executor.host: host requerido.')
+  const executor = { effective, baseline, host: { installed: host.installed, evidence: descriptionText(host.evidence, 'executor.host.evidence') }, divergent: effective.executor !== baseline.executor }
+  let selection
+  if (facts.selection?.state === 'unknown') selection = { state: 'unknown', reason: descriptionText(facts.selection.reason, 'selection.reason') }
+  else if (facts.selection?.state === 'known' && Array.isArray(facts.selection.populations)) {
+    selection = { state: 'known', populations: facts.selection.populations.map((source, index) => {
+      const label = `selection.populations[${index}]`
+      if (!source || typeof source !== 'object') throw new Error(`${label}: população requerida.`)
+      const population = { scope: descriptionText(source.scope, `${label}.scope`), unit: descriptionText(source.unit, `${label}.unit`), selected: descriptionCount(source.selected, `${label}.selected`) }
+      for (const key of ['project', 'profile']) if (source[key] !== undefined) population[key] = descriptionText(source[key], `${label}.${key}`)
+      for (const key of ['started', 'attempts']) if (source[key] !== undefined) population[key] = descriptionCount(source[key], `${label}.${key}`)
+      if (source.outcomes !== undefined) {
+        if (!source.outcomes || typeof source.outcomes !== 'object' || Array.isArray(source.outcomes)) throw new Error(`${label}.outcomes: objeto requerido.`)
+        population.outcomes = {}
+        for (const key of ['passed', 'failed', 'skipped', 'interrupted', 'unreached']) if (source.outcomes[key] !== undefined) population.outcomes[key] = descriptionCount(source.outcomes[key], `${label}.outcomes.${key}`)
+      }
+      return population
+    }) }
+  } else throw new Error('selection: unknown com motivo ou known com populations requerida.')
+  if (facts.policies !== undefined && !Array.isArray(facts.policies)) throw new Error('policies: array requerido.')
+  const policies = (facts.policies ?? []).map(policy => {
+    const result = { scope: descriptionText(policy?.scope, 'policy.scope') }
+    if (policy.mode !== undefined) {
+      if (!['collect', 'stop'].includes(policy.mode)) throw new Error('policy.mode: collect ou stop requerido.')
+      result.mode = policy.mode
+    }
+    for (const key of ['workers', 'retries', 'maxFailures']) if (policy[key] !== undefined) result[key] = descriptionCount(policy[key], `policy.${key}`)
+    return result
+  })
+  return { consumerApiVersion: CONSUMER_API_VERSION, phase: facts.phase, recipe, executor, selection, policies,
+    context: readTeachingList(facts.context, 'context'), effects: readTeachingList(facts.effects, 'effects'),
+    results: readTeachingList(facts.results, 'results'), limits: readTeachingList(facts.limits, 'limits') }
+}
+function formatExecutionDescription(description) {
+  const d = buildExecutionDescription(description)
+  const lines = [`CI · ${d.recipe.name} · ${d.phase}`]
+  if (d.recipe.note) lines.push(d.recipe.note)
+  if (d.recipe.selectors?.length) lines.push(`Seletores: ${d.recipe.selectors.join(' ')}`)
+  lines.push(`Executor: ${d.executor.effective.executor} (${d.executor.effective.detail})`)
+  lines.push(`Padrão deste host: ${d.executor.baseline.executor} (${d.executor.baseline.detail})${d.executor.divergent ? '; divergência informativa' : ''}`)
+  if (d.selection.state === 'unknown') lines.push(`População: ainda não descoberta (${d.selection.reason})`)
+  else for (const p of d.selection.populations) {
+    const scope = [p.scope, p.project, p.profile].filter(Boolean).join(' / ')
+    const counts = [`${p.selected} ${p.unit} selecionados`]
+    if (p.started !== undefined) counts.push(`${p.started} iniciados`)
+    if (p.outcomes) for (const [key, value] of Object.entries(p.outcomes)) counts.push(`${key}=${value}`)
+    if (p.attempts !== undefined) counts.push(`${p.attempts} tentativas (incluindo retries)`)
+    lines.push(`População [${scope}]: ${counts.join('; ')}`)
+  }
+  if (!d.policies.length) lines.push('Política efetiva: pendente do motor')
+  for (const p of d.policies) lines.push(`Política [${p.scope}]: modo=${p.mode ?? 'pendente'}; workers=${p.workers ?? 'pendente'}; retries=${p.retries ?? 'pendente'}; maxFailures=${p.maxFailures ?? 'pendente'}`)
+  for (const [key, label] of [['context', 'Contexto'], ['effects', 'Efeito'], ['results', 'Resultado'], ['limits', 'Limite']]) for (const value of d[key]) lines.push(`${label}: ${value}`)
+  return lines.join('\n')
+}
+
 // What every consumer needs to know, said once by the tool instead of copied
 // into each repository's instructions.
 const GENERIC_TEACHINGS = Object.freeze([
   'Há dois tipos de trabalho: verificar (uma receita do catálogo) e integrar (o ship). Não existe um terceiro.',
-  'O executor é do host: esta ferramenta mostra qual é e por quê. A opção --executor é só para uma exceção pontual.',
-  'Rodar o comando da receita diretamente continua válido; só a prova aceita pelo ship conta para integrar.',
+  'O CI do consumidor recebe o pedido e mostra executor, seleção e política. --executor direct|queue preserva a escolha explícita; divergência com o padrão do host é informação.',
+  'Uma execução integral ou focal explícita pode usar WIP; executar testes, publicar evidência e integrar pelo ship são operações distintas.',
   'Fila ocupada é espera normal. Para retomar, consulte o ticket existente antes de enfileirar de novo.',
   'Encerrar a espera (--wait, timeout) não cancela o job, e resultado ausente não é aprovação.',
 ])
@@ -147,7 +229,7 @@ function buildGuide({ config, root, env = process.env, home = env.HOME }) {
     project: config.project,
     root,
     executor: { ...executor, host, override: `--executor direct|queue (pontual) ou ${HOST_EXECUTOR_ENV}=direct|queue (host)` },
-    verify: { entry: verifyEntry, recipes },
+    verify: { entry: verifyEntry, ...(Array.isArray(guide.verify) ? { entryArgv: [...guide.verify] } : {}), recipes },
     integrate: shipEntry
       ? { entry: shipEntry, proofRecipes: accepted, notes: readTeachingList(ship.notes, 'ship.notes') }
       : { entry: null, proofRecipes: [], notes: ['Este catálogo não declara ship; integrar fica fora do CI Queue neste repositório.'] },
@@ -208,4 +290,6 @@ module.exports = {
   buildGuide,
   formatGuide,
   GENERIC_TEACHINGS,
+  buildExecutionDescription,
+  formatExecutionDescription,
 }

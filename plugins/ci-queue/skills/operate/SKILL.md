@@ -6,7 +6,7 @@ description: Use quando o usuário solicitar executar CI ou uma receita, acompan
 # Operar e diagnosticar
 
 Use o bootstrap da entrada `ci-queue:ci-queue`, localizada pelo catálogo do host.
-Leia [fontes](https://github.com/nmarcofernandess/ci-queue/blob/dev/plugins/ci-queue/references/sources.md), [arquitetura](https://github.com/nmarcofernandess/ci-queue/blob/dev/plugins/ci-queue/references/architecture.md) na revisão resolvida
+Leia [fontes](https://github.com/nmarcofernandess/ci-queue/blob/main/plugins/ci-queue/references/sources.md), [arquitetura](https://github.com/nmarcofernandess/ci-queue/blob/main/plugins/ci-queue/references/architecture.md) na revisão resolvida
 e o procedimento do consumidor. Determine se o pedido é leitura, execução,
 cancelamento ou correção. Consulta/diagnóstico não autoriza lançar uma receita.
 
@@ -19,8 +19,8 @@ texto livre de pendências, logs ou backlog. Se faltar receita/capacidade, regis
 o motivo no owner consumidor e continue o que puder ser feito.
 
 O executor é do host: `ci-queue-consumer guide` e `inspect` mostram qual é e
-por quê. Receita existente não obriga fila; recurso compartilhado usa a fila no
-host que a tem. `config` e
+por quê. A descrição informa seleção/política observadas; divergência de
+direct explícito é informação, sem dispensar locks concretos do consumidor. `config` e
 `version --json` identificam o contrato e a instalação. Confirme o state de CLI,
 worker e API. O ambiente do caller não prova o ambiente do worker.
 

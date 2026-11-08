@@ -14,8 +14,8 @@ O projeto precisa do comando de teste verdadeiro e das dependências que ele usa
 
 ## 2. Mantenha o comando independente; aponte a Queue se desejado
 
-O consumidor escolhe execução direta ou Queue; Jest puro não exige fila.
-O catálogo aponta para comandos que já funcionam no projeto; CI Queue os executa com supervisão, fila e registros. Rodar o comando diretamente continua válido e não cria ticket nem prova reutilizável pelo ship genérico. Para exigir duas verificações, faça um agregador que execute ambas e preserve falhas. `acceptedPresets: ["lint","test"]` significa **OR**, não AND.
+O CI do consumidor recebe o pedido e escolhe direct ou Queue; ferramentas interativas e seleção explícita seguem o contrato local.
+O catálogo aponta para comandos que já funcionam no projeto; CI Queue os executa com supervisão, fila e registros. O CI precisa conservar a execução equivalente sem Queue pelo executor direct. Ferramentas livres seguem o contrato local; chamar um runner cru não produz, por si, prova reutilizável pelo ship genérico. Para exigir duas verificações, faça um agregador que execute ambas e preserve falhas. `acceptedPresets: ["lint","test"]` significa **OR**, não AND.
 
 Mantenha o teste como uma única receita. Um teste avulso pode continuar mesmo que a base avance; não configure `fetchBase` ou `abortOnStaleBase` só para transformá-lo em prova. Se o repositório possui um ship próprio, esse processo pode aplicar flags estritas no enqueue da mesma receita, validar o ticket e revalidar HEAD/base antes do merge. O ship genérico atual lê as flags do catálogo e exige que as receitas aceitas já sejam ship-bound. O consumidor decide se um teste isolado é cancelável. O CI Queue executa as flags recebidas; não deduz intenção de ship pelo nome da receita ou pelo diff.
 
@@ -212,15 +212,13 @@ npx --no-install ci-queue-consumer inspect check --executor direct -- --case exe
 `guide` (também o comando sem argumentos) procura o catálogo schema1 a partir
 do cwd e mostra o executor deste host com o motivo, as receitas com a primeira
 frase de `note`, a entrada e a prova do ship e os ensinamentos genéricos e do
-repositório. `inspect` mostra argv literais, executor, motivo, a próxima
-linha a rodar e `started: false`. Nenhum dos dois prepara ou roda a receita,
+repositório. `inspect` mostra argv literais, executor, motivo, o próximo pedido estruturado quando disponível, orientação de ship separada e `started: false`. Nenhum dos dois prepara ou roda a receita,
 confirma recursos, outputs, protocolo da instalação ou elegibilidade de ship.
 
 ### Executor do host
 
 O catálogo declara uma preferência (`execution.executor: "queue"`); quem decide
-é o host. `resolveExecutor` aplica, nesta ordem: opção `--executor` (exceção
-pontual) → variável `CI_QUEUE_EXECUTOR` do host → host sem CI Queue roda direto
+é o host. `resolveExecutor` aplica, nesta ordem: opção `--executor` explícita → variável `CI_QUEUE_EXECUTOR` do host → host sem CI Queue roda direto
 → preferência do catálogo → direct. `detectQueueHost` considera o host com fila
 quando o comando de `execution.queue.command` está no PATH, quando
 `CI_QUEUE_STATE_DIR` existe ou quando há `installation.json` nos states usuais.
@@ -258,3 +256,25 @@ processos diferencia zombies (`ps stat=Z`) de processos executáveis. Um grupo s
 de zombies não reserva o executor; um descendente vivo continua protegido.
 Nascimento/pgid/host divergentes continuam incertos. Isso não troca state,
 não mata processos e não recupera publicação sem os guards do mesmo ID.
+
+
+### Ensinar o pedido na execução
+
+Declare `guide.verify` como `["npm", "run", "ci:run", "--", "<receita>"]`. Assim inspect conserva os tokens em
+`nextArgv`, inclusive `--executor` e o focal explícito, sem iniciar a receita.
+Um consumidor sem npm usa seu próprio argv público.
+
+No CI do consumidor, reúna os fatos já resolvidos e chame
+`buildExecutionDescription({ phase: 'resolved', recipe: { name: recipeName },
+executor: { effective, baseline, host },
+selection: { state: 'unknown', reason: 'motor ainda não iniciou a seleção' } })`;
+`formatExecutionDescription(description)` apresenta esses fatos. Importe ambas
+de `@nmarcofernandess/ci-queue/consumer` e confira a feature
+`execution-description-v1` na revisão instalada. Na descoberta do próprio motor,
+repita com `phase: 'selected'` e populações observadas, sem discovery duplicada.
+Os formatos e limites pertencem a [CONTRACTS](CONTRACTS.md#descrição-de-execução-consumer-api-v1).
+
+Ao retirar aliases, migre seus callers e conserve seleção, ambiente público e
+efeitos pela entrada equivalente do CI. Focal não se transforma em unidade
+integral; seleção não decide publicação. O adaptador local aponta para plugin,
+mapa e procedimento local, sem copiar as regras genéricas.

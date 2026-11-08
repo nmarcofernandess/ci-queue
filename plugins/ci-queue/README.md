@@ -35,7 +35,7 @@ destino real antes de declarar a substituição da skill anterior.
 Codex, com CLI que ofereça `plugin` (confira `codex plugin --help`):
 
 ```sh
-codex plugin marketplace add nmarcofernandess/ci-queue --ref dev
+codex plugin marketplace add nmarcofernandess/ci-queue --ref main
 codex plugin add ci-queue@ci-queue
 codex plugin marketplace upgrade ci-queue
 codex plugin add ci-queue@ci-queue
@@ -52,7 +52,7 @@ chat. Marketplace descoberto não comprova plugin instalado.
 Claude Code:
 
 ```sh
-claude plugin marketplace add nmarcofernandess/ci-queue#dev
+claude plugin marketplace add nmarcofernandess/ci-queue#main
 claude plugin install ci-queue@ci-queue
 claude plugin marketplace update ci-queue
 claude plugin update ci-queue@ci-queue
@@ -111,3 +111,8 @@ Contratos de distribuição conferidos em 26/10/2026:
 [Claude manifest](https://code.claude.com/docs/en/plugins-reference),
 [Claude atualização](https://code.claude.com/docs/en/plugins/host-marketplace).
 [Erros de listagem OpenAI](https://developers.openai.com/plugins/deploy/submission-errors#listing-and-interface-errors).
+
+
+Edição 0.1.3: localizadores documentais partem de main ou ref explícita resolvida
+uma vez a SHA; adoção aponta a descrição de execução. Confira manifest/catálogo
+carregado em cada host: versão do plugin não comprova pacote consumer ou runtime.

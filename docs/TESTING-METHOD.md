@@ -133,8 +133,10 @@ feedback desativado até o consumidor declarar e implementar sua receita.
 ## Mesmo comando, executor do host
 
 O executor é resolvido pelo host (ver [executor do host](CONSUMER-QUICKSTART.md#executor-do-host));
-`ci-queue-consumer guide` mostra qual é e por quê. Jest puro barato normalmente
-roda direto; recursos compartilhados pedem a fila no host que a tem. Não
+`ci-queue-consumer guide` mostra qual é e por quê. O CI do consumidor preserva
+seleção integral ou focal e execução com WIP. Direct explícito permanece válido;
+a divergência com o padrão do host é informação, e recursos/locks concretos
+continuam sob o owner local. Não
 transforme a existência de um preset em obrigação universal ou preparação de stack. Adoção
 standalone não exige ship-bound; as flags de prova pertencem às receitas aceitas
 pelo ship, quando esse controller for adotado. `init` conserva sua inferência de
@@ -158,3 +160,12 @@ passagem. [CONTRACTS](CONTRACTS.md) governa publicação, replay e manutenção.
 A [entrada leve do quickstart](CONSUMER-QUICKSTART.md#entrada-reutilizável-sem-worker-ou-plugin-consumer-api-v1)
 ensina o catálogo e o host sem plugin/worker. O núcleo versionado não copia
 infraestrutura do consumidor nem muda suas garantias.
+
+
+## Descrever sem governar a seleção
+
+O contrato de [descrição de execução](CONTRACTS.md#descrição-de-execução-consumer-api-v1)
+mostra o pedido resolvido e, quando o motor descobrir, a população e a política
+reais. Antes disso, o desconhecido é declarado. Não use quantidade como gate ou
+julgue custo pelo nome do teste. O método local decide a sequência de autoria,
+review, coleta e publicação; a descrição não atesta leitura nem cria certificação.

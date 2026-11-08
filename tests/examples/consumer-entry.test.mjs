@@ -127,7 +127,8 @@ test('repository teachings come from its catalog; the tool keeps the generic one
     assert.equal(inspected.started, false)
     const proof = JSON.parse(runConsumer(project, ['inspect', 'check-ship'], host.env).stdout)
     assert.equal(proof.shipProof, true)
-    assert.equal(proof.next, 'npm run ship', 'the ship produces its own proof')
+    assert.equal(proof.next, 'npm run ci:run -- check-ship')
+    assert.equal(proof.integrate.entry, 'npm run ship', 'integration guidance stays separate')
 
     const wrongTeaching = catalogFixture(host.root, { guide: { notes: 'uma frase solta' } })
     const invalid = runConsumer(wrongTeaching, ['guide'], host.env)
@@ -201,4 +202,38 @@ test('consumer extension prepares and closes its own resources, retaining its re
       assert.equal(report.schemaVersion, 1)
     }
   } finally { rmSync(root, {recursive: true, force: true}) }
+})
+
+
+test('structured inspect preserves explicit executor, selectors and literal tokens without running them', () => {
+  const host = hostFixture({ withQueue: true })
+  try {
+    const project = catalogFixture(host.root, {
+      guide: { verify: ['npm', 'run', 'ci:run', '--', '<receita>'], notes: [] },
+      ship: { acceptedPresets: ['check-ship'], command: ['npm', 'run', 'ship'] },
+    })
+    const selectors = ['--case', '', "  literal ' value; $(false)  ", '--flag']
+    const result = runConsumer(project, ['inspect', 'check-ship', '--executor', 'direct', '--', ...selectors], host.env)
+    assert.equal(result.status, 0, result.stderr)
+    const request = JSON.parse(result.stdout)
+    assert.deepEqual(request.nextArgv, ['npm', 'run', 'ci:run', '--', 'check-ship', '--executor', 'direct', '--', ...selectors])
+    assert.equal(request.nextShell, 'POSIX')
+    assert.equal(request.description.executor.divergent, true)
+    assert.equal(request.description.selection.state, 'unknown')
+    assert.deepEqual(request.integrate.entry, ['npm', 'run', 'ship'])
+    // Round-trip through a POSIX shell only prints argv; the payload is literal.
+    const roundTrip = spawnSync('/bin/sh', ['-c', `set -- ${request.next}; printf '%s\\n' "$@"`], {encoding: 'utf8'})
+    assert.deepEqual(roundTrip.stdout.trimEnd().split('\n'), request.nextArgv)
+  } finally { rmSync(host.root, { recursive: true, force: true }) }
+})
+
+
+test('example public CI entry preserves the selected recipe and explicit direct', () => {
+  const script = new URL('../../examples/local-project/scripts/run.mjs', import.meta.url).pathname
+  for (const [recipe, expected] of [['success', 0], ['failure', 7]]) {
+    const result = spawnSync(process.execPath, [script, recipe, '--executor', 'direct'], { encoding: 'utf8' })
+    assert.equal(result.status, expected, result.stderr)
+    assert.match(result.stderr, new RegExp(`CI · ${recipe}`))
+    assert.match(result.stderr, /Executor: direct/)
+  }
 })

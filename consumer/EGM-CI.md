@@ -40,3 +40,11 @@ CLI. Não inicia, repete, certifica ou cancela jobs.
 `npm run test:examples` é o script configurado para exemplos, incluindo
 `tests/examples/consumer-entry.test.mjs`. Apenas identificado, não executado.
 [Quickstart](../docs/CONSUMER-QUICKSTART.md) mantém a instrução de adoção.
+
+
+## Execution description extension
+
+`buildExecutionDescription` / `formatExecutionDescription` validate and format
+consumer facts without I/O. Unknown selection differs from observed zero;
+units/profiles/attempts remain separate. Inspect emits structured nextArgv when
+guide.verify is an array, with ship guidance separate. Contract: docs/CONTRACTS.md.
