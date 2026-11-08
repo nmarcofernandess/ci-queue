@@ -1,4 +1,5 @@
 import { existsSync, writeFileSync } from "node:fs"
+import { appendRecipeArgs } from "../../consumer/index.cjs"
 import { join } from "node:path"
 
 import { readQueueConfig, type ResolvedQueueConfig } from "../contracts/config.js"
@@ -66,7 +67,7 @@ export function buildTicket(input: EnqueueInput, resolved?: ResolvedQueueConfig)
   // ref during execution. Ship recipes retain the fetched ref and its checks.
   const baseRef = preset.fetchBase ?? (git?.baseSha || undefined)
   const extraArgs = input.extraArgs ?? []
-  const argv = extraArgs.length ? [...preset.argv, "--", ...extraArgs] : [...preset.argv]
+  const argv = appendRecipeArgs(preset.argv, extraArgs)
   return {
     id,
     createdAt: now.toISOString(),

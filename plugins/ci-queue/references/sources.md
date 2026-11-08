@@ -1,7 +1,7 @@
 # Fontes vivas e compatibilidade
 
 Repositório oficial: https://github.com/nmarcofernandess/ci-queue.
-A linha de desenvolvimento observada nesta edição é `dev`; `main` é outra linha.
+A fonte documental padrão é `main`, ou uma ref explicitamente escolhida. Resolva-a uma vez a SHA antes das leituras relacionadas; isso não demonstra qual pacote, runtime ou plugin está instalado.
 O pacote 0.1.0 foi estudado em `41fadb02bdef92f9d07561716d84071d2b4d121a`.
 
 Quando o host expõe somente `SKILL.md`, use o bootstrap contido na entrada geral

@@ -101,6 +101,13 @@ export function validateRuntimeArgv(argv: string[]): void {
   if (!argv.length || argv.some(arg => typeof arg !== "string" || /[\0\r\n]/.test(arg))) fail("RUNTIME_ARGV_INVALID", "invalid argv")
   if (basename(argv[0]) === "env") {
     let i = 1
+    // env applies unsets before assignments. Preserve absence without allowing
+    // callers to remove the runtime binding or clear the whole environment.
+    while (argv[i] === "-u") {
+      const name = argv[i + 1]
+      if (!name || !/^[A-Za-z_][A-Za-z_0-9]*$/.test(name) || RESERVED.test(name)) fail("RUNTIME_ENV_OVERRIDE", "invalid or protected env unset")
+      i += 2
+    }
     if (argv[i] === "--") i++
     while (i < argv.length && /^[A-Za-z_][A-Za-z_0-9]*=/.test(argv[i])) {
       if (RESERVED.test(argv[i].split("=", 1)[0])) fail("RUNTIME_ENV_OVERRIDE", "env overrides runtime control")
@@ -351,6 +358,7 @@ type SessionRecord = {
   groups: Group[]; evidenceOffset: number
   state: "active" | "closing" | "released"; stateRevision: number; lastCheckpointAt?: string
   env: NodeJS.ProcessEnv; receipt: RuntimeReceipt
+  identityRecovery?: { operationId: string; recordSha256: string; catalogBefore: FileIdentity; bundleBefore: FileIdentity; catalogAfter: FileIdentity; bundleAfter: FileIdentity }
   recovery?: { operationId: string; originalStateRevision: number; recoveryOwnerStamp: SessionRuntimeRecovery["recoveryOwnerStamp"] }
 }
 const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/
@@ -377,6 +385,9 @@ function assertReleaseInput(input: unknown): asserts input is SessionRuntimeHand
   if (!object(input) || !("mode" in input)) { assertHandleInput(input); return }
   const original = input.original
   const stamp = input.recoveryOwnerStamp
+  const observation = input.filesystemObservation
+  if (observation !== undefined && (!object(observation) || !hashValue(observation.recordSha256)
+    || !validFileIdentity(observation.catalog as FileIdentity) || !validFileIdentity(observation.bundle as FileIdentity))) fail("RUNTIME_SESSION_INVALID", "invalid filesystem observation")
   if (input.mode !== "recover" || !privateText(input.root) || !isAbsolute(input.root) || !sessionIdValue(input.operationId)
     || !object(original) || !privateText(original.runtimeId) || !original.runtimeId.startsWith("session-") || !sessionIdValue(original.runtimeId.slice(8))
     || !isValidProjectId(original.projectId) || !sessionIdValue(original.sessionId) || !hashValue(original.bindingDigest) || !positiveInteger(original.expectedStateRevision)
@@ -399,18 +410,42 @@ function sessionPaths(root: string, id: string): { record: string; directory: st
   assertNoSymlinkPaths([root, join(root, "runtime"), catalog(root), directory])
   return { record: join(catalog(root), id + ".json"), directory, lock: join(catalog(root), id + ".lock") }
 }
-function readSession(root: string, id: string): SessionRecord {
+function readSession(root: string, id: string, recovery?: SessionRuntimeRecovery): SessionRecord {
   const paths = sessionPaths(root, id)
   privatePath(catalog(root), true); privatePath(paths.record)
-  const r = JSON.parse(readBoundedFile(paths.record, 256 * 1024).toString("utf8")) as SessionRecord
+  const bytes = readBoundedFile(paths.record, 256 * 1024)
+  const r = JSON.parse(bytes.toString("utf8")) as SessionRecord
   if (r.schemaVersion !== 1 || r.runtimeId !== id || typeof r.sessionId !== "string" || !SESSION_ID.test(r.sessionId) || id !== "session-" + r.sessionId
     || !isValidProjectId(r.projectId) || ![r.bindingDigest, r.requirementDigest, r.token].every(value => typeof value === "string" && HASH.test(value))
     || !["active", "closing", "released"].includes(r.state) || !Number.isSafeInteger(r.stateRevision) || r.stateRevision < 1
-    || r.directory !== paths.directory || !validFileIdentity(r.directoryIdentity) || !validFileIdentity(r.catalogIdentity) || !sameIdentity(r.catalogIdentity, fileIdentity(catalog(root)))
+    || r.directory !== paths.directory || !validFileIdentity(r.directoryIdentity) || !validFileIdentity(r.catalogIdentity)
     || !Number.isSafeInteger(r.evidenceOffset) || r.evidenceOffset < 0
     || !validReceipt(r) || (r.recovery !== undefined && !validRecovery(r))
     || !Array.isArray(r.groups) || r.groups.length > 512 || !r.groups.every(validGroup) || !validGroup(r.owner) || !validGroup(r.producer) || !object(r.env) || !object(r.receipt)) fail("RUNTIME_SESSION_UNCERTAIN", "private record invalid")
+  if (r.identityRecovery !== undefined && !validIdentityRecovery(r)) fail("RUNTIME_SESSION_UNCERTAIN", "invalid identity recovery journal")
+  if (!sameIdentity(r.catalogIdentity, fileIdentity(catalog(root)))) {
+    const observation = recovery?.filesystemObservation
+    if (!observation || r.recovery || !existsSync(r.directory)) return fail("RUNTIME_SESSION_UNCERTAIN", "catalog identity changed; explicit filesystem recovery observation required")
+    privatePath(r.directory, true)
+    const currentCatalog = fileIdentity(catalog(root)), currentBundle = fileIdentity(r.directory)
+    const sameObject = (before: FileIdentity, after: FileIdentity) => before.uid === after.uid && before.ino === after.ino
+    if (createHash("sha256").update(bytes).digest("hex") !== observation.recordSha256
+      || !sameIdentity(observation.catalog, currentCatalog) || !sameIdentity(observation.bundle, currentBundle)
+      || !sameObject(r.catalogIdentity, currentCatalog) || !sameObject(r.directoryIdentity, currentBundle)
+      || r.catalogIdentity.dev !== r.directoryIdentity.dev || currentCatalog.dev !== currentBundle.dev
+      || r.directoryIdentity.dev === currentBundle.dev) fail("RUNTIME_SESSION_UNCERTAIN", "filesystem recovery observation differs from paired device change")
+  }
   return r
+}
+function validIdentityRecovery(r: SessionRecord): boolean {
+  const j = r.identityRecovery
+  return Boolean(j && r.recovery && j.operationId === r.recovery.operationId && hashValue(j.recordSha256)
+    && [j.catalogBefore, j.bundleBefore, j.catalogAfter, j.bundleAfter].every(validFileIdentity)
+    && j.catalogBefore.uid === j.catalogAfter.uid && j.catalogBefore.ino === j.catalogAfter.ino
+    && j.bundleBefore.uid === j.bundleAfter.uid && j.bundleBefore.ino === j.bundleAfter.ino
+    && j.catalogBefore.dev === j.bundleBefore.dev && j.catalogAfter.dev === j.bundleAfter.dev
+    && j.catalogBefore.dev !== j.catalogAfter.dev
+    && sameIdentity(j.catalogAfter, r.catalogIdentity) && sameIdentity(j.bundleAfter, r.directoryIdentity))
 }
 function validReceipt(r: SessionRecord): boolean {
   const receipt = r.receipt
@@ -573,7 +608,8 @@ export function releaseSessionRuntime(input: SessionRuntimeHandle | SessionRunti
   const recover = "mode" in input && input.mode === "recover"
   const id = recover ? input.original.runtimeId : (input as SessionRuntimeHandle).runtimeId
   return withSessionLock(input.root, id, () => {
-    const r = readSession(input.root, id)
+    const r = readSession(input.root, id, recover ? input : undefined)
+    let identityRecovery: SessionRecord["identityRecovery"]
     if (recover) {
       const original = input.original
       if (original.projectId !== r.projectId || original.sessionId !== r.sessionId || original.bindingDigest !== r.bindingDigest) fail("RUNTIME_SESSION_AUTHORITY", "original recovery binding mismatch")
@@ -587,6 +623,14 @@ export function releaseSessionRuntime(input: SessionRuntimeHandle | SessionRunti
         if (canonicalJson(previous) !== canonicalJson(input.recoveryOwnerStamp)
           && observeProcessGroup({ hostname: hostname(), leaderPid: previous.pid, pgid: previous.pgid, startedAt: previous.startedAt }).state !== "dead") fail("RUNTIME_SESSION_CAS", "previous recovery actor alive or uncertain")
       } else if (r.stateRevision !== original.expectedStateRevision || r.state === "released") fail("RUNTIME_SESSION_CAS", "state revision changed")
+      if (!sameIdentity(r.catalogIdentity, fileIdentity(catalog(input.root)))) {
+        const observation = input.filesystemObservation!
+        identityRecovery = { operationId: input.operationId, recordSha256: observation.recordSha256,
+          catalogBefore: r.catalogIdentity, bundleBefore: r.directoryIdentity,
+          catalogAfter: observation.catalog, bundleAfter: observation.bundle }
+        // Only in-memory candidates change before the existing release authority is durable.
+        r.catalogIdentity = observation.catalog; r.directoryIdentity = observation.bundle
+      }
       if (r.state !== "released" && existsSync(r.directory)) captureSessionEvidence(r)
       if ([r.owner, r.producer, ...r.groups].some(g => observeProcessGroup(g).state !== "dead")) fail("RUNTIME_SESSION_OCCUPIED", "original groups alive or uncertain")
       if (existsSync(r.directory)) assertBundle(r)
@@ -612,6 +656,13 @@ export function releaseSessionRuntime(input: SessionRuntimeHandle | SessionRunti
       if (rows.some(p => p.pgid === r.owner.pgid && !callers.has(p.pid))) fail("RUNTIME_SESSION_OCCUPIED", "session descendants still alive")
       if (existsSync(r.directory)) assertBundle(r)
     }
+    if (identityRecovery) {
+      privatePath(catalog(input.root), true); privatePath(sessionPaths(input.root, id).record)
+      assertBundle(r)
+      if (!sameIdentity(r.catalogIdentity, fileIdentity(catalog(input.root)))
+        || createHash("sha256").update(readBoundedFile(sessionPaths(input.root, id).record, 256 * 1024)).digest("hex") !== identityRecovery.recordSha256) fail("RUNTIME_SESSION_CAS", "filesystem observation changed before release")
+      r.identityRecovery = identityRecovery
+    }
     r.state = "closing"; r.stateRevision++
     // Durable authority precedes effects. Reentry uses the same original CAS.
     persistSession(input.root, r)
@@ -620,6 +671,8 @@ export function releaseSessionRuntime(input: SessionRuntimeHandle | SessionRunti
       captureSessionEvidence(r)
       if (r.groups.some(g => (!recover && g.pgid === r.owner.pgid) ? false : observeProcessGroup(g).state !== "dead")) fail("RUNTIME_SESSION_OCCUPIED", "session groups changed during release")
       persistSession(input.root, r)
+      assertBundle(r)
+      if (!sameIdentity(r.catalogIdentity, fileIdentity(catalog(input.root)))) fail("RUNTIME_SESSION_UNCERTAIN", "catalog changed before bundle removal")
       rmSync(r.directory, { recursive: true })
     }
     r.state = "released"; r.stateRevision++; r.lastCheckpointAt = new Date().toISOString()

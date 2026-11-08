@@ -87,7 +87,18 @@ describe("CLI help is a query", () => {
     writeFileSync(join(project, "ci-queue.json"), JSON.stringify({ schemaVersion: 1, project: { id: "help-fixture", name: "Help fixture" }, presets: { check: { argv: [process.execPath, "--version"] } } }))
     const extra = ["--help", "-h", "help", "--json", "--state", "recipe-state", "--cwd", "recipe-cwd", "--config", "recipe-config"]
     const result = await runCli(["enqueue", "check", "--state", state, "--cwd", project, "--json", "--", ...extra])
-    expect(result).toMatchObject({ ok: true, result: { ticket: { argv: [process.execPath, "--version", "--", ...extra], extraArgs: extra, cwd: project, status: "queued" } } })
+    expect(result).toMatchObject({ ok: true, result: { ticket: { argv: [process.execPath, "--version", ...extra], extraArgs: extra, cwd: project, status: "queued" } } })
+  })
+
+  it.each([
+    { argv: ["bash", "golden.sh", "flow"], extra: ["next-dev"], expected: ["bash", "golden.sh", "flow", "next-dev"] },
+    { argv: ["npm", "run", "test"], extra: ["--case", "a b"], expected: ["npm", "run", "test", "--", "--case", "a b"] },
+    { argv: ["npm", "run", "test", "--"], extra: ["--case", "a b"], expected: ["npm", "run", "test", "--", "--case", "a b"] },
+  ])("composes native and npm ticket argv with the same consumer convention: $argv", async ({ argv, extra, expected }) => {
+    const project = fixture(), state = fixture()
+    writeFileSync(join(project, "ci-queue.json"), JSON.stringify({ schemaVersion: 1, project: { id: "argv-fixture", name: "Argv fixture" }, presets: { check: { argv } } }))
+    const result = await runCli(["enqueue", "check", "--state", state, "--cwd", project, "--json", "--", ...extra])
+    expect(result).toMatchObject({ ok: true, result: { ticket: { argv: expected, extraArgs: extra, status: "queued" } } })
   })
 
   it("reports an unknown help target without invoking a command", async () => {

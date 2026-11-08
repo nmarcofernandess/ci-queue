@@ -9,6 +9,7 @@ const {
   HOST_EXECUTOR_ENV,
   appendRecipeArgs,
   buildGuide,
+  buildExecutionDescription,
   detectQueueHost,
   formatGuide,
   resolveExecutor,
@@ -74,14 +75,24 @@ function inspect(recipe, args) {
   const argv = appendRecipeArgs(preset.argv, extra)
   const declared = config.guide?.verify
   const shipCommand = config.ship?.command
-  // A prova do ship é produzida pelo próprio ship; rodá-la à parte não integra.
-  const next = accepted.includes(recipe) && shipCommand
-    ? (Array.isArray(shipCommand) ? shipCommand.join(' ') : String(shipCommand))
-    : declared
-    ? (Array.isArray(declared) ? declared.join(' ') : String(declared)).replace('<receita>', recipe)
-    : resolved.executor === 'queue'
-      ? `${config.execution?.queue?.command ?? 'ci-queue'} enqueue ${recipe} --cwd "$PWD" --config ci-queue.json --wait`
-      : argv.join(' ')
+  const baseline = resolveExecutor({ environment: process.env[HOST_EXECUTOR_ENV]?.trim() || undefined, configured: config.execution?.executor, host })
+  // Only a structured public entry can preserve an executable request. A legacy
+  // shell string is guidance, never parsed or silently replaced with a ship.
+  let nextArgv = null
+  if (Array.isArray(declared) && declared.includes('<receita>')) {
+    if (declared.some(arg => typeof arg !== 'string' || !arg)) throw new TeachingError('guide.verify deve conter somente tokens não vazios.')
+    nextArgv = declared.map(arg => arg === '<receita>' ? recipe : arg)
+    if (explicit !== undefined) nextArgv.push('--executor', explicit)
+    if (extra.length) nextArgv.push('--', ...extra)
+  }
+  const shellQuote = value => /^[A-Za-z0-9_@%+=:,./-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`
+  const next = nextArgv ? nextArgv.map(shellQuote).join(' ') : typeof declared === 'string' ? declared.replace('<receita>', recipe) : null
+  const description = buildExecutionDescription({
+    phase: 'resolved', recipe: { name: recipe, ...(preset.note ? { note: preset.note } : {}), selectors: extra },
+    executor: { effective: resolved, baseline, host },
+    selection: { state: 'unknown', reason: 'inspeção não inicia discovery do motor' },
+    limits: ['Inspeção do catálogo; extensões, ambiente e outputs são resolvidos pelo CI do consumidor.'],
+  })
   console.log(JSON.stringify({
     consumerApiVersion: CONSUMER_API_VERSION,
     cwd: root,
@@ -95,6 +106,10 @@ function inspect(recipe, args) {
     argv,
     shipProof: accepted.includes(recipe),
     next,
+    nextArgv,
+    nextShell: nextArgv ? 'POSIX' : null,
+    integrate: { entry: shipCommand ?? null, shipProof: accepted.includes(recipe) },
+    description,
     started: false,
     limits: 'Inspeção do catálogo e do host; não verifica recursos da receita, extensões, outputs nem elegibilidade de ship.',
   }, null, 2))

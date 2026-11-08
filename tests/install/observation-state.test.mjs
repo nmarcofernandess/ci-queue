@@ -81,6 +81,7 @@ test("launcher defaults CI_QUEUE_STATE_DIR; observe lands in custom state", () =
   try {
     cpSync(join(productRoot, "dist"), join(root, "dist"), { recursive: true })
     cpSync(join(productRoot, "bin"), join(root, "bin"), { recursive: true })
+    cpSync(join(productRoot, "consumer"), join(root, "consumer"), { recursive: true })
     mkdirSync(compatibility, { recursive: true })
     writeFileSync(join(compatibility, "sentinel.json"), "{}\n")
     const { destination } = buildRelease({

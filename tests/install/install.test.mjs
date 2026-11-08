@@ -155,10 +155,12 @@ test("installed CLI reports its own manifest independently of source and cwd", (
   try {
     cpSync(join(productRoot, "dist"), join(root, "dist"), { recursive: true })
     cpSync(join(productRoot, "bin"), join(root, "bin"), { recursive: true })
+    cpSync(join(productRoot, "consumer"), join(root, "consumer"), { recursive: true })
     const { destination } = buildRelease({ root, outputDir: join(root, "bundles"), revision: "e".repeat(40) })
     const installed = installRelease({ bundle: destination, prefix: join(root, "installed"), stateRoot: join(root, "state") })
     rmSync(join(root, "dist"), { recursive: true })
     rmSync(join(root, "bin"), { recursive: true })
+    rmSync(join(root, "consumer"), { recursive: true })
     const env = releaseEnvironment(installed.releasePath, process.env)
     const result = JSON.parse(execFileSync(process.execPath, [join(installed.releasePath, "bin", "ci-queue.mjs"), "version", "--json"], { cwd: tmpdir(), encoding: "utf8", env }))
     assert.equal(result.ok, true)

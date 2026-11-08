@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto"
 import assert from "node:assert/strict"
 import { spawn, spawnSync } from "node:child_process"
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, realpathSync, existsSync } from "node:fs"
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, realpathSync, existsSync, lstatSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -61,8 +62,21 @@ const handleMessage=async (message,reply=send)=>{
   if(p.status!==0)throw new Error(p.stderr);result=p.stdout.trim();
  }
  if(message.action==='child') {
-  child=spawn(join(handle.directory,'bin/node'),['-e',"const {spawn}=require('node:child_process');spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});setInterval(()=>{},1000)"],{env:{...process.env,...handle.env},detached:true,stdio:'ignore'});
-  await new Promise(resolve=>setTimeout(resolve,180));result=probeProcessGroupIdentity(child.pid);
+  // Both guarded processes must execute their preload before checkpointing.
+  // A fixed sleep can leave a live group absent from the session evidence.
+  const leafCode="process.send({ready:true});setInterval(()=>{},1000)";
+  const leaderCode="const {spawn}=require('node:child_process');const leaf=spawn(process.execPath,['-e',"+JSON.stringify(leafCode)+"],{stdio:['ignore','ignore','ignore','ipc']});leaf.once('message',()=>{leaf.disconnect();process.send({ready:true})});setInterval(()=>{},1000)";
+  child=spawn(join(handle.directory,'bin/node'),['-e',leaderCode],{env:{...process.env,...handle.env},detached:true,stdio:['ignore','ignore','ignore','ipc']});
+  try {
+   await new Promise((resolve,reject)=>{
+    const finish=error=>{clearTimeout(timer);child.off('message',ready);child.off('error',failed);child.off('exit',exited);error?reject(error):resolve()};
+    const ready=message=>finish(message.ready?undefined:new Error('invalid child readiness'));
+    const failed=error=>finish(error),exited=code=>finish(new Error('guarded child exited '+code));
+    const timer=setTimeout(()=>finish(new Error('guarded child readiness timeout')),15000);
+    child.once('message',ready);child.once('error',failed);child.once('exit',exited);
+   });
+  } catch(error) {if(probeProcessGroupIdentity(child.pid))process.kill(-child.pid,'SIGTERM');throw error;}
+  child.disconnect();result=probeProcessGroupIdentity(child.pid);
  }
  if(message.action==='stop-child') {const done=new Promise(resolve=>child.once('exit',resolve));process.kill(-child.pid,'SIGTERM');await done;result=true;}
  if(message.action==='prepare-requirement-change') {
@@ -316,5 +330,46 @@ test("recovery rejects JSON array operationId before authority or bundle effects
     assert.equal(existsSync(handle.directory),true)
     assert.equal(readFileSync(privateRecord(root),"utf8"),before)
     assert.equal(must(await actor.call("recover",{...input,operationId:"valid-operation"})).session.disposition,"released")
+  } finally {await Promise.all([stop(owner),stop(actor)]);rmSync(root,{recursive:true,force:true})}
+})
+
+
+test("filesystem recovery requires exact observation and paired device drift; operational handles stay strict", async () => {
+  const root=fixture(),owner=worker(root,"owner"),actor=worker(root,"recovery")
+  try {
+    const {handle}=await owner.ready; await actor.ready
+    must(await owner.call("detach-job"))
+    const original=readRecord(root)
+    const identity=p=>{const {uid,ino,dev}=lstatSync(p);return {uid,ino,dev}}
+    const catalog=identity(join(root,"runtime-sessions")),bundle=identity(handle.directory)
+    const shifted={...original,catalogIdentity:{...original.catalogIdentity,dev:catalog.dev+1},directoryIdentity:{...original.directoryIdentity,dev:catalog.dev+1}}
+    const write=value=>writeFileSync(privateRecord(root),JSON.stringify(value),{mode:0o600})
+    const observe=()=>({recordSha256:createHash("sha256").update(readFileSync(privateRecord(root))).digest("hex"),catalog,bundle})
+    write(shifted)
+    const input={mode:"recover",root,operationId:"device-recovery",original:{runtimeId:original.runtimeId,projectId:original.projectId,sessionId:original.sessionId,bindingDigest:original.bindingDigest,expectedStateRevision:original.stateRevision}}
+    assert.match((await owner.call("checkpoint")).error,/RUNTIME_SESSION_UNCERTAIN/)
+    assert.match((await actor.call("recover",input)).error,/RUNTIME_SESSION_UNCERTAIN/)
+    assert.match((await actor.call("recover",{...input,filesystemObservation:observe()})).error,/RUNTIME_SESSION_OCCUPIED/)
+    assert.deepEqual(readRecord(root),shifted)
+    await stop(owner)
+    for(const changed of [
+      {...shifted,catalogIdentity:{...shifted.catalogIdentity,ino:catalog.ino+1}},
+      {...shifted,directoryIdentity:{...shifted.directoryIdentity,ino:bundle.ino+1}},
+      {...shifted,directoryIdentity:{...shifted.directoryIdentity,dev:catalog.dev+2}},
+    ]) {
+      write(changed)
+      assert.match((await actor.call("recover",{...input,filesystemObservation:observe()})).error,/RUNTIME_SESSION_UNCERTAIN/)
+      assert.deepEqual(readRecord(root),changed);assert.equal(existsSync(handle.directory),true)
+    }
+    write(shifted)
+    const observation=observe()
+    assert.match((await actor.call("recover",{...input,filesystemObservation:{...observation,recordSha256:"0".repeat(64)}})).error,/RUNTIME_SESSION_UNCERTAIN/)
+    const receipt=must(await actor.call("recover",{...input,filesystemObservation:observation}))
+    assert.equal(receipt.session.disposition,"released")
+    assert.deepEqual(readRecord(root).catalogIdentity,catalog)
+    assert.deepEqual(readRecord(root).identityRecovery.catalogBefore,shifted.catalogIdentity)
+    assert.equal(receipt.session.identityRecovery,undefined)
+    assert.equal(existsSync(handle.directory),false)
+    assert.deepEqual(must(await actor.call("recover",{...input,filesystemObservation:observation})),receipt)
   } finally {await Promise.all([stop(owner),stop(actor)]);rmSync(root,{recursive:true,force:true})}
 })

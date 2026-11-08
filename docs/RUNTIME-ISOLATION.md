@@ -220,3 +220,35 @@ O consumidor decide o lifecycle de outputs, temporários, dados e cache. Preserv
 cache útil de dev/build; cache não é output selecionado nem resíduo que a Queue
 deva apagar. Um build descartável precisa de política explícita no seu produtor,
 sem timer, TTL global ou faxina manual como pré-condição do próximo comando.
+
+
+## Ambiente público estruturado
+
+No argv mediado, `env -u NAME [-u OTHER] [--] NAME=value comando ...` conserva
+inputs ausentes, vazios e preenchidos sem herdar um valor indevido do worker.
+Somente a forma curta `-u` com nome lexical de variável é admitida; controles
+reservados de runtime não podem ser removidos ou sobrescritos. O restante do
+comando continua validado. `env -i`, opções arbitrárias e shell login/interativo
+não ganham permissão por esse prefixo. O consumidor projeta somente os inputs
+públicos que conhece, nunca todo o ambiente, credenciais ou identidade de job.
+
+
+### Recovery com mudança de device observada
+
+Em `runtime release-session --stdin`, o modo recover aceita opcionalmente
+`filesystemObservation`: `recordSha256` dos bytes privados observados e
+`catalog`/`bundle`, cada um com uid, ino e dev atuais. Omitir esse campo mantém
+a recusa de identidade divergente. Checkpoint e release normal continuam estritos.
+
+O recovery admite somente mudança uniforme de dev no catálogo e bundle que
+mantêm UID/inode, paths privados canônicos e bundle presente. Hash/stats são
+conferidos sob lock; binding original, CAS, ator e morte de produtor, owner e
+**todos os grupos** continuam obrigatórios. Evidência Node inválida não recebe
+exceção. A observação não demonstra identidade histórica do volume nem permite
+reutilizar a sessão: serve exclusivamente para seu encerramento.
+
+A transição closing registra `identityRecovery` privado com operationId, hash e
+identidades antes/depois. O recibo público permanece igual. Reentrada usa a mesma
+operação e o CAS original, inclusive depois de concluir released; outra operação
+não herda autoridade. O instalador recebe posteriormente released e bundle ausente.
+Não editar o JSON privado, trocar state ou remover locks para recuperar a sessão.

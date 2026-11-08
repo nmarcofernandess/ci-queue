@@ -15,8 +15,6 @@ result is recorded), open the [method map](.context/patterns/ci.yaml) from the
 **consumer repository root** and follow its `method` owner (default
 `docs/ci/TESTING-METHOD.md`, or the existing consumer procedure).
 
-Pending validations belong to the consumer's Git record; they are information,
-not a merge gate or an execution trigger. The consumer owns outputs, caches and
-resource lifecycle; recovering a finalization reuses the same ID through the
-public entry. Generic reference:
-[CI Queue testing method](https://github.com/nmarcofernandess/ci-queue/blob/main/docs/TESTING-METHOD.md).
+For generic execution and diagnosis, use `ci-queue:operate`; for pending
+validations, use `ci-queue:validations`. The method map above owns local choices.
+[Adoption contract](https://github.com/nmarcofernandess/ci-queue/blob/main/docs/CONSUMER-QUICKSTART.md).

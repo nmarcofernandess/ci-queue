@@ -183,3 +183,10 @@ não prova portas livres nem ausência de sessões direct. Dados apenas reservad
 não bloqueiam instalação. O [contrato de runtime](RUNTIME-ISOLATION.md#observação-e-manutenção)
 define identidade, limites e recuperação. Capability no código ou bundle staged
 não prova instalação/ativação dessa revisão, nem habilita o consumidor por si.
+
+
+Quando recovery recusar uma mudança uniforme de device, a versão 0.3.2 oferece
+[observação explícita no protocolo privado](RUNTIME-ISOLATION.md#recovery-com-mudança-de-device-observada).
+Use a CLI do bundle corrigido e verificado, no mesmo state, para concluir o
+recovery antes do update. Isso não instala o bundle nem dispensa a verificação
+de ownership; mantenha o bundle anterior e confira depois a versão efetiva.

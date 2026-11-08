@@ -40,6 +40,7 @@ export type SessionRuntimeHandle = {
 }
 export type SessionRuntimeRecovery = {
   mode: "recover"; root: string; operationId: string
+  filesystemObservation?: { recordSha256: string; catalog: { uid: number; ino: number; dev: number }; bundle: { uid: number; ino: number; dev: number } }
   original: { runtimeId: string; projectId: string; sessionId: string; bindingDigest: string; expectedStateRevision: number }
   recoveryOwnerStamp: { pid: number; pgid: number; startedAt: string }
 }

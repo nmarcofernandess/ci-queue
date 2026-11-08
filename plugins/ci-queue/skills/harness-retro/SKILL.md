@@ -6,7 +6,7 @@ description: Use quando o usuário pedir retrospectiva ou registro de fricção 
 # Retrospectiva do harness
 
 Use o bootstrap da entrada `ci-queue:ci-queue`, localizada pelo catálogo do host.
-Leia [fontes](https://github.com/nmarcofernandess/ci-queue/blob/dev/plugins/ci-queue/references/sources.md) na revisão resolvida e procure o backlog/procedimento do
+Leia [fontes](https://github.com/nmarcofernandess/ci-queue/blob/main/plugins/ci-queue/references/sources.md) na revisão resolvida e procure o backlog/procedimento do
 harness já declarado no consumidor. Reutilize sua taxonomia, IDs e fingerprints.
 No DietFlow, a skill `dietflow-harness-retro` e o backlog que ela aponta continuam
 donos locais; o plugin não os substitui por dados genéricos.
