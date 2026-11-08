@@ -83,7 +83,10 @@ function resolveExecutor({ explicit, environment, configured, host } = {}) {
 
 function appendRecipeArgs(argv, extraArgs) {
   if (!Array.isArray(argv) || !argv.length || argv.some(value => typeof value !== 'string') || !Array.isArray(extraArgs) || extraArgs.some(value => typeof value !== 'string')) throw new Error('argv e argumentos devem ser arrays de strings; argv não pode ser vazio.')
-  return extraArgs.length ? [...argv, ...(argv.at(-1) === '--' ? [] : ['--']), ...extraArgs] : [...argv]
+  // npm consumes its own options before forwarding to the script. Native
+  // programs receive argv directly; inserting -- there changes their request.
+  const npm = /(?:^|[\\/])npm(?:\.cmd)?$/.test(argv[0])
+  return extraArgs.length ? [...argv, ...(npm && argv.at(-1) !== '--' ? ['--'] : []), ...extraArgs] : [...argv]
 }
 
 // Facts come from the consumer and engine. This API never discovers tests.
