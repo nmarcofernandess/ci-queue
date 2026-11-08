@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto"
 import assert from "node:assert/strict"
 import { spawn, spawnSync } from "node:child_process"
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, realpathSync, existsSync } from "node:fs"
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, realpathSync, existsSync, lstatSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -329,5 +330,46 @@ test("recovery rejects JSON array operationId before authority or bundle effects
     assert.equal(existsSync(handle.directory),true)
     assert.equal(readFileSync(privateRecord(root),"utf8"),before)
     assert.equal(must(await actor.call("recover",{...input,operationId:"valid-operation"})).session.disposition,"released")
+  } finally {await Promise.all([stop(owner),stop(actor)]);rmSync(root,{recursive:true,force:true})}
+})
+
+
+test("filesystem recovery requires exact observation and paired device drift; operational handles stay strict", async () => {
+  const root=fixture(),owner=worker(root,"owner"),actor=worker(root,"recovery")
+  try {
+    const {handle}=await owner.ready; await actor.ready
+    must(await owner.call("detach-job"))
+    const original=readRecord(root)
+    const identity=p=>{const {uid,ino,dev}=lstatSync(p);return {uid,ino,dev}}
+    const catalog=identity(join(root,"runtime-sessions")),bundle=identity(handle.directory)
+    const shifted={...original,catalogIdentity:{...original.catalogIdentity,dev:catalog.dev+1},directoryIdentity:{...original.directoryIdentity,dev:catalog.dev+1}}
+    const write=value=>writeFileSync(privateRecord(root),JSON.stringify(value),{mode:0o600})
+    const observe=()=>({recordSha256:createHash("sha256").update(readFileSync(privateRecord(root))).digest("hex"),catalog,bundle})
+    write(shifted)
+    const input={mode:"recover",root,operationId:"device-recovery",original:{runtimeId:original.runtimeId,projectId:original.projectId,sessionId:original.sessionId,bindingDigest:original.bindingDigest,expectedStateRevision:original.stateRevision}}
+    assert.match((await owner.call("checkpoint")).error,/RUNTIME_SESSION_UNCERTAIN/)
+    assert.match((await actor.call("recover",input)).error,/RUNTIME_SESSION_UNCERTAIN/)
+    assert.match((await actor.call("recover",{...input,filesystemObservation:observe()})).error,/RUNTIME_SESSION_OCCUPIED/)
+    assert.deepEqual(readRecord(root),shifted)
+    await stop(owner)
+    for(const changed of [
+      {...shifted,catalogIdentity:{...shifted.catalogIdentity,ino:catalog.ino+1}},
+      {...shifted,directoryIdentity:{...shifted.directoryIdentity,ino:bundle.ino+1}},
+      {...shifted,directoryIdentity:{...shifted.directoryIdentity,dev:catalog.dev+2}},
+    ]) {
+      write(changed)
+      assert.match((await actor.call("recover",{...input,filesystemObservation:observe()})).error,/RUNTIME_SESSION_UNCERTAIN/)
+      assert.deepEqual(readRecord(root),changed);assert.equal(existsSync(handle.directory),true)
+    }
+    write(shifted)
+    const observation=observe()
+    assert.match((await actor.call("recover",{...input,filesystemObservation:{...observation,recordSha256:"0".repeat(64)}})).error,/RUNTIME_SESSION_UNCERTAIN/)
+    const receipt=must(await actor.call("recover",{...input,filesystemObservation:observation}))
+    assert.equal(receipt.session.disposition,"released")
+    assert.deepEqual(readRecord(root).catalogIdentity,catalog)
+    assert.deepEqual(readRecord(root).identityRecovery.catalogBefore,shifted.catalogIdentity)
+    assert.equal(receipt.session.identityRecovery,undefined)
+    assert.equal(existsSync(handle.directory),false)
+    assert.deepEqual(must(await actor.call("recover",{...input,filesystemObservation:observation})),receipt)
   } finally {await Promise.all([stop(owner),stop(actor)]);rmSync(root,{recursive:true,force:true})}
 })
