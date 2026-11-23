@@ -114,6 +114,13 @@ use `useTable`, registered `tableFeatures`, stable inputs and
 installed dependency or abandon the Dashboard 01 `DataTable` composition for a
 CSS grid when an API name differs.
 
+## ui-sdk
+
+Before using ui-sdk, follow the `ui-sdk` skill if it is installed and read
+`node_modules/@ui-sdk/react/docs/llms.txt`. To build a new component, also
+search `node_modules/@ui-sdk/react/docs/core.md` by heading and read
+`rendering.md` in the same directory. These paths are relative to `ui/`.
+
 ## UI invariants
 
 - Use installed shadcn components and their variants before custom markup.
